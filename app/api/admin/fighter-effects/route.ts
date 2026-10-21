@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
+import { invalidateGangWeaponRules } from '@/utils/cache-tags';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -347,6 +348,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
         
+        invalidateGangWeaponRules();
         return NextResponse.json(data);
       } catch (error) {
         console.error('Error in modifier creation:', error);
@@ -363,14 +365,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Effect name is required' }, { status: 400 });
     }
     
-    // Ensure equipment_id is a properly formatted string
+    // Ensure equipment_id, when there is one, is a properly formatted string
     let typeSpecificData = null;
     if (body.type_specific_data) {
       if (typeof body.type_specific_data === 'object') {
         // If it's already an object, ensure equipment_id is a string and preserve all other fields
         typeSpecificData = {
           ...body.type_specific_data,
-          equipment_id: String(body.type_specific_data.equipment_id)
+          ...(body.type_specific_data.equipment_id !== undefined && { equipment_id: String(body.type_specific_data.equipment_id) })
         };
       } else if (typeof body.type_specific_data === 'string') {
         // If it's a string, try to parse it as JSON
@@ -378,7 +380,7 @@ export async function POST(request: NextRequest) {
           const parsed = JSON.parse(body.type_specific_data);
           typeSpecificData = {
             ...parsed,
-            equipment_id: String(parsed.equipment_id)
+            ...(parsed.equipment_id !== undefined && { equipment_id: String(parsed.equipment_id) })
           };
         } catch (e) {
           console.error('Error parsing type_specific_data as JSON:', e);
@@ -499,6 +501,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    invalidateGangWeaponRules();
     return NextResponse.json(data);
   } catch (error: any) {
     console.error('Error in PATCH handler:', error);
@@ -573,6 +576,7 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       
+      invalidateGangWeaponRules();
       return NextResponse.json({ success: true });
     }
     
@@ -598,6 +602,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
+    invalidateGangWeaponRules();
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error in DELETE handler:', error);

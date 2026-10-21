@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse, LuFlaskConical } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { TbCards } from "react-icons/tb";
@@ -18,6 +18,7 @@ import { AdminEditVehicleTypeModal } from "@/components/admin/admin-edit-vehicle
 import { AdminStatsModal } from "@/components/admin/admin-stats-modal";
 import { AdminScenariosModal } from "@/components/admin/admin-scenarios-modal";
 import { AdminInjuriesGlitchesModal } from "@/components/admin/admin-injuries";
+import { AdminGangWeaponRulesModal } from "@/components/admin/admin-gang-weapon-rules";
 import { AdminAlliancesModal } from "@/components/admin/admin-alliances";
 import { AdminGangTypesModal } from "@/components/admin/admin-gang-types";
 import { AdminTacticsCardsModal } from "@/components/admin/admin-tactics-cards";
@@ -39,6 +40,7 @@ export default function AdminPage() {
   const [showStats, setShowStats] = useState(false);
   const [showScenarios, setShowScenarios] = useState(false);
   const [showInjuriesGlitches, setShowInjuriesGlitches] = useState(false);
+  const [showGangWeaponRules, setShowGangWeaponRules] = useState(false);
   const [showAlliances, setShowAlliances] = useState(false);
   const [showGangTypes, setShowGangTypes] = useState(false);
   const [showTacticsCards, setShowTacticsCards] = useState(false);
@@ -119,6 +121,12 @@ export default function AdminPage() {
       description: "Manage lasting injuries and rig glitches",
       action: () => setShowInjuriesGlitches(true),
       icon: LuHeartCrack
+    },
+    {
+      title: "Gang Weapon Rules",
+      description: "Manage weapon rules a gang applies to its own fighters",
+      action: () => setShowGangWeaponRules(true),
+      icon: LuFlaskConical
     },
     {
       title: "Campaigns, Territories, & Triumphs",
@@ -307,6 +315,10 @@ export default function AdminPage() {
             onClose={() => setShowInjuriesGlitches(false)}
             onSubmit={() => setShowInjuriesGlitches(false)}
           />
+        )}
+
+        {showGangWeaponRules && (
+          <AdminGangWeaponRulesModal onClose={() => setShowGangWeaponRules(false)} />
         )}
 
         {showAlliances && (

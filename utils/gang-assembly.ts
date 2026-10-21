@@ -78,6 +78,11 @@ function buildProfileMaps(equipmentRows: any[]) {
   return { standardProfilesMap, standardAmmoByParentWeapon, customProfilesMap, customAmmoByParentWeapon };
 }
 
+/** The gang's weapon rules when the fighter is of the gang's own gang type, else none */
+function gangWeaponRulesFor(bundle: GangFightersBundle, fighterType: { gang_type_id?: string | null } | null | undefined) {
+  return bundle.gangTypeId && fighterType?.gang_type_id === bundle.gangTypeId ? bundle.gangWeaponRules : [];
+}
+
 /**
  * Assemble the gang page fighters list (GangFighter[]) from the raw bundle.
  * expandLoadoutsForPrint emits one entry per loadout for the print roster —
@@ -364,6 +369,7 @@ export function assembleGangFighters(
           : null;
 
         const fighterWideEffects = fighterWideWeaponEffects(Object.values(effects).flat());
+        const gangWeaponRules = gangWeaponRulesFor(bundle, fighter.fighter_types);
 
         // Process equipment and add weapon profiles
         const processedEquipment = equipment.map((item: any) => {
@@ -424,6 +430,8 @@ export function assembleGangFighters(
             if (targetingEffects.length > 0) {
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
+            // After the fighter's own effects, so a trait an upgrade adds counts
+            weaponProfiles = applyWeaponModifiers(weaponProfiles, gangWeaponRules);
           }
 
           // Get effect names that target this equipment
@@ -995,6 +1003,8 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     myEffects.filter((e: any) => !activeLoadoutEquipmentIds || !e.fighter_equipment_id || activeLoadoutEquipmentIds.has(e.fighter_equipment_id))
   );
 
+  const gangWeaponRules = gangWeaponRulesFor(bundle, fighterRow?.fighter_types);
+
   // Standard profile map from nested profiles of the fighter's own equipment;
   // each profile is also aliased under its weapon_group_id (grouped weapons,
   // e.g. smoke grenades) when the fighter owns the profile's weapon.
@@ -1066,6 +1076,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }
+      weaponProfiles = applyWeaponModifiers(weaponProfiles, gangWeaponRules);
     }
 
     const effectNames = targetingEffectNamesMap.get(item.id) || [];

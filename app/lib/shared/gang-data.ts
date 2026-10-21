@@ -13,6 +13,7 @@ import { gangEditionSlug } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { isUuid } from '@/utils/uuid';
 import { GangTacticsCard, toGangTacticsCard } from '@/types/tactics-card';
+import { resolveGangWeaponRules, type GangWeaponRuleRow } from '@/utils/gangWeaponRules';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -523,11 +524,50 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
  * utils/gang-assembly.ts.
  */
 export const getGangFightersBundle = async (gangId: string): Promise<GangFightersBundle> => {
+  // The gang's weapon rules come from separately cached entries, so editing a
+  // rule or the gang's type/subtypes takes effect without busting the roster
+  const [roster, core, weaponRules] = await Promise.all([
+    unstable_cache(
+      async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
+      [`gang-fighters-bundle-v4-${gangId}`],
+      {
+        tags: [TAGS.gangRoster(gangId)],
+        revalidate: false
+      }
+    )(),
+    getGangCore(gangId),
+    getGangWeaponRules()
+  ]);
+  return {
+    ...roster,
+    gangTypeId: core?.gang_type_id ?? null,
+    gangWeaponRules: core ? resolveGangWeaponRules(weaponRules, core) : []
+  };
+};
+
+/**
+ * Every gang weapon rule row with its effect type and modifiers. A handful of
+ * rows game-wide, resolved per gang by resolveGangWeaponRules.
+ * Cache: global-gang-weapon-rules
+ */
+export const getGangWeaponRules = async (): Promise<GangWeaponRuleRow[]> => {
   return unstable_cache(
-    async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
-    [`gang-fighters-bundle-v4-${gangId}`],
+    async () => getAppDb().query.gangWeaponRules.findMany({
+      columns: { gang_type_id: true, gang_origin_id: true, gang_subtype_id: true, excluded: true },
+      with: {
+        fighter_effect_type: {
+          columns: { id: true, effect_name: true, type_specific_data: true },
+          with: {
+            fighter_effect_type_modifiers: {
+              columns: { stat_name: true, default_numeric_value: true, operation: true }
+            }
+          }
+        }
+      }
+    }),
+    ['gang-weapon-rules'],
     {
-      tags: [TAGS.gangRoster(gangId)],
+      tags: [TAGS.globalGangWeaponRules()],
       revalidate: false
     }
   )();
@@ -772,7 +812,10 @@ function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number |
 }
 
 /** Flatten the nested roster into the bundle's per-table lists. */
-function flattenRoster(gangId: string, gang: Awaited<ReturnType<typeof rosterQuery>>): GangFightersBundle {
+function flattenRoster(
+  gangId: string,
+  gang: Awaited<ReturnType<typeof rosterQuery>>
+): Omit<GangFightersBundle, 'gangTypeId' | 'gangWeaponRules'> {
   const fighterRows = gang?.fighters ?? [];
   const vehicleRows = gang?.vehicles ?? [];
   const rows = [...fighterRows, ...vehicleRows];

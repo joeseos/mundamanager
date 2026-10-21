@@ -491,6 +491,27 @@ export const fighterEffectTypes = pgTable('fighter_effect_types', {
   edition_id: uuid('edition_id'),
 });
 
+export const fighterEffectTypeModifiers = pgTable('fighter_effect_type_modifiers', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fighter_effect_type_id: uuid('fighter_effect_type_id'),
+  stat_name: text('stat_name'),
+  default_numeric_value: integer('default_numeric_value'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  operation: text('operation'),
+});
+
+export const gangWeaponRules = pgTable('gang_weapon_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  fighter_effect_type_id: uuid('fighter_effect_type_id').notNull(),
+  gang_type_id: uuid('gang_type_id'),
+  gang_origin_id: uuid('gang_origin_id'),
+  gang_subtype_id: uuid('gang_subtype_id'),
+  excluded: boolean('excluded').default(false).notNull(),
+});
+
 export const fighterEffectCategories = pgTable('fighter_effect_categories', {
   id: uuid('id').defaultRandom().primaryKey(),
   category_name: text('category_name'),
@@ -1359,10 +1380,25 @@ export const fighterEffectsRelations = relations(fighterEffects, ({ one, many })
   fighter_effect_modifiers: many(fighterEffectModifiers),
 }));
 
-export const fighterEffectTypesRelations = relations(fighterEffectTypes, ({ one }) => ({
+export const fighterEffectTypesRelations = relations(fighterEffectTypes, ({ one, many }) => ({
   fighter_effect_category: one(fighterEffectCategories, {
     fields: [fighterEffectTypes.fighter_effect_category_id],
     references: [fighterEffectCategories.id],
+  }),
+  fighter_effect_type_modifiers: many(fighterEffectTypeModifiers),
+}));
+
+export const fighterEffectTypeModifiersRelations = relations(fighterEffectTypeModifiers, ({ one }) => ({
+  fighter_effect_type: one(fighterEffectTypes, {
+    fields: [fighterEffectTypeModifiers.fighter_effect_type_id],
+    references: [fighterEffectTypes.id],
+  }),
+}));
+
+export const gangWeaponRulesRelations = relations(gangWeaponRules, ({ one }) => ({
+  fighter_effect_type: one(fighterEffectTypes, {
+    fields: [gangWeaponRules.fighter_effect_type_id],
+    references: [fighterEffectTypes.id],
   }),
 }));
 

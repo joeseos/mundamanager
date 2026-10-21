@@ -293,11 +293,27 @@ function splitTraits(traits: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-function requiredTraitsOf(effect: { type_specific_data?: TraitModificationData | string | null }): string[] {
+function traitListOf(
+  effect: { type_specific_data?: TraitModificationData | string | null },
+  key: 'requires_traits' | 'excludes_traits'
+): string[] {
   const tsd = typeof effect.type_specific_data === 'object' ? effect.type_specific_data : null;
-  return Array.isArray(tsd?.requires_traits)
-    ? tsd.requires_traits.map(t => t.trim().toLowerCase()).filter(Boolean)
+  const traits = tsd?.[key];
+  return Array.isArray(traits)
+    ? traits.map(t => t.trim().toLowerCase()).filter(Boolean)
     : [];
+}
+
+function requiredTraitsOf(effect: { type_specific_data?: TraitModificationData | string | null }): string[] {
+  return traitListOf(effect, 'requires_traits');
+}
+
+/** Lowercased traits, each also by its name alone so "Toxin" matches "Toxin (4+)" */
+function traitMatchKeys(traits: string | null | undefined): Set<string> {
+  return new Set(splitTraits(traits).flatMap(t => {
+    const lower = t.toLowerCase();
+    return [lower, lower.replace(/\s*\(.*\)$/, '')];
+  }));
 }
 
 /** The fighter's requires_traits effects (e.g. multi-harness). Trait changes only: their stat modifiers are the fighter's */
@@ -329,10 +345,11 @@ export function applyWeaponModifiers(
     // Work on a copy
     const modified = { ...profile };
 
-    const baseTraits = splitTraits(profile.traits).map(t => t.toLowerCase());
+    const baseTraits = traitMatchKeys(profile.traits);
     const profileEffects = validEffects.filter(eff => {
       const required = requiredTraitsOf(eff);
-      return required.length === 0 || required.some(t => baseTraits.includes(t));
+      return (required.length === 0 || required.some(t => baseTraits.has(t)))
+        && !traitListOf(eff, 'excludes_traits').some(t => baseTraits.has(t));
     });
 
     // Apply numeric fields with add/set operations
