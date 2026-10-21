@@ -29,8 +29,7 @@ export default function CampaignBattleSessions({
       editionSlug={editionSlug}
       variant="table"
       sessionUrl={(id) => `/campaigns/${campaignId}/battle-session/${id}`}
-      wrapper={(children) => children}
-      subheader
+      embedded
     />
   );
 }

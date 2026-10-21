@@ -50,7 +50,6 @@ interface CampaignBattleLogsListProps {
   }) => void;
   members: Member[];
   territories?: CampaignBattleLogsTerritory[];
-  noContainer?: boolean;
   hideAddButton?: boolean;
   canStartChallengeRound?: boolean;
   userId: string;
@@ -93,7 +92,6 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     onTerritoryUpdate,
     members,
     territories = [],
-    noContainer = false,
     hideAddButton = false,
     canStartChallengeRound = false,
     userId,
@@ -1116,15 +1114,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     </Button>
   );
 
-  // The content to render
-  const content = (
+  return (
     <>
-      {!noContainer && (
-        <div className="mb-4">
-          <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-        </div>
-      )}
-
       {/* Filter Section */}
       <div className="mb-4">
         <div className="flex items-center justify-between">
@@ -1504,12 +1495,5 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         />
       )}
     </>
-  );
-
-  // Return with or without a container based on prop
-  return noContainer ? content : (
-    <div className="bg-card shadow-md rounded-lg p-4">
-      {content}
-    </div>
   );
 }

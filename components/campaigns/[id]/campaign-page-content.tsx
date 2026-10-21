@@ -908,7 +908,6 @@ export default function CampaignPageContent({
                     }}
                     members={campaignData.members}
                     territories={campaignData.territories}
-                    noContainer={true}
                     hideAddButton={!safePermissions.canAddBattleLogs}
                     canStartChallengeRound={!!safePermissions.canEditCampaign}
                     userId={userId || ''}

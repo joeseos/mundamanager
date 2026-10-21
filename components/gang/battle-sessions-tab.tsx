@@ -23,8 +23,8 @@ interface BattleSessionsListProps {
   variant?: 'cards' | 'table';
   sessionUrl: (sessionId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
-  /** Use a sub-header, for when the list sits inside another card. */
-  subheader?: boolean;
+  /** Sits inside another card: no card of its own, and a sub-header. */
+  embedded?: boolean;
 }
 
 export default function BattleSessionsList({
@@ -39,7 +39,7 @@ export default function BattleSessionsList({
   variant = 'cards',
   sessionUrl,
   wrapper,
-  subheader = false,
+  embedded = false,
 }: BattleSessionsListProps) {
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
@@ -52,8 +52,8 @@ export default function BattleSessionsList({
 
   const content = (
     <>
-      <div className={`flex justify-between ${subheader ? 'mb-3 items-center' : 'mb-4 items-start'}`}>
-        {subheader ? (
+      <div className={`flex justify-between ${embedded ? 'mb-3 items-center' : 'mb-4 items-start'}`}>
+        {embedded ? (
           <h3 className="text-lg font-bold">Battle Sessions</h3>
         ) : (
           <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
@@ -159,6 +159,8 @@ export default function BattleSessionsList({
       )}
     </>
   );
+
+  if (embedded) return content;
 
   return wrapper ? <>{wrapper(content)}</> : (
     <div className="bg-card shadow-md rounded-lg p-4">{content}</div>
