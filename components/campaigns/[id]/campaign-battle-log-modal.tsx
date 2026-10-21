@@ -891,7 +891,7 @@ const CampaignBattleLogModal = ({
           ? "Add Challenge"
           : isUnplayedChallenge
             ? (battlePlayed ? "File Battle Report" : "Challenge")
-            : (isEditMode ? "Edit Battle Report" : "Add Battle Report")
+            : (isEditMode ? "Edit Battle Report" : "Add Battle Log")
       }
       helper="Fields marked with * are required."
       content={
@@ -1387,7 +1387,7 @@ const CampaignBattleLogModal = ({
           ? "Add Challenge"
           : isUnplayedChallenge
             ? (battlePlayed ? "File Battle Report" : "Save Challenge")
-            : (isEditMode ? "Update" : "Add Battle Report")
+            : (isEditMode ? "Update" : "Add Battle Log")
       }
       confirmDisabled={isLoadingBattleData || !formValid || isReportOverLimit}
     />

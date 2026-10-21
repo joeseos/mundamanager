@@ -1108,7 +1108,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         setShowBattleModal(true);
       }}
       className="bg-neutral-900 hover:bg-gray-800 text-white"
-      aria-label={asChallenge ? "Add challenge" : "Add battle report"}
+      aria-label={asChallenge ? "Add challenge" : "Add battle log"}
     >
       Add
     </Button>
