@@ -4994,7 +4994,8 @@ CREATE TABLE public.campaign_territories (
     description text,
     map_object_id uuid,
     map_hex_coords jsonb,
-    show_name_on_map boolean DEFAULT true
+    show_name_on_map boolean DEFAULT true,
+    credits numeric
 );
 
 
