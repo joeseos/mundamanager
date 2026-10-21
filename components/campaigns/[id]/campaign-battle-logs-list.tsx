@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import { toast } from 'sonner';
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
@@ -50,19 +50,16 @@ interface CampaignBattleLogsListProps {
   }) => void;
   members: Member[];
   territories?: CampaignBattleLogsTerritory[];
-  noContainer?: boolean;
   hideAddButton?: boolean;
+  canStartChallengeRound?: boolean;
   userId: string;
   isCampaignOwner?: boolean;
   isCampaignAdmin?: boolean;
   currentCycle?: number | null;
   /** The campaign edition's scenario tables: N26 battles are made from them. */
   scenarioTables?: ScenarioTableWithEntries[];
-}
-
-export interface CampaignBattleLogsListRef {
-  openAddModal: () => void;
-  openChallengeRoundModal: () => void;
+  /** Shown between the battle logs and the standings. */
+  battleSessions?: ReactNode;
 }
 
 const formatRole = (role: MemberRole | undefined) => {
@@ -84,7 +81,7 @@ const formatDate = (dateString: string | null) => {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 };
 
-const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>((props, ref) => {
+export default function CampaignBattleLogsList(props: CampaignBattleLogsListProps) {
   const {
     campaignId,
     editionSlug,
@@ -95,19 +92,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     onTerritoryUpdate,
     members,
     territories = [],
-    noContainer = false,
     hideAddButton = false,
+    canStartChallengeRound = false,
     userId,
     isCampaignOwner = false,
     isCampaignAdmin = false,
     currentCycle = null,
     scenarioTables = [],
+    battleSessions,
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const [addingChallenge, setAddingChallenge] = useState(false);
   const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -142,8 +140,6 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const itemsPerPage = 10;
 
   // Map of gang IDs to gang names for lookup
-  const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
-  const [gangColourMap, setGangColourMap] = useState<Map<string, string>>(new Map());
 
   // State for the selected battle (will be used for edit functionality)
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
@@ -367,9 +363,12 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   };
 
   // Reset pagination when filters or sort change
-  useEffect(() => {
+  const pageResetKey = JSON.stringify([filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  const [lastPageResetKey, setLastPageResetKey] = useState(pageResetKey);
+  if (pageResetKey !== lastPageResetKey) {
+    setLastPageResetKey(pageResetKey);
     setCurrentPage(1);
-  }, [filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  }
 
   // Challenges are the outstanding work and get their own table above the played battles
   const challenges = useMemo(
@@ -422,7 +421,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const deleteBattleMutation = useMutation({
     mutationFn: async (battleId: string) => {
       const result = await deleteBattleLog(campaignId, battleId);
-      if (!result.success) throw new Error(result.error || 'Failed to delete battle report');
+      if (!result.success) throw new Error(result.error || 'Failed to delete battle log');
       return result;
     },
     onMutate: async (battleId) => {
@@ -441,7 +440,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       if (released?.campaign_territory_id && isPlayedBattle(released)) {
         onTerritoryUpdate({ action: 'remove', territoryId: released.campaign_territory_id });
       }
-      toast.success("Battle report deleted successfully");
+      toast.success("Battle log deleted successfully");
     },
     onError: (error, _battleId, context) => {
       console.error('Battle deletion failed:', error);
@@ -455,7 +454,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         });
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle log';
       toast.error(errorMessage);
     }
   });
@@ -473,50 +472,41 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     onError: () => toast.error('Failed to start battle session'),
   });
 
-  // Expose the openAddModal function to parent components
-  useImperativeHandle(ref, () => ({
-    openAddModal: () => {
-      setSelectedBattle(null);
-      setShowBattleModal(true);
-    },
-    openChallengeRoundModal: () => setShowChallengeRoundModal(true)
-  }));
-
   // Extract gangs from members
-  useEffect(() => {
-    if (members && members.length > 0) {
-      // Extract unique gangs from all members
-      const gangsMap = new Map<string, CampaignGang>();
-      const gangNamesMap = new Map<string, string>();
-      const gangColourMap = new Map<string, string>();
-      
-      members.forEach(member => {
-        if (member.gangs && member.gangs.length > 0) {
-          member.gangs.forEach(gang => {
-            // Create a unique key for each gang instance that includes member instance info
-            const gangKey = gang.id;
-            
-            if (!gangsMap.has(gangKey)) {
-              gangsMap.set(gangKey, {
-                id: gang.id,
-                name: gang.name,
-                gang_type_id: gang.gang_type_id,
-                gang_colour: gang.gang_colour,
-                campaign_member_id: member.id || gang.campaign_member_id,
-                user_id: member.user_id,
-                owner_username: member.profile?.username || member.username || 'Unknown'
-              });
-              gangNamesMap.set(gang.id, gang.name);
-              gangColourMap.set(gang.id, gang.gang_colour || '#000000');
-            }
-          });
-        }
-      });
-      
-      setAvailableGangs(Array.from(gangsMap.values()));
-      setGangNameMap(gangNamesMap);
-      setGangColourMap(gangColourMap);
-    }
+  const { availableGangs, gangNameMap, gangColourMap } = useMemo(() => {
+    // Extract unique gangs from all members
+    const gangsMap = new Map<string, CampaignGang>();
+    const gangNamesMap = new Map<string, string>();
+    const gangColourMap = new Map<string, string>();
+
+    members?.forEach(member => {
+      if (member.gangs && member.gangs.length > 0) {
+        member.gangs.forEach(gang => {
+          // Create a unique key for each gang instance that includes member instance info
+          const gangKey = gang.id;
+          
+          if (!gangsMap.has(gangKey)) {
+            gangsMap.set(gangKey, {
+              id: gang.id,
+              name: gang.name,
+              gang_type_id: gang.gang_type_id,
+              gang_colour: gang.gang_colour,
+              campaign_member_id: member.id || gang.campaign_member_id,
+              user_id: member.user_id,
+              owner_username: member.profile?.username || member.username || 'Unknown'
+            });
+            gangNamesMap.set(gang.id, gang.name);
+            gangColourMap.set(gang.id, gang.gang_colour || '#000000');
+          }
+        });
+      }
+    });
+
+    return {
+      availableGangs: Array.from(gangsMap.values()),
+      gangNameMap: gangNamesMap,
+      gangColourMap,
+    };
   }, [members]);
 
   // Get gang name by ID - prioritize battle data, fallback to member data
@@ -1110,41 +1100,22 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     </div>
   );
 
-  // The content to render
-  const content = (
-    <>
-      {!noContainer && (
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-          {!hideAddButton && (
-            <Button
-              onClick={() => {
-                setSelectedBattle(null);
-                setShowBattleModal(true);
-              }}
-              className="bg-neutral-900 hover:bg-gray-800 text-white"
-              aria-label="Add battle report"
-            >
-              Add
-            </Button>
-          )}
-        </div>
-      )}
-      {noContainer && !hideAddButton && (
-        <div className="flex justify-end mb-4">
-          <Button
-            onClick={() => {
-              setSelectedBattle(null);
-              setShowBattleModal(true);
-            }}
-            className="bg-neutral-900 hover:bg-gray-800 text-white"
-            aria-label="Add battle report"
-          >
-            Add
-          </Button>
-        </div>
-      )}
+  const renderAddButton = (asChallenge: boolean) => !hideAddButton && (
+    <Button
+      onClick={() => {
+        setSelectedBattle(null);
+        setAddingChallenge(asChallenge);
+        setShowBattleModal(true);
+      }}
+      className="bg-neutral-900 hover:bg-gray-800 text-white"
+      aria-label={asChallenge ? "Add challenge" : "Add battle log"}
+    >
+      Add
+    </Button>
+  );
 
+  return (
+    <>
       {/* Filter Section */}
       <div className="mb-4">
         <div className="flex items-center justify-between">
@@ -1270,7 +1241,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       </div>
 
       <div className="mb-8">
-        <h3 className="text-xl md:text-2xl font-bold mb-4">Challenges</h3>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-bold">Challenges</h3>
+          <div className="flex gap-2">
+            {canStartChallengeRound && (
+              <Button variant="outline" onClick={() => setShowChallengeRoundModal(true)}>
+                Challenge Round
+              </Button>
+            )}
+            {renderAddButton(true)}
+          </div>
+        </div>
         {renderBattlesTable(
           challenges,
           true,
@@ -1278,7 +1259,10 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         )}
       </div>
 
-      <h3 className="text-xl md:text-2xl font-bold mb-4">Battle Logs</h3>
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-bold">Battle Logs</h3>
+        {renderAddButton(false)}
+      </div>
       {renderBattlesTable(
         currentBattleLogs,
         false,
@@ -1314,9 +1298,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       )}
 
+      {battleSessions && <div className="mt-8">{battleSessions}</div>}
+
       {/* Standings Table */}
       <div className="mt-8">
-        <h3 className="text-xl md:text-2xl font-bold mb-4">Standings</h3>
+        <h3 className="text-lg font-bold mb-3">Standings</h3>
         <div className="rounded-md border overflow-x-auto">
           <table className="w-full text-xs md:text-sm">
             <thead>
@@ -1439,16 +1425,17 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           battleToEdit={selectedBattle}
           userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
           canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
+          newChallenge={addingChallenge}
         />
       )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <Modal
-          title="Delete Battle Report"
+          title="Delete Battle Log"
           content={
             <div>
-              <p className="mb-4">Are you sure you want to delete this battle report?</p>
+              <p className="mb-4">Are you sure you want to delete this battle log?</p>
               {battleToDelete && (
                 <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   <p><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</p>
@@ -1509,15 +1496,4 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       )}
     </>
   );
-
-  // Return with or without a container based on prop
-  return noContainer ? content : (
-    <div className="bg-card shadow-md rounded-lg p-4">
-      {content}
-    </div>
-  );
-});
-
-CampaignBattleLogsList.displayName = "CampaignBattleLogsList";
-
-export default CampaignBattleLogsList; 
+}

@@ -193,6 +193,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       territory_claimed_by_gang_id = null,
       created_at,
       cycle,
+      status = 'played',
     } = params;
 
     if (claimed_territories.length > 1) {
@@ -203,11 +204,40 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
       ? claimed_territories[0].campaign_territory_id
       : null;
 
+    // A challenge has no result yet: its territory is staked, not claimed.
+    const isChallenge = status !== 'played';
     const { participants, effectiveWinnerIds, claimerGangId } = normaliseParticipants(
       rawParticipants,
-      callerWinnerId,
-      territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
+      isChallenge ? null : callerWinnerId,
+      isChallenge
+        ? null
+        : territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
     );
+
+    // The first gang issues the challenge to the second. Answering it on the
+    // challenged gang's behalf is guarded the same way as in updateBattleLog.
+    let challengerGangId: string | null = null;
+    let challengedGangId: string | null = null;
+    if (isChallenge) {
+      if (!challengeAnswerStatuses.includes(status)) {
+        return { success: false as const, error: 'A challenge must be issued, accepted or declined' };
+      }
+      const gangIds = Array.from(new Set(participants.map((p) => p.gang_id)));
+      if (gangIds.length !== 2) {
+        return { success: false as const, error: 'A challenge needs exactly two gangs' };
+      }
+      [challengerGangId, challengedGangId] = gangIds;
+      const user = await getAuthenticatedUser(supabase);
+      if (!(await ownsGangOrArbitrates(supabase, user.id, campaignId, challengerGangId))) {
+        return { success: false as const, error: 'Only the challenging gang can issue this challenge' };
+      }
+      if (
+        status !== 'challenge_issued' &&
+        !(await ownsGangOrArbitrates(supabase, user.id, campaignId, challengedGangId))
+      ) {
+        return { success: false as const, error: 'Only the challenged gang can answer this challenge' };
+      }
+    }
 
     const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants, scenario);
     if ('error' in scenarioParts) {
@@ -239,6 +269,9 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           created_at: created_at ?? new Date().toISOString(),
           campaign_territory_id: newTerritoryId,
           cycle,
+          ...(isChallenge
+            ? { status, challenger_gang_id: challengerGangId, challenged_gang_id: challengedGangId }
+            : {}),
         },
       ])
       .select()
@@ -290,7 +323,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     );
 
     // Log battle results for all participating gangs
-    if (campaign) {
+    if (campaign && !isChallenge) {
       await logBattleParticipantResults(
         supabase,
         participants,
@@ -328,7 +361,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     console.error('Error creating battle log:', error);
     return {
       success: false as const,
-      error: error instanceof Error ? error.message : 'Failed to create battle report'
+      error: error instanceof Error ? error.message : 'Failed to create battle log'
     };
   }
 }
@@ -665,7 +698,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     console.error('Error updating battle log:', error);
     return {
       success: false as const,
-      error: error instanceof Error ? error.message : 'Failed to update battle report'
+      error: error instanceof Error ? error.message : 'Failed to update battle log'
     };
   }
 }
@@ -760,7 +793,7 @@ export async function deleteBattleLog(
     console.error('Error deleting battle log:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete battle report'
+      error: error instanceof Error ? error.message : 'Failed to delete battle log'
     };
   }
 }

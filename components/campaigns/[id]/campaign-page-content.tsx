@@ -21,7 +21,6 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
-import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
@@ -215,7 +214,6 @@ export default function CampaignPageContent({
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -363,21 +361,6 @@ export default function CampaignPageContent({
     && !safePermissions.campaignRole
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
-
-  // Add this function to handle the Add button click
-  const handleAddBattleLog = () => {
-    console.log('Add battle log button clicked');
-    console.log('User role:', safePermissions.campaignRole);
-    console.log('Is admin:', isAdmin);
-    console.log('battleLogsRef exists:', !!battleLogsRef.current);
-    
-    if (battleLogsRef.current) {
-      console.log('Opening battle log modal via ref');
-      battleLogsRef.current.openAddModal();
-    } else {
-      console.error('battleLogsRef.current is null');
-    }
-  };
 
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
@@ -894,54 +877,13 @@ export default function CampaignPageContent({
           {/* Battle Log tab content */}
           {activeTab === 2 && (
             <>
-            {(campaignData.battleSessions ?? []).length > 0 || userId ? (
-              <div className="bg-card shadow-md rounded-lg p-4 mb-4">
-                <CampaignBattleSessions
-                  sessions={campaignData.battleSessions || []}
-                  campaignId={campaignData.id}
-                  userId={userId}
-                  canAdd={safePermissions.canAddBattleLogs}
-                  editionSlug={campaignData.edition_slug ?? null}
-                  campaignGangs={campaignData.members.flatMap((m: Member) =>
-                    m.gangs
-                      .filter((g) => g.status === 'ACCEPTED')
-                      .map((g) => ({
-                        id: g.id,
-                        name: g.name,
-                        gang_colour: g.gang_colour,
-                        user_id: m.user_id,
-                        owner_username: m.username,
-                      }))
-                  )}
-                />
-              </div>
-            ) : null}
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
-                <div className="flex justify-between items-start mb-4">
+                <div className="mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-                  <div className="flex gap-2">
-                    {safePermissions.canEditCampaign && (
-                      <Button
-                        variant="outline"
-                        onClick={() => battleLogsRef.current?.openChallengeRoundModal()}
-                      >
-                        Challenge Round
-                      </Button>
-                    )}
-                    {safePermissions.canAddBattleLogs && (
-                      <Button
-                        className="bg-neutral-900 hover:bg-gray-800 text-white"
-                        onClick={handleAddBattleLog}
-                      >
-                        Add
-                      </Button>
-                    )}
-                  </div>
                 </div>
                 <div id="campaign-battle-logs">
                   <CampaignBattleLogsList
-                    ref={battleLogsRef}
                     campaignId={campaignData.id}
                     editionSlug={campaignData.edition_slug ?? null}
                     battles={campaignData.battles || []}
@@ -966,13 +908,33 @@ export default function CampaignPageContent({
                     }}
                     members={campaignData.members}
                     territories={campaignData.territories}
-                    noContainer={true}
-                    hideAddButton={true}
+                    hideAddButton={!safePermissions.canAddBattleLogs}
+                    canStartChallengeRound={!!safePermissions.canEditCampaign}
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                     currentCycle={campaignData.current_cycle ?? null}
                     scenarioTables={scenarioTables}
+                    battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
+                      <CampaignBattleSessions
+                        sessions={campaignData.battleSessions || []}
+                        campaignId={campaignData.id}
+                        userId={userId}
+                        canAdd={safePermissions.canAddBattleLogs}
+                        editionSlug={campaignData.edition_slug ?? null}
+                        campaignGangs={campaignData.members.flatMap((m: Member) =>
+                          m.gangs
+                            .filter((g) => g.status === 'ACCEPTED')
+                            .map((g) => ({
+                              id: g.id,
+                              name: g.name,
+                              gang_colour: g.gang_colour,
+                              user_id: m.user_id,
+                              owner_username: m.username,
+                            }))
+                        )}
+                      />
+                    ) : null}
                   />
                 </div>
               </div>
