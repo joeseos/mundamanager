@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
 import {
   CAMPAIGN_MESSAGE_DAILY_CAP,
+  NOTIFICATION_BROADCAST_MAX_LENGTH,
   isSafeNotificationLink,
   notificationPreview,
 } from '@/utils/notifications'
@@ -131,6 +132,12 @@ export function notificationSendFailure(
   }
   if (message.includes('expires_in_days')) {
     return { status: 400, error: 'Expires in days must be between 1 and 365' }
+  }
+  if (message.includes('message must be at most')) {
+    return {
+      status: 400,
+      error: `Message must be at most ${NOTIFICATION_BROADCAST_MAX_LENGTH} characters`,
+    }
   }
   return { status: 500, error: fallback }
 }

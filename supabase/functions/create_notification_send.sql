@@ -8,7 +8,7 @@
 -- service_role only. The Next.js routes check the caller is an admin, or a campaign
 -- owner, arbitrator, or app admin, before calling this.
 --
--- Apply supabase/migrations/20261020223442_notification_sends.sql before this file
+-- Apply supabase/migrations/20261021234309_notification_sends.sql before this file
 -- is deployed: the function inserts into notification_sends.
 
 CREATE OR REPLACE FUNCTION public.create_notification_send(
@@ -39,6 +39,11 @@ BEGIN
 
   IF p_text IS NULL OR btrim(p_text) = '' THEN
     RAISE EXCEPTION 'message text is required';
+  END IF;
+
+  -- Same visible-text cap as NOTIFICATION_BROADCAST_MAX_LENGTH in utils/notifications.ts.
+  IF char_length(regexp_replace(p_text, '<[^>]*>', '', 'g')) > 1000 THEN
+    RAISE EXCEPTION 'message must be at most 1000 characters';
   END IF;
 
   IF p_audience NOT IN ('all', 'selected') THEN

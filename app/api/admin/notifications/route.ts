@@ -39,9 +39,7 @@ export async function GET() {
       const sends = await loadNotificationSends(createServiceRoleClient(), {
         types: ADMIN_NOTIFICATION_TYPES,
       })
-      return NextResponse.json({
-        sends: sends.filter((send) => isAdminNotificationType(send.type)),
-      })
+      return NextResponse.json({ sends })
     } catch (fetchError) {
       console.error('Failed to fetch sent notifications:', fetchError)
       return NextResponse.json({ error: 'Failed to load sent messages' }, { status: 500 })

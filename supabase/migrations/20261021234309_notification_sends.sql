@@ -1,5 +1,38 @@
--- One row per composed send. Recipient notifications point at it and can expire
--- or be deleted without removing the Sent history. Older sends are not backfilled.
+-- Campaign and admin notification sends.
+--
+-- Campaign messages are emailed. The route checks the sender is the campaign
+-- owner, an arbitrator, or an app admin. user_message stays withheld until a
+-- composer checks the recipient. CREATE OR REPLACE keeps the existing trigger
+-- and grants.
+--
+-- notification_sends is one row per composed send. Recipient notifications point
+-- at it and can expire or be deleted without removing the Sent history. Older
+-- sends are not backfilled.
+
+CREATE OR REPLACE FUNCTION public.enqueue_notification_email()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public AS $$
+BEGIN
+   IF NEW.type IN (
+      'campaign_invite',
+      'gang_invite',
+      'friend_request',
+      'campaign_join_request',
+      'campaign_challenge',
+      'campaign_message',
+      'mm_staff_message',
+      'mm_announcement'
+   ) THEN
+      INSERT INTO email_deliveries (notification_id, user_id)
+      VALUES (NEW.id, NEW.receiver_id)
+      ON CONFLICT (notification_id) DO NOTHING;
+   END IF;
+
+   RETURN NEW;
+END;
+$$;
 
 CREATE TABLE public.notification_sends (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -54,11 +87,6 @@ REVOKE UPDATE ON TABLE public.notifications FROM anon;
 REVOKE UPDATE ON TABLE public.notifications FROM authenticated;
 GRANT UPDATE (dismissed) ON TABLE public.notifications TO authenticated;
 
--- The campaign Sent query no longer filters notifications by type and link.
-DROP INDEX IF EXISTS public.notifications_type_link_idx;
-
-DROP FUNCTION IF EXISTS public.list_admin_sent_notifications();
-
 CREATE OR REPLACE FUNCTION public.create_notification_send(
   p_sender_id uuid,
   p_type text,
@@ -87,6 +115,11 @@ BEGIN
 
   IF p_text IS NULL OR btrim(p_text) = '' THEN
     RAISE EXCEPTION 'message text is required';
+  END IF;
+
+  -- Same visible-text cap as NOTIFICATION_BROADCAST_MAX_LENGTH in utils/notifications.ts.
+  IF char_length(regexp_replace(p_text, '<[^>]*>', '', 'g')) > 1000 THEN
+    RAISE EXCEPTION 'message must be at most 1000 characters';
   END IF;
 
   IF p_audience NOT IN ('all', 'selected') THEN
