@@ -14,7 +14,7 @@ import {
   applyN26ProspectPromotion,
   applyN26GangerChampionPromotion,
   applyN26ChampionLeaderPromotion,
-  applyPromotion,
+  applyPromotionWithSkillAdvancement,
   deleteAdvancement,
 } from '@/app/actions/fighter-advancement';
 import { LuUndo2 } from 'react-icons/lu';
@@ -167,8 +167,10 @@ export function AdvancementsList({
         return result;
       }
 
-      const result = await applyPromotion({
+      const result = await applyPromotionWithSkillAdvancement({
         fighter_id: fighterId,
+        xp_cost: 0,
+        credits_increase: 0,
         promotion,
       });
       if (!result.success) {
