@@ -272,7 +272,7 @@ const CampaignBattleLogModal = ({
           gangId: _variables.participants.find(p => p.claimed_territory === true)?.gang_id
         });
       }
-      toast.success(isChallenge ? "Challenge added successfully" : "Battle report added successfully");
+      toast.success(isChallenge ? "Challenge added successfully" : "Battle log added successfully");
     },
     onError: (error, _variables, context) => {
       console.error('Battle creation failed:', error);
@@ -388,7 +388,7 @@ const CampaignBattleLogModal = ({
           gangId: _variables.battleData.participants.find(p => p.claimed_territory === true)?.gang_id
         });
       }
-      toast.success("Battle report updated successfully");
+      toast.success("Battle log updated successfully");
     },
     onError: (error, _variables, context) => {
       console.error('Battle update failed:', error);
@@ -890,8 +890,8 @@ const CampaignBattleLogModal = ({
         isNewChallenge
           ? "Add Challenge"
           : isUnplayedChallenge
-            ? (battlePlayed ? "File Battle Report" : "Challenge")
-            : (isEditMode ? "Edit Battle Report" : "Add Battle Log")
+            ? (battlePlayed ? "File Battle Log" : "Challenge")
+            : (isEditMode ? "Edit Battle Log" : "Add Battle Log")
       }
       helper="Fields marked with * are required."
       content={
@@ -1386,7 +1386,7 @@ const CampaignBattleLogModal = ({
         isNewChallenge
           ? "Add Challenge"
           : isUnplayedChallenge
-            ? (battlePlayed ? "File Battle Report" : "Save Challenge")
+            ? (battlePlayed ? "File Battle Log" : "Save Challenge")
             : (isEditMode ? "Update" : "Add Battle Log")
       }
       confirmDisabled={isLoadingBattleData || !formValid || isReportOverLimit}
