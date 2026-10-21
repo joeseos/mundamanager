@@ -4,8 +4,16 @@ import { fileURLToPath } from 'node:url'
 // built-in Data Cache with no config keys set at all.
 const useRedisCache = process.env.USE_REDIS_CACHE === 'true'
 
+// Vercel deploys are built in GitHub Actions and uploaded with --prebuilt, so the
+// build never sees a Vercel deployment ID. Skew Protection needs one baked in to
+// send server actions from open tabs to the deploy they loaded from.
+const deploymentId = process.env.GITHUB_RUN_ID
+  ? `gh-${process.env.GITHUB_RUN_ID}-${process.env.GITHUB_RUN_ATTEMPT}`
+  : undefined
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  deploymentId,
   ...(useRedisCache
     ? {
         cacheHandler: fileURLToPath(new URL('./cache-handler.js', import.meta.url)),
