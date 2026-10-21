@@ -421,7 +421,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   const deleteBattleMutation = useMutation({
     mutationFn: async (battleId: string) => {
       const result = await deleteBattleLog(campaignId, battleId);
-      if (!result.success) throw new Error(result.error || 'Failed to delete battle report');
+      if (!result.success) throw new Error(result.error || 'Failed to delete battle log');
       return result;
     },
     onMutate: async (battleId) => {
@@ -440,7 +440,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
       if (released?.campaign_territory_id && isPlayedBattle(released)) {
         onTerritoryUpdate({ action: 'remove', territoryId: released.campaign_territory_id });
       }
-      toast.success("Battle report deleted successfully");
+      toast.success("Battle log deleted successfully");
     },
     onError: (error, _battleId, context) => {
       console.error('Battle deletion failed:', error);
@@ -454,7 +454,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         });
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle log';
       toast.error(errorMessage);
     }
   });
@@ -1432,10 +1432,10 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <Modal
-          title="Delete Battle Report"
+          title="Delete Battle Log"
           content={
             <div>
-              <p className="mb-4">Are you sure you want to delete this battle report?</p>
+              <p className="mb-4">Are you sure you want to delete this battle log?</p>
               {battleToDelete && (
                 <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   <p><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</p>

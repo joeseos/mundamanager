@@ -284,7 +284,7 @@ const CampaignBattleLogModal = ({
         );
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create battle report';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create battle log';
       toast.error(errorMessage);
     }
   });
@@ -400,7 +400,7 @@ const CampaignBattleLogModal = ({
         );
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update battle report';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update battle log';
       toast.error(errorMessage);
     }
   });

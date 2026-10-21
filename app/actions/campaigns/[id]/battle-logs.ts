@@ -361,7 +361,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     console.error('Error creating battle log:', error);
     return {
       success: false as const,
-      error: error instanceof Error ? error.message : 'Failed to create battle report'
+      error: error instanceof Error ? error.message : 'Failed to create battle log'
     };
   }
 }
@@ -698,7 +698,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     console.error('Error updating battle log:', error);
     return {
       success: false as const,
-      error: error instanceof Error ? error.message : 'Failed to update battle report'
+      error: error instanceof Error ? error.message : 'Failed to update battle log'
     };
   }
 }
@@ -793,7 +793,7 @@ export async function deleteBattleLog(
     console.error('Error deleting battle log:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete battle report'
+      error: error instanceof Error ? error.message : 'Failed to delete battle log'
     };
   }
 }
