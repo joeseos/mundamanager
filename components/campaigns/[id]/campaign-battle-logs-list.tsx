@@ -105,6 +105,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const [addingChallenge, setAddingChallenge] = useState(false);
   const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
@@ -1101,14 +1102,15 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     </div>
   );
 
-  const addButton = !hideAddButton && (
+  const renderAddButton = (asChallenge: boolean) => !hideAddButton && (
     <Button
       onClick={() => {
         setSelectedBattle(null);
+        setAddingChallenge(asChallenge);
         setShowBattleModal(true);
       }}
       className="bg-neutral-900 hover:bg-gray-800 text-white"
-      aria-label="Add battle report"
+      aria-label={asChallenge ? "Add challenge" : "Add battle report"}
     >
       Add
     </Button>
@@ -1256,7 +1258,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                 Challenge Round
               </Button>
             )}
-            {addButton}
+            {renderAddButton(true)}
           </div>
         </div>
         {renderBattlesTable(
@@ -1268,7 +1270,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
 
       <div className="flex justify-between items-center mb-3">
         <h3 className="text-lg font-bold">Battle Reports</h3>
-        {addButton}
+        {renderAddButton(false)}
       </div>
       {renderBattlesTable(
         currentBattleLogs,
@@ -1432,6 +1434,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           battleToEdit={selectedBattle}
           userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
           canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
+          newChallenge={addingChallenge}
         />
       )}
 
