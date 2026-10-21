@@ -305,7 +305,7 @@ export default function CreateBattleModal({
 
   const modalContent = (
     <Modal
-      title={isAddMode ? 'Add Player' : 'New Battle'}
+      title={isAddMode ? 'Add Player' : 'New Battle Session'}
       onClose={onClose}
       onConfirm={async () => {
         createMutation.mutate();
