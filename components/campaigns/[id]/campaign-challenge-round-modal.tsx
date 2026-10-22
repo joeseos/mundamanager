@@ -43,18 +43,18 @@ const CampaignChallengeRoundModal = ({
     ),
     onSuccess: (result) => {
       if (!result.success) {
-        toast.error(result.error || 'Failed to open challenge round');
+        toast.error(result.error || 'Failed to create challenge round');
         return;
       }
-      toast.success(`Opened ${result.created} challenge${result.created === 1 ? '' : 's'}`);
+      toast.success(`Created ${result.created} challenge${result.created === 1 ? '' : 's'}`);
       onSuccess((result.battles ?? []) as Battle[]);
     },
-    onError: () => toast.error('Failed to open challenge round'),
+    onError: () => toast.error('Failed to create challenge round'),
   });
 
   return (
     <Modal
-      title="Open Challenge Round"
+      title="Create Challenge Round"
       helper="Every gang in the campaign gets a challenge to issue, in the order set below."
       confirmDisabled={!cycleValid || gangCount === 0}
       onClose={onClose}

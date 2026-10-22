@@ -868,13 +868,13 @@ export interface ChallengeRoundResult {
 }
 
 /**
- * Open a challenge round: one slot per accepted gang, for the given cycle,
+ * Create a challenge round: one slot per accepted gang, for the given cycle,
  * numbered in `gangOrder`, the order the arbitrator set for issuing challenges.
  * Each slot is a battle log in `challenge_pending` with no opponent yet; the
  * gang's owner names an opponent by editing it, which issues the challenge.
  *
  * Deliberately not idempotent — a campaign may run several rounds per cycle,
- * so a second call opens another round.
+ * so a second call creates another round.
  */
 export async function generateChallengeRound(
   campaignId: string,
@@ -886,7 +886,7 @@ export async function generateChallengeRound(
     const user = await getAuthenticatedUser(supabase);
 
     if (!(await checkCampaignArbitrator(user.id, campaignId))) {
-      return { success: false, error: 'Only the campaign arbitrator can open a challenge round' };
+      return { success: false, error: 'Only the campaign arbitrator can create a challenge round' };
     }
 
     const { data: gangs, error: gangsError } = await supabase
@@ -955,7 +955,7 @@ export async function generateChallengeRound(
     console.error('Error generating challenge round:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to open challenge round',
+      error: error instanceof Error ? error.message : 'Failed to create challenge round',
     };
   }
 }
