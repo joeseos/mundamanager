@@ -756,13 +756,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Set equipment selection
       if (data.equipment_selection) {
-        // Add logging to debug equipment selection loading
-        console.log('Loaded equipment_selection from API:', data.equipment_selection);
-        
-        // Use the dataModelToGui function to properly convert the new format
-        const convertedEquipmentSelection = dataModelToGui(data.equipment_selection);
-        console.log('Converted equipment selection:', convertedEquipmentSelection);
-        setEquipmentSelection(convertedEquipmentSelection);
+        setEquipmentSelection(dataModelToGui(data.equipment_selection));
       } else {
         // Reset to empty object if no equipment selection
         setEquipmentSelection({});
@@ -1094,21 +1088,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         skill_access: skillAccess
       };
 
-      console.log('Sending update data:', updateData);
-      console.log('Equipment selection in update data:', updateData.equipment_selection);
-      // Check if equipment selection is being properly included
-      const jsonData = JSON.stringify(updateData);
-      console.log('JSON data includes equipment_selection:', 
-        jsonData.includes('equipment_selection') && 
-        jsonData.includes(Object.keys(equipmentSelection)[0] || '')
-      );
 
       const response = await fetch(`/api/admin/fighter-types?id=${fighterIdToUpdate}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: jsonData,
+        body: JSON.stringify(updateData),
       });
 
       if (!response.ok) {

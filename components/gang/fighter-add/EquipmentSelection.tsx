@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { EquipmentOption, DefaultEquipment } from '@/types/fighter-type';
+import { EquipmentOption, DefaultEquipment, EquipmentSelectionDataModel } from '@/types/fighter-type';
 import { Checkbox } from '@/components/ui/checkbox';
 import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
 import {
@@ -11,7 +11,7 @@ import {
 } from '@/utils/equipment-selection';
 
 interface EquipmentSelectionProps {
-  equipmentSelection: any;
+  equipmentSelection: EquipmentSelectionDataModel | null | undefined;
   selectedEquipmentIds: string[];
   setSelectedEquipmentIds: React.Dispatch<React.SetStateAction<string[]>>;
   selectedEquipment: SelectedEquipmentItem[];
