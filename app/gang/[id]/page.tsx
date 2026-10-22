@@ -71,7 +71,10 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       // queries rather than landing on the critical path after they all resolve.
       getGangFightersBundle(params.id).then((bundle) => ({
         fighters: assembleGangFighters(bundle, {
-          gangEditionSlug: gangBasic.edition_slug ?? null
+          gangEditionSlug: gangBasic.edition_slug ?? null,
+          gangTypeId: gangBasic.gang_type_id,
+          gangOriginId: gangBasic.gang_origin_id ?? null,
+          gangSubtypeIds: gangBasic.gang_subtypes ?? [],
         }),
         vehicles: assembleGangVehicles(bundle)
       })),

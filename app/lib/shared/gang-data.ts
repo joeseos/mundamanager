@@ -525,7 +525,7 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
 export const getGangFightersBundle = async (gangId: string): Promise<GangFightersBundle> => {
   return unstable_cache(
     async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
-    [`gang-fighters-bundle-v4-${gangId}`],
+    [`gang-fighters-bundle-v5-${gangId}`],
     {
       tags: [TAGS.gangRoster(gangId)],
       revalidate: false
@@ -705,7 +705,19 @@ function rosterQuery(db: AppDb, gangId: string) {
               gang_type_id: true,
               edition_id: true,
             },
-            with: { editions: { columns: { slug: true } } },
+            with: {
+              editions: { columns: { slug: true } },
+              count_limits: {
+                columns: {
+                  id: true,
+                  gang_type_id: true,
+                  gang_origin_id: true,
+                  gang_subtype_id: true,
+                  min_count: true,
+                  max_count: true,
+                },
+              },
+            },
           },
           fighter_specialisations: { columns: { id: true, specialisation_name: true } },
           // Fighter-held items only; vehicle-mounted ones come through vehicles below
@@ -809,17 +821,27 @@ export const getGangFightersList = async (
   // Every fighter in a roster belongs to one gang, so the edition is resolved
   // once for the whole roster rather than per fighter from fighter_types —
   // which yields null for custom fighter types, and would leave them with no
-  // edition at all. Callers already holding the gang core pass it in; only the
-  // battle-session page, which has no core for the gangs it lists, pays a read.
+  // edition at all. Passing the edition does not skip the gang type, origin,
+  // and subtypes: count_limits scoped to those only match when the scope is known.
   const callerSlug = options?.gangEditionSlug;
-  const needsCore = callerSlug === undefined;
+  const needsEdition = callerSlug === undefined;
+  const scopeProvided =
+    options?.gangTypeId !== undefined &&
+    options?.gangOriginId !== undefined &&
+    options?.gangSubtypeIds !== undefined;
+  // A caller that already knows the edition still needs the gang's type, origin,
+  // and subtypes, or count_limits scoped to those never match.
+  const needsCore = needsEdition || !scopeProvided;
   const [bundle, core] = await Promise.all([
     getGangFightersBundle(gangId),
     needsCore ? getGangCore(gangId) : Promise.resolve(null)
   ]);
   return assembleGangFighters(bundle, {
     ...options,
-    gangEditionSlug: needsCore ? core?.edition_slug ?? null : callerSlug
+    gangEditionSlug: needsEdition ? core?.edition_slug ?? null : callerSlug,
+    gangTypeId: options?.gangTypeId ?? core?.gang_type_id ?? null,
+    gangOriginId: options?.gangOriginId ?? core?.gang_origin_id ?? null,
+    gangSubtypeIds: options?.gangSubtypeIds ?? core?.gang_subtypes ?? [],
   });
 };
 
@@ -827,7 +849,7 @@ export const getGangFightersList = async (
  * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-export const getUserProfile = async (userId: string): Promise<{ 
+export const getUserProfile = async (userId: string): Promise<{
   username: string;
   patreon_tier_id: string | null;
   patreon_tier_title: string | null;
