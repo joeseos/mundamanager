@@ -233,8 +233,7 @@ export default function CrewSelectionModal({
       });
 
       const pool = availableNonBeasts.filter((f) => !manualOnly.has(f.id));
-      const shuffled = shuffle(pool);
-      const picked = shuffled.slice(0, Math.min(randomCount, shuffled.length));
+      const picked = shuffle(pool).slice(0, randomCount);
 
       const newRandomIds = new Set(picked.map((f) => f.id));
       setRandomlySelected(newRandomIds);

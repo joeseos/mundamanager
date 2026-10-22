@@ -639,7 +639,6 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return rows;
   }, [members, battles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
-  // Check if user can edit/delete this battle
   // A challenge round is only created for accepted gangs, so list those rather
   // than availableGangs, which also carries pending ones. Lowest rating first,
   // the order the round is offered in until the arbitrator changes it.
@@ -656,6 +655,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return availableGangs.find(g => g.id === gangId)?.user_id === userId;
   }, [availableGangs, userId]);
 
+  // Check if user can edit/delete this battle
   const canUserEditBattle = useCallback((battle: Battle): boolean => {
     // Admins can edit any battle
     if (isAdmin) return true;
