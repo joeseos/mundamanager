@@ -13,6 +13,7 @@ import { gangEditionSlug } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { isUuid } from '@/utils/uuid';
 import { GangTacticsCard, toGangTacticsCard } from '@/types/tactics-card';
+import { resolveGangRules, type GangRuleRow } from '@/utils/gang-rules';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -523,11 +524,50 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
  * utils/gang-assembly.ts.
  */
 export const getGangFightersBundle = async (gangId: string): Promise<GangFightersBundle> => {
+  // The rules are cached globally, so editing one takes effect without busting
+  // every roster; the gang's own scope columns come with the roster, whose tag
+  // invalidateGang busts when the gang's origin or subtypes change
+  const [{ gangScope, ...roster }, rules] = await Promise.all([
+    unstable_cache(
+      async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
+      [`gang-fighters-bundle-v7-${gangId}`],
+      {
+        tags: [TAGS.gangRoster(gangId)],
+        revalidate: false
+      }
+    )(),
+    getGangRules()
+  ]);
+  return {
+    ...roster,
+    gangTypeId: gangScope?.gang_type_id ?? null,
+    gangRules: gangScope ? resolveGangRules(rules, gangScope) : []
+  };
+};
+
+/**
+ * Every gang rule row with its effect type and modifiers. A handful of
+ * rows game-wide, resolved per gang by resolveGangRules.
+ * Cache: global-gang-rules
+ */
+export const getGangRules = async (): Promise<GangRuleRow[]> => {
   return unstable_cache(
-    async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
-    [`gang-fighters-bundle-v5-${gangId}`],
+    async () => getAppDb().query.gangRules.findMany({
+      columns: { gang_type_id: true, gang_origin_id: true, gang_subtype_id: true, excluded: true },
+      with: {
+        fighter_effect_type: {
+          columns: { id: true, effect_name: true, type_specific_data: true },
+          with: {
+            fighter_effect_type_modifiers: {
+              columns: { stat_name: true, default_numeric_value: true, operation: true }
+            }
+          }
+        }
+      }
+    }),
+    ['gang-rules'],
     {
-      tags: [TAGS.gangRoster(gangId)],
+      tags: [TAGS.globalGangRules()],
       revalidate: false
     }
   )();
@@ -556,6 +596,7 @@ const EQUIPMENT_ITEM_COLUMNS = {
   equipment_name: true,
   equipment_type: true,
   equipment_category: true,
+  equipment_category_id: true,
   is_consumable: true,
 } as const;
 
@@ -687,7 +728,7 @@ const VEHICLE_COLUMNS = {
 /** The whole roster in one query, nested under the gang row. */
 function rosterQuery(db: AppDb, gangId: string) {
   return db.query.gangs.findFirst({
-    columns: { id: true },
+    columns: { id: true, gang_type_id: true, gang_origin_id: true, gang_subtypes: true },
     where: (gang, { eq }) => eq(gang.id, gangId),
     with: {
       fighters: {
@@ -784,7 +825,12 @@ function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number |
 }
 
 /** Flatten the nested roster into the bundle's per-table lists. */
-function flattenRoster(gangId: string, gang: Awaited<ReturnType<typeof rosterQuery>>): GangFightersBundle {
+function flattenRoster(
+  gangId: string,
+  gang: Awaited<ReturnType<typeof rosterQuery>>
+): Omit<GangFightersBundle, 'gangTypeId' | 'gangRules'> & {
+  gangScope: { gang_type_id: string | null; gang_origin_id: string | null; gang_subtypes: string[] | null } | null;
+} {
   const fighterRows = gang?.fighters ?? [];
   const vehicleRows = gang?.vehicles ?? [];
   const rows = [...fighterRows, ...vehicleRows];
@@ -795,6 +841,9 @@ function flattenRoster(gangId: string, gang: Awaited<ReturnType<typeof rosterQue
 
   return {
     gangId,
+    gangScope: gang
+      ? { gang_type_id: gang.gang_type_id, gang_origin_id: gang.gang_origin_id, gang_subtypes: gang.gang_subtypes }
+      : null,
     fighters: fighterRows.map(
       ({ fighter_equipment, fighter_skills, fighter_effects, fighter_exotic_beasts, fighter_loadouts, captured_by, ...fighter }) =>
         fighter

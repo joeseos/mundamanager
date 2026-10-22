@@ -17,7 +17,7 @@ import {
 } from "@/types/fighter-effect";
 
 // Mapping of stat_name (database value) to display_name (UI label)
-const STAT_MAPPINGS = [
+export const STAT_MAPPINGS = [
   { stat_name: 'acc_long', display_name: 'Accuracy (Long)', short_name: 'Acc L', value_suffix: '+' },
   { stat_name: 'acc_short', display_name: 'Accuracy (Short)', short_name: 'Acc S', value_suffix: '+' },
   { stat_name: 'ammo', display_name: 'Ammo', short_name: 'Am', value_suffix: '' },

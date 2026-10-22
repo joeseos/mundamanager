@@ -5,6 +5,7 @@ import { WeaponProps, WargearItem } from '@/types/fighter';
 import type { CountLimit } from '@/types/fighter-type';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
+import { gangRulesForWeapon } from '@/utils/gang-rules';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -77,6 +78,11 @@ function buildProfileMaps(equipmentRows: any[]) {
   customAmmoByParentWeapon.forEach(sortProfiles);
 
   return { standardProfilesMap, standardAmmoByParentWeapon, customProfilesMap, customAmmoByParentWeapon };
+}
+
+/** The gang's rules when the fighter is of the gang's own gang type, else none */
+function gangRulesFor(bundle: GangFightersBundle, fighterType: { gang_type_id?: string | null } | null | undefined) {
+  return bundle.gangTypeId && fighterType?.gang_type_id === bundle.gangTypeId ? bundle.gangRules : [];
 }
 
 /**
@@ -402,6 +408,7 @@ export function assembleGangFighters(
           : null;
 
         const fighterWideEffects = fighterWideWeaponEffects(Object.values(effects).flat());
+        const gangRules = gangRulesFor(bundle, fighter.fighter_types);
 
         // Process equipment and add weapon profiles
         const processedEquipment = equipment.map((item: any) => {
@@ -462,6 +469,8 @@ export function assembleGangFighters(
             if (targetingEffects.length > 0) {
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
+            // After the fighter's own effects, so a trait an upgrade adds counts
+            weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item));
           }
 
           // Get effect names that target this equipment
@@ -1038,6 +1047,8 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     myEffects.filter((e: any) => !activeLoadoutEquipmentIds || !e.fighter_equipment_id || activeLoadoutEquipmentIds.has(e.fighter_equipment_id))
   );
 
+  const gangRules = gangRulesFor(bundle, fighterRow?.fighter_types);
+
   // Standard profile map from nested profiles of the fighter's own equipment;
   // each profile is also aliased under its weapon_group_id (grouped weapons,
   // e.g. smoke grenades) when the fighter owns the profile's weapon.
@@ -1109,6 +1120,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }
+      weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item));
     }
 
     const effectNames = targetingEffectNamesMap.get(item.id) || [];
