@@ -45,22 +45,22 @@ export default async function Home() {
     customTradingPosts,
     customCollections
   ] = await Promise.all([
-    getUserGangs(user.id, supabase),
-    getUserCampaigns(user.id, supabase),
-    getUserCustomEquipment(user.id, supabase),
-    getUserCustomFighterTypes(user.id, supabase),
-    getUserCustomSkills(user.id, supabase),
-    getUserCustomGangTypes(user.id, supabase),
-    getUserCustomTradingPosts(user.id, supabase),
-    getUserCustomCollections(user.id, supabase)
+    getUserGangs(user.id),
+    getUserCampaigns(user.id),
+    getUserCustomEquipment(user.id),
+    getUserCustomFighterTypes(user.id),
+    getUserCustomSkills(user.id),
+    getUserCustomGangTypes(user.id),
+    getUserCustomTradingPosts(user.id),
+    getUserCustomCollections(user.id)
   ]);
   
   // Reference data for the create-campaign modal and the user's share-modal
   // campaigns — all cached (campaign-types / global / user-{id} tags).
   const [campaignTypes, tradingPostTypes, userCampaigns] = await Promise.all([
     getCampaignTypes(),
-    getTradingPostTypesCached(supabase),
-    getUserShareCampaigns(user.id, supabase)
+    getTradingPostTypesCached(),
+    getUserShareCampaigns(user.id)
   ]);
 
   return (

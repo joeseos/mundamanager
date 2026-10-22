@@ -51,7 +51,7 @@ would have.
 
 1. **Prerequisites**
    - Node.js 24.x (see `.nvmrc`)
-   - Supabase project URL and key
+   - Supabase project URL, key and database connection string
    - Cloudflare Turnstile keys
 
 2. **Environment setup**
@@ -64,8 +64,10 @@ would have.
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
    TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
+   DATABASE_URL=database-connection-string
    NODE_ENV=development
    ```
+   `DATABASE_URL` is the direct database connection for the reads that use Drizzle, including the gang roster and fighter pages (see the README's "Drizzle ORM" section).
 
 3. **Running the environment**
    ```bash
@@ -122,6 +124,7 @@ schema/backend changes without touching the production database.
    ```
    NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
    NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key from `supabase status`>
+   DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
    ```
 
 3. **Start the app** with `npm run dev` as usual.
@@ -139,5 +142,6 @@ schema/backend changes without touching the production database.
 - Put all schema changes in a migration under `supabase/migrations/` (create with `supabase migration new <descriptive-name>`).
 - Do **not** edit `supabase/schema/schema.public.sql` or other schema dump files by hand.
 - For RPC / SQL function changes, update both the migration and the matching file under `supabase/functions/`.
+- If a migration changes a table defined in `utils/db/schema.ts` (Drizzle), update it there too.
 
 If you are unsure about anything, ask in [Discord](https://discord.gg/FrqEWShQd7).

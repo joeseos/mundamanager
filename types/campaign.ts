@@ -100,8 +100,8 @@ export function isPlayedBattle(battle: Pick<Battle, 'status'>): boolean {
 export interface Battle {
   id: string;
   created_at: string;
-  updated_at?: string;
-  scenario_number?: number;
+  updated_at?: string | null;
+  scenario_number?: number | null;
   scenario_name?: string;
   scenario?: string;
   /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */
@@ -114,7 +114,7 @@ export interface Battle {
   crew_selection_name?: string | null;
   winner_id?: string | null;
   note?: string | null;
-  participants?: BattleParticipant[] | string;
+  participants?: BattleParticipant[] | string | null;
   campaign_territory_id?: string | null;
   territory_name?: string;
   cycle?: number | null;
@@ -123,6 +123,8 @@ export interface Battle {
   challenger_gang_id?: string | null;
   /** Gang the challenge was issued to. Null on a slot with no opponent yet. */
   challenged_gang_id?: string | null;
+  /** Place in its challenge round's order, from 1. Null outside a round. */
+  challenge_order?: number | null;
   attacker?: GangReference;
   defender?: GangReference;
   winner?: GangReference;
@@ -207,6 +209,7 @@ export interface CampaignTerritoryRow {
   default_gang_territory?: boolean;
   playing_card?: string | null;
   description?: string | null;
+  credits?: number | null;
   map_object_id?: string | null;
   map_hex_coords?: { x: number; y: number; z: number } | null;
   show_name_on_map?: boolean;
@@ -235,7 +238,7 @@ export interface CampaignTerritory {
  */
 export interface Scenario {
   id: string;
-  scenario_name: string;
+  scenario_name: string | null;
   scenario_number: number | null;
   edition_slug?: string | null;
 }
@@ -426,7 +429,7 @@ export interface Member {
  */
 export interface UserCampaign {
   id: string;
-  campaign_name: string;
+  campaign_name: string | null;
   status: string | null;
   /** Derived from campaign_types; campaigns carry no edition of their own. */
   edition_slug: string | null;
@@ -442,7 +445,7 @@ export interface CampaignTypeResource {
 
 export interface CampaignType {
   id: string;
-  campaign_type_name: string;
+  campaign_type_name: string | null;
   image_url?: string | null;
   trading_posts?: string[] | null;
   /** edition_id is written by the admin editor; edition_slug is what app code

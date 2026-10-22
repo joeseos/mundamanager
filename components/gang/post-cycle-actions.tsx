@@ -28,6 +28,7 @@ import {
   postCycleAvailability,
   postCycleDiscount,
   removableLastingInjuriesOf,
+  reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
   validatePostCycleAssignment,
@@ -35,6 +36,7 @@ import {
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
 import {
+  collectIncome,
   resolvePostCycleAction,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
@@ -46,6 +48,10 @@ interface PostCycleActionsProps {
   editionSlug?: string | null;
   fighters: FighterProps[];
   gangCredits: number;
+  /** gangs.reputation is nullable; NULL reads as 0, as on the gang card. */
+  gangReputation: number | null;
+  /** The gang's territories across its campaigns; credits is null when unset. */
+  territories: Array<{ id: string; territory_name: string; credits: number | null }>;
   /** Gang facts the gang-specific actions depend on; see postCycleAvailability. */
   gangType?: string | null;
   isCustomGangType: boolean;
@@ -175,6 +181,8 @@ export default function PostCycleActions({
   editionSlug,
   fighters,
   gangCredits,
+  gangReputation,
+  territories,
   gangType,
   isCustomGangType,
   gangSubtypes,
@@ -187,6 +195,10 @@ export default function PostCycleActions({
   /** The actions picked so far; nothing is applied until Confirm. */
   const [rows, setRows] = useState<Record<string, RowState>>({});
   const [applying, setApplying] = useState(false);
+  /** Collect Income is taken on Confirm, before the fighters' actions. */
+  const [collectReputation, setCollectReputation] = useState(false);
+  const [collectTerritoryIds, setCollectTerritoryIds] = useState<string[]>([]);
+  const [incomeFailure, setIncomeFailure] = useState<string | null>(null);
   /** Why an action failed on the last Confirm, keyed by the fighter taking it. */
   const [failures, setFailures] = useState<Record<string, string>>({});
   /** The fighter whose Gang Tactic is being picked, and the pick so far. */
@@ -286,9 +298,19 @@ export default function PostCycleActions({
 
   const pendingStates = [...rowStates.values()];
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
-  const cannotAfford = totalSpend > gangCredits;
+  const reputation = gangReputation ?? 0;
+  const income = reputationIncome(reputation);
+  const incomeTerritories = territories.filter((territory) => territory.credits);
+  const pickedTerritories = incomeTerritories.filter((territory) =>
+    collectTerritoryIds.includes(territory.id)
+  );
+  const collecting = collectReputation || pickedTerritories.length > 0;
+  const collected =
+    (collectReputation ? income : 0) +
+    pickedTerritories.reduce((sum, territory) => sum + (territory.credits ?? 0), 0);
+  const cannotAfford = totalSpend > gangCredits + collected;
   const readyToApply =
-    pendingStates.length > 0 &&
+    (pendingStates.length > 0 || collecting) &&
     pendingStates.every((s) => s.assignment && s.issues.length === 0) &&
     !cannotAfford;
 
@@ -420,11 +442,34 @@ export default function PostCycleActions({
       const assignment = rowStates.get(f.id)?.assignment;
       return assignment ? [assignment] : [];
     });
-    if (applying || queue.length === 0) return;
+    if (applying || (queue.length === 0 && !collecting)) return;
 
     setApplying(true);
     setFailures({});
+    setIncomeFailure(null);
     let failed = 0;
+
+    // First, so the actions can spend the income.
+    if (collecting) {
+      try {
+        const result = await collectIncome({
+          gangId,
+          reputation: collectReputation,
+          territoryIds: pickedTerritories.map((territory) => territory.id),
+        });
+        if (result.gang) onGangFinancialsUpdate?.(result.gang);
+        if (result.success) {
+          setCollectReputation(false);
+          setCollectTerritoryIds([]);
+        } else {
+          failed++;
+          setIncomeFailure(result.error || 'Collecting income failed.');
+        }
+      } catch (error) {
+        failed++;
+        setIncomeFailure(error instanceof Error ? error.message : 'Collecting income failed.');
+      }
+    }
 
     for (const assignment of queue) {
       const { fighterId } = assignment;
@@ -462,169 +507,213 @@ export default function PostCycleActions({
 
     setApplying(false);
     if (failed > 0) {
-      toast.error(`${failed} of ${queue.length} Post-cycle Actions failed. See the marked rows.`);
+      const total = queue.length + (collecting ? 1 : 0);
+      toast.error(`${failed} of ${total} Post-cycle steps failed. See the marked rows.`);
     } else {
-      toast.success('Post-cycle Actions applied');
+      toast.success('Post-cycle Sequence applied');
     }
   };
 
-  if (actors.length === 0) return null;
-
   return (
     <div className="mt-8">
-      <h3 className="text-lg font-semibold mb-4">
-        Post-Cycle Actions
+      <h3 className="text-xl md:text-2xl font-bold mb-4">
+        Post-Cycle Sequence
       </h3>
 
-      <div className="rounded-md border">
-        <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
-          <span>Fighter</span>
-          <span>Action</span>
-          <span>Effect</span>
+      <div className="mb-4">
+        <h4 className="text-lg font-bold mb-3">Collect Income</h4>
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="collect-income"
+            checked={collectReputation}
+            onCheckedChange={(checked) => setCollectReputation(checked === true)}
+            disabled={!canEdit || applying || income === 0}
+          />
+          <label htmlFor="collect-income" className="text-sm font-medium cursor-pointer">
+            {reputation} Reputation
+            <span className="ml-2 font-normal text-muted-foreground">
+              (+{income} credits)
+            </span>
+          </label>
         </div>
-        <ul>
-          {actors.map((fighter) => {
-            const row = rows[fighter.id];
-            const state = rowStates.get(fighter.id);
-            const assignment = state?.assignment ?? null;
-            const effect = effectOf(assignment);
-            const rowIssues = state?.issues ?? [];
-            const target = row?.targetFighterId
-              ? fighterById.get(row.targetFighterId)
-              : undefined;
-            // Shown even once the row is cleared, for an action that partly applied.
-            const failure = failures[fighter.id];
+        {incomeTerritories.map((territory) => (
+          <div key={territory.id} className="mt-2 flex items-center space-x-2">
+            <Checkbox
+              id={`collect-territory-${territory.id}`}
+              checked={collectTerritoryIds.includes(territory.id)}
+              onCheckedChange={(checked) =>
+                setCollectTerritoryIds((prev) =>
+                  checked === true
+                    ? [...prev, territory.id]
+                    : prev.filter((id) => id !== territory.id)
+                )
+              }
+              disabled={!canEdit || applying}
+            />
+            <label
+              htmlFor={`collect-territory-${territory.id}`}
+              className="text-sm font-medium cursor-pointer"
+            >
+              {territory.territory_name}
+              <span className="ml-2 font-normal text-muted-foreground">
+                (+{territory.credits} credits)
+              </span>
+            </label>
+          </div>
+        ))}
+        {incomeFailure && <p className="mt-1 text-xs text-red-600">{incomeFailure}</p>}
+      </div>
 
-            return (
-              <li
-                key={fighter.id}
-                className="border-b last:border-0 px-4 py-3 md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] md:gap-4 md:items-start"
-              >
-                <div className="flex items-start justify-between gap-3 mb-2 md:mb-0 md:pt-2 min-w-0">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{fighter.fighter_name}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {`${fighter.fighter_type} (${formatFighterSubtypeDisplay(
-                        fighter.fighter_subtypes,
-                        editionSlug
-                      )})`}
+      {actors.length > 0 && (
+        <>
+          <h4 className="text-lg font-bold mb-3">Post-Cycle Actions</h4>
+          <div className="rounded-md border">
+            <div className="hidden md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] gap-4 px-4 py-2 bg-muted border-b rounded-t-md text-sm font-medium">
+              <span>Fighter</span>
+              <span>Action</span>
+              <span>Effect</span>
+            </div>
+            <ul>
+              {actors.map((fighter) => {
+                const row = rows[fighter.id];
+                const state = rowStates.get(fighter.id);
+                const assignment = state?.assignment ?? null;
+                const effect = effectOf(assignment);
+                const rowIssues = state?.issues ?? [];
+                const target = row?.targetFighterId
+                  ? fighterById.get(row.targetFighterId)
+                  : undefined;
+                // Shown even once the row is cleared, for an action that partly applied.
+                const failure = failures[fighter.id];
+
+                return (
+                  <li
+                    key={fighter.id}
+                    className="border-b last:border-0 px-4 py-3 md:grid md:grid-cols-[minmax(0,1fr)_20rem_10rem] md:gap-4 md:items-start"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-2 md:mb-0 md:pt-2 min-w-0">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{fighter.fighter_name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {`${fighter.fighter_type} (${formatFighterSubtypeDisplay(
+                            fighter.fighter_subtypes,
+                            editionSlug
+                          )})`}
+                        </div>
+                      </div>
+                      {effect && <span className="md:hidden max-w-[50%] text-right">{effect}</span>}
                     </div>
-                  </div>
-                  {effect && <span className="md:hidden max-w-[50%] text-right">{effect}</span>}
-                </div>
 
-                <div className="space-y-2 min-w-0">
-                  <Combobox
-                    options={eligiblePostCycleActions(fighter, availability).map((option) => {
-                      const reason = unavailableReason(fighter, option.id);
-                      return {
-                        value: option.id,
-                        label: (
-                          <span className={reason ? 'text-muted-foreground' : undefined}>
-                            {option.label} - {reason ?? option.summary}
-                          </span>
-                        ),
-                        displayValue: option.label,
-                        disabled: reason !== null && row?.action !== option.id,
-                      };
-                    })}
-                    value={row?.action ?? ''}
-                    onValueChange={(value) => handleActionChange(fighter.id, value)}
-                    placeholder="No action"
-                    clearable
-                    disabled={!canEdit || applying}
-                  />
-
-                  {row?.action === 'medical_escort' && (
-                    <Combobox
-                      options={patientOptions(fighter.id, criticallyInjured)}
-                      value={row.targetFighterId ?? ''}
-                      onValueChange={(id) => setRow(fighter.id, { targetFighterId: id || undefined })}
-                      placeholder="Critically Injured fighter"
-                      noResultsText="No fighter has a Critical Injury"
-                      clearable
-                      disabled={!canEdit || applying}
-                    />
-                  )}
-
-                  {row?.action === 'fit_bionics' && (
-                    <>
+                    <div className="space-y-2 min-w-0">
                       <Combobox
-                        options={patientOptions(fighter.id, injuredFighters)}
-                        value={row.targetFighterId ?? ''}
-                        // Switching patient drops the injuries picked for the last one.
-                        onValueChange={(id) =>
-                          setRow(fighter.id, { targetFighterId: id || undefined, injuryIds: [] })
-                        }
-                        placeholder="Fighter to fit bionics"
-                        noResultsText="No fighter has a removable Lasting Injury"
+                        options={eligiblePostCycleActions(fighter, availability).map((option) => {
+                          const reason = unavailableReason(fighter, option.id);
+                          return {
+                            value: option.id,
+                            label: (
+                              <span className={reason ? 'text-muted-foreground' : undefined}>
+                                {option.label} - {reason ?? option.summary}
+                              </span>
+                            ),
+                            displayValue: option.label,
+                            disabled: reason !== null && row?.action !== option.id,
+                          };
+                        })}
+                        value={row?.action ?? ''}
+                        onValueChange={(value) => handleActionChange(fighter.id, value)}
+                        placeholder="No action"
                         clearable
                         disabled={!canEdit || applying}
                       />
-                      {target && (
-                        <EffectChecklist
-                          effects={removableLastingInjuriesOf(target)}
-                          selected={row.injuryIds}
-                          costEach={FIT_BIONICS_COST_PER_INJURY}
-                          discount={postCycleDiscount(fighter, 'fit_bionics')}
-                          onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
+
+                      {row?.action === 'medical_escort' && (
+                        <Combobox
+                          options={patientOptions(fighter.id, criticallyInjured)}
+                          value={row.targetFighterId ?? ''}
+                          onValueChange={(id) => setRow(fighter.id, { targetFighterId: id || undefined })}
+                          placeholder="Critically Injured fighter"
+                          noResultsText="No fighter has a Critical Injury"
+                          clearable
                           disabled={!canEdit || applying}
-                          emptyText="No removable Lasting Injuries. A Critical Injury cannot be removed with bionics."
                         />
                       )}
-                    </>
-                  )}
 
-                  {row?.action === 'visit_chop_shop' && (
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => openDamagePicker(fighter.id)}
-                      disabled={!canEdit || applying}
-                    >
-                      Choose Lasting Damage
-                    </Button>
-                  )}
+                      {row?.action === 'fit_bionics' && (
+                        <>
+                          <Combobox
+                            options={patientOptions(fighter.id, injuredFighters)}
+                            value={row.targetFighterId ?? ''}
+                            // Switching patient drops the injuries picked for the last one.
+                            onValueChange={(id) =>
+                              setRow(fighter.id, { targetFighterId: id || undefined, injuryIds: [] })
+                            }
+                            placeholder="Fighter to fit bionics"
+                            noResultsText="No fighter has a removable Lasting Injury"
+                            clearable
+                            disabled={!canEdit || applying}
+                          />
+                          {target && (
+                            <EffectChecklist
+                              effects={removableLastingInjuriesOf(target)}
+                              selected={row.injuryIds}
+                              costEach={FIT_BIONICS_COST_PER_INJURY}
+                              discount={postCycleDiscount(fighter, 'fit_bionics')}
+                              onChange={(injuryIds) => setRow(fighter.id, { injuryIds })}
+                              disabled={!canEdit || applying}
+                              emptyText="No removable Lasting Injuries. A Critical Injury cannot be removed with bionics."
+                            />
+                          )}
+                        </>
+                      )}
 
-                  {row?.action === 'develop_tactics' && (
-                    <Button
-                      size="sm"
-                      className="w-full"
-                      onClick={() => openTacticsPicker(fighter.id)}
-                      disabled={!canEdit || applying}
-                    >
-                      Choose Gang Tactic
-                    </Button>
-                  )}
+                      {row?.action === 'visit_chop_shop' && (
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => openDamagePicker(fighter.id)}
+                          disabled={!canEdit || applying}
+                        >
+                          Choose Lasting Damage
+                        </Button>
+                      )}
 
-                  {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
-                    <p key={message} className="text-xs text-red-600">
-                      {message}
-                    </p>
-                  ))}
-                </div>
+                      {row?.action === 'develop_tactics' && (
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          onClick={() => openTacticsPicker(fighter.id)}
+                          disabled={!canEdit || applying}
+                        >
+                          Choose Gang Tactic
+                        </Button>
+                      )}
 
-                <span className="hidden md:block md:pt-2">{effect}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+                      {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
+                        <p key={message} className="text-xs text-red-600">
+                          {message}
+                        </p>
+                      ))}
+                    </div>
 
-      {pendingStates.length > 0 && (
-        <div className="mt-4 flex flex-col items-end gap-2">
-          {cannotAfford && (
-            <p className="text-xs text-red-600">
-              The gang cannot afford these actions ({totalSpend} credits).
-            </p>
-          )}
-          <Button onClick={handleApply} disabled={!canEdit || applying || !readyToApply}>
-            {applying
-              ? 'Applying…'
-              : `Apply ${pendingStates.length} Post-cycle Action${pendingStates.length === 1 ? '' : 's'}`}
-          </Button>
-        </div>
+                    <span className="hidden md:block md:pt-2">{effect}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </>
       )}
+
+      <div className="mt-4 flex flex-col items-end gap-2">
+        {cannotAfford && (
+          <p className="text-xs text-red-600">
+            The gang cannot afford these actions ({totalSpend} credits).
+          </p>
+        )}
+        <Button onClick={handleApply} disabled={!canEdit || applying || !readyToApply}>
+          Confirm
+        </Button>
+      </div>
 
       {tacticsPickerFor && (
         <Modal

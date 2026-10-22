@@ -11,7 +11,7 @@ A comprehensive gang management tool for Necromunda tabletop game with features 
 ## Tech Stack
 
 - **Framework:** Next.js 15.4.3 (App Router)
-- **Database:** PostgreSQL
+- **Database:** PostgreSQL (Supabase), queried through the Supabase Data API and Drizzle ORM
 - **Authentication:** Supabase Auth
 - **Styling:** Tailwind CSS
 - **Components:** shadcn/ui
@@ -598,3 +598,59 @@ redis-cli -u "$REDIS_URL" --scan --pattern 'munda-manager:next-cache:*' \
 ```
 
 To roll back to stock Next.js caching, unset `USE_REDIS_CACHE` and rebuild.
+
+## Drizzle ORM
+
+Some server-side reads use [Drizzle ORM](https://orm.drizzle.team) over a direct
+Postgres connection instead of the Supabase Data API. Those reads don't create API
+gateway log entries, which Supabase bills as Logs Ingest. These are read this way:
+
+- everything the gang page reads in `app/lib/shared/gang-data.ts`: the roster,
+  core row, positioning, campaigns, stash, subtypes, owner's profile, Gang
+  Tactics cards and fighter stats
+- the battle session page and its live refetches (`fetchBattleSessionDirect` and
+  `getBattleSessionCached`), and the gang's and campaign's battle sessions lists
+  (`getGangBattleSessionsCached` and `getCampaignBattleSessions`), all in
+  `app/lib/battle-sessions/get-battle-session-data.ts`
+- the campaign page's data in `app/lib/campaigns/[id]/get-campaign-data.ts`: the
+  campaign row, members, territories, battles, allegiances, resources, captives,
+  OOA counts, map and shared trading posts
+- the home page's gang and campaign lists and the share modal's campaigns
+  (`app/lib/get-user-gangs.ts` and `app/lib/get-user-campaigns.ts`)
+- the scenarios, trading post types, campaign types, territories, scenario
+  tables and campaign triumphs in `app/lib/reference-data.ts`
+- the site stats (`app/lib/get-stats-*.ts`)
+- permission checks (`checkPermission` and `checkPermissionCached` in
+  `utils/user-permissions.ts`)
+- the fighter's own row and its total cost (`getFighterBasic` and
+  `getFighterTotalCost` in `app/lib/shared/fighter-data.ts`)
+- the user's custom equipment, fighter types, skills, gang types, trading posts
+  and collections in `app/lib/customise`
+- the account page's friends and friend requests (`getFriendsAndRequests` in
+  `app/lib/friends.ts`)
+
+The files:
+
+- `utils/db/client.ts`: the connection, through the Supabase transaction pooler.
+- `utils/db/schema.ts`: Drizzle tables and relations. They mirror
+  `supabase/schema/schema.public.sql`; update them when a migration changes these
+  tables.
+- `utils/db/supabase-ca.ts`: Supabase's root CA, which the connection verifies the
+  pooler's certificate against. It expires on 26 April 2031; replace it with the
+  new one from Database Settings > SSL Configuration before then.
+
+| Variable | Required | Notes |
+|---|---|---|
+| `DATABASE_URL` | runtime | Secret. Transaction pooler URL (port `6543`) with user `app_server.<project-ref>`. With the local Supabase stack, use its own database: `postgresql://postgres:postgres@127.0.0.1:54322/postgres` |
+
+The connection signs in as `app_server` (migration
+`20261016120000_add_app_server_role.sql`), a read-only role with the privileges of
+`authenticated` but no user. RLS applies, so Drizzle suits data every signed-in
+user may read; policies that check `auth.uid()` return no rows. The exception is
+`withUserClaims` in `utils/db/client.ts`: it runs a read in a transaction with
+`auth.uid()` set to the given user, so those policies apply as over the Data API
+(the friends read uses it). Pass only the authenticated caller's own id. The
+connection never checks who is asking, so authenticate the request before reading (the gang
+pages call `getAuthenticatedUser` first). Its password is set in the SQL editor,
+not in the migration. Don't use the Supabase integration's `POSTGRES_URL` in
+production: it signs in as `postgres`, which skips RLS.

@@ -5,6 +5,7 @@ import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-bou
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
+import { isUuid } from "@/utils/uuid";
 import {
   getTradingPostTypesCached,
   getCampaignTriumphs,
@@ -26,16 +27,20 @@ import {
   getCampaignMapWithObjects,
   getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
-import { SESSION_SCENARIO_PARTS_SELECT } from "@/app/lib/battle-sessions/get-battle-session-data";
+import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
 
-export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
+export default async function CampaignPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const params = await props.params;
+  const { tab } = await props.searchParams;
   const supabase = await createClient();
 
   // Get the user data once at the page level via claims. This is the authorisation
-  // gate for the whole page: the cached readers below fill from a service-role client
-  // and so do not enforce RLS themselves. proxy.ts already redirects anonymous
-  // requests for this path; this keeps the page correct independently of that.
+  // gate for the whole page: the cached readers below read over the direct connection,
+  // which doesn't check who is asking. proxy.ts already redirects anonymous requests
+  // for this path; this keeps the page correct independently of that.
   let user: { id: string };
   try {
     user = await getAuthenticatedUser(supabase);
@@ -43,6 +48,10 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     redirect(signInPath(`/campaigns/${params.id}`));
   }
   const userId = user.id;
+
+  if (!isUuid(params.id)) {
+    notFound();
+  }
 
   // Calculate permissions server-side
   let permissions: CampaignPermissions | null = null;
@@ -82,7 +91,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       campaignTerritories,
       campaignBattles,
       campaignMapBundle,
-      battleSessionsResult,
+      battleSessions,
       campaignTypes,
       allTerritories,
       tradingPostTypes,
@@ -98,14 +107,10 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       getCampaignTerritories(params.id),
       getCampaignBattles(params.id, 100),
       getCampaignMapWithObjects(params.id),
-      supabase
-        .from('battle_sessions')
-        .select(`*, ${SESSION_SCENARIO_PARTS_SELECT}`)
-        .eq('campaign_id', params.id)
-        .order('updated_at', { ascending: false }),
+      getCampaignBattleSessions(params.id),
       getCampaignTypes(),
       getAllTerritories(),
-      getTradingPostTypesCached(supabase),
+      getTradingPostTypesCached(),
       getCampaignAllegiances(params.id),
       getCampaignResources(params.id),
       getCampaignCaptives(params.id),
@@ -121,7 +126,7 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     ]);
 
     // Check if campaign exists
-    if (!campaignBasic) {
+    if (!campaignBasic?.campaign_type_id) {
       notFound();
     }
 
@@ -149,11 +154,11 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
     // Combine the data
     const campaignData = {
       id: campaignBasic.id,
-      campaign_name: campaignBasic.campaign_name,
+      campaign_name: campaignBasic.campaign_name ?? '',
       campaign_type_id: campaignBasic.campaign_type_id,
-      campaign_type_name: (campaignBasic.campaign_types as any)?.campaign_type_name || '',
-      campaign_type_image_url: (campaignBasic.campaign_types as any)?.image_url || '',
-      edition_slug: (campaignBasic.campaign_types as any)?.edition_slug ?? null,
+      campaign_type_name: campaignBasic.campaign_types?.campaign_type_name || '',
+      campaign_type_image_url: campaignBasic.campaign_types?.image_url || '',
+      edition_slug: campaignBasic.campaign_types?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
@@ -165,11 +170,11 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       discord_channel_id: campaignBasic.discord_channel_id || null,
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
-      current_cycle: (campaignBasic as any).current_cycle ?? null,
+      current_cycle: campaignBasic.current_cycle ?? null,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
-      battleSessions: battleSessionsResult.data || [],
+      battleSessions,
       triumphs: campaignTriumphs,
       ooaCounts: campaignOoaCounts,
       captives: campaignCaptives
@@ -207,9 +212,6 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
       <main className="flex min-h-screen flex-col items-center">
         <div className="container mx-auto max-w-4xl w-full space-y-4">
           <div className="text-red-500">Error loading campaign data</div>
-          {error instanceof Error && (
-            <div className="text-sm text-muted-foreground">{error.message}</div>
-          )}
         </div>
       </main>
     );
@@ -231,6 +233,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         mapObjects={pageProps.campaignMapObjects}
         hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
         scenarioTables={pageProps.scenarioTables}
+        // Challenge notifications link to ?tab=battles.
+        initialTab={tab === 'battles' ? 2 : 0}
       />
     </CampaignErrorBoundary>
   );

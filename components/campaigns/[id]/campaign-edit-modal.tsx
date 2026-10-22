@@ -18,7 +18,7 @@ import { sameEditionForDisplay } from '@/types/edition';
 
 interface TradingPostType {
   id: string;
-  trading_post_name: string;
+  trading_post_name: string | null;
   edition_slug?: string | null;
 }
 
@@ -38,7 +38,7 @@ interface EditCampaignModalProps {
   campaignData: {
     id: string;
     campaign_name: string;
-    description: string;
+    description: string | null;
     status: string | null;
     allow_join_requests?: boolean;
     trading_posts: string[];
@@ -401,14 +401,14 @@ export default function CampaignEditModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {editionTradingPostTypes
                     .sort((a, b) => {
-                      const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
-                      const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;
+                      const rankA = tradingPostRank[(a.trading_post_name ?? '').toLowerCase()] ?? Infinity;
+                      const rankB = tradingPostRank[(b.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                       return rankA - rankB;
                     })
                     .map((type, index, arr) => {
-                      const currentRank = tradingPostRank[type.trading_post_name.toLowerCase()] ?? Infinity;
+                      const currentRank = tradingPostRank[(type.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                       const prevRank = index > 0 
-                        ? (tradingPostRank[arr[index - 1].trading_post_name.toLowerCase()] ?? Infinity)
+                        ? (tradingPostRank[(arr[index - 1].trading_post_name ?? '').toLowerCase()] ?? Infinity)
                         : null;
                       
                       // Add divider between rank <= 2 and rank >= 11

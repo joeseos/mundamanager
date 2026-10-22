@@ -14,9 +14,9 @@ import {
   applyN26ProspectPromotion,
   applyN26GangerChampionPromotion,
   applyN26ChampionLeaderPromotion,
+  applyPromotionWithSkillAdvancement,
   deleteAdvancement,
 } from '@/app/actions/fighter-advancement';
-import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
 import type { FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
 import { hasCumulativeXp } from '@/types/edition';
@@ -167,14 +167,11 @@ export function AdvancementsList({
         return result;
       }
 
-      const result = await updateFighterDetails({
+      const result = await applyPromotionWithSkillAdvancement({
         fighter_id: fighterId,
-        fighter_subtypes: promotion.fighter_subtypes,
-        fighter_type: promotion.fighter_type,
-        fighter_type_id: promotion.fighter_type_id,
-        fighter_specialisation: promotion.fighter_specialisation ?? null,
-        fighter_specialisation_id: promotion.fighter_specialisation_id ?? null,
-        special_rules: promotion.special_rules,
+        xp_cost: 0,
+        credits_increase: 0,
+        promotion,
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to promote fighter');

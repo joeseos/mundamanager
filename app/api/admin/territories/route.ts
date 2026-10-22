@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
 import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
+import { parseCredits } from "@/utils/campaigns/territories";
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -17,7 +18,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('territories')
-      .select('id, territory_name, campaign_type_id, playing_card, edition_id')
+      .select('id, territory_name, campaign_type_id, playing_card, credits, edition_id')
       .order('territory_name', { ascending: true });
 
     if (campaignTypeId) {
@@ -47,8 +48,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { territory_name, campaign_type_id, playing_card, edition_id } = body;
+    const { territory_name, campaign_type_id, playing_card, credits, edition_id } = body;
     const normalisedPlayingCard = typeof playing_card === 'string' ? playing_card.trim() || null : null;
+    const normalisedCredits = credits === undefined ? null : parseCredits(credits);
 
     if (!territory_name?.trim()) {
       return NextResponse.json(
@@ -64,12 +66,20 @@ export async function POST(request: Request) {
       );
     }
 
+    if (normalisedCredits === undefined) {
+      return NextResponse.json(
+        { error: 'credits must be a number' },
+        { status: 400 }
+      );
+    }
+
     const { data: territory, error } = await supabase
       .from('territories')
       .insert([{
         territory_name: territory_name.trim(),
         campaign_type_id: campaign_type_id || null,
         playing_card: normalisedPlayingCard,
+        credits: normalisedCredits,
         edition_id: edition_id || null
       }])
       .select()
@@ -97,7 +107,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, territory_name, campaign_type_id, playing_card, edition_id } = body;
+    const { id, territory_name, campaign_type_id, playing_card, credits, edition_id } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -122,6 +132,16 @@ export async function PATCH(request: Request) {
     }
     if (playing_card !== undefined) {
       updateData.playing_card = typeof playing_card === 'string' ? playing_card.trim() || null : null;
+    }
+    if (credits !== undefined) {
+      const normalisedCredits = parseCredits(credits);
+      if (normalisedCredits === undefined) {
+        return NextResponse.json(
+          { error: 'credits must be a number' },
+          { status: 400 }
+        );
+      }
+      updateData.credits = normalisedCredits;
     }
     if (edition_id !== undefined) {
       updateData.edition_id = edition_id || null;

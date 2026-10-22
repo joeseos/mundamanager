@@ -1,27 +1,23 @@
 "use client";
 
-import { lazy, Suspense, useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Button } from "@/components/ui/button";
+import { FiPrinter } from "react-icons/fi";
 import { toast } from 'sonner';
 import type { RichTextEditorHandle } from "@/components/ui/rich-text-editor";
+import { LazyRichTextEditor } from "@/components/ui/lazy-rich-text-editor";
 import "@/components/ui/rich-text-editor.css"; // Styles the read-only notes and the editor placeholder
 import { updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
-
-// The editor (Tiptap and ProseMirror, about 130 KB gzipped) only shows after
-// Edit is clicked, so its code loads then instead of with the page.
-// lazy() passes editorRef through to it.
-const RichTextEditor = lazy(() =>
-  import("@/components/ui/rich-text-editor").then((mod) => ({ default: mod.RichTextEditor }))
-);
 
 interface CampaignNotesProps {
   campaignId: string;
   initialNote?: string;
   onNoteUpdate?: (updatedNote: string) => void;
+  canEdit?: boolean;
 }
 
-export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: CampaignNotesProps) {
+export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate, canEdit = false }: CampaignNotesProps) {
   const NOTE_CHAR_LIMIT = 3500;
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
@@ -84,13 +80,20 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
     }
   };
 
+  const packBody = (
+    <div
+      className={`max-w-none ${!isHtmlEffectivelyEmpty(note) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}
+      dangerouslySetInnerHTML={{ __html: !isHtmlEffectivelyEmpty(note) ? note : 'No notes added.' }}
+    />
+  );
+
   return (
-    <div className="space-y-2">
-      <div className="flex justify-between items-start">
+    <div className="space-y-2 print:space-y-0">
+      <div className="flex justify-between items-start print:hidden">
         <h2 className="text-xl md:text-2xl font-bold mb-6">Campaign Pack</h2>
         <div className="flex items-center gap-2">
           <div className="flex gap-2">
-            {isEditing ? (
+            {canEdit && isEditing ? (
               <>
                 <Button
                   onClick={() => {
@@ -113,33 +116,43 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
                 </Button>
               </>
             ) : (
-              <Button 
-                onClick={() => setIsEditing(true)}
-                disabled={isRefreshing}
-              >
-                {isRefreshing ? "Updating..." : "Edit"}
-              </Button>
+              <>
+                <Button
+                  onClick={() => window.print()}
+                  variant="ghost"
+                  size="icon"
+                  className="print:hidden"
+                  title="Print"
+                  aria-label="Print campaign pack"
+                  disabled={isRefreshing}
+                >
+                  <FiPrinter className="w-5 h-5" />
+                </Button>
+                {canEdit && (
+                  <Button 
+                    onClick={() => setIsEditing(true)}
+                    disabled={isRefreshing}
+                    className="print:hidden"
+                  >
+                    {isRefreshing ? "Updating..." : "Edit"}
+                  </Button>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
       {error && (
-        <p className="text-red-500 text-sm">{error}</p>
+        <p className="text-red-500 text-sm print:hidden">{error}</p>
       )}
-      {isEditing ? (
-        <div className="bg-white rounded-md">
-          {/* Until the editor's code arrives, show the note in the editor's frame so nothing
-              moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
-          <Suspense
-            fallback={
-              <div className="border rounded-md min-h-[200px]">
-                <div className="hidden min-[769px]:block border-b rounded-t-md p-1 bg-card shadow-xs"><div className="h-8" /></div>
-                <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: note }} />
-              </div>
-            }
-          >
-            <RichTextEditor
-              ref={editorRef}
+      {canEdit && isEditing ? (
+        <>
+          <div className="bg-white rounded-md print:hidden">
+            {/* Until the editor's code arrives, show the note in the editor's frame so nothing
+                moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
+            <LazyRichTextEditor
+              editorRef={editorRef}
+              fallbackHtml={note}
               content={note}
               onChange={setNote}
               placeholder="Add notes here..."
@@ -148,13 +161,13 @@ export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate }: Ca
               campaignId={campaignId}
               enableImages={true}
             />
-          </Suspense>
-        </div>
+          </div>
+          <div className="hidden print:block">
+            {packBody}
+          </div>
+        </>
       ) : (
-        <div 
-          className={`max-w-none ${!isHtmlEffectivelyEmpty(note) ? 'prose prose-sm' : 'text-gray-500 italic text-center'}`}
-          dangerouslySetInnerHTML={{ __html: !isHtmlEffectivelyEmpty(note) ? note : 'No notes added.' }}
-        />
+        packBody
       )}
     </div>
   );

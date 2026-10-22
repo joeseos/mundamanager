@@ -22,6 +22,7 @@ import {
   notificationTextToHtml,
   notificationTextToPlain,
 } from "./_email-layout.ts";
+import { notificationHtmlEmailBody } from "./_notification-html.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -48,6 +49,7 @@ const MASTER_PREF_KEY = "all";
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
 // A `{sender}` token in a subject is replaced with the sender's username (see resolveSubject).
 // `ctaPath` points the email button at an app path instead of notification.link.
+// When it is absent, the button uses notification.link.
 const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; ctaPath?: string }> = {
   campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
   gang_invite: {
@@ -65,7 +67,26 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
     subject: "{sender} wants to join your campaign",
     ctaPath: "/account",
   },
-  campaign_challenge: { defaultEnabled: true, subject: "Your gang has been challenged" },
+  campaign_challenge: { defaultEnabled: true, subject: "{sender} has challenged your gang" },
+  user_message: {
+    defaultEnabled: true,
+    subject: "{sender} sent you a message",
+    ctaPath: "/account",
+  },
+  campaign_message: {
+    defaultEnabled: true,
+    subject: "{sender} sent a campaign message",
+  },
+  mm_staff_message: {
+    defaultEnabled: true,
+    subject: "A message from Munda Manager",
+    ctaPath: "/account",
+  },
+  mm_announcement: {
+    defaultEnabled: true,
+    subject: "An announcement from Munda Manager",
+    ctaPath: "/account",
+  },
 };
 
 function isEmailEnabled(
@@ -198,7 +219,7 @@ async function buildEmail(delivery: {
 > {
   const { data: notification } = await supabase
     .from("notifications")
-    .select("id, type, text, link, sender_id")
+    .select("id, type, text, link, sender_id, is_html")
     .eq("id", delivery.notification_id)
     .maybeSingle();
 
@@ -236,14 +257,23 @@ async function buildEmail(delivery: {
 
   const subject = await resolveSubject(cfg.subject, notification.sender_id);
 
+  // is_html rows are sanitized TipTap HTML (announcements, staff messages, and
+  // campaign messages). Everything else stays escaped plain text with the **bold** convention.
+  const htmlBody = notification.is_html
+    ? notificationHtmlEmailBody(notification.text ?? "", APP_URL)
+    : null;
+
   const { html, text } = emailLayout({
     subject,
-    bodyHtml: notificationTextToHtml(notification.text),
-    bodyText: notificationTextToPlain(notification.text),
+    bodyHtml: htmlBody ? htmlBody.html : notificationTextToHtml(notification.text),
+    bodyText: htmlBody ? htmlBody.text : notificationTextToPlain(notification.text),
+    bodyIsHtml: Boolean(htmlBody),
     ctaUrl: cfg.ctaPath
       ? `${APP_URL}${cfg.ctaPath}`
       // In-app links may be app-relative; an email needs them absolute.
-      : notification.link?.startsWith("/") ? `${APP_URL}${notification.link}` : notification.link,
+      : notification.link?.startsWith("/")
+        ? `${APP_URL}${notification.link}`
+        : notification.link,
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });

@@ -4,12 +4,16 @@ import { useState } from "react";
 import { toast } from 'sonner';
 import { useMutation } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
+import { Button } from "@/components/ui/button";
+import { SortableRankList, type SortableRankItem } from "@/components/ui/sortable-rank-list";
 import { generateChallengeRound } from "@/app/actions/campaigns/[id]/battle-logs";
+import { shuffle } from "@/utils/dice";
 import type { Battle } from "@/types/campaign";
 
 interface CampaignChallengeRoundModalProps {
   campaignId: string;
-  gangCount: number;
+  /** Accepted gangs, in the order offered before the arbitrator changes it. */
+  gangs: SortableRankItem[];
   defaultCycle?: number | null;
   onClose: () => void;
   onSuccess: (created: Battle[]) => void;
@@ -17,7 +21,7 @@ interface CampaignChallengeRoundModalProps {
 
 const CampaignChallengeRoundModal = ({
   campaignId,
-  gangCount,
+  gangs,
   defaultCycle,
   onClose,
   onSuccess,
@@ -25,29 +29,33 @@ const CampaignChallengeRoundModal = ({
   const [cycle, setCycle] = useState<string>(
     defaultCycle != null ? String(defaultCycle) : ''
   );
+  const [order, setOrder] = useState(gangs);
 
   const cycleValue = cycle ? parseInt(cycle, 10) : null;
   const cycleValid = !cycle || (!isNaN(cycleValue as number) && (cycleValue as number) > 0);
 
   const generateMutation = useMutation({
-    mutationFn: () => generateChallengeRound(campaignId, cycleValid ? cycleValue : null),
+    mutationFn: () => generateChallengeRound(
+      campaignId,
+      cycleValid ? cycleValue : null,
+      order.map((g) => g.id)
+    ),
     onSuccess: (result) => {
       if (!result.success) {
-        toast.error(result.error || 'Failed to open challenge round');
+        toast.error(result.error || 'Failed to create challenge round');
         return;
       }
-      toast.success(`Opened ${result.created} challenge${result.created === 1 ? '' : 's'}`);
+      toast.success(`Created ${result.created} challenge${result.created === 1 ? '' : 's'}`);
       onSuccess((result.battles ?? []) as Battle[]);
     },
-    onError: () => toast.error('Failed to open challenge round'),
+    onError: () => toast.error('Failed to create challenge round'),
   });
 
   return (
     <Modal
-      title="Open Challenge Round"
-      helper="Every gang in the campaign gets a challenge to issue."
-      confirmText="Open Round"
-      confirmDisabled={!cycleValid || gangCount === 0}
+      title="Create Challenge Round"
+      helper="Every gang in the campaign gets a challenge to issue, in the order set below."
+      confirmDisabled={!cycleValid || order.length === 0}
       onClose={onClose}
       onConfirm={async () => {
         if (!cycleValid) return false;
@@ -74,12 +82,21 @@ const CampaignChallengeRoundModal = ({
             )}
           </div>
 
-          <p className="text-sm text-muted-foreground">
-            {gangCount === 0
-              ? 'There are no accepted gangs in this campaign yet.'
-              : `This creates ${gangCount} challenge${gangCount === 1 ? '' : 's'}, one per gang. ` +
-                'Each gang’s owner then picks who to challenge. You can open more than one round per cycle.'}
-          </p>
+          {order.length > 0 ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-muted-foreground">Challenge Order</p>
+                <Button type="button" variant="outline" size="sm" onClick={() => setOrder((prev) => shuffle(prev))}>
+                  Randomise
+                </Button>
+              </div>
+              <SortableRankList items={order} onReorder={setOrder} />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              There are no accepted gangs in this campaign yet.
+            </p>
+          )}
         </div>
       }
     />

@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { sortParticipantFightersByPositioning } from '@/utils/fighter-positioning';
 
@@ -9,39 +9,13 @@ import { useMutation } from '@tanstack/react-query';
 import type { GangFighter } from '@/types/gang';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Counter } from '@/components/ui/counter';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { LuClipboard } from 'react-icons/lu';
-import { Combobox } from '@/components/ui/combobox';
+import { LuTrash2 } from 'react-icons/lu';
 import Modal from '@/components/ui/modal';
-import FighterEffectSelection from '@/components/fighter-effect-selection';
-import DiceRoller from '@/components/dice-roller';
-import { rollD66, rollNd6Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
-import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
-import { requiredHatredTarget } from '@/utils/injuryTarget';
-import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
+import { rollNd6Outcome } from '@/utils/dice';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
-import { CgMoreVerticalO } from 'react-icons/cg';
-import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
-import { IoSkull } from 'react-icons/io5';
-import { MdChair } from 'react-icons/md';
-import { TbMeatOff } from 'react-icons/tb';
-import { FaRegAddressCard, FaMedkit } from 'react-icons/fa';
-import {
-  CONDITION_BY_KEY,
-  N26_MARKER_SIZE_CLASS,
-  markerSizeClass,
-  ReadyActivatedIcon,
-  SessionMarkerGlyph,
-  groupFighterRowConditionBadges,
-  markerName,
-  markersForEdition,
-  type SessionMarkerDef,
-} from '@/components/battle-session/session-markers';
 import {
   removeParticipant,
   updateParticipantRole,
@@ -53,30 +27,24 @@ import {
   removeFighterFromSession,
   updateFighterLoadout,
   updateSessionXp,
-  addSessionInjury,
   updateSessionConditions,
   updateActivations,
   updateSessionNote,
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
-import { addFighterInjury } from '@/app/actions/fighter-injury';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
-import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { updateFighterXp } from '@/app/actions/edit-fighter';
-import FighterCard from '@/components/gang/fighter-card';
-import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/battle-session';
-import { beastSubtypeName, canLeaveBattlefield, hasFleshWoundCondition, hasN26CompositeBattleMarkers, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
+import FighterRow from '@/components/battle-session/fighter-row';
+import BattleParticipationModal from '@/components/battle-session/battle-participation-modal';
+import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition } from '@/types/battle-session';
+import { beastSubtypeName, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
 
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
-const FighterXpModal = dynamic(
-  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
-  { ssr: false }
-);
 
 const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
-const hasDualActivation = (rules?: string[]) =>
+const hasDualActivation = (rules?: string[] | null) =>
   rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
 /** Splits session injuries by fighter_types.is_spyrer; a gang can field both. */
@@ -93,1115 +61,6 @@ export function splitInjuryCounts(
       return acc;
     },
     { totalInjuries: 0, totalGlitches: 0 }
-  );
-}
-
-function MarkerToggleButton({
-  condition,
-  editionSlug,
-  isActive,
-  onToggle,
-}: {
-  condition: SessionMarkerDef;
-  editionSlug?: string | null;
-  isActive: boolean;
-  onToggle: () => void;
-}) {
-  const name = markerName(condition, editionSlug);
-  const useComposite = hasN26CompositeBattleMarkers(editionSlug);
-  return (
-    <Button
-      onClick={onToggle}
-      variant={isActive ? 'default' : 'outline'}
-      className="min-w-[140px] flex-1 max-w-[calc(50%-0.25rem)] justify-start pl-2 text-left text-xs md:pl-6 md:text-sm"
-    >
-      <span className={`${condition.colorClass} mr-1.5 ${markerSizeClass(useComposite, 'text-xl')}`}>
-        <SessionMarkerGlyph def={condition} editionSlug={editionSlug} decorative />
-      </span>
-      {name}
-    </Button>
-  );
-}
-
-function ConditionBadge({
-  condition,
-  iconOnly = false,
-  editionSlug,
-}: {
-  condition: SessionCondition;
-  iconOnly?: boolean;
-  editionSlug?: string | null;
-}) {
-  const config = CONDITION_BY_KEY.get(condition.key);
-  const displayName = config ? markerName(config, editionSlug) : condition.name;
-  const conditionLabel = condition.value != null && condition.value > 0
-    ? `${condition.value} ${displayName}`
-    : displayName;
-  if (!config) {
-    return (
-      <span className="rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-        {condition.name}
-      </span>
-    );
-  }
-
-  const useComposite = hasN26CompositeBattleMarkers(editionSlug) && Boolean(config.n26);
-
-  if (iconOnly) {
-    return (
-      <span
-        className={
-          useComposite
-            ? `relative inline-flex ${N26_MARKER_SIZE_CLASS} shrink-0 items-center justify-center`
-            : 'relative inline-flex size-7 md:size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
-        }
-        title={conditionLabel}
-        aria-label={conditionLabel}
-      >
-        <span className={`${config.colorClass} ${markerSizeClass(useComposite, 'text-xl md:text-2xl', 'size-full')}`}>
-          <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
-        </span>
-        {condition.value != null && condition.value > 0 && (
-          <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-neutral-700 text-[10px] font-bold leading-none text-white dark:bg-neutral-200 dark:text-neutral-900">
-            {condition.value}
-          </span>
-        )}
-      </span>
-    );
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-      <span className={`${config.colorClass} text-base`}>
-        <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
-      </span>
-      {conditionLabel}
-    </span>
-  );
-}
-
-function FighterRowConditionBadges({
-  conditions,
-  editionSlug,
-}: {
-  conditions: SessionCondition[];
-  editionSlug?: string | null;
-}) {
-  return groupFighterRowConditionBadges(conditions, editionSlug).map((group, index) => (
-    <Fragment key={group.map((condition) => condition.key).join('-')}>
-      {index > 0 && (
-        <span className="px-0.5 text-muted-foreground" aria-hidden>
-          ∙
-        </span>
-      )}
-      {group.map((condition) => (
-        <ConditionBadge key={condition.key} condition={condition} iconOnly editionSlug={editionSlug} />
-      ))}
-    </Fragment>
-  ));
-}
-
-// ---------------------------------------------------------------------------
-// FighterActionModal — XP, Lasting Injuries, Remove in one modal
-// ---------------------------------------------------------------------------
-
-function FighterActionModal({
-  fighter,
-  gangId,
-  campaignId,
-  editionSlug,
-  candidateGangs,
-  isSkirmish,
-  isSpyrer,
-  fighterWeapons,
-  onXpChanged,
-  onConditionsChanged,
-  onInjuryAdded,
-  onBroadcast,
-  onClose,
-}: {
-  fighter: BattleSessionFighter;
-  gangId: string;
-  campaignId?: string | null;
-  editionSlug?: string | null;
-  candidateGangs: CampaignGangWithFighters[];
-  isSkirmish: boolean;
-  isSpyrer: boolean;
-  fighterWeapons: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
-  onXpChanged: (delta: number) => void;
-  onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
-  onInjuryAdded: (injury: SessionInjuryRecord) => void;
-  onBroadcast?: () => void;
-  onClose: () => void;
-}) {
-  const [showXpModal, setShowXpModal] = useState(false);
-  const [showInjuryModal, setShowInjuryModal] = useState(false);
-  const [fighterData, setFighterData] = useState<{ xp: number; kills: number; kill_count: number } | null>(null);
-  const [loadingXp, setLoadingXp] = useState(false);
-  const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
-    fighter.session_record?.conditions ?? []
-  );
-  // Compared against the value the modal opened with, not the live prop, so a
-  // realtime change made elsewhere while it is open isn't sent back reversed.
-  const [initialLeftBattlefield] = useState(fighter.session_record?.left_battlefield === true);
-  const [draftLeftBattlefield, setDraftLeftBattlefield] = useState(initialLeftBattlefield);
-
-  // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY still
-  // looks up a stored key from another edition. The glyph only falls back when
-  // that definition has `icon`; N26-only markers stay label-only outside composite mode.
-  const showFleshWounds = hasFleshWoundCondition(editionSlug);
-  const useCompositeMarkers = hasN26CompositeBattleMarkers(editionSlug);
-  const { status: statusMarkers, wounds: woundMarkers, conditions: conditionMarkers } =
-    markersForEdition(editionSlug);
-  const visibilityMarkerKeys = new Set(['hidden', 'revealed']);
-  const injuredMarker = conditionMarkers.find((c) => c.key === 'injured');
-  const mainConditionMarkers = conditionMarkers
-    .filter((c) => !visibilityMarkerKeys.has(c.key) && c.key !== 'injured')
-    .sort((a, b) => markerName(a, editionSlug).localeCompare(markerName(b, editionSlug)));
-  const visibilityMarkers = conditionMarkers.filter((c) => visibilityMarkerKeys.has(c.key));
-
-  const openXpModal = async () => {
-    setLoadingXp(true);
-    try {
-      const { createClient } = await import('@/utils/supabase/client');
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('fighters')
-        .select('xp, kills, kill_count')
-        .eq('id', fighter.fighter_id)
-        .single();
-      if (data) { setFighterData(data); setShowXpModal(true); }
-    } catch {
-      toast.error('Failed to load fighter data');
-    } finally {
-      setLoadingXp(false);
-    }
-  };
-
-  const currentConditions = fighter.session_record?.conditions ?? [];
-
-  const EXCLUSIVE_PAIRS: Record<string, string> = {
-    hidden: 'revealed',
-    revealed: 'hidden',
-  };
-
-  const toggleCondition = (condition: SessionMarkerDef) => {
-    const exists = draftConditions.some((item) => item.key === condition.key);
-    const name = markerName(condition, editionSlug);
-    if (exists) {
-      setDraftConditions(draftConditions.filter((item) => item.key !== condition.key));
-    } else {
-      const excludeKey = EXCLUSIVE_PAIRS[condition.key];
-      setDraftConditions([
-        ...draftConditions.filter((item) => item.key !== excludeKey),
-        { key: condition.key, name },
-      ]);
-    }
-  };
-
-  const adjustNumericCondition = (key: string, name: string, delta: number) => {
-    const existing = draftConditions.find((c) => c.key === key);
-    const currentValue = existing?.value ?? 0;
-    const newValue = Math.max(0, currentValue + delta);
-    if (newValue === 0) {
-      setDraftConditions(draftConditions.filter((c) => c.key !== key));
-    } else if (existing) {
-      setDraftConditions(draftConditions.map((c) => c.key === key ? { ...c, value: newValue } : c));
-    } else {
-      setDraftConditions([...draftConditions, { key, name, value: newValue }]);
-    }
-  };
-
-  const hasConditionChanges = JSON.stringify(draftConditions) !== JSON.stringify(currentConditions);
-  const hasLeftBattlefieldChange = draftLeftBattlefield !== initialLeftBattlefield;
-
-  return (
-    <>
-      <Modal
-        title="Fighter Actions"
-        onClose={onClose}
-        onConfirm={async () => {
-          onConditionsChanged(draftConditions, hasLeftBattlefieldChange ? draftLeftBattlefield : undefined);
-          return true;
-        }}
-        confirmText="Confirm"
-        confirmDisabled={!hasConditionChanges && !hasLeftBattlefieldChange}
-      >
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <Button
-              onClick={openXpModal}
-              disabled={loadingXp}
-              variant="outline"
-              className="flex-1"
-            >
-              {loadingXp ? 'Loading...' : 'Add XP'}
-            </Button>
-            <Button
-              onClick={() => setShowInjuryModal(true)}
-              variant="outline"
-              className="flex-1"
-            >
-              {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
-            </Button>
-          </div>
-          {useCompositeMarkers && statusMarkers.length > 0 && (
-            <div className="space-y-2 border-t pt-3 text-left">
-              <h4 className="text-sm font-medium text-neutral-500">Status</h4>
-              <div className="flex flex-wrap gap-2">
-                {statusMarkers.map((condition) => (
-                  <MarkerToggleButton
-                    key={condition.key}
-                    condition={condition}
-                    editionSlug={editionSlug}
-                    isActive={draftConditions.some((c) => c.key === condition.key)}
-                    onToggle={() => toggleCondition(condition)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="space-y-2 border-t pt-3 text-left">
-            <h4 className="text-sm font-medium text-neutral-500">
-              {useCompositeMarkers
-                ? 'Wounds'
-                : showFleshWounds
-                  ? 'Wounds & Flesh Wounds'
-                  : 'Wounds'}
-            </h4>
-            <div className="flex flex-col gap-2">
-              {woundMarkers.map((nc) => {
-                const current = draftConditions.find((c) => c.key === nc.key)?.value ?? 0;
-                const name = markerName(nc, editionSlug);
-                return (
-                  <div key={nc.key} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className={`${nc.colorClass} ${markerSizeClass(useCompositeMarkers, 'text-2xl')}`}>
-                        <SessionMarkerGlyph def={nc} editionSlug={editionSlug} decorative />
-                      </span>
-                      <span className="text-sm">{name}</span>
-                    </div>
-                    <Counter
-                      value={current}
-                      min={0}
-                      onDecrement={() => adjustNumericCondition(nc.key, name, -1)}
-                      onIncrement={() => adjustNumericCondition(nc.key, name, 1)}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="space-y-2 border-t pt-3 text-left">
-            <h4 className="text-sm font-medium text-neutral-500">Conditions</h4>
-            {injuredMarker && (
-              <div className="flex flex-wrap gap-2 border-b pb-2">
-                <MarkerToggleButton
-                  condition={injuredMarker}
-                  editionSlug={editionSlug}
-                  isActive={draftConditions.some((c) => c.key === injuredMarker.key)}
-                  onToggle={() => toggleCondition(injuredMarker)}
-                />
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
-              {mainConditionMarkers.map((condition) => (
-                <MarkerToggleButton
-                  key={condition.key}
-                  condition={condition}
-                  editionSlug={editionSlug}
-                  isActive={draftConditions.some((c) => c.key === condition.key)}
-                  onToggle={() => toggleCondition(condition)}
-                />
-              ))}
-            </div>
-            {visibilityMarkers.length > 0 && (
-              <div className="flex flex-wrap gap-2 border-t pt-2">
-                {visibilityMarkers.map((condition) => (
-                  <MarkerToggleButton
-                    key={condition.key}
-                    condition={condition}
-                    editionSlug={editionSlug}
-                    isActive={draftConditions.some((c) => c.key === condition.key)}
-                    onToggle={() => toggleCondition(condition)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          {canLeaveBattlefield(editionSlug) && (
-            <div className="space-y-2 border-t pt-3 text-left">
-              <h4 className="text-sm font-medium text-neutral-500">Removed from Play</h4>
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id={`left-battlefield-${fighter.id}`}
-                  checked={draftLeftBattlefield}
-                  onCheckedChange={(checked) => setDraftLeftBattlefield(checked === true)}
-                />
-                <Label htmlFor={`left-battlefield-${fighter.id}`} className="text-sm">
-                  Left the Battlefield
-                </Label>
-              </div>
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      {showXpModal && fighterData && (
-        <FighterXpModal
-          fighterId={fighter.fighter_id}
-          currentXp={fighterData.xp}
-          currentTotalXp={fighterData.xp}
-          currentKills={fighterData.kills}
-          currentKillCount={fighterData.kill_count}
-          gangId={gangId}
-          campaignId={campaignId ?? undefined}
-          editionSlug={editionSlug}
-          onClose={() => setShowXpModal(false)}
-          // Back to this modal rather than closing it, which would drop unsaved drafts.
-          onXpUpdated={(newXp) => {
-            const delta = newXp - (fighterData?.xp ?? 0);
-            onXpChanged(delta);
-            setShowXpModal(false);
-          }}
-        />
-      )}
-
-      {showInjuryModal && (
-        <InjuryPickerModal
-          fighter={fighter}
-          editionSlug={editionSlug}
-          candidateGangs={candidateGangs}
-          isSkirmish={isSkirmish}
-          isSpyrer={isSpyrer}
-          fighterWeapons={fighterWeapons}
-          onClose={() => setShowInjuryModal(false)}
-          onInjuryAdded={onInjuryAdded}
-          onBroadcast={onBroadcast}
-        />
-      )}
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// InjuryPickerModal
-// ---------------------------------------------------------------------------
-
-interface InjuryType {
-  id: string;
-  effect_name: string;
-  type_specific_data: any;
-}
-
-function InjuryPickerModal({
-  fighter,
-  editionSlug,
-  candidateGangs,
-  isSkirmish,
-  isSpyrer,
-  fighterWeapons,
-  onClose,
-  onInjuryAdded,
-  onBroadcast,
-}: {
-  fighter: BattleSessionFighter;
-  editionSlug?: string | null;
-  /** Gangs in THIS battle, own gang excluded — not every gang in the campaign. */
-  candidateGangs: CampaignGangWithFighters[];
-  isSkirmish: boolean;
-  isSpyrer: boolean;
-  fighterWeapons: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
-  onClose: () => void;
-  onInjuryAdded: (injury: SessionInjuryRecord) => void;
-  onBroadcast?: () => void;
-}) {
-  const [injuryTypes, setInjuryTypes] = useState<InjuryType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState('');
-  const [selectedInjury, setSelectedInjury] = useState<InjuryType | null>(null);
-  const [mode, setMode] = useState<'main' | 'recovery' | 'captured' | 'equipment'>('main');
-  const [pendingEquipmentId, setPendingEquipmentId] = useState<string | undefined>(undefined);
-  const [effectSelectionValid, setEffectSelectionValid] = useState(false);
-  const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
-  const [hatredTargetId, setHatredTargetId] = useState('');
-  const [hatredGangId, setHatredGangId] = useState('');
-
-  const addMut = useMutation({
-    mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean; hatred_target_id?: string | null; target_equipment_id?: string }) => {
-      const injuryResult = await addFighterInjury({
-        fighter_id: fighter.fighter_id,
-        injury_type_id: params.fighter_effect_type_id,
-        send_to_recovery: params.send_to_recovery,
-        set_captured: params.set_captured,
-        hatred_target_id: params.hatred_target_id ?? null,
-        target_equipment_id: params.target_equipment_id,
-      });
-      if (!injuryResult.success) throw new Error(injuryResult.error || 'Failed to add injury');
-
-      const sessionInjury: SessionInjuryRecord = {
-        fighter_effect_id: injuryResult.injury!.id,
-        fighter_effect_type_id: params.fighter_effect_type_id,
-        effect_name: params.effect_name,
-        send_to_recovery: params.send_to_recovery,
-        set_captured: params.set_captured,
-      };
-
-      await addSessionInjury({ session_fighter_id: fighter.id, injury: sessionInjury });
-      return sessionInjury;
-    },
-    onSuccess: (injury) => {
-      toast.success(isSpyrer ? 'Rig glitch added' : 'Injury added');
-      onInjuryAdded(injury);
-      onBroadcast?.();
-      onClose();
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : 'Failed to add injury'),
-  });
-
-  useEffect(() => {
-    const editionQuery = editionSlug ? `&edition_slug=${encodeURIComponent(editionSlug)}` : '';
-    fetch(`/api/fighters/injuries?is_spyrer=${isSpyrer}${editionQuery}`)
-      .then((r) => r.json())
-      .then(setInjuryTypes)
-      .catch(() => toast.error(isSpyrer ? 'Failed to load rig glitches' : 'Failed to load injuries'))
-      .finally(() => setLoading(false));
-  }, [editionSlug, isSpyrer]);
-
-  const injuryNoun = isSpyrer ? 'Rig Glitch' : 'Lasting Injury';
-  const injuryTableOpts = { isSpyrer };
-  const rankMap = lastingInjuryRankFor(editionSlug, false);
-
-  const formatRange = (name: string): string => {
-    const range = resolveInjuryRangeByNameFor(name, editionSlug, injuryTableOpts);
-    if (!range) return '';
-    const [min, max] = range;
-    return min === max ? `${min}` : `${min}-${max}`;
-  };
-
-  // Which Hatred (X) target the selected injury needs, if any.
-  const hatredTarget = requiredHatredTarget(selectedInjury?.type_specific_data);
-  // Gang types are global; the other kinds need opponents, which a skirmish
-  // session has none of that share a campaign (the RPC enforces that too).
-  const hatredSelectable =
-    hatredTarget === 'gang_type' || (!isSkirmish && candidateGangs.length > 0);
-  const blockedByHatredTarget = hatredTarget !== null && hatredSelectable && !hatredTargetId;
-
-  const commit = (send_to_recovery: boolean, set_captured: boolean, target_equipment_id?: string) => {
-    if (!selectedInjury) return;
-    addMut.mutate({
-      fighter_effect_type_id: selectedInjury.id,
-      effect_name: selectedInjury.effect_name,
-      send_to_recovery,
-      set_captured,
-      hatred_target_id: hatredTarget && hatredTargetId ? hatredTargetId : undefined,
-      target_equipment_id,
-    });
-  };
-
-  const handleAdd = (): false | void => {
-    if (!selectedInjury) { toast.error(`Select a ${injuryNoun}`); return false; }
-    if (blockedByHatredTarget) {
-      toast.error(`Please select the target for ${selectedInjury.effect_name}`);
-      return false;
-    }
-    const tsd = selectedInjury.type_specific_data || {};
-    if (tsd.applies_to === 'equipment') {
-      if (fighterWeapons.length === 0) {
-        toast.error(`${selectedInjury.effect_name} attaches to a weapon, but this fighter has none`);
-        return false;
-      }
-      setMode('equipment');
-      return false;
-    }
-    // Clear any weapon id left from a previous pick.
-    setPendingEquipmentId(undefined);
-    if (tsd.recovery === 'true') { setMode('recovery'); return false; }
-    if (tsd.captured === 'true') { setMode('captured'); return false; }
-    commit(false, false);
-  };
-
-  const options = Object.entries(
-    injuryTypes
-      .slice()
-      .sort((a, b) => {
-        const rangeA = formatRange(a.effect_name);
-        const rangeB = formatRange(b.effect_name);
-        if (!rangeA && !rangeB) return 0;
-        if (!rangeA) return 1;
-        if (!rangeB) return -1;
-        const minA = parseInt(rangeA.split('-')[0]);
-        const minB = parseInt(rangeB.split('-')[0]);
-        return minA - minB;
-      })
-      .reduce((groups, injury) => {
-        let groupLabel = 'Lasting Injuries';
-        if (isSpyrer) {
-          groupLabel = 'Rig Glitches';
-        } else if (rankMap) {
-          const rank = rankMap[injury.effect_name] ?? Infinity;
-          if (rank >= 30) groupLabel = 'Mutations / Festering Injuries';
-        }
-        if (!groups[groupLabel]) groups[groupLabel] = [];
-        groups[groupLabel].push(injury);
-        return groups;
-      }, {} as Record<string, InjuryType[]>)
-  ).flatMap(([groupLabel, injuries]) => [
-    {
-      value: `__header_${groupLabel}`,
-      label: <span className="font-bold text-sm">{groupLabel}</span>,
-      displayValue: groupLabel,
-      disabled: true,
-    },
-    ...injuries.map((injury) => {
-      const range = formatRange(injury.effect_name);
-      const displayText = range ? `${range} ${injury.effect_name}` : injury.effect_name;
-      return {
-        value: injury.id,
-        label: range ? (
-          <>
-            <span className="text-gray-400 inline-block w-11 text-center mr-1">{range}</span>
-            {injury.effect_name}
-          </>
-        ) : injury.effect_name,
-        displayValue: displayText,
-      };
-    }),
-  ]);
-
-  return (
-    <>
-      {mode === 'main' && (
-        <Modal
-          title={`Add ${injuryNoun}`}
-          onClose={onClose}
-          onConfirm={handleAdd}
-          confirmText={`Add ${injuryNoun}`}
-          confirmDisabled={!selectedId || addMut.isPending}
-          width="md"
-        >
-          <div className="space-y-4">
-            <DiceRoller
-              items={injuryTypes}
-              getRange={(i) => {
-                const d = (i as InjuryType).type_specific_data || {};
-                return typeof d.d66_min === 'number' ? { min: d.d66_min, max: d.d66_max } : null;
-              }}
-              getName={(i) => (i as InjuryType).effect_name}
-              inline
-              rollFn={rollD66}
-              resolveNameForRoll={(r) => resolveInjuryFor(r, editionSlug, injuryTableOpts)?.name}
-              onRolled={(rolled) => {
-                if (!rolled.length) return;
-                const name = resolveInjuryFor(rolled[0].roll, editionSlug, injuryTableOpts)?.name;
-                const match = injuryTypes.find((i) => i.effect_name === name) ?? (rolled[0].item as InjuryType);
-                if (match) { setSelectedId(match.id); setSelectedInjury(match); }
-              }}
-              onRoll={(roll) => {
-                const util = resolveInjuryFor(roll, editionSlug, injuryTableOpts);
-                if (!util) return;
-                const match = injuryTypes.find((i) => i.effect_name === util.name);
-                if (match) { setSelectedId(match.id); setSelectedInjury(match); }
-              }}
-              buttonText="Roll D66"
-            />
-            <div className="space-y-2 border-t pt-3">
-              <label className="text-sm font-medium">{isSpyrer ? 'Rig Glitches' : 'Lasting Injuries'}</label>
-              <Combobox
-                value={selectedId}
-                onValueChange={(v) => {
-                  setSelectedId(v);
-                  setSelectedInjury(injuryTypes.find((i) => i.id === v) ?? null);
-                  setHatredTargetId('');
-                  setHatredGangId('');
-                }}
-                placeholder={loading ? 'Loading...' : `Select a ${injuryNoun}`}
-                disabled={loading}
-                options={options}
-              />
-            </div>
-            <InjuryHatredTargetPicker
-              hatredTarget={hatredTarget}
-              candidateGangs={candidateGangs}
-              isSkirmish={isSkirmish}
-              editionSlug={editionSlug}
-              value={hatredTargetId}
-              onChange={setHatredTargetId}
-              gangStepValue={hatredGangId}
-              onGangStepChange={setHatredGangId}
-            />
-          </div>
-        </Modal>
-      )}
-
-      {mode === 'equipment' && selectedInjury && (
-        <Modal
-          title="Select Weapon"
-          content={
-            <FighterEffectSelection
-              ref={effectSelectionRef}
-              equipmentId=""
-              effectTypes={[]}
-              targetSelectionOnly
-              fighterId={fighter.fighter_id}
-              modifierEquipmentId=""
-              effectTypeId={selectedInjury.id}
-              effectName={selectedInjury.effect_name}
-              fighterWeapons={fighterWeapons}
-              onApplyToTarget={async (equipmentId) => {
-                const tsd = selectedInjury.type_specific_data || {};
-                setPendingEquipmentId(equipmentId);
-                if (tsd.recovery === 'true') { setMode('recovery'); return; }
-                if (tsd.captured === 'true') { setMode('captured'); return; }
-                commit(false, false, equipmentId);
-              }}
-              onSelectionComplete={() => {}}
-              onCancel={() => setMode('main')}
-              onValidityChange={setEffectSelectionValid}
-            />
-          }
-          onClose={() => setMode('main')}
-          // Never auto-close: onApplyToTarget owns the next mode.
-          onConfirm={async () => { await effectSelectionRef.current?.handleConfirm(); return false; }}
-          confirmText="Select Weapon"
-          confirmDisabled={!effectSelectionValid}
-          width="lg"
-        />
-      )}
-
-      {mode === 'recovery' && (
-        <Modal
-          title="Send to Recovery?"
-          onClose={() => setMode('main')}
-          onConfirm={async () => { commit(true, false, pendingEquipmentId); return false; }}
-          confirmText="Yes"
-          confirmDisabled={addMut.isPending}
-        >
-          <p>Send this fighter into Recovery?</p>
-        </Modal>
-      )}
-
-      {mode === 'captured' && (
-        <Modal
-          title="Mark as Captured?"
-          onClose={() => setMode('main')}
-          onConfirm={async () => { commit(false, true, pendingEquipmentId); return false; }}
-          confirmText="Yes"
-          confirmDisabled={addMut.isPending}
-        >
-          <p>This injury results in the fighter being captured. Mark as Captured?</p>
-        </Modal>
-      )}
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// FighterRow — table row with optional action modal
-// ---------------------------------------------------------------------------
-
-function FighterRow({
-  fighter,
-  name,
-  loadoutName,
-  cost,
-  xp,
-  injuryCount,
-  canInteract,
-  battleActive,
-  hasTwoActivations,
-  gangFighter,
-  gangId,
-  campaignId,
-  editionSlug,
-  candidateGangs,
-  isSkirmish,
-  onXpChanged,
-  onConditionsChanged,
-  onActivationsChange,
-  onInjuryAdded,
-  onNoteChanged,
-  onBroadcast,
-}: {
-  fighter: BattleSessionFighter;
-  name: string;
-  loadoutName: string | undefined;
-  cost: number | undefined;
-  xp: number;
-  injuryCount: number;
-  canInteract: boolean;
-  battleActive: boolean;
-  hasTwoActivations: boolean;
-  gangFighter: GangFighter | undefined;
-  gangId: string;
-  campaignId?: string | null;
-  editionSlug?: string | null;
-  candidateGangs: CampaignGangWithFighters[];
-  isSkirmish: boolean;
-  onXpChanged: (delta: number) => void;
-  onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
-  onActivationsChange: (activations: number) => void;
-  onInjuryAdded: (injury: SessionInjuryRecord) => void;
-  onNoteChanged: (note: string) => void;
-  onBroadcast?: () => void;
-}) {
-  const [showActionModal, setShowActionModal] = useState(false);
-  const [showInfoModal, setShowInfoModal] = useState(false);
-  const [showNoteModal, setShowNoteModal] = useState(false);
-  const [noteDraft, setNoteDraft] = useState('');
-  const injuries = fighter.session_record?.injuries ?? [];
-  const conditions = fighter.session_record?.conditions ?? [];
-  const note = fighter.session_record?.note ?? '';
-  // Not hasTwoActivations — that's a special-rules flag some non-Spyrers carry.
-  const isSpyrer = gangFighter?.is_spyrer ?? false;
-  const injuryCountLabel = isSpyrer
-    ? `${injuryCount} ${injuryCount === 1 ? 'Glitch' : 'Glitches'}`
-    : `${injuryCount} ${injuryCount === 1 ? 'Injury' : 'Injuries'}`;
-  const leftBattlefield = fighter.session_record?.left_battlefield === true;
-  const activations = fighter.session_record?.activations ?? 1;
-  const isReady = activations > 0;
-  const maxActivations = hasTwoActivations ? 2 : 1;
-
-  const toggleReady = () => {
-    const next = activations > 0 ? activations - 1 : maxActivations;
-    onActivationsChange(next);
-  };
-
-  const iconColor = activations >= 2 ? 'text-orange-500' : activations === 1 ? 'text-green-500' : 'text-muted-foreground/30';
-  const readyTitle = leftBattlefield
-    ? 'Left the battlefield'
-    : activations > 0 ? `${activations} activation${activations !== 1 ? 's' : ''} remaining` : 'Activated';
-  const fighterType = gangFighter?.fighter_type;
-  const fighterSubtypeDisplay = formatFighterSubtypeDisplay(gangFighter?.fighter_subtypes, editionSlug);
-  // Second row format: type (subtype)
-  const fighterDetails = [
-    fighterType,
-    fighterSubtypeDisplay ? `(${fighterSubtypeDisplay})` : '',
-  ].filter(Boolean).join(' ');
-
-  return (
-    <tr className={`border-b last:border-b-0 ${!isReady ? 'opacity-40' : ''}`}>
-      <td className="p-1 md:p-2 w-full align-top">
-        <div className="flex items-start gap-2">
-          <div className="min-w-0 flex-1">
-            {/* First row format: label + fighter name [loadout] */}
-            <div className="flex items-center gap-1 flex-wrap">
-              {gangFighter?.label && (
-                <span className="inline-flex shrink-0 items-center rounded-sm bg-card px-1 text-xs font-bold font-mono uppercase border border-border">
-                  {gangFighter.label}
-                </span>
-              )}
-              <span>
-                {name}
-                {loadoutName && (
-                  <span className="text-muted-foreground"> [{loadoutName}]</span>
-                )}
-              </span>
-              {gangFighter?.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
-              {gangFighter?.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
-              {gangFighter?.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
-              {gangFighter?.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
-              {gangFighter?.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
-              {gangFighter?.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
-            </div>
-            {fighterDetails && (
-              <div className="text-xs text-muted-foreground">{fighterDetails}</div>
-            )}
-            {(xp > 0 || injuryCount > 0 || conditions.length > 0 || leftBattlefield || (!canInteract && !battleActive && injuries.length > 0)) && (
-              <div className="flex flex-wrap items-center gap-1 mt-0.5">
-                {leftBattlefield && (
-                  <span className="inline-flex items-center rounded-full bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
-                    Left Battlefield
-                  </span>
-                )}
-                {xp > 0 && (
-                  <span className="inline-flex items-center rounded-full bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                    +{xp} XP
-                  </span>
-                )}
-                {canInteract || battleActive ? (
-                  <>
-                    {injuryCount > 0 && (
-                      <span className="inline-flex items-center rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                        {injuryCountLabel}
-                      </span>
-                    )}
-                    <FighterRowConditionBadges conditions={conditions} editionSlug={editionSlug} />
-                  </>
-                ) : (
-                  <>
-                    {injuries.map((injury, idx) => (
-                      <span
-                        key={idx}
-                        className="rounded-full bg-red-50 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                      >
-                        {injury.effect_name}
-                      </span>
-                    ))}
-                    <FighterRowConditionBadges conditions={conditions} editionSlug={editionSlug} />
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </td>
-      <td className="p-1 md:p-2 text-right text-muted-foreground whitespace-nowrap align-top">
-        {cost !== undefined ? (cost === 0 ? '*' : cost) : '—'}
-      </td>
-      {canInteract ? (
-        <td className="p-1 md:p-2 align-top">
-          <div className="grid grid-cols-2 gap-2.5 items-start justify-items-center w-fit ml-auto md:flex md:items-start md:justify-end md:w-auto">
-            {gangFighter && (
-              <FaRegAddressCard
-                className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
-                title="View fighter card"
-                onClick={() => setShowInfoModal(true)}
-              />
-            )}
-            <LuClipboard
-              className={`size-6 transition-colors duration-200 cursor-pointer hover:text-muted-foreground ${note ? 'text-amber-500' : 'text-muted-foreground/30'}`}
-              title={note || 'Add note'}
-              onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
-            />
-            <ReadyActivatedIcon
-              className={`size-6 ${iconColor} ${leftBattlefield ? '' : 'transition-colors duration-200 cursor-pointer hover:text-muted-foreground'}`}
-              title={readyTitle}
-              onClick={leftBattlefield ? undefined : toggleReady}
-            />
-            <CgMoreVerticalO
-              className="size-6 text-muted-foreground/40 hover:text-muted-foreground transition-colors duration-200 cursor-pointer"
-              title="Click to open action menu"
-              onClick={() => setShowActionModal(true)}
-            />
-          </div>
-          {showActionModal && createPortal(
-            <FighterActionModal
-              fighter={fighter}
-              gangId={gangId}
-              campaignId={campaignId}
-              editionSlug={editionSlug}
-              candidateGangs={candidateGangs}
-              isSkirmish={isSkirmish}
-              isSpyrer={isSpyrer}
-              fighterWeapons={(gangFighter?.weapons ?? []).map((w) => ({
-                id: w.fighter_weapon_id,
-                name: w.weapon_name,
-                equipment_category: w.equipment_category,
-                effect_names: w.effect_names,
-              }))}
-              onXpChanged={onXpChanged}
-              onConditionsChanged={onConditionsChanged}
-              onInjuryAdded={onInjuryAdded}
-              onBroadcast={onBroadcast}
-              onClose={() => setShowActionModal(false)}
-            />,
-            document.body
-          )}
-        </td>
-      ) : battleActive ? (
-        <td className="p-1 md:p-2 text-right align-top max-md:whitespace-normal md:whitespace-nowrap">
-          <div className="grid grid-cols-2 gap-2 items-start justify-items-center w-fit ml-auto md:flex md:items-start md:justify-end md:gap-4 md:w-auto">
-            {gangFighter && (
-              <FaRegAddressCard
-                className="size-6 text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200"
-                title="View fighter card"
-                onClick={() => setShowInfoModal(true)}
-              />
-            )}
-            {note && (
-              <LuClipboard
-                className="size-6 text-amber-500 cursor-pointer hover:text-amber-400 transition-colors duration-200"
-                title={note}
-                onClick={() => { setNoteDraft(note); setShowNoteModal(true); }}
-              />
-            )}
-            {battleActive && (
-              <ReadyActivatedIcon
-                className={`size-6 ${iconColor}`}
-                title={readyTitle}
-              />
-            )}
-          </div>
-        </td>
-      ) : null}
-      {showInfoModal && gangFighter && createPortal(
-        <div
-          className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowInfoModal(false);
-          }}
-        >
-          <div className="relative max-w-2xl w-full">
-            <button
-              type="button"
-              onClick={() => setShowInfoModal(false)}
-              className="absolute -top-3 -right-3 z-10 bg-neutral-700 hover:bg-neutral-500 text-white rounded-full size-8 flex items-center justify-center text-lg transition-colors shadow-md"
-            >
-              ×
-            </button>
-            <div className="max-h-svh overflow-y-auto">
-              <FighterCard
-                {...gangFighter}
-                name={gangFighter.fighter_name}
-                type={gangFighter.fighter_type}
-                skills={gangFighter.skills}
-                effects={gangFighter.effects as any}
-                vehicle={gangFighter.vehicles?.[0]}
-                // Prevent hover scale from creating modal scrollbars; gang-page cards do not pass this prop.
-                disableHoverEffects
-                advancements={{ characteristics: {}, skills: {} }}
-                base_stats={{
-                  movement: gangFighter.movement,
-                  weapon_skill: gangFighter.weapon_skill,
-                  ballistic_skill: gangFighter.ballistic_skill,
-                  strength: gangFighter.strength,
-                  toughness: gangFighter.toughness,
-                  wounds: gangFighter.wounds,
-                  initiative: gangFighter.initiative,
-                  attacks: gangFighter.attacks,
-                  leadership: gangFighter.leadership,
-                  cool: gangFighter.cool,
-                  willpower: gangFighter.willpower,
-                  intelligence: gangFighter.intelligence,
-                }}
-                current_stats={{
-                  movement: gangFighter.movement,
-                  weapon_skill: gangFighter.weapon_skill,
-                  ballistic_skill: gangFighter.ballistic_skill,
-                  strength: gangFighter.strength,
-                  toughness: gangFighter.toughness,
-                  wounds: gangFighter.wounds,
-                  initiative: gangFighter.initiative,
-                  attacks: gangFighter.attacks,
-                  leadership: gangFighter.leadership,
-                  cool: gangFighter.cool,
-                  willpower: gangFighter.willpower,
-                  intelligence: gangFighter.intelligence,
-                }}
-                disableLink
-              />
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-      {showNoteModal && createPortal(
-        <Modal
-          title="Fighter Note"
-          onClose={() => setShowNoteModal(false)}
-          onConfirm={canInteract ? async () => {
-            onNoteChanged(noteDraft.trim());
-            return true;
-          } : undefined}
-          confirmText="Save"
-          confirmDisabled={noteDraft.trim() === note}
-        >
-          {canInteract ? (
-            <div>
-              <textarea
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring min-h-[80px] resize-none"
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                placeholder="Add a note here..."
-                maxLength={250}
-                autoFocus
-              />
-              <p className={`mt-1 text-xs ${noteDraft.length > 250 ? 'text-red-500' : 'text-muted-foreground'}`}>
-                {noteDraft.length}/250
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm whitespace-pre-wrap">{note || 'No note.'}</p>
-          )}
-        </Modal>,
-        document.body
-      )}
-    </tr>
-  );
-}
-
-function BattleParticipationModal({
-  crewFighters,
-  gangFightersList,
-  editionSlug,
-  onConfirm,
-  onClose,
-}: {
-  crewFighters: BattleSessionFighter[];
-  gangFightersList: GangFighter[];
-  editionSlug?: string | null;
-  onConfirm: (xpByFighterId: Record<string, number>) => void;
-  onClose: () => void;
-}) {
-  const crewLoadouts = useMemo(
-    () => new Map(crewFighters.map((f) => [f.fighter_id, f.loadout_id])),
-    [crewFighters]
-  );
-
-  const uniqueFighters = useMemo(() => {
-    const seen = new Set<string>();
-    const result: GangFighter[] = [];
-    for (const gf of gangFightersList) {
-      if (seen.has(gf.id)) continue;
-      const crewLoadoutId = crewLoadouts.get(gf.id);
-      if (crewLoadoutId !== undefined && gf.active_loadout_id === (crewLoadoutId ?? undefined)) {
-        seen.add(gf.id);
-        result.push(gf);
-      }
-    }
-    for (const gf of gangFightersList) {
-      if (seen.has(gf.id)) continue;
-      seen.add(gf.id);
-      result.push(gf);
-    }
-    return result;
-  }, [gangFightersList, crewLoadouts]);
-
-  const [xpAmounts, setXpAmounts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(uniqueFighters.map((gf) => [gf.id, crewLoadouts.has(gf.id) ? 1 : 0]))
-  );
-
-  const adjust = (id: string, delta: number) =>
-    setXpAmounts((cur) => ({ ...cur, [id]: Math.max(0, (cur[id] ?? 0) + delta) }));
-
-  const totalXp = Object.values(xpAmounts).reduce((sum, v) => sum + v, 0);
-
-  return (
-    <Modal
-      title="Participation XP"
-      onClose={onClose}
-      onConfirm={async () => {
-        const filtered = Object.fromEntries(
-          Object.entries(xpAmounts).filter(([, xp]) => xp > 0)
-        );
-        onConfirm(filtered);
-        return true;
-      }}
-      confirmText="Confirm"
-      confirmDisabled={totalXp === 0}
-    >
-      <div className="space-y-3">
-        {uniqueFighters.map((gf) => {
-          const subtypeDisplay = formatFighterSubtypeDisplay(gf.fighter_subtypes, editionSlug);
-          const details = [gf.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
-          return (
-            <div key={gf.id} className="flex items-center justify-between">
-              <div>
-                <div className="text-sm font-medium">{gf.fighter_name}</div>
-                {details && <div className="text-xs text-muted-foreground">{details}</div>}
-              </div>
-              <Counter
-                value={xpAmounts[gf.id] ?? 0}
-                min={0}
-                onDecrement={() => adjust(gf.id, -1)}
-                onIncrement={() => adjust(gf.id, 1)}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </Modal>
   );
 }
 
@@ -1249,6 +108,7 @@ export default function ParticipantCard({
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
   const [showCrewModal, setShowCrewModal] = useState(false);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
   const [tradingPostModifier, setTradingPostModifier] = useState('');
   const [localRole, setLocalRole] = useState<'attacker' | 'defender' | 'none'>(participant.role);
@@ -1288,7 +148,7 @@ export default function ParticipantCard({
             f.fighter
               ? [{
                   id: f.fighter.id,
-                  fighter_name: f.fighter.fighter_name,
+                  fighter_name: f.fighter.fighter_name ?? 'Unknown Fighter',
                   fighter_type: f.fighter.fighter_type ?? null,
                   gang_id: p.gang_id,
                 }]
@@ -1350,11 +210,9 @@ export default function ParticipantCard({
     }));
   }, [gangFightersList]);
 
-  const selectedFighterIds = new Set(localFighters.map((f) => f.fighter_id));
   const selectedFighters = new Map<string, string | undefined>(
     localFighters.map((f) => [f.fighter_id, f.loadout_id ?? undefined])
   );
-  const availableFighters = gangFighters.filter((f) => !selectedFighterIds.has(f.id));
 
   const sortedLocalFighters = useMemo(() => {
     return sortParticipantFightersByPositioning(localFighters, positioning);
@@ -1488,67 +346,6 @@ export default function ParticipantCard({
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, special_rules: fullGf?.special_rules } : undefined,
     };
   };
-
-  const _addFighterMutation = useMutation({
-    mutationFn: async (entry: { fighter_id: string; loadout_id?: string }) => {
-      const result = await bulkAddFightersToSession({
-        session_id: session.id,
-        participant_id: participant.id,
-        fighter_entries: [entry],
-      });
-      if (!result.success) throw new Error(result.error || 'Failed to add fighter');
-      return result;
-    },
-    onMutate: (entry) => {
-      const prev = localFighters;
-      setLocalFighters((cur) => [...cur, buildOptimisticFighter(entry.fighter_id, entry.loadout_id)]);
-      return { prev };
-    },
-    onSuccess: (_result, entry) => {
-      const name = gangFighters.find((gf) => gf.id === entry.fighter_id)?.fighter_name;
-      toast.success(`${name ?? 'Fighter'} added`);
-      onBroadcast?.();
-    },
-    onError: (_err, _id, context) => {
-      toast.error('Failed to add fighter');
-      if (context?.prev) setLocalFighters(context.prev);
-    },
-  });
-
-  const _addAllFightersMutation = useMutation({
-    mutationFn: async () => {
-      const seen = new Set<string>();
-      const entries = availableFighters
-        .filter((f) => { if (seen.has(f.id)) return false; seen.add(f.id); return true; })
-        .map((f) => ({ fighter_id: f.id, loadout_id: f.loadout_id }));
-      const result = await bulkAddFightersToSession({
-        session_id: session.id,
-        participant_id: participant.id,
-        fighter_entries: entries,
-      });
-      if (!result.success) throw new Error(result.error || 'Failed to add fighters');
-      return { ...result, count: entries.length };
-    },
-    onMutate: () => {
-      const prev = localFighters;
-      const seen = new Set<string>();
-      const entries = availableFighters
-        .filter((f) => { if (seen.has(f.id)) return false; seen.add(f.id); return true; })
-        .map((f) => ({ fighter_id: f.id, loadout_id: f.loadout_id }));
-      const newFighters = entries.map((e) => buildOptimisticFighter(e.fighter_id, e.loadout_id));
-      setLocalFighters((cur) => [...cur, ...newFighters]);
-      return { prev, count: entries.length };
-    },
-    onSuccess: (_result, _vars, context) => {
-      const count = context?.count ?? 0;
-      toast.success(`${count} fighter${count !== 1 ? 's' : ''} added`);
-      onBroadcast?.();
-    },
-    onError: (_err, _vars, context) => {
-      toast.error('Failed to add fighters');
-      if (context?.prev) setLocalFighters(context.prev);
-    },
-  });
 
   const updateXpMutation = useMutation({
     mutationFn: async ({ sessionFighterId, totalXp }: { sessionFighterId: string; totalXp: number }) => {
@@ -1771,7 +568,7 @@ export default function ParticipantCard({
               {(canEdit || canPostBattle) && (
                 <>
                   <Button
-                    variant={localReady ? 'default' : 'outline'}
+                    variant={localReady ? 'default' : 'success'}
                     onClick={async () => {
                       const prev = localReady;
                       setReadyOverride(!prev);
@@ -1798,12 +595,14 @@ export default function ParticipantCard({
               )}
               {(canManage || isMyGang) && editable && !isPostBattle && (
                 <Button
-                  variant="destructive"
-                  onClick={() => removeMutation.mutate()}
+                  variant="outline_remove"
+                  size="icon"
+                  onClick={() => setShowRemoveModal(true)}
                   disabled={removeMutation.isPending}
-                  className="px-3.5"
+                  title="Remove gang"
+                  aria-label="Remove gang"
                 >
-                  Remove
+                  <LuTrash2 className="h-4 w-4" />
                 </Button>
               )}
             </div>
@@ -1845,6 +644,23 @@ export default function ParticipantCard({
               ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(session.id, participant.id, completed))
               : undefined}
           />
+        )}
+        {showRemoveModal && createPortal(
+          <Modal
+            title="Remove Gang"
+            onClose={() => setShowRemoveModal(false)}
+            onConfirm={async () => {
+              removeMutation.mutate();
+              return true;
+            }}
+            confirmText="Remove Gang"
+            confirmDisabled={removeMutation.isPending}
+          >
+            <p>
+              Are you sure you want to remove <strong>{participant.gang?.name ?? 'this gang'}</strong> from this battle?
+            </p>
+          </Modal>,
+          document.body
         )}
         {showCrewModal && (
           <CrewSelectionModal
@@ -1971,7 +787,7 @@ export default function ParticipantCard({
                       fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') &&
                       Boolean(fullMatch?.owner_id);
                     const name = isAssociatedExoticBeast ? `— ${rawName}` : rawName;
-                    const cost = match?.credits ?? f.fighter?.credits;
+                    const cost = match?.credits ?? f.fighter?.credits ?? undefined;
                     const xp = f.session_record?.xp_earned ?? 0;
                     const injuryCount = f.session_record?.injuries?.length ?? 0;
                     return (

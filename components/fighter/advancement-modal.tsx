@@ -581,7 +581,8 @@ export function AdvancementModal({
   const addSkillMutation = useMutation({
     mutationFn: async (variables: {
       fighter_id: string;
-      skill_id: string;
+      skill_id?: string;
+      custom_skill_id?: string;
       xp_cost: number;
       credits_increase: number;
       is_advance: boolean;
@@ -1073,7 +1074,8 @@ export function AdvancementModal({
   const applyChampionPromotionMutation = useMutation({
     mutationFn: async (vars: {
       promotion: ChampionPendingPromotion;
-      skill_id: string;
+      skill_id?: string;
+      custom_skill_id?: string;
       xp_cost: number;
       credits_increase: number;
       skillName: string;
@@ -1081,6 +1083,7 @@ export function AdvancementModal({
       const result = await applyPromotionWithSkillAdvancement({
         fighter_id: fighterId,
         skill_id: vars.skill_id,
+        custom_skill_id: vars.custom_skill_id,
         xp_cost: vars.xp_cost,
         credits_increase: vars.credits_increase,
         promotion: vars.promotion
@@ -1270,7 +1273,9 @@ export function AdvancementModal({
       try {
         await applyChampionPromotionMutation.mutateAsync({
           promotion: championPendingPromotion,
-          skill_id: selectedAdvancement.id,
+          ...(selectedAdvancement.is_custom
+            ? { custom_skill_id: selectedAdvancement.id }
+            : { skill_id: selectedAdvancement.id }),
           xp_cost: xpCost,
           credits_increase: creditsIncrease,
           skillName: selectedAdvancement.stat_change_name ?? 'Skill'
@@ -2129,7 +2134,9 @@ export function AdvancementModal({
     } else if (advancementType === 'skill') {
       addSkillMutation.mutate({
         ...mutationParams,
-        skill_id: selectedAdvancement.id,
+        ...(selectedAdvancement.is_custom
+          ? { custom_skill_id: selectedAdvancement.id }
+          : { skill_id: selectedAdvancement.id }),
         is_advance: true
       });
     }

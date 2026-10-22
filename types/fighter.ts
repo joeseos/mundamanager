@@ -291,23 +291,23 @@ export interface Archetype {
 // Custom Fighter Type interface
 export interface CustomFighterType {
   id: string;
-  user_id: string;
-  fighter_type: string;
-  gang_type: string;
-  cost: number;
-  movement?: number;
-  weapon_skill?: number;
-  ballistic_skill?: number;
-  strength?: number;
-  toughness?: number;
-  wounds?: number;
-  initiative?: number;
-  attacks?: number;
-  leadership?: number;
-  cool?: number;
-  willpower?: number;
-  intelligence?: number;
-  gang_type_id?: string;
+  user_id: string | null;
+  fighter_type: string | null;
+  gang_type: string | null;
+  cost: number | null;
+  movement?: number | null;
+  weapon_skill?: number | null;
+  ballistic_skill?: number | null;
+  strength?: number | null;
+  toughness?: number | null;
+  wounds?: number | null;
+  initiative?: number | null;
+  attacks?: number | null;
+  leadership?: number | null;
+  cool?: number | null;
+  willpower?: number | null;
+  intelligence?: number | null;
+  gang_type_id?: string | null;
   custom_gang_type_id?: string | null;
   /** N26 Sv. Null on editions without the characteristic. */
   save?: number | null;
@@ -315,8 +315,8 @@ export interface CustomFighterType {
   starting_xp?: number | null;
   /** N26 makes vehicles fighter types rather than a catalog of their own. */
   is_vehicle?: boolean;
-  special_rules?: string[];
-  free_skill?: boolean;
+  special_rules?: string[] | null;
+  free_skill?: boolean | null;
   delegation_cost?: number | null;
   fighter_subtypes: string[];
   description?: string | null;
@@ -340,7 +340,7 @@ export interface CustomFighterType {
     equipment_name: string;
   }[];
   created_at: string;
-  updated_at?: string;
+  updated_at?: string | null;
   edition_slug?: string | null;
 }
 

@@ -1,72 +1,39 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { createClient } from '@/utils/supabase/server';
+import { withUserClaims } from '@/utils/db/client';
 
-export async function getAcceptedFriends(userId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('friends')
-    .select('requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)')
-    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-    .eq('status', 'accepted');
+const profileColumns = { id: true, username: true, updated_at: true, user_role: true } as const;
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data || []).map((row: any) => {
-    let friendProfile;
-    if (row.requester_id === userId) {
-      friendProfile = row.addressee_profile;
-    } else {
-      friendProfile = row.profiles;
-    }
-    return {
-      id: friendProfile.id,
-      username: friendProfile.username,
-      profile: {
-        id: friendProfile.id,
-        username: friendProfile.username,
-        updated_at: friendProfile.updated_at ?? '',
-        user_role: friendProfile.user_role ?? 'user',
-      }
-    };
-  });
-}
-
-export const getFriendsAndRequests = async (userId: string, supabase: any) => {
+export const getFriendsAndRequests = async (userId: string) => {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('friends')
-        .select('requester_id, addressee_id, status, profiles:requester_id(id, username, updated_at, user_role), addressee_profile:addressee_id(id, username, updated_at, user_role)')
-        .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
-        .in('status', ['accepted', 'pending']);
+      const rows = await withUserClaims(userId, (tx) => tx.query.friends.findMany({
+        columns: { requester_id: true, status: true },
+        where: (friend, { and, eq, inArray, or }) =>
+          and(
+            or(eq(friend.requester_id, userId), eq(friend.addressee_id, userId)),
+            inArray(friend.status, ['accepted', 'pending'])
+          ),
+        with: {
+          requester: { columns: profileColumns },
+          addressee: { columns: profileColumns },
+        },
+      }));
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      return (data || []).map((row: any) => {
-        let friendProfile, direction;
-        if (row.requester_id === userId) {
-          friendProfile = row.addressee_profile;
-          direction = 'outgoing';
-        } else {
-          friendProfile = row.profiles;
-          direction = 'incoming';
-        }
+      return rows.map((row) => {
+        const outgoing = row.requester_id === userId;
+        const friendProfile = outgoing ? row.addressee : row.requester;
         return {
           id: friendProfile.id,
           username: friendProfile.username,
           profile: {
             id: friendProfile.id,
             username: friendProfile.username,
-            updated_at: friendProfile.updated_at ?? '',
+            updated_at: friendProfile.updated_at,
             user_role: friendProfile.user_role ?? 'user',
           },
           status: row.status,
-          direction,
+          direction: outgoing ? 'outgoing' : 'incoming',
         };
       });
     },
@@ -76,4 +43,4 @@ export const getFriendsAndRequests = async (userId: string, supabase: any) => {
       revalidate: false
     }
   )();
-}; 
+};
