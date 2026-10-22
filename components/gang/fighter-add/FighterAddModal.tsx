@@ -20,7 +20,6 @@ import { fighterTypeRank } from '@/utils/fighterTypeRank';
 import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
-import { CountLimitPrefix } from '@/components/gang/count-limit-prefix';
 import { countsTowardRating } from '@/utils/fighter-status';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
@@ -126,6 +125,13 @@ function mapFighterType(type: any): FighterType {
     is_granted_with_fighter: type.is_granted_with_fighter || false,
     associated_pet_owner_id: type.associated_pet_owner_id || null,
   } as FighterType;
+}
+
+function countLimitsFromType(type?: { min_count?: number | null; max_count?: number | null } | null) {
+  return {
+    min_count: type?.min_count ?? null,
+    max_count: type?.max_count ?? null,
+  };
 }
 
 export default function FighterAddModal({
@@ -412,11 +418,7 @@ export default function FighterAddModal({
       fighter_name: fighterName,
       fighter_type_id: fighterTypeIdToUse,
       fighter_type: selectedType?.fighter_type || '',
-      min_count: selectedType?.min_count ?? null,
-      max_count: selectedType?.max_count ?? null,
-      type_subtype_key: selectedType?.typeSubtypeKey,
-      fighter_gang_type_id: selectedType?.gang_type_id ?? null,
-      fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
+      ...countLimitsFromType(selectedType),
       fighter_subtypes: selectedType?.fighter_subtypes || [],
       fighter_specialisation: selectedType?.specialisation ? {
         fighter_specialisation_id: selectedType.specialisation.id || '',
@@ -503,11 +505,7 @@ export default function FighterAddModal({
         ),
         edition_slug: selectedType?.edition_slug ?? null,
         is_vehicle: selectedType?.is_vehicle ?? false,
-        min_count: selectedType?.min_count ?? null,
-        max_count: selectedType?.max_count ?? null,
-        type_subtype_key: selectedType?.typeSubtypeKey,
-        fighter_gang_type_id: selectedType?.gang_type_id ?? null,
-        fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
+        ...countLimitsFromType(selectedType),
       };
 
       if (context.tempFighterId && onFighterReconcile) {
@@ -781,9 +779,14 @@ export default function FighterAddModal({
         return;
       }
       if (!existing.memberIds.includes(fighter.id)) existing.memberIds.push(fighter.id);
-      const preferBase = !fighter.fighter_variant && !!existing.fighter.fighter_variant;
-      const preferCheaper = !preferBase && fighter.total_cost < existing.cost;
-      if (preferBase || preferCheaper) {
+      // The plain fighter stays on the family line even when a variant is cheaper.
+      // Cost only chooses between two plain fighters, or two variants.
+      const candidateIsBase = !fighter.fighter_variant;
+      const existingIsBase = !existing.fighter.fighter_variant;
+      const prefer = candidateIsBase !== existingIsBase
+        ? candidateIsBase
+        : fighter.total_cost < existing.cost;
+      if (prefer) {
         existing.fighter = fighter;
         existing.cost = fighter.total_cost;
       }
@@ -799,7 +802,9 @@ export default function FighterAddModal({
       return {
         label: (
           <>
-            <CountLimitPrefix text={limit.text} over={limit.over} />
+            <span className={`inline-block w-11 text-center mr-1 ${limit.over ? 'text-red-500' : 'text-gray-400'}`}>
+              {limit.text}
+            </span>
             {name}
           </>
         ) as React.ReactNode,

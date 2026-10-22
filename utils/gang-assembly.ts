@@ -1,8 +1,8 @@
 import 'server-only';
 import { countAdvancementsTaken } from '@/utils/advancementRanks';
-import { familyLimitsByTypeId, resolveGangCountLimit } from '@/utils/countLimitPrefix';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
+import type { CountLimit } from '@/types/fighter-type';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import type {
@@ -80,6 +80,38 @@ function buildProfileMaps(equipmentRows: any[]) {
 }
 
 /**
+ * The most specific count_limits rule for this gang, matching get_fighter_types_with_cost:
+ * subtype, then origin, then gang type, then a rule for every gang. id breaks a tie.
+ */
+export function resolveGangCountLimit(
+  rules: CountLimit[] | null | undefined,
+  gang: {
+    gangTypeId?: string | null;
+    gangOriginId?: string | null;
+    gangSubtypeIds?: string[] | null;
+  }
+): { min_count: number | null; max_count: number | null } {
+  const subtypeIds = new Set(gang.gangSubtypeIds ?? []);
+  const matching = (rules ?? []).filter((rule) =>
+    (rule.gang_type_id == null || rule.gang_type_id === gang.gangTypeId) &&
+    (rule.gang_origin_id == null || rule.gang_origin_id === gang.gangOriginId) &&
+    (rule.gang_subtype_id == null || subtypeIds.has(rule.gang_subtype_id))
+  );
+  matching.sort((a, b) => {
+    const specificity = (rule: CountLimit) =>
+      (rule.gang_subtype_id ? 4 : 0) + (rule.gang_origin_id ? 2 : 0) + (rule.gang_type_id ? 1 : 0);
+    const bySpecificity = specificity(b) - specificity(a);
+    if (bySpecificity !== 0) return bySpecificity;
+    return (a.id ?? '').localeCompare(b.id ?? '');
+  });
+  const best = matching[0];
+  return {
+    min_count: best?.min_count ?? null,
+    max_count: best?.max_count ?? null,
+  };
+}
+
+/**
  * Assemble the gang page fighters list (GangFighter[]) from the raw bundle.
  * expandLoadoutsForPrint emits one entry per loadout for the print roster —
  * previously a separate cache entry, now an assembly-time option over the
@@ -96,7 +128,6 @@ export function assembleGangFighters(
     gangOriginId: options?.gangOriginId,
     gangSubtypeIds: options?.gangSubtypeIds,
   };
-  const familyLimitByTypeId = familyLimitsByTypeId(bundle.familyTypes ?? [], gangScope);
   const fighters = bundle.fighters;
   if (!fighters || fighters.length === 0) return [];
 
@@ -638,12 +669,8 @@ export function assembleGangFighters(
 
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
-        const customFighterTypeInfo = fighter.custom_fighter_types || {};
         const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
         const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, gangScope);
-        const familyLimit = fighter.fighter_type_id
-          ? familyLimitByTypeId.get(fighter.fighter_type_id)
-          : undefined;
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -676,11 +703,8 @@ export function assembleGangFighters(
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
           fighter_type_id: fighter.fighter_type_id ?? undefined,
           custom_fighter_type_id: fighter.custom_fighter_type_id ?? null,
-          fighter_gang_type_id: fighterTypeInfo.gang_type_id ?? customFighterTypeInfo.gang_type_id ?? null,
-          fighter_custom_gang_type_id: customFighterTypeInfo.custom_gang_type_id ?? null,
-          min_count: familyLimit ? familyLimit.min_count : countLimit.min_count,
-          max_count: familyLimit ? familyLimit.max_count : countLimit.max_count,
-          type_subtype_key: familyLimit?.typeSubtypeKey,
+          min_count: countLimit.min_count,
+          max_count: countLimit.max_count,
           fighter_subtypes: fighter.fighter_subtypes || [],
           promoted_from_prospect: fighter.promoted_from_prospect,
           fighter_specialisation: fighterSpecialisationInfo ? {

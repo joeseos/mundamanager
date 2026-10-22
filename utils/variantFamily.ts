@@ -64,7 +64,6 @@ export function withVariantGroups<T extends VariantFamilySource>(rows: T[]) {
     return {
       ...row,
       typeSubtypeKey: `${familyBucket(row)}::${base.key}`,
-      familyBaseKey: base.key,
       variantLabel:
         row.fighter_variant || row.specialisation?.specialisation_name || added.join(', ') || 'Default',
     };

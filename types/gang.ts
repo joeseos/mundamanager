@@ -125,27 +125,6 @@ export interface GangFightersBundle {
   loadouts: any[];
   /** {id, name} of gangs that captured this gang's fighters. */
   capturedByGangs: any[];
-  /**
-   * Sibling fighter_types for names on this roster (same edition and gang type),
-   * including ones nobody has hired. Their count_limits supply the family cap
-   * when the roster holds only a variant.
-   */
-  familyTypes: Array<{
-    id: string;
-    fighter_type: string;
-    fighter_subtypes: string[];
-    fighter_variant: string | null;
-    cost: number;
-    edition_slug: string | null;
-    count_limits: Array<{
-      id?: string | null;
-      gang_type_id?: string | null;
-      gang_origin_id?: string | null;
-      gang_subtype_id?: string | null;
-      min_count?: number | null;
-      max_count?: number | null;
-    }>;
-  }>;
 }
 
 export interface GangFighter {
@@ -155,18 +134,9 @@ export interface GangFighter {
   fighter_type: string;
   fighter_type_id?: string;
   custom_fighter_type_id?: string | null;
-  /** Gang type of this fighter's fighter type, or of their custom fighter type. */
-  fighter_gang_type_id?: string | null;
-  /** Custom gang type of this fighter's custom fighter type, when they have one. */
-  fighter_custom_gang_type_id?: string | null;
-  /**
-   * Gang-scoped count_limits for this fighter's variant family. The base type's
-   * rule is used when this fighter is only a variant of that type.
-   */
+  /** Gang-scoped count_limits for this fighter's type. Null when the type has no rule. */
   min_count?: number | null;
   max_count?: number | null;
-  /** Catalog family key shared with the Add Fighter list. */
-  type_subtype_key?: string;
   fighter_subtypes: string[];
   promoted_from_prospect?: boolean;
   fighter_specialisation?: {

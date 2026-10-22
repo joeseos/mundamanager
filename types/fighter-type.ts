@@ -135,6 +135,7 @@ export interface FighterTypeGrant {
  * scope. Every scope column null applies to every gang; for_fighter_type_id is equipment only.
  */
 export interface CountLimit {
+  id?: string | null;
   gang_type_id: string | null;
   gang_origin_id: string | null;
   gang_subtype_id: string | null;
