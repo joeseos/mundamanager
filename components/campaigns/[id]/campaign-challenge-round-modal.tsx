@@ -30,7 +30,6 @@ const CampaignChallengeRoundModal = ({
     defaultCycle != null ? String(defaultCycle) : ''
   );
   const [order, setOrder] = useState(gangs);
-  const gangCount = order.length;
 
   const cycleValue = cycle ? parseInt(cycle, 10) : null;
   const cycleValid = !cycle || (!isNaN(cycleValue as number) && (cycleValue as number) > 0);
@@ -56,7 +55,7 @@ const CampaignChallengeRoundModal = ({
     <Modal
       title="Create Challenge Round"
       helper="Every gang in the campaign gets a challenge to issue, in the order set below."
-      confirmDisabled={!cycleValid || gangCount === 0}
+      confirmDisabled={!cycleValid || order.length === 0}
       onClose={onClose}
       onConfirm={async () => {
         if (!cycleValid) return false;
@@ -83,7 +82,7 @@ const CampaignChallengeRoundModal = ({
             )}
           </div>
 
-          {gangCount > 0 ? (
+          {order.length > 0 ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-muted-foreground">Challenge Order</p>

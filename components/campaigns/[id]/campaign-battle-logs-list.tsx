@@ -323,8 +323,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
       if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
 
-      // Slots opened together tie on every column, so list them in the round's
-      // challenge order. Rounds opened before it was set fall back to challenger rating.
+      // Slots created together tie on every column, so list them in the round's
+      // challenge order. Rounds created before it was set fall back to challenger rating.
       if (!isPlayedBattle(a) && !isPlayedBattle(b)) {
         if (a.challenge_order != null && b.challenge_order != null) {
           return a.challenge_order - b.challenge_order;
@@ -640,7 +640,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   }, [members, battles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
   // Check if user can edit/delete this battle
-  // A challenge round is only opened for accepted gangs, so count those rather
+  // A challenge round is only created for accepted gangs, so list those rather
   // than availableGangs, which also carries pending ones. Lowest rating first,
   // the order the round is offered in until the arbitrator changes it.
   const acceptedGangs = useMemo(
