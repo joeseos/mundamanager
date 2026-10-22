@@ -56,7 +56,6 @@ const CampaignChallengeRoundModal = ({
     <Modal
       title="Open Challenge Round"
       helper="Every gang in the campaign gets a challenge to issue, in the order set below."
-      confirmText="Open Round"
       confirmDisabled={!cycleValid || gangCount === 0}
       onClose={onClose}
       onConfirm={async () => {
@@ -84,7 +83,7 @@ const CampaignChallengeRoundModal = ({
             )}
           </div>
 
-          {gangCount > 0 && (
+          {gangCount > 0 ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-muted-foreground">Challenge Order</p>
@@ -94,14 +93,11 @@ const CampaignChallengeRoundModal = ({
               </div>
               <SortableRankList items={order} onReorder={setOrder} />
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              There are no accepted gangs in this campaign yet.
+            </p>
           )}
-
-          <p className="text-sm text-muted-foreground">
-            {gangCount === 0
-              ? 'There are no accepted gangs in this campaign yet.'
-              : `This creates ${gangCount} challenge${gangCount === 1 ? '' : 's'}, one per gang. ` +
-                'Each gang’s owner then picks who to challenge. You can open more than one round per cycle.'}
-          </p>
         </div>
       }
     />
