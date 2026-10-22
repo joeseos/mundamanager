@@ -644,9 +644,15 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   // the order the round is offered in until the arbitrator changes it.
   const acceptedGangs = useMemo(
     () => members
-      .flatMap((member) => member.gangs?.filter((g) => g.status === 'ACCEPTED') ?? [])
-      .sort((a, b) => (a.rating ?? 0) - (b.rating ?? 0))
-      .map((g) => ({ id: g.id, name: g.name, detail: g.rating ?? 0 })),
+      .flatMap((member) => (member.gangs ?? [])
+        .filter((g) => g.status === 'ACCEPTED')
+        .map((g) => ({
+          id: g.id,
+          name: g.name,
+          secondary: member.profile?.username || member.username,
+          detail: g.rating ?? 0,
+        })))
+      .sort((a, b) => a.detail - b.detail),
     [members]
   );
 
