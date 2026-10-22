@@ -26,11 +26,17 @@ export interface GangRuleEffect {
   fighter_effect_modifiers: Array<{ stat_name: string; numeric_value: number; operation?: 'add' | 'set' }>;
 }
 
-/** The gang rules for one weapon: a rule with equipment_ids applies only to those weapons. */
-export function gangRulesForWeapon(rules: GangRuleEffect[], equipmentId: string | null | undefined): GangRuleEffect[] {
+type CategoryOf = { equipment_category_id?: string | null } | null | undefined;
+
+/** The gang rules for one owned weapon: a rule with equipment_category_ids applies only to weapons in those categories. */
+export function gangRulesForWeapon(
+  rules: GangRuleEffect[],
+  item: { equipment?: CategoryOf; custom_equipment?: CategoryOf }
+): GangRuleEffect[] {
+  const categoryId = item.equipment?.equipment_category_id ?? item.custom_equipment?.equipment_category_id;
   return rules.filter(rule => {
-    const equipmentIds = rule.type_specific_data?.equipment_ids;
-    return !equipmentIds?.length || (!!equipmentId && equipmentIds.includes(equipmentId));
+    const categoryIds = rule.type_specific_data?.equipment_category_ids;
+    return !categoryIds?.length || (!!categoryId && categoryIds.includes(categoryId));
   });
 }
 

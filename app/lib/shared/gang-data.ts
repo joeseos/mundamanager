@@ -530,7 +530,7 @@ export const getGangFightersBundle = async (gangId: string): Promise<GangFighter
   const [{ gangScope, ...roster }, rules] = await Promise.all([
     unstable_cache(
       async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
-      [`gang-fighters-bundle-v5-${gangId}`],
+      [`gang-fighters-bundle-v6-${gangId}`],
       {
         tags: [TAGS.gangRoster(gangId)],
         revalidate: false
@@ -596,6 +596,7 @@ const EQUIPMENT_ITEM_COLUMNS = {
   equipment_name: true,
   equipment_type: true,
   equipment_category: true,
+  equipment_category_id: true,
   is_consumable: true,
 } as const;
 

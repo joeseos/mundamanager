@@ -432,7 +432,7 @@ export function assembleGangFighters(
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
             // After the fighter's own effects, so a trait an upgrade adds counts
-            weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item.equipment_id));
+            weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item));
           }
 
           // Get effect names that target this equipment
@@ -1077,7 +1077,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }
-      weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item.equipment_id));
+      weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item));
     }
 
     const effectNames = targetingEffectNamesMap.get(item.id) || [];

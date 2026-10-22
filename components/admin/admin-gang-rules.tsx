@@ -74,7 +74,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
   const [excludesTraits, setExcludesTraits] = useState('');
   const [traitsToAdd, setTraitsToAdd] = useState('');
   const [traitsToRemove, setTraitsToRemove] = useState('');
-  const [equipmentIds, setEquipmentIds] = useState<string[]>([]);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
 
   const [modifierStat, setModifierStat] = useState('');
   const [modifierValue, setModifierValue] = useState('');
@@ -110,9 +110,9 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: weapons = [] } = useQuery<Array<{ id: string; equipment_name: string; edition_id?: string | null }>>({
-    queryKey: ['admin-weapons-slim'],
-    queryFn: () => request('/api/admin/equipment?equipment_type=weapon&slim=true'),
+  const { data: equipmentCategories = [] } = useQuery<Array<{ id: string; category_name: string; edition_id?: string | null }>>({
+    queryKey: ['admin-equipment-categories'],
+    queryFn: () => request('/api/admin/equipment/categories'),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -134,7 +134,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
     setExcludesTraits(fromList(tsd?.excludes_traits));
     setTraitsToAdd(fromList(tsd?.traits_to_add));
     setTraitsToRemove(fromList(tsd?.traits_to_remove));
-    setEquipmentIds(tsd?.equipment_ids ?? []);
+    setCategoryIds(tsd?.equipment_category_ids ?? []);
   };
 
   // Runs an admin write, then refreshes this gang type's rules
@@ -169,7 +169,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
         excludes_traits: toList(excludesTraits),
         traits_to_add: toList(traitsToAdd),
         traits_to_remove: toList(traitsToRemove),
-        equipment_ids: equipmentIds,
+        equipment_category_ids: categoryIds,
       };
       (Object.keys(typeSpecificData) as Array<keyof TypeSpecificData>).forEach(key => {
         const value = typeSpecificData[key];
@@ -291,25 +291,25 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
             </p>
 
             <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Only These Weapons</label>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Weapon Categories</label>
               <div className="flex flex-wrap gap-2 mb-2">
-                {equipmentIds.map(id => (
+                {categoryIds.map(id => (
                   <div key={id} className={chipClass}>
-                    <span>{weapons.find(w => w.id === id)?.equipment_name ?? id}</span>
-                    {removeButton(() => setEquipmentIds(equipmentIds.filter(other => other !== id)))}
+                    <span>{equipmentCategories.find(c => c.id === id)?.category_name ?? id}</span>
+                    {removeButton(() => setCategoryIds(categoryIds.filter(other => other !== id)))}
                   </div>
                 ))}
               </div>
               <Combobox
-                options={inEdition(weapons)
-                  .filter(w => !equipmentIds.includes(w.id))
-                  .map(w => ({ value: w.id, label: w.equipment_name }))}
+                options={inEdition(equipmentCategories)
+                  .filter(c => !categoryIds.includes(c.id))
+                  .map(c => ({ value: c.id, label: c.category_name }))}
                 value=""
-                onValueChange={(id) => id && setEquipmentIds([...equipmentIds, id])}
-                placeholder="Search weapons"
+                onValueChange={(id) => id && setCategoryIds([...categoryIds, id])}
+                placeholder="Search equipment categories"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Leave empty for every weapon that passes the trait checks.
+                e.g. Las Weapons. Leave empty for every weapon that passes the trait checks.
               </p>
             </div>
 

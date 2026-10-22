@@ -15,8 +15,8 @@ export interface TraitModificationData {
   requires_traits?: string[];
   /** Skips weapon profiles with any of these traits, e.g. Shred */
   excludes_traits?: string[];
-  /** Gang rules only: limits the rule to these weapons (equipment ids), e.g. a house's las weapons */
-  equipment_ids?: string[];
+  /** Gang rules only: limits the rule to weapons in these equipment categories (ids), e.g. Las Weapons */
+  equipment_category_ids?: string[];
   special_rules_to_add?: string[];
   special_rules_to_remove?: string[];
   /** uuids into fighter_subtypes; ids not names, as subtype_name repeats across editions */
