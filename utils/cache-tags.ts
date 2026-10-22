@@ -43,7 +43,7 @@ import { revalidateTag } from 'next/cache';
  * global-gang-portraits catalogue file paths | catalogue row rename/delete
  *                  joined onto gangs         | (invalidateGangPortraits) |
  * global-gang-rules gang rules and their   | admin gang rule and
- *                  effect types              | fighter effect type writes
+ *                  effect types              | rule effect type writes
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -288,7 +288,7 @@ export function invalidateGangTypesCatalog() {
   bust(TAGS.globalGangTypes());
 }
 
-/** A gang rule, or a fighter effect type that may be one, changed. Applied at roster assembly. */
+/** A gang rule, or the effect type behind one, changed. Applied at roster assembly. */
 export function invalidateGangRules() {
   bust(TAGS.globalGangRules());
 }

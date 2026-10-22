@@ -3,6 +3,16 @@ import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
 import { invalidateGangRules } from '@/utils/cache-tags';
 
+// Gang rules are cached globally, so only writes to an effect type a gang rule uses need to bust them.
+async function isGangRuleEffect(supabase: Awaited<ReturnType<typeof createClient>>, fighterEffectTypeId: string | null | undefined) {
+  if (!fighterEffectTypeId) return false;
+  const { count } = await supabase
+    .from('gang_rules')
+    .select('id', { count: 'exact', head: true })
+    .eq('fighter_effect_type_id', fighterEffectTypeId);
+  return !!count;
+}
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   
@@ -348,7 +358,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
         
-        invalidateGangRules();
+        if (await isGangRuleEffect(supabase, body.fighter_effect_type_id)) invalidateGangRules();
         return NextResponse.json(data);
       } catch (error) {
         console.error('Error in modifier creation:', error);
@@ -501,7 +511,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    invalidateGangRules();
+    if (await isGangRuleEffect(supabase, id)) invalidateGangRules();
     return NextResponse.json(data);
   } catch (error: any) {
     console.error('Error in PATCH handler:', error);
@@ -566,20 +576,25 @@ export async function DELETE(request: NextRequest) {
     
     // If it's a modifier, just delete it
     if (isModifier) {
-      const { error } = await supabase
+      const { data: deleted, error } = await supabase
         .from('fighter_effect_type_modifiers')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select('fighter_effect_type_id')
+        .maybeSingle();
       
       if (error) {
         console.error('Error deleting fighter effect modifier:', error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       
-      invalidateGangRules();
+      if (await isGangRuleEffect(supabase, deleted?.fighter_effect_type_id)) invalidateGangRules();
       return NextResponse.json({ success: true });
     }
     
+    // Checked before the delete, which cascades to the effect type's gang_rules rows
+    const isGangRule = await isGangRuleEffect(supabase, id);
+
     // For fighter effect type, first delete related modifiers
     const { error: modifiersError } = await supabase
       .from('fighter_effect_type_modifiers')
@@ -602,7 +617,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    invalidateGangRules();
+    if (isGangRule) invalidateGangRules();
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error in DELETE handler:', error);
