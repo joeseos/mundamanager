@@ -926,6 +926,8 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
   fighterType?: string | null;
   /** When set, overrides before.fighter_type_id. */
   fighterTypeId?: string | null;
+  /** Also sets Starting XP, which moves XP with it. Not reverted on a failed skill grant. */
+  startingXp?: number;
   /** Omit to update details only (e.g. Inspiring already present). */
   skillId?: string;
   creditsIncrease: number;
@@ -955,6 +957,7 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
         ? args.fighterSpecialisationId
         : (args.before.fighter_specialisation_id ?? null),
     special_rules: args.specialRules,
+    starting_xp: args.startingXp,
   });
 
   if (!promotionResult.success) {
@@ -963,7 +966,14 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
 
   if (!args.skillId) {
     await logFighterPromotion(args.before, promoted);
-    return { success: true };
+    const fighter = promotionResult.data?.fighter;
+    return {
+      success: true,
+      warning: promotionResult.warning,
+      fighter: fighter
+        ? { id: fighter.id, xp: fighter.xp, starting_xp: fighter.starting_xp }
+        : undefined,
+    };
   }
 
   // Not an Advancement: is_advance false so it does not consume a rank slot.
@@ -1364,24 +1374,21 @@ export async function applyN26OutcastLeaderPromotion(
 
     // Always rebuild subtypes server-side — never trust client-supplied lists.
     const newSubtypes = buildN26ChampionLeaderPromotionSubtypes(currentSubtypes);
-    const promotionResult = await updateFighterDetails({
-      fighter_id: params.fighter_id,
-      fighter_subtypes: newSubtypes,
-      special_rules:
-        params.special_rules ??
-        (Array.isArray(before.special_rules) ? before.special_rules : []),
-      starting_xp: N26_OUTCAST_LEADER_STARTING_XP,
-    });
+    const specialRules =
+      params.special_rules ??
+      (Array.isArray(before.special_rules) ? before.special_rules : []);
 
+    const promotionResult = await applyKeepTypePromotionWithSkillGrant({
+      fighterId: params.fighter_id,
+      before,
+      newSubtypes,
+      specialRules,
+      startingXp: N26_OUTCAST_LEADER_STARTING_XP,
+      creditsIncrease: 0,
+    });
     if (!promotionResult.success) {
-      return { success: false, error: promotionResult.error || 'Failed to promote fighter' };
+      return promotionResult;
     }
-
-    await logFighterPromotion(before, {
-      fighter_type: before.fighter_type,
-      fighter_subtypes: newSubtypes,
-      fighter_specialisation: before.fighter_specialisation,
-    });
 
     const warnings: string[] = promotionResult.warning ? [promotionResult.warning] : [];
 
@@ -1406,13 +1413,9 @@ export async function applyN26OutcastLeaderPromotion(
       );
     }
 
-    const promoted = promotionResult.data?.fighter;
     return {
-      success: true,
+      ...promotionResult,
       warning: warnings.length > 0 ? warnings.join(' ') : undefined,
-      fighter: promoted
-        ? { id: promoted.id, xp: promoted.xp, starting_xp: promoted.starting_xp }
-        : undefined,
     };
   } catch (error) {
     console.error('Error applying N26 Outcast Leader promotion:', error);

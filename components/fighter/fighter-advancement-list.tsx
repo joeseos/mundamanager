@@ -302,10 +302,7 @@ export function AdvancementsList({
 
       if (promotion.kind === 'n26_outcast_leader') {
         // Settle the optimistic XP on what the server wrote.
-        const { fighter: promoted, warning } = result as {
-          fighter?: { xp: number; starting_xp?: number | null };
-          warning?: string;
-        };
+        const { fighter: promoted, warning } = result;
         if (promoted) {
           onFighterDetailsUpdate?.({ xp: promoted.xp, starting_xp: promoted.starting_xp ?? null });
         }
