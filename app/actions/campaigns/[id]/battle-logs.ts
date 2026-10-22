@@ -868,7 +868,8 @@ export interface ChallengeRoundResult {
 }
 
 /**
- * Open a challenge round: one slot per accepted gang, for the given cycle.
+ * Open a challenge round: one slot per accepted gang, for the given cycle,
+ * numbered in `gangOrder`, the order the arbitrator set for issuing challenges.
  * Each slot is a battle log in `challenge_pending` with no opponent yet; the
  * gang's owner names an opponent by editing it, which issues the challenge.
  *
@@ -877,7 +878,8 @@ export interface ChallengeRoundResult {
  */
 export async function generateChallengeRound(
   campaignId: string,
-  cycle: number | null
+  cycle: number | null,
+  gangOrder: string[]
 ): Promise<ChallengeRoundResult> {
   try {
     const supabase = await createClient();
@@ -899,8 +901,14 @@ export async function generateChallengeRound(
     if (gangIds.length === 0) {
       return { success: false, error: 'No accepted gangs in this campaign' };
     }
+    // A gang accepted after the modal opened is not in gangOrder; it goes last.
+    const position = (gangId: string) => {
+      const i = gangOrder.indexOf(gangId);
+      return i === -1 ? gangOrder.length : i;
+    };
+    gangIds.sort((a, b) => position(a) - position(b));
 
-    const rows = gangIds.map((gangId) => {
+    const rows = gangIds.map((gangId, i) => {
       // Seeding the challenger is what lets the existing RLS UPDATE policy
       // ("any gang owner in participants") cover them filling the slot in.
       // Role stays 'none' — attacker/defender is settled when it is played.
@@ -915,6 +923,7 @@ export async function generateChallengeRound(
         challenger_gang_id: gangId,
         challenged_gang_id: null,
         cycle,
+        challenge_order: i + 1,
         participants: JSON.stringify(participants),
       };
     });
@@ -922,7 +931,7 @@ export async function generateChallengeRound(
     const { data: inserted, error: insertError } = await supabase
       .from('campaign_battles')
       .insert(rows)
-      .select('id, created_at, updated_at, scenario, winner_id, note, participants, campaign_territory_id, cycle, status, challenger_gang_id, challenged_gang_id');
+      .select('id, created_at, updated_at, scenario, winner_id, note, participants, campaign_territory_id, cycle, status, challenger_gang_id, challenged_gang_id, challenge_order');
     if (insertError) throw insertError;
 
     invalidateCampaignBattles(campaignId);
