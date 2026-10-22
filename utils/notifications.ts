@@ -80,7 +80,7 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     label: 'Campaign challenges',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'Your gang has been challenged',
+    subject: '{sender} has challenged your gang',
   },
   // Munda Manager news, general announcements, and feature announcements.
   // Not a message: the in-app list does not show a sender.
