@@ -49,9 +49,10 @@ import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import type { EquipmentGrants } from '@/types/equipment';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
-// A fighter's edition comes from its gang's (custom) gang type.
+// A fighter's gang type, and its edition via the gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
   gangs!gang_id (
+    gang_type_id,
     gang_types!gang_type_id ( editions:edition_id ( slug ) ),
     custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
   )
@@ -1328,8 +1329,7 @@ export async function applyN26OutcastLeaderPromotion(
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
       .select(`
-        id, fighter_subtypes, special_rules,
-        gangs!gang_id ( gang_type_id ),
+        ${KEEP_TYPE_PROMOTION_FIGHTER_SELECT},
         fighter_types:fighter_type_id ( gang_type_id ),
         custom_fighter_types:custom_fighter_type_id ( gang_type_id )
       `)
@@ -1362,10 +1362,11 @@ export async function applyN26OutcastLeaderPromotion(
       };
     }
 
+    // Always rebuild subtypes server-side — never trust client-supplied lists.
+    const newSubtypes = buildN26ChampionLeaderPromotionSubtypes(currentSubtypes);
     const promotionResult = await updateFighterDetails({
       fighter_id: params.fighter_id,
-      // Always rebuild subtypes server-side — never trust client-supplied lists.
-      fighter_subtypes: buildN26ChampionLeaderPromotionSubtypes(currentSubtypes),
+      fighter_subtypes: newSubtypes,
       special_rules:
         params.special_rules ??
         (Array.isArray(before.special_rules) ? before.special_rules : []),
@@ -1375,6 +1376,12 @@ export async function applyN26OutcastLeaderPromotion(
     if (!promotionResult.success) {
       return { success: false, error: promotionResult.error || 'Failed to promote fighter' };
     }
+
+    await logFighterPromotion(before, {
+      fighter_type: before.fighter_type,
+      fighter_subtypes: newSubtypes,
+      fighter_specialisation: before.fighter_specialisation,
+    });
 
     const warnings: string[] = promotionResult.warning ? [promotionResult.warning] : [];
 
@@ -1395,7 +1402,7 @@ export async function applyN26OutcastLeaderPromotion(
     }
     if (petFailed) {
       warnings.push(
-        `Promoted, but Starting XP ${N26_OUTCAST_LEADER_PET_STARTING_XP} could not be set on this fighter's pet.`
+        `Promoted, but this fighter's pet, if any, could not be given Starting XP ${N26_OUTCAST_LEADER_PET_STARTING_XP}.`
       );
     }
 
