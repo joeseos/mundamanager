@@ -966,6 +966,184 @@ $$;
 
 
 --
+-- Name: create_notification_send(uuid, text, uuid, text, integer, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_notification_send(p_sender_id uuid, p_type text, p_campaign_id uuid, p_text text, p_expires_in_days integer, p_audience text, p_receiver_ids uuid[]) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_receiver_ids uuid[];
+  v_sample uuid[];
+  v_expires_at timestamptz;
+  v_send_id uuid;
+  v_link text;
+  v_today_start timestamptz;
+BEGIN
+  IF p_expires_in_days IS NULL OR p_expires_in_days < 1 OR p_expires_in_days > 365 THEN
+    RAISE EXCEPTION 'expires_in_days must be between 1 and 365';
+  END IF;
+
+  IF p_text IS NULL OR btrim(p_text) = '' THEN
+    RAISE EXCEPTION 'message text is required';
+  END IF;
+
+  -- Same visible-text cap as NOTIFICATION_BROADCAST_MAX_LENGTH in utils/notifications.ts.
+  IF char_length(regexp_replace(p_text, '<[^>]*>', '', 'g')) > 1000 THEN
+    RAISE EXCEPTION 'message must be at most 1000 characters';
+  END IF;
+
+  IF p_audience NOT IN ('all', 'selected') THEN
+    RAISE EXCEPTION 'audience must be all or selected';
+  END IF;
+
+  IF p_type NOT IN ('mm_announcement', 'mm_staff_message', 'campaign_message') THEN
+    RAISE EXCEPTION 'unsupported notification type';
+  END IF;
+
+  IF p_type = 'campaign_message' THEN
+    IF p_campaign_id IS NULL THEN
+      RAISE EXCEPTION 'campaign_id is required';
+    END IF;
+  ELSIF p_campaign_id IS NOT NULL THEN
+    RAISE EXCEPTION 'campaign_id must be null';
+  END IF;
+
+  v_link := CASE
+    WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
+  END;
+
+  IF p_audience = 'all' AND p_type = 'campaign_message' THEN
+    SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
+    INTO v_receiver_ids
+    FROM public.campaign_members cm
+    WHERE cm.campaign_id = p_campaign_id
+      AND cm.user_id IS NOT NULL;
+  ELSIF p_audience = 'all' THEN
+    SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
+    INTO v_receiver_ids
+    FROM public.profiles p;
+  ELSE
+    SELECT COALESCE(array_agg(DISTINCT receiver.receiver_id), '{}'::uuid[])
+    INTO v_receiver_ids
+    FROM unnest(COALESCE(p_receiver_ids, '{}')) AS receiver(receiver_id)
+    WHERE receiver.receiver_id IS NOT NULL;
+  END IF;
+
+  IF v_receiver_ids IS NULL OR cardinality(v_receiver_ids) = 0 THEN
+    RAISE EXCEPTION 'no recipients';
+  END IF;
+
+  IF p_type = 'campaign_message' AND p_audience = 'selected' THEN
+    IF EXISTS (
+      SELECT 1
+      FROM unnest(v_receiver_ids) AS receiver(receiver_id)
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.campaign_members cm
+        WHERE cm.campaign_id = p_campaign_id
+          AND cm.user_id = receiver.receiver_id
+      )
+    ) THEN
+      RAISE EXCEPTION 'recipients must be campaign members';
+    END IF;
+  ELSIF p_type <> 'campaign_message' AND p_audience = 'selected' THEN
+    IF EXISTS (
+      SELECT 1
+      FROM unnest(v_receiver_ids) AS receiver(receiver_id)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.profiles p WHERE p.id = receiver.receiver_id
+      )
+    ) THEN
+      RAISE EXCEPTION 'recipients must be existing users';
+    END IF;
+  END IF;
+
+  IF p_type = 'campaign_message' THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_campaign_id::text, 0));
+    v_today_start := (timezone('utc', now()))::date::timestamp AT TIME ZONE 'utc';
+    IF (
+      SELECT count(*)
+      FROM public.notification_sends
+      WHERE campaign_id = p_campaign_id
+        AND type = 'campaign_message'
+        AND created_at >= v_today_start
+    ) >= 5 THEN
+      RAISE EXCEPTION 'campaign_message_daily_cap';
+    END IF;
+
+    -- Same sender cap as CAMPAIGN_MESSAGE_SENDER_DAILY_CAP in utils/notifications.ts.
+    -- App admins are not exempt: this counts every campaign_message they send.
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_sender_id::text, 1));
+    IF (
+      SELECT count(*)
+      FROM public.notification_sends
+      WHERE sender_id = p_sender_id
+        AND type = 'campaign_message'
+        AND created_at >= v_today_start
+    ) >= 10 THEN
+      RAISE EXCEPTION 'campaign_message_sender_daily_cap';
+    END IF;
+  END IF;
+
+  SELECT COALESCE(array_agg(sample_id ORDER BY sample_id), '{}'::uuid[])
+  INTO v_sample
+  FROM (
+    SELECT receiver.receiver_id AS sample_id
+    FROM unnest(v_receiver_ids) AS receiver(receiver_id)
+    ORDER BY receiver.receiver_id
+    LIMIT 3
+  ) sample;
+
+  v_expires_at := now() + make_interval(days => p_expires_in_days);
+
+  INSERT INTO public.notification_sends (
+    sender_id,
+    type,
+    campaign_id,
+    text,
+    recipient_count,
+    sample_receiver_ids
+  ) VALUES (
+    p_sender_id,
+    p_type,
+    p_campaign_id,
+    p_text,
+    cardinality(v_receiver_ids),
+    v_sample
+  )
+  RETURNING id INTO v_send_id;
+
+  INSERT INTO public.notifications (
+    text,
+    type,
+    is_html,
+    sender_id,
+    receiver_id,
+    dismissed,
+    link,
+    expires_at,
+    send_id
+  )
+  SELECT
+    p_text,
+    p_type,
+    true,
+    p_sender_id,
+    receiver.receiver_id,
+    false,
+    v_link,
+    v_expires_at,
+    v_send_id
+  FROM unnest(v_receiver_ids) AS receiver(receiver_id);
+
+  RETURN jsonb_build_object('id', v_send_id, 'count', cardinality(v_receiver_ids));
+END;
+$$;
+
+
+--
 -- Name: custom_access_token_hook(jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -1110,15 +1288,7 @@ CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-   IF NEW.type IN (
-      'campaign_invite',
-      'gang_invite',
-      'friend_request',
-      'campaign_join_request',
-      'campaign_challenge',
-      'mm_staff_message',
-      'mm_announcement'
-   ) THEN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge', 'campaign_message', 'mm_staff_message', 'mm_announcement') THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;
@@ -4743,6 +4913,7 @@ CREATE TABLE public.campaign_battles (
     crew_selection_name text,
     deployment_name text,
     objective_name text,
+    challenge_order integer,
     CONSTRAINT campaign_battles_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
     CONSTRAINT campaign_battles_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
     CONSTRAINT campaign_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
@@ -6472,6 +6643,43 @@ COMMENT ON COLUMN public.gang_portraits.label IS 'Extra name within a section, s
 
 
 --
+-- Name: gang_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_rules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    fighter_effect_type_id uuid NOT NULL,
+    gang_type_id uuid NOT NULL,
+    gang_origin_id uuid,
+    gang_subtype_id uuid,
+    excluded boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: TABLE gang_rules; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.gang_rules IS 'Which gangs a gang-rules fighter effect type applies to. The rule applies when at least one of its non-excluded rows matches the gang and none of its excluded rows does.';
+
+
+--
+-- Name: COLUMN gang_rules.gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_rules.gang_type_id IS 'Required: a gang rule is a gang type''s rule, e.g. Van Saar, even when a subtype such as Malstrain Corrupted cancels it. Its fighters are the ones the rule applies to.';
+
+
+--
+-- Name: COLUMN gang_rules.excluded; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_rules.excluded IS 'true denies the rule to gangs matching this row''s scope, e.g. a subtype that cancels a house rule. A deny wins over any grant of the same rule.';
+
+
+--
 -- Name: gang_skill_set_ranks; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6636,6 +6844,31 @@ COMMENT ON COLUMN public.gangs.gang_portrait_id IS 'Selected shared portrait fro
 
 
 --
+-- Name: notification_sends; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.notification_sends (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    sender_id uuid,
+    type text NOT NULL,
+    campaign_id uuid,
+    text text NOT NULL,
+    recipient_count integer NOT NULL,
+    sample_receiver_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT notification_sends_recipient_count_check CHECK ((recipient_count >= 0)),
+    CONSTRAINT notification_sends_type_check CHECK ((type = ANY (ARRAY['mm_announcement'::text, 'mm_staff_message'::text, 'campaign_message'::text])))
+);
+
+
+--
+-- Name: TABLE notification_sends; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.notification_sends IS 'One composed notification send. Sent history reads this table, not the per-recipient notification rows.';
+
+
+--
 -- Name: notifications; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6650,6 +6883,7 @@ CREATE TABLE public.notifications (
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     is_html boolean DEFAULT false NOT NULL,
+    send_id uuid,
     CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text])))
 );
 
@@ -7788,6 +8022,14 @@ ALTER TABLE ONLY public.gang_portraits
 
 
 --
+-- Name: gang_rules gang_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: gang_skill_set_ranks gang_skill_set_ranks_gang_id_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7857,6 +8099,14 @@ ALTER TABLE ONLY public.gang_types
 
 ALTER TABLE ONLY public.gangs
     ADD CONSTRAINT gangs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notification_sends notification_sends_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_sends
+    ADD CONSTRAINT notification_sends_pkey PRIMARY KEY (id);
 
 
 --
@@ -9209,6 +9459,13 @@ CREATE INDEX gang_portraits_style_idx ON public.gang_portraits USING btree (styl
 
 
 --
+-- Name: gang_rules_scope_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX gang_rules_scope_uidx ON public.gang_rules USING btree (fighter_effect_type_id, gang_type_id, gang_origin_id, gang_subtype_id) NULLS NOT DISTINCT;
+
+
+--
 -- Name: gang_stash_gang_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9832,6 +10089,20 @@ CREATE INDEX idx_vehicles_gang_id ON public.vehicles USING btree (gang_id);
 
 
 --
+-- Name: notification_sends_campaign_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notification_sends_campaign_created_idx ON public.notification_sends USING btree (campaign_id, created_at DESC) WHERE (type = 'campaign_message'::text);
+
+
+--
+-- Name: notification_sends_type_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notification_sends_type_created_idx ON public.notification_sends USING btree (type, created_at DESC);
+
+
+--
 -- Name: notifications_created_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9850,6 +10121,13 @@ CREATE INDEX notifications_expires_at_idx ON public.notifications USING btree (e
 --
 
 CREATE INDEX notifications_receiver_id_idx ON public.notifications USING btree (receiver_id);
+
+
+--
+-- Name: notifications_send_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_send_id_idx ON public.notifications USING btree (send_id) WHERE (send_id IS NOT NULL);
 
 
 --
@@ -11804,6 +12082,38 @@ ALTER TABLE ONLY public.gang_origins
 
 
 --
+-- Name: gang_rules gang_rules_fighter_effect_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_fighter_effect_type_id_fkey FOREIGN KEY (fighter_effect_type_id) REFERENCES public.fighter_effect_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_rules gang_rules_gang_origin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_rules gang_rules_gang_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_gang_subtype_id_fkey FOREIGN KEY (gang_subtype_id) REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_rules gang_rules_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
+
+
+--
 -- Name: gang_skill_set_ranks gang_skill_set_ranks_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11956,11 +12266,35 @@ ALTER TABLE ONLY public.gangs
 
 
 --
+-- Name: notification_sends notification_sends_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_sends
+    ADD CONSTRAINT notification_sends_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notification_sends notification_sends_sender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_sends
+    ADD CONSTRAINT notification_sends_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: notifications notifications_receiver_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.notifications
     ADD CONSTRAINT notifications_receiver_id_fkey FOREIGN KEY (receiver_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notifications notifications_send_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_send_id_fkey FOREIGN KEY (send_id) REFERENCES public.notification_sends(id) ON DELETE SET NULL;
 
 
 --
@@ -12792,6 +13126,13 @@ CREATE POLICY "Allow authenticated users to view gang_origin_categories" ON publ
 --
 
 CREATE POLICY "Allow authenticated users to view gang_origins" ON public.gang_origins FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: gang_rules Allow authenticated users to view gang_rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang_rules" ON public.gang_rules FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -14706,7 +15047,7 @@ CREATE POLICY "Users can update their own notification preferences" ON public.us
 -- Name: notifications Users can update their own notifications; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE TO authenticated USING ((( SELECT auth.uid() AS uid) = receiver_id));
+CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE TO authenticated USING ((( SELECT auth.uid() AS uid) = receiver_id)) WITH CHECK ((( SELECT auth.uid() AS uid) = receiver_id));
 
 
 --
@@ -15594,6 +15935,33 @@ ALTER TABLE public.gang_origins ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gang_portraits ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: gang_rules; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_rules ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_rules gang_rules_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_rules_admin_delete_policy ON public.gang_rules FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_rules gang_rules_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_rules_admin_insert_policy ON public.gang_rules FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_rules gang_rules_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_rules_admin_update_policy ON public.gang_rules FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: gang_skill_set_ranks; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -15649,6 +16017,12 @@ ALTER TABLE public.gang_types ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.gangs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: notification_sends; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.notification_sends ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: notifications; Type: ROW SECURITY; Schema: public; Owner: -
