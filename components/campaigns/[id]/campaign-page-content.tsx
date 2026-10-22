@@ -155,6 +155,8 @@ interface CampaignPageContentProps {
   hasPendingJoinRequest?: boolean;
   /** The campaign edition's scenario tables, for the N26 battle log pickers. */
   scenarioTables?: ScenarioTableWithEntries[];
+  /** The tab to open on load, as its index in the tab bar. */
+  initialTab?: number;
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
   tradingPostTypes?: Array<{ id: string; trading_post_name: string | null; edition_slug?: string | null }>;
@@ -193,6 +195,7 @@ export default function CampaignPageContent({
   permissions,
   hasPendingJoinRequest = false,
   scenarioTables = [],
+  initialTab = 0,
   campaignTypes, 
   allTerritories,
   tradingPostTypes,
@@ -213,7 +216,7 @@ export default function CampaignPageContent({
   
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState(0);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);

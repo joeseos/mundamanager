@@ -623,13 +623,16 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     if (challengeIssued || challengeAnswered) {
       // A failed notification must never fail the save.
       try {
-        const [{ data: challengeGangs }, { data: stakedTerritory }] = await Promise.all([
+        const [{ data: challengeGangs }, { data: stakedTerritory }, { data: senderProfile }] = await Promise.all([
           supabase
             .from('gangs')
             .select('id, name, user_id')
             .in('id', [existingBattle.challenger_gang_id, challengedGangId]),
           challengeIssued && newTerritoryId
             ? supabase.from('campaign_territories').select('territory_name').eq('id', newTerritoryId).maybeSingle()
+            : Promise.resolve({ data: null }),
+          challengeIssued
+            ? supabase.from('profiles').select('username').eq('id', user.id).maybeSingle()
             : Promise.resolve({ data: null }),
         ]);
         const challenger = challengeGangs?.find((g) => g.id === existingBattle.challenger_gang_id);
@@ -643,7 +646,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
             stakedTerritory?.territory_name ? `Territory: **${stakedTerritory.territory_name}**` : null,
           ].filter(Boolean);
           const text = challengeIssued
-            ? `**${challenger.name}** has challenged your gang **${challenged.name}** in the campaign **${campaignName}**.` +
+            ? `**${senderProfile?.username || 'Someone'}** has challenged your gang **${challenged.name}** with **${challenger.name}** in the campaign **${campaignName}**.` +
               (details.length ? `\n\n${details.join('\n')}` : '') +
               `\n\nOpen the challenge in the campaign's battle logs to accept or decline it.`
             : `**${challenged.name}** has ${nextStatus === 'challenge_accepted' ? 'accepted' : 'declined'} the challenge from **${challenger.name}** in the campaign **${campaignName}**.`;
@@ -652,7 +655,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
             sender_id: user.id,
             type: challengeIssued ? 'campaign_challenge' : 'info',
             text,
-            link: `/campaigns/${campaignId}`,
+            link: `/campaigns/${campaignId}?tab=battles`,
             dismissed: false,
           });
           if (notifyError) console.error('Error sending challenge notification:', notifyError);

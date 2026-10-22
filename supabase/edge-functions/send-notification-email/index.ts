@@ -65,7 +65,7 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
     subject: "{sender} wants to join your campaign",
     ctaPath: "/account",
   },
-  campaign_challenge: { defaultEnabled: true, subject: "Your gang has been challenged" },
+  campaign_challenge: { defaultEnabled: true, subject: "{sender} has challenged your gang" },
   user_message: {
     defaultEnabled: true,
     subject: "{sender} sent you a message",
