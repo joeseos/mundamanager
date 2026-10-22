@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
-import { invalidateGangWeaponRules } from '@/utils/cache-tags';
+import { invalidateGangRules } from '@/utils/cache-tags';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -348,7 +348,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: error.message }, { status: 500 });
         }
         
-        invalidateGangWeaponRules();
+        invalidateGangRules();
         return NextResponse.json(data);
       } catch (error) {
         console.error('Error in modifier creation:', error);
@@ -501,7 +501,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    invalidateGangWeaponRules();
+    invalidateGangRules();
     return NextResponse.json(data);
   } catch (error: any) {
     console.error('Error in PATCH handler:', error);
@@ -576,7 +576,7 @@ export async function DELETE(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       
-      invalidateGangWeaponRules();
+      invalidateGangRules();
       return NextResponse.json({ success: true });
     }
     
@@ -602,7 +602,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    invalidateGangWeaponRules();
+    invalidateGangRules();
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Error in DELETE handler:', error);

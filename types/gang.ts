@@ -1,5 +1,5 @@
 import type { WeaponProps, WargearItem } from '@/types/fighter';
-import type { GangWeaponRuleEffect } from '@/utils/gangWeaponRules';
+import type { GangRuleEffect } from '@/utils/gangRules';
 
 export interface GangOrigin {
   id: string;
@@ -127,8 +127,8 @@ export interface GangFightersBundle {
   /** {id, name} of gangs that captured this gang's fighters. */
   capturedByGangs: any[];
   gangTypeId: string | null;
-  /** The gang's weapon rules, for fighters of its own gang type only. */
-  gangWeaponRules: GangWeaponRuleEffect[];
+  /** The gang's rules, for fighters of its own gang type only. */
+  gangRules: GangRuleEffect[];
 }
 
 export interface GangFighter {

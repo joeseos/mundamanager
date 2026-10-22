@@ -14,7 +14,7 @@ import { useEditions } from '@/components/edition-select';
 import { GangOriginOptions, GangSubtypeOptions, formatGangScope } from '@/components/admin/gang-scope-options';
 import { FighterEffectCategory, FighterEffectTypeModifier, TypeSpecificData } from '@/types/fighter-effect';
 
-interface GangWeaponRuleRow {
+interface GangRuleRow {
   id: string;
   fighter_effect_type_id: string;
   gang_type_id: string;
@@ -31,7 +31,7 @@ interface GangWeaponRuleRow {
 
 const WEAPON_STATS = STAT_MAPPINGS.filter(m => WEAPON_NUMERIC_FIELDS.includes(m.stat_name));
 
-const CATEGORY_NAME = 'gang-weapon-rules';
+const CATEGORY_NAME = 'gang-rules';
 const NEW_RULE = 'new';
 
 const toList = (value: string) => value.split(',').map(t => t.trim()).filter(Boolean);
@@ -52,17 +52,17 @@ const jsonInit = (method: string, body: unknown): RequestInit => ({
 
 const chipClass = 'flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted';
 
-interface GangWeaponRulesSectionProps {
+interface GangRulesSectionProps {
   gangTypeId: string;
   editionId: string;
 }
 
 /**
- * The Gangs modal's Weapon Rules: rules a gang type applies to its own fighters' weapons, e.g. the
- * Chymist Cult's Deadly Poisons. Each rule is a fighter effect type in the gang-weapon-rules
- * category plus gang_weapon_rules rows for this gang type, narrowed or denied by origin/subtype.
+ * The Gangs modal's Gang Rules: rules a gang type applies to its own fighters (for now their weapons), e.g. the
+ * Chymist Cult's Deadly Poisons. Each rule is a fighter effect type in the gang-rules
+ * category plus gang_rules rows for this gang type, narrowed or denied by origin/subtype.
  */
-export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRulesSectionProps) {
+export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProps) {
   const queryClient = useQueryClient();
 
   const [editingId, setEditingId] = useState('');
@@ -81,10 +81,10 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
   const [scopeSubtype, setScopeSubtype] = useState('');
   const [scopeExcluded, setScopeExcluded] = useState(false);
 
-  const rowsKey = ['admin-gang-weapon-rules', gangTypeId];
-  const { data: rows = [] } = useQuery<GangWeaponRuleRow[]>({
+  const rowsKey = ['admin-gang-rules', gangTypeId];
+  const { data: rows = [] } = useQuery<GangRuleRow[]>({
     queryKey: rowsKey,
-    queryFn: () => request(`/api/admin/gang-weapon-rules?gang_type_id=${gangTypeId}`),
+    queryFn: () => request(`/api/admin/gang-rules?gang_type_id=${gangTypeId}`),
   });
 
   const { data: categoryId } = useQuery<string | undefined>({
@@ -145,7 +145,7 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
   };
 
   const addRow = (fighterEffectTypeId: string, scope: { gang_origin_id?: string; gang_subtype_id?: string; excluded?: boolean } = {}) =>
-    request('/api/admin/gang-weapon-rules', jsonInit('POST', {
+    request('/api/admin/gang-rules', jsonInit('POST', {
       fighter_effect_type_id: fighterEffectTypeId,
       gang_type_id: gangTypeId,
       ...scope,
@@ -213,7 +213,7 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
   }, 'Gangs updated');
 
   const handleDeleteScope = (rowId: string) => submit(async () => {
-    await request(`/api/admin/gang-weapon-rules?id=${rowId}`, { method: 'DELETE' });
+    await request(`/api/admin/gang-rules?id=${rowId}`, { method: 'DELETE' });
   }, 'Gangs updated');
 
   const removeButton = (onClick: () => void) => (
@@ -225,7 +225,7 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
   return (
     <div>
       <div className="flex justify-between items-center mb-1">
-        <label className="block text-sm font-medium text-muted-foreground">Weapon Rules</label>
+        <label className="block text-sm font-medium text-muted-foreground">Gang Rules</label>
         <Button onClick={() => openEditor(NEW_RULE)} variant="outline" size="sm" disabled={!categoryId}>
           Add Rule
         </Button>
@@ -243,11 +243,11 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
 
       {editingId && (
         <Modal
-          title={editingId === NEW_RULE ? 'Add Weapon Rule' : 'Edit Weapon Rule'}
+          title={editingId === NEW_RULE ? 'Add Gang Rule' : 'Edit Gang Rule'}
           onClose={() => setEditingId('')}
           onConfirm={handleSave}
           confirmText={editingId === NEW_RULE ? 'Create Rule' : 'Save Rule'}
-          confirmDisabled={isSubmitting || !name.trim()}
+          confirmDisabled={isSubmitting || !name.trim() || !categoryId}
           onDelete={editingRule ? handleDelete : undefined}
           deleteLabel="Delete Rule"
           width="2xl"
@@ -326,7 +326,8 @@ export function GangWeaponRulesSection({ gangTypeId, editionId }: GangWeaponRule
                         <span>
                           {row.excluded ? 'Deny' : 'Grant'} — {formatGangScope({ ...row, gang_type_id: null }, { gangTypes: [], origins, subtypes }) || 'every gang'}
                         </span>
-                        {removeButton(() => handleDeleteScope(row.id))}
+                        {/* the last row goes with Delete Rule, so a rule is never left without gangs */}
+                        {editingRows.length > 1 && removeButton(() => handleDeleteScope(row.id))}
                       </div>
                     ))}
                   </div>

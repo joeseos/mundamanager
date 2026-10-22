@@ -501,10 +501,9 @@ export const fighterEffectTypeModifiers = pgTable('fighter_effect_type_modifiers
   operation: text('operation'),
 });
 
-export const gangWeaponRules = pgTable('gang_weapon_rules', {
+export const gangRules = pgTable('gang_rules', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   fighter_effect_type_id: uuid('fighter_effect_type_id').notNull(),
   gang_type_id: uuid('gang_type_id').notNull(),
   gang_origin_id: uuid('gang_origin_id'),
@@ -1395,9 +1394,9 @@ export const fighterEffectTypeModifiersRelations = relations(fighterEffectTypeMo
   }),
 }));
 
-export const gangWeaponRulesRelations = relations(gangWeaponRules, ({ one }) => ({
+export const gangRulesRelations = relations(gangRules, ({ one }) => ({
   fighter_effect_type: one(fighterEffectTypes, {
-    fields: [gangWeaponRules.fighter_effect_type_id],
+    fields: [gangRules.fighter_effect_type_id],
     references: [fighterEffectTypes.id],
   }),
 }));

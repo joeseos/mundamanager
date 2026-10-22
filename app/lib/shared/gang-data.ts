@@ -13,7 +13,7 @@ import { gangEditionSlug } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { isUuid } from '@/utils/uuid';
 import { GangTacticsCard, toGangTacticsCard } from '@/types/tactics-card';
-import { resolveGangWeaponRules, type GangWeaponRuleRow } from '@/utils/gangWeaponRules';
+import { resolveGangRules, type GangRuleRow } from '@/utils/gangRules';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -527,7 +527,7 @@ export const getGangFightersBundle = async (gangId: string): Promise<GangFighter
   // The rules are cached globally, so editing one takes effect without busting
   // every roster; the gang's own scope columns come with the roster, whose tag
   // invalidateGang busts when the gang's origin or subtypes change
-  const [{ gangScope, ...roster }, weaponRules] = await Promise.all([
+  const [{ gangScope, ...roster }, rules] = await Promise.all([
     unstable_cache(
       async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
       [`gang-fighters-bundle-v5-${gangId}`],
@@ -536,23 +536,23 @@ export const getGangFightersBundle = async (gangId: string): Promise<GangFighter
         revalidate: false
       }
     )(),
-    getGangWeaponRules()
+    getGangRules()
   ]);
   return {
     ...roster,
     gangTypeId: gangScope?.gang_type_id ?? null,
-    gangWeaponRules: gangScope ? resolveGangWeaponRules(weaponRules, gangScope) : []
+    gangRules: gangScope ? resolveGangRules(rules, gangScope) : []
   };
 };
 
 /**
- * Every gang weapon rule row with its effect type and modifiers. A handful of
- * rows game-wide, resolved per gang by resolveGangWeaponRules.
- * Cache: global-gang-weapon-rules
+ * Every gang rule row with its effect type and modifiers. A handful of
+ * rows game-wide, resolved per gang by resolveGangRules.
+ * Cache: global-gang-rules
  */
-export const getGangWeaponRules = async (): Promise<GangWeaponRuleRow[]> => {
+export const getGangRules = async (): Promise<GangRuleRow[]> => {
   return unstable_cache(
-    async () => getAppDb().query.gangWeaponRules.findMany({
+    async () => getAppDb().query.gangRules.findMany({
       columns: { gang_type_id: true, gang_origin_id: true, gang_subtype_id: true, excluded: true },
       with: {
         fighter_effect_type: {
@@ -565,9 +565,9 @@ export const getGangWeaponRules = async (): Promise<GangWeaponRuleRow[]> => {
         }
       }
     }),
-    ['gang-weapon-rules'],
+    ['gang-rules'],
     {
-      tags: [TAGS.globalGangWeaponRules()],
+      tags: [TAGS.globalGangRules()],
       revalidate: false
     }
   )();
@@ -815,7 +815,7 @@ function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number |
 function flattenRoster(
   gangId: string,
   gang: Awaited<ReturnType<typeof rosterQuery>>
-): Omit<GangFightersBundle, 'gangTypeId' | 'gangWeaponRules'> & {
+): Omit<GangFightersBundle, 'gangTypeId' | 'gangRules'> & {
   gangScope: { gang_type_id: string | null; gang_origin_id: string | null; gang_subtypes: string[] | null } | null;
 } {
   const fighterRows = gang?.fighters ?? [];

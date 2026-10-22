@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { checkAdmin } from '@/utils/auth';
-import { invalidateGangWeaponRules } from '@/utils/cache-tags';
+import { invalidateGangRules } from '@/utils/cache-tags';
 
 const COLUMNS = 'id, fighter_effect_type_id, gang_type_id, gang_origin_id, gang_subtype_id, excluded';
 
-/** A gang type's weapon rule rows, each with its fighter effect type and modifiers. */
+/** A gang type's gang rule rows, each with its fighter effect type and modifiers. */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   if (!(await checkAdmin(supabase))) {
@@ -18,13 +18,13 @@ export async function GET(request: NextRequest) {
   }
 
   const { data, error } = await supabase
-    .from('gang_weapon_rules')
+    .from('gang_rules')
     .select(`${COLUMNS}, fighter_effect_types (id, effect_name, type_specific_data, fighter_effect_type_modifiers (id, stat_name, default_numeric_value, operation))`)
     .eq('gang_type_id', gangTypeId)
     .order('created_at');
 
   if (error) {
-    console.error('Error fetching gang weapon rules:', error);
+    console.error('Error fetching gang rules:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   return NextResponse.json(data);
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { data, error } = await supabase
-    .from('gang_weapon_rules')
+    .from('gang_rules')
     .insert({
       fighter_effect_type_id: body.fighter_effect_type_id,
       gang_type_id: body.gang_type_id,
@@ -54,11 +54,11 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    console.error('Error creating gang weapon rule:', error);
+    console.error('Error creating gang rule:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  invalidateGangWeaponRules();
+  invalidateGangRules();
   return NextResponse.json(data);
 }
 
@@ -73,13 +73,13 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'id is required' }, { status: 400 });
   }
 
-  const { error } = await supabase.from('gang_weapon_rules').delete().eq('id', id);
+  const { error } = await supabase.from('gang_rules').delete().eq('id', id);
 
   if (error) {
-    console.error('Error deleting gang weapon rule:', error);
+    console.error('Error deleting gang rule:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  invalidateGangWeaponRules();
+  invalidateGangRules();
   return NextResponse.json({ success: true });
 }

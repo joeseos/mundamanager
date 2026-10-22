@@ -1,7 +1,7 @@
 import { TraitModificationData } from '@/types/fighter-effect';
 
-/** A gang_weapon_rules row with its fighter effect type, as getGangWeaponRules reads it. */
-export interface GangWeaponRuleRow {
+/** A gang_rules row with its fighter effect type, as getGangRules reads it. */
+export interface GangRuleRow {
   gang_type_id: string;
   gang_origin_id: string | null;
   gang_subtype_id: string | null;
@@ -18,8 +18,8 @@ export interface GangWeaponRuleRow {
   };
 }
 
-/** A gang weapon rule in the shape applyWeaponModifiers takes. */
-export interface GangWeaponRuleEffect {
+/** A gang rule in the shape applyWeaponModifiers takes. */
+export interface GangRuleEffect {
   id: string;
   effect_name: string;
   type_specific_data?: TraitModificationData;
@@ -33,12 +33,12 @@ interface GangScopeFields {
 }
 
 /**
- * The weapon rules that apply to a gang: those with a matching grant row and no matching deny
+ * The rules that apply to a gang: those with a matching grant row and no matching deny
  * row. A row matches the gangs of its gang type, narrowed by its origin and subtype when set.
  */
-export function resolveGangWeaponRules(rows: GangWeaponRuleRow[], gang: GangScopeFields): GangWeaponRuleEffect[] {
+export function resolveGangRules(rows: GangRuleRow[], gang: GangScopeFields): GangRuleEffect[] {
   const subtypes = gang.gang_subtypes ?? [];
-  const matches = (row: GangWeaponRuleRow) =>
+  const matches = (row: GangRuleRow) =>
     row.gang_type_id === gang.gang_type_id
     && (!row.gang_origin_id || row.gang_origin_id === gang.gang_origin_id)
     && (!row.gang_subtype_id || subtypes.includes(row.gang_subtype_id));
