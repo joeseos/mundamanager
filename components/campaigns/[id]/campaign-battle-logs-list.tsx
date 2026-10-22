@@ -647,7 +647,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     () => members
       .flatMap((member) => member.gangs?.filter((g) => g.status === 'ACCEPTED') ?? [])
       .sort((a, b) => (a.rating ?? 0) - (b.rating ?? 0))
-      .map((g) => ({ id: g.id, name: g.name })),
+      .map((g) => ({ id: g.id, name: g.name, detail: g.rating ?? 0 })),
     [members]
   );
 

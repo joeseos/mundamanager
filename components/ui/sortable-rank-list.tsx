@@ -12,17 +12,21 @@ import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 export interface SortableRankItem {
   id: string;
   name: string;
+  /** Shown at the end of the row, e.g. a gang's rating. */
+  detail?: string | number;
 }
 
 function SortableRankRow({
   id,
   rank,
   name,
+  detail,
   onRemove,
 }: {
   id: string;
   rank: number;
   name: string;
+  detail?: string | number;
   onRemove?: () => void;
 }) {
   const {
@@ -65,6 +69,9 @@ function SortableRankRow({
         <LuGripVertical className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
+      {detail != null && (
+        <span className="shrink-0 text-right text-sm text-muted-foreground">{detail}</span>
+      )}
       {onRemove && (
         <Button
           type="button"
@@ -159,6 +166,7 @@ export function SortableRankList<T extends SortableRankItem>({
               id={item.id}
               rank={i + 1}
               name={item.name}
+              detail={item.detail}
               onRemove={onRemove ? () => onRemove(item.id) : undefined}
             />
           ))}
