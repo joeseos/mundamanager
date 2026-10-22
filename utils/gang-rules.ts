@@ -26,6 +26,14 @@ export interface GangRuleEffect {
   fighter_effect_modifiers: Array<{ stat_name: string; numeric_value: number; operation?: 'add' | 'set' }>;
 }
 
+/** The gang rules for one weapon: a rule with equipment_ids applies only to those weapons. */
+export function gangRulesForWeapon(rules: GangRuleEffect[], equipmentId: string | null | undefined): GangRuleEffect[] {
+  return rules.filter(rule => {
+    const equipmentIds = rule.type_specific_data?.equipment_ids;
+    return !equipmentIds?.length || (!!equipmentId && equipmentIds.includes(equipmentId));
+  });
+}
+
 interface GangScopeFields {
   gang_type_id: string | null;
   gang_origin_id?: string | null;

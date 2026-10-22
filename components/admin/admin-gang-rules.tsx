@@ -7,6 +7,7 @@ import { HiX } from 'react-icons/hi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Combobox } from '@/components/ui/combobox';
 import Modal from '@/components/ui/modal';
 import { STAT_MAPPINGS } from '@/components/admin/admin-fighter-effects';
 import { WEAPON_NUMERIC_FIELDS } from '@/utils/effect-modifiers';
@@ -73,6 +74,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
   const [excludesTraits, setExcludesTraits] = useState('');
   const [traitsToAdd, setTraitsToAdd] = useState('');
   const [traitsToRemove, setTraitsToRemove] = useState('');
+  const [equipmentIds, setEquipmentIds] = useState<string[]>([]);
 
   const [modifierStat, setModifierStat] = useState('');
   const [modifierValue, setModifierValue] = useState('');
@@ -108,6 +110,12 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: weapons = [] } = useQuery<Array<{ id: string; equipment_name: string; edition_id?: string | null }>>({
+    queryKey: ['admin-weapons-slim'],
+    queryFn: () => request('/api/admin/equipment?equipment_type=weapon&slim=true'),
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data: editions = [] } = useEditions();
   const editionSlug = editions.find(edition => edition.id === editionId)?.slug;
   const inEdition = <T extends { edition_id?: string | null }>(list: T[]) =>
@@ -126,6 +134,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
     setExcludesTraits(fromList(tsd?.excludes_traits));
     setTraitsToAdd(fromList(tsd?.traits_to_add));
     setTraitsToRemove(fromList(tsd?.traits_to_remove));
+    setEquipmentIds(tsd?.equipment_ids ?? []);
   };
 
   // Runs an admin write, then refreshes this gang type's rules
@@ -160,6 +169,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
         excludes_traits: toList(excludesTraits),
         traits_to_add: toList(traitsToAdd),
         traits_to_remove: toList(traitsToRemove),
+        equipment_ids: equipmentIds,
       };
       (Object.keys(typeSpecificData) as Array<keyof TypeSpecificData>).forEach(key => {
         const value = typeSpecificData[key];
@@ -279,6 +289,29 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
             <p className="text-xs text-muted-foreground">
               Comma separated. Leave Weapons With Traits empty for every weapon. In Weapons With and Without Traits, a trait name without a value matches every value, so Toxin matches Toxin (4+).
             </p>
+
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">Only These Weapons</label>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {equipmentIds.map(id => (
+                  <div key={id} className={chipClass}>
+                    <span>{weapons.find(w => w.id === id)?.equipment_name ?? id}</span>
+                    {removeButton(() => setEquipmentIds(equipmentIds.filter(other => other !== id)))}
+                  </div>
+                ))}
+              </div>
+              <Combobox
+                options={inEdition(weapons)
+                  .filter(w => !equipmentIds.includes(w.id))
+                  .map(w => ({ value: w.id, label: w.equipment_name }))}
+                value=""
+                onValueChange={(id) => id && setEquipmentIds([...equipmentIds, id])}
+                placeholder="Search weapons"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Leave empty for every weapon that passes the trait checks.
+              </p>
+            </div>
 
             {editingRule && (
               <>

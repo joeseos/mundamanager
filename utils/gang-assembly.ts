@@ -4,6 +4,7 @@ import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
+import { gangRulesForWeapon } from '@/utils/gang-rules';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -431,7 +432,7 @@ export function assembleGangFighters(
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
             // After the fighter's own effects, so a trait an upgrade adds counts
-            weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRules);
+            weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item.equipment_id));
           }
 
           // Get effect names that target this equipment
@@ -1076,7 +1077,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }
-      weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRules);
+      weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item.equipment_id));
     }
 
     const effectNames = targetingEffectNamesMap.get(item.id) || [];
