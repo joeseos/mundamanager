@@ -15,7 +15,7 @@ import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import { FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuTrophy, LuCodeXml, LuLogs } from "react-icons/lu";
+import { LuSwords, LuTrophy, LuCodeXml, LuLogs, LuMail } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
@@ -33,6 +33,10 @@ import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 
 const CampaignEditModal = dynamic(() => import('@/components/campaigns/[id]/campaign-edit-modal'), { ssr: false });
+const CampaignMessageModal = dynamic(
+  () => import('@/components/campaigns/[id]/campaign-message-modal').then((mod) => mod.CampaignMessageModal),
+  { ssr: false }
+);
 const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
@@ -221,6 +225,7 @@ export default function CampaignPageContent({
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -735,18 +740,31 @@ export default function CampaignPageContent({
           <div className="bg-card shadow-md rounded-lg p-4">
             {/* Campaign Members Section */}
             <div className="mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
-                <InfoTooltip ariaLabel="How to add gangs and change player roles">
-                  <div className="space-y-2">
-                    <p>
-                      To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
-                    </p>
-                    <p>
-                      You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
-                    </p>
-                  </div>
-                </InfoTooltip>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
+                  <InfoTooltip ariaLabel="How to add gangs and change player roles">
+                    <div className="space-y-2">
+                      <p>
+                        To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
+                      </p>
+                      <p>
+                        You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
+                      </p>
+                    </div>
+                  </InfoTooltip>
+                </div>
+                {safePermissions.canManageMembers && (
+                  <Button
+                    onClick={() => setShowMessageModal(true)}
+                    variant="ghost"
+                    size="icon"
+                    className="print:hidden"
+                    title="Message players"
+                  >
+                    <LuMail className="w-5 h-5" />
+                  </Button>
+                )}
               </div>
               {safePermissions.canManageMembers && (
                 <MemberSearchBar
@@ -1092,6 +1110,19 @@ export default function CampaignPageContent({
         />
 
       </div>
+
+      {showMessageModal && safePermissions.canManageMembers && (
+        <CampaignMessageModal
+          campaignId={campaignData.id}
+          players={campaignData.members
+            .filter((member) => member.user_id)
+            .map((member) => ({
+              id: member.user_id,
+              username: member.username || member.profile?.username || 'Unknown',
+            }))}
+          onClose={() => setShowMessageModal(false)}
+        />
+      )}
 
       {showLogsModal && (
         <LogModal

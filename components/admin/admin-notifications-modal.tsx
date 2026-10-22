@@ -1,221 +1,70 @@
 'use client'
 
 import { useState } from 'react'
-import Modal from '@/components/ui/modal'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
-import { toast } from 'sonner'
-import { LuX } from 'react-icons/lu'
-import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
-import { notificationPlainTextLength, NOTIFICATION_BROADCAST_MAX_LENGTH } from '@/utils/notifications'
-import { LazyRichTextEditor } from '@/components/ui/lazy-rich-text-editor'
-import '@/components/ui/rich-text-editor.css'
+import { LuMegaphone, LuMessageSquareText } from 'react-icons/lu'
+import UserSearchBar from '@/components/shared/user-search-bar'
+import { NotificationComposerModal } from '@/components/shared/notification-composer-modal'
+import {
+  ADMIN_NOTIFICATION_TYPES,
+  adminNotificationTypeLabel,
+  type AdminNotificationType,
+} from '@/utils/notifications'
 
-type Audience = 'users' | 'all'
-type NotificationType = 'info' | 'warning' | 'error'
-
-interface AdminNotificationsModalProps {
-  onClose: () => void
-}
-
-export function AdminNotificationsModal({ onClose }: AdminNotificationsModalProps) {
-  const [audience, setAudience] = useState<Audience>('users')
-  const [selectedUsers, setSelectedUsers] = useState<UserSearchResult[]>([])
-  const [type, setType] = useState<NotificationType>('info')
-  const [text, setText] = useState('')
-  const [link, setLink] = useState('')
-  const [expiresInDays, setExpiresInDays] = useState(30)
-
-  const canSend =
-    !isHtmlEffectivelyEmpty(text) &&
-    notificationPlainTextLength(text) <= NOTIFICATION_BROADCAST_MAX_LENGTH &&
-    expiresInDays >= 1 &&
-    (audience === 'all' || selectedUsers.length > 0)
-
-  const handleSelectUser = (user: UserSearchResult) => {
-    setSelectedUsers((prev) => {
-      if (prev.some((selected) => selected.id === user.id)) {
-        return prev
-      }
-      return [...prev, user]
-    })
-  }
-
-  const handleRemoveUser = (userId: string) => {
-    setSelectedUsers((prev) => prev.filter((user) => user.id !== userId))
-  }
-
-  const handleSend = async () => {
-    if (!canSend) {
-      return false
-    }
-
-    try {
-      const response = await fetch('/api/admin/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          text: text.trim(),
-          type,
-          link: link.trim(),
-          expiresInDays,
-          audience,
-          userIds: audience === 'users' ? selectedUsers.map((user) => user.id) : undefined,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send notifications')
-      }
-
-      toast.success(
-        `Notification sent to ${data.count} ${data.count === 1 ? 'user' : 'users'}`
-      )
-      return true
-    } catch (error) {
-      console.error('Failed to send notifications:', error)
-      toast.error(error instanceof Error ? error.message : 'Failed to send notifications')
-      return false
-    }
-  }
+export function AdminNotificationsModal({ onClose }: { onClose: () => void }) {
+  const [type, setType] = useState<AdminNotificationType>('mm_announcement')
 
   return (
-    <Modal
+    <NotificationComposerModal
       title="Notifications"
-      helper="Send a message to one or more users."
+      composeHelper="Send a message to one or more users."
+      historyHelper="Announcements and staff messages already sent."
       onClose={onClose}
-      onConfirm={handleSend}
-      confirmText="Send"
-      confirmDisabled={!canSend}
-      width="4xl"
-    >
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Audience</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              type="button"
-              variant={audience === 'users' ? 'default' : 'outline'}
-              onClick={() => setAudience('users')}
-              className={
-                audience === 'users'
-                  ? ''
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }
-            >
-              Specific users
-            </Button>
-            <Button
-              type="button"
-              variant={audience === 'all' ? 'default' : 'outline'}
-              onClick={() => setAudience('all')}
-              className={
-                audience === 'all'
-                  ? ''
-                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }
-            >
-              All users
-            </Button>
-          </div>
-        </div>
-
-        {audience === 'users' ? (
-          <div className="relative z-[80] space-y-2">
-            <Label>Recipients</Label>
-            <UserSearchBar
-              placeholder="Search users by username"
-              onSelect={handleSelectUser}
-              excludeIds={selectedUsers.map((user) => user.id)}
-            />
-            {selectedUsers.length > 0 && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {selectedUsers.map((user) => (
-                  <Badge
-                    key={user.id}
-                    variant="secondary"
-                    className="flex items-center gap-1 pr-1"
-                  >
-                    {user.username}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveUser(user.id)}
-                      className="rounded-full p-0.5 hover:bg-muted"
-                      aria-label={`Remove ${user.username}`}
-                    >
-                      <LuX className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
+      historyUrl="/api/admin/notifications"
+      sendUrl="/api/admin/notifications"
+      recipientNoun="user"
+      selectedAudience="users"
+      typeLabel={(send) =>
+        send.type && send.type in adminNotificationTypeLabel
+          ? adminNotificationTypeLabel[send.type as AdminNotificationType]
+          : 'Message'
+      }
+      typeIcon={(send) =>
+        send.type === 'mm_announcement' ? (
+          <LuMegaphone className="h-4 w-4 text-violet-500" />
         ) : (
-          <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
-            This will send the notification to every user in the database. Double-check the
-            message before sending.
-          </p>
-        )}
-
+          <LuMessageSquareText className="h-4 w-4 text-green-500" />
+        )
+      }
+      allLabel="All users"
+      allWarning="This will send the notification to every user in the database. Double-check the message before sending."
+      extraBody={{ type }}
+      picker={({ disabled, excludeIds, onSelect }) => (
+        <UserSearchBar
+          placeholder="Search users by username"
+          onSelect={onSelect}
+          disabled={disabled}
+          excludeIds={excludeIds}
+        />
+      )}
+      extraFields={
         <div className="space-y-2">
-          <Label htmlFor="notification-type">Type</Label>
+          <label htmlFor="notification-type" className="text-sm font-medium leading-none">
+            Type
+          </label>
           <select
             id="notification-type"
             value={type}
-            onChange={(e) => setType(e.target.value as NotificationType)}
+            onChange={(event) => setType(event.target.value as AdminNotificationType)}
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
           >
-            <option value="info">Info</option>
-            <option value="warning">Warning</option>
-            <option value="error">Error</option>
+            {ADMIN_NOTIFICATION_TYPES.map((value) => (
+              <option key={value} value={value}>
+                {adminNotificationTypeLabel[value]}
+              </option>
+            ))}
           </select>
         </div>
-
-        <div className="space-y-2">
-          <Label>Message</Label>
-          <div className="bg-white rounded-md">
-            <LazyRichTextEditor
-              content={text}
-              onChange={setText}
-              placeholder="Enter the notification message"
-              enableImages={false}
-              stickyWithinScrollContainer
-              notificationFormatting
-              charLimit={NOTIFICATION_BROADCAST_MAX_LENGTH}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="notification-link">Link (optional)</Label>
-          <Input
-            id="notification-link"
-            type="text"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            placeholder="e.g. /campaigns or https://..."
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="notification-expires">Expires in (days)</Label>
-          <Input
-            id="notification-expires"
-            type="number"
-            min={1}
-            value={expiresInDays}
-            onChange={(e) => {
-              const value = Number.parseInt(e.target.value, 10)
-              setExpiresInDays(Number.isNaN(value) ? 0 : value)
-            }}
-          />
-        </div>
-      </div>
-    </Modal>
+      }
+    />
   )
 }
