@@ -1,8 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { fetchAllRows } from '@/utils/supabase/fetch-all-rows'
 import {
   CAMPAIGN_MESSAGE_DAILY_CAP,
   NOTIFICATION_BROADCAST_MAX_LENGTH,
+  SENT_NOTIFICATIONS_FETCH_LIMIT,
   isSafeNotificationLink,
   notificationPreview,
 } from '@/utils/notifications'
@@ -63,22 +63,23 @@ export async function loadNotificationSends(
   serviceClient: SupabaseClient,
   filter: { campaignId: string } | { types: readonly string[] }
 ): Promise<SentNotificationView[]> {
-  const rows = await fetchAllRows<SendRow>((from, to) => {
-    let query = serviceClient
-      .from('notification_sends')
-      .select('id, type, text, link, created_at, sender_id, recipient_count, sample_receiver_ids')
+  let query = serviceClient
+    .from('notification_sends')
+    .select('id, type, text, link, created_at, sender_id, recipient_count, sample_receiver_ids')
 
-    if ('campaignId' in filter) {
-      query = query.eq('campaign_id', filter.campaignId).eq('type', 'campaign_message')
-    } else {
-      query = query.in('type', [...filter.types])
-    }
+  if ('campaignId' in filter) {
+    query = query.eq('campaign_id', filter.campaignId).eq('type', 'campaign_message')
+  } else {
+    query = query.in('type', [...filter.types])
+  }
 
-    return query
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: true })
-      .range(from, to)
-  })
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(SENT_NOTIFICATIONS_FETCH_LIMIT)
+
+  if (error) throw error
+  const rows = (data ?? []) as SendRow[]
 
   const lookupIds: string[] = []
   for (const row of rows) {

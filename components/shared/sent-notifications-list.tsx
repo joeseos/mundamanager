@@ -1,10 +1,11 @@
 'use client'
 
-import { useId, type ReactNode } from 'react'
+import { useState, useId, type ReactNode } from 'react'
 import { LuFileText } from 'react-icons/lu'
 import { Tooltip } from 'react-tooltip'
 import { useCoarsePointer } from '@/hooks/use-coarse-pointer'
 import {
+  SENT_NOTIFICATIONS_FETCH_LIMIT,
   getNotificationLinkDescription,
   getNotificationLinkLabel,
   resolveNotificationLink,
@@ -28,6 +29,9 @@ export type SentNotificationRow = {
 export function selectedViewButtonClass(selected: boolean) {
   return selected ? '' : 'bg-muted text-muted-foreground hover:bg-muted/80'
 }
+
+// Same page size as the fighter log modal. The route already caps the fetch.
+const SENT_NOTIFICATIONS_PAGE_SIZE = 10
 
 function recipientLabel(send: SentNotificationRow, noun: 'user' | 'player'): string {
   if (send.recipientCount === 0) return 'No recipients'
@@ -136,7 +140,47 @@ export function SentNotificationsList<T extends SentNotificationRow>({
   }
 
   return (
-    <table className="w-full table-fixed text-sm">
+    <SentNotificationsPage
+      sends={sends}
+      recipientNoun={recipientNoun}
+      campaignName={campaignName}
+      typeLabel={typeLabel}
+      typeIcon={typeIcon}
+    />
+  )
+}
+
+function SentNotificationsPage<T extends SentNotificationRow>({
+  sends,
+  recipientNoun,
+  campaignName,
+  typeLabel,
+  typeIcon,
+}: {
+  sends: T[]
+  recipientNoun: 'user' | 'player'
+  campaignName?: string
+  typeLabel: (send: T) => string
+  typeIcon: (send: T) => ReactNode
+}) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const totalPages = Math.ceil(sends.length / SENT_NOTIFICATIONS_PAGE_SIZE)
+  const page = Math.min(currentPage, totalPages)
+  const startIndex = (page - 1) * SENT_NOTIFICATIONS_PAGE_SIZE
+  const pageSends = sends.slice(startIndex, startIndex + SENT_NOTIFICATIONS_PAGE_SIZE)
+
+  const goToPage = (next: number) => {
+    setCurrentPage(Math.max(1, Math.min(next, totalPages)))
+  }
+
+  return (
+    <div>
+      {sends.length >= SENT_NOTIFICATIONS_FETCH_LIMIT && (
+        <p className="mb-2 text-xs italic text-muted-foreground">
+          Only the most recent {SENT_NOTIFICATIONS_FETCH_LIMIT} sent messages are shown.
+        </p>
+      )}
+      <table className="w-full table-fixed text-sm">
       <thead>
         <tr className="border-b text-left text-xs font-medium text-muted-foreground">
           <th className="w-12 pb-2 pr-3 font-medium">Type</th>
@@ -152,7 +196,7 @@ export function SentNotificationsList<T extends SentNotificationRow>({
         </tr>
       </thead>
       <tbody>
-        {sends.map((send) => (
+        {pageSends.map((send) => (
           <tr key={send.id} className="border-b last:border-b-0">
             <td className="py-2 pr-3" title={typeLabel(send)}>
               {typeIcon(send)}
@@ -168,5 +212,66 @@ export function SentNotificationsList<T extends SentNotificationRow>({
         ))}
       </tbody>
     </table>
+      {totalPages > 1 && (
+        <div className="mt-4 flex flex-col gap-2 border-t border-border bg-muted px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-center text-sm text-muted-foreground sm:text-left">
+            Messages {startIndex + 1} to {Math.min(startIndex + SENT_NOTIFICATIONS_PAGE_SIZE, sends.length)} of {sends.length}
+          </div>
+          <div className="flex items-center justify-center space-x-2 sm:justify-end">
+            <button
+              type="button"
+              onClick={() => goToPage(page - 1)}
+              disabled={page === 1}
+              className="rounded-md border px-3 py-1 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => {
+                const showPage =
+                  pageNumber === 1 || pageNumber === totalPages || Math.abs(pageNumber - page) <= 1
+                if (!showPage) {
+                  if (pageNumber === 2 && page > 4) {
+                    return (
+                      <span key={pageNumber} className="px-2 text-muted-foreground">
+                        ...
+                      </span>
+                    )
+                  }
+                  if (pageNumber === totalPages - 1 && page < totalPages - 3) {
+                    return (
+                      <span key={pageNumber} className="px-2 text-muted-foreground">
+                        ...
+                      </span>
+                    )
+                  }
+                  return null
+                }
+                return (
+                  <button
+                    key={pageNumber}
+                    type="button"
+                    onClick={() => goToPage(pageNumber)}
+                    className={`rounded-md border px-3 py-1 text-sm ${
+                      page === pageNumber ? 'border-black bg-black text-white' : 'hover:bg-muted'
+                    }`}
+                  >
+                    {pageNumber}
+                  </button>
+                )
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => goToPage(page + 1)}
+              disabled={page === totalPages}
+              className="rounded-md border px-3 py-1 text-sm hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

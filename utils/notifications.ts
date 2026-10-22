@@ -163,6 +163,9 @@ export const NOTIFICATION_EXPIRES_MAX_DAYS = 365;
 /** Campaign message sends allowed per campaign per UTC day. */
 export const CAMPAIGN_MESSAGE_DAILY_CAP = 5;
 
+/** Sent history window. The fighter and gang log routes use the same cap. */
+export const SENT_NOTIFICATIONS_FETCH_LIMIT = 100;
+
 const NOTIFICATION_PREVIEW_LENGTH = 60;
 
 export function notificationPlainTextLength(html: string): number {
