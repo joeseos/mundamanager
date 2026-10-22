@@ -9,6 +9,16 @@ export const roll = (sides: number): number => Math.floor(Math.random() * sides)
 export const rollInRange = (min: number, max: number): number =>
   Math.floor(Math.random() * (max - min + 1)) + min;
 
+/** Fisher-Yates shuffle into a new array, so every order is equally likely. */
+export function shuffle<T>(items: readonly T[]): T[] {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = rollInRange(0, i);
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 /** Three-sided die — not a multiple of D6; keep separate from `rollNd6`. */
 export const rollD3 = (): number => roll(3);
 

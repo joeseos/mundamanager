@@ -7,6 +7,7 @@ import Modal from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { SortableRankList, type SortableRankItem } from "@/components/ui/sortable-rank-list";
 import { generateChallengeRound } from "@/app/actions/campaigns/[id]/battle-logs";
+import { shuffle } from "@/utils/dice";
 import type { Battle } from "@/types/campaign";
 
 interface CampaignChallengeRoundModalProps {
@@ -30,18 +31,6 @@ const CampaignChallengeRoundModal = ({
   );
   const [order, setOrder] = useState(gangs);
   const gangCount = order.length;
-
-  // Fisher-Yates, so every order is equally likely.
-  const randomiseOrder = () => {
-    setOrder((prev) => {
-      const next = [...prev];
-      for (let i = next.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [next[i], next[j]] = [next[j], next[i]];
-      }
-      return next;
-    });
-  };
 
   const cycleValue = cycle ? parseInt(cycle, 10) : null;
   const cycleValid = !cycle || (!isNaN(cycleValue as number) && (cycleValue as number) > 0);
@@ -99,7 +88,7 @@ const CampaignChallengeRoundModal = ({
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-medium text-muted-foreground">Challenge Order</p>
-                <Button type="button" variant="outline" size="sm" onClick={randomiseOrder}>
+                <Button type="button" variant="outline" size="sm" onClick={() => setOrder((prev) => shuffle(prev))}>
                   Randomise
                 </Button>
               </div>
