@@ -100,8 +100,6 @@ export function AdvancementsList({
   // cost to list and nothing to refund when one is undone.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
 
-  // A Hired Gun in an N26 Outcast gang can be elevated to its Leader.
-  // gangTypeId is the fighter type's gang type.
   const canPromoteToOutcastLeader = canPromoteToN26OutcastLeader({
     owningGangTypeId,
     fighterTypeGangTypeId: gangTypeId,
@@ -300,16 +298,14 @@ export function AdvancementsList({
       }
       setIsStandalonePromotionOpen(false);
 
-      if (promotion.kind === 'n26_outcast_leader') {
+      const { fighter: promoted, warning } = result;
+      if (promotion.kind === 'n26_outcast_leader' && promoted) {
         // Settle the optimistic XP on what the server wrote.
-        const { fighter: promoted, warning } = result;
-        if (promoted) {
-          onFighterDetailsUpdate?.({ xp: promoted.xp, starting_xp: promoted.starting_xp ?? null });
-        }
-        if (warning) {
-          toast.error(warning);
-          return;
-        }
+        onFighterDetailsUpdate?.({ xp: promoted.xp, starting_xp: promoted.starting_xp ?? null });
+      }
+      if (warning) {
+        toast.error(warning);
+        return;
       }
       toast.success('Fighter promoted successfully');
     },

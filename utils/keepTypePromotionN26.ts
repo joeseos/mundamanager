@@ -330,20 +330,18 @@ export const N26_OUTCAST_LEADER_PET_STARTING_XP = 13;
 const N26_HIRED_GUNS_GANG_TYPE_ID = '38d29f27-ac44-4167-ac90-f95f0cc9a301';
 
 /**
- * True when this fighter can be elevated to the gang's Outcast Leader: a Hired
- * Gun (its fighter type's gang type) in an N26 Outcast gang (the owning gang's
- * type), not yet a Leader. The gang's own fighters promote to a Leader type
- * instead.
+ * A Hired Gun (by its fighter type's gang type) in an N26 Outcast gang (by the
+ * owning gang's type) that isn't a Leader yet can become the Outcast Leader.
  */
 export function canPromoteToN26OutcastLeader(args: {
   owningGangTypeId?: string | null;
   fighterTypeGangTypeId?: string | null;
-  subtypes?: string[] | null;
+  subtypes: string[];
 }): boolean {
   return (
     args.owningGangTypeId === N26_UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
     args.fighterTypeGangTypeId === N26_HIRED_GUNS_GANG_TYPE_ID &&
-    !(args.subtypes ?? []).includes('Leader')
+    !args.subtypes.includes('Leader')
   );
 }
 

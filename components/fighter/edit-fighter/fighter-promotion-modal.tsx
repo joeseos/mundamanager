@@ -131,11 +131,7 @@ interface FighterPromotionModalProps {
   onClose: () => void;
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
   showXpPromotionHint?: boolean;
-  /**
-   * Set when the fighter can be elevated to Outcast Leader (a Hired Gun in an
-   * N26 Outcast gang, not yet a Leader); shows the checkbox. Its XP drives the
-   * preview.
-   */
+  /** Set when the fighter can become Outcast Leader: shows the checkbox; its XP feeds the summary. */
   outcastLeader?: {
     currentXp: number;
     currentStartingXp: number | null;
@@ -210,8 +206,7 @@ export function FighterPromotionModal({
     [currentSubtypes, currentSubtype]
   );
 
-  // Outcast Leader takes the same subtype rebuild as Champion→Leader. Opt-in:
-  // the checkbox starts unchecked for every fighter.
+  // Opt-in for every fighter; subtypes follow the Champion→Leader rebuild.
   const [promoteToOutcastLeader, setPromoteToOutcastLeader] = useState(false);
   const isOutcastLeaderPath = Boolean(outcastLeader) && promoteToOutcastLeader;
   const outcastLeaderRemovedSubtypes = resolvedSubtypes.filter(
@@ -305,12 +300,7 @@ export function FighterPromotionModal({
   const handleOutcastLeaderChange = (checked: boolean) => {
     setPromoteToOutcastLeader(checked);
     setSelectedTypeId('');
-    setIncludeAllGangFighterTypes(false);
-    // The type picker starts from the chosen type's rules; the others keep the fighter's.
-    setNewSpecialRules(
-      checked || isSimplifiedPath ? normalizeSpecialRules(currentSpecialRules) : []
-    );
-    setNewRuleInput('');
+    setNewSpecialRules(checked || isSimplifiedPath ? normalizedCurrentSpecialRules : []);
   };
 
   // When selection changes, update new special rules from the selected type
@@ -337,7 +327,6 @@ export function FighterPromotionModal({
 
   const handleConfirm = () => {
     if (isOutcastLeaderPath) {
-      // The fighter keeps its type, so these are the current type fields.
       onPromoted({
         kind: 'n26_outcast_leader',
         fighter_type: currentFighterType || '',
@@ -407,11 +396,11 @@ export function FighterPromotionModal({
     });
   };
 
-  const confirmDisabled = isOutcastLeaderPath
-    ? false
-    : isN26ProspectPromotion
+  const confirmDisabled =
+    !isOutcastLeaderPath &&
+    (isN26ProspectPromotion
       ? !selectedSpecialisation
-      : !isExoticBeast && !isN26GangerChampionPromotion && !selectedType;
+      : !isExoticBeast && !isN26GangerChampionPromotion && !selectedType);
 
   return (
     <Modal
