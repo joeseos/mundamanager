@@ -13,7 +13,7 @@ import { gangEditionSlug } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { isUuid } from '@/utils/uuid';
 import { GangTacticsCard, toGangTacticsCard } from '@/types/tactics-card';
-import { resolveGangRules, type GangRuleRow } from '@/utils/gangRules';
+import { resolveGangRules, type GangRuleRow } from '@/utils/gang-rules';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data

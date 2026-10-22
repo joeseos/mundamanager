@@ -11,7 +11,7 @@
 -- editor. This table only says which gangs of a gang type it applies to, in the same shape as
 -- fighter_type_availability.
 --
--- The app resolves the rules when it assembles a roster (utils/gangRules.ts) and applies
+-- The app resolves the rules when it assembles a roster (utils/gang-rules.ts) and applies
 -- them only to fighters of the gang's own gang type: hired guns, Dramatis Personae and
 -- subtype-granted fighters keep their own rules.
 

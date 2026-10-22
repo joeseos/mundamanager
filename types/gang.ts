@@ -1,5 +1,5 @@
 import type { WeaponProps, WargearItem } from '@/types/fighter';
-import type { GangRuleEffect } from '@/utils/gangRules';
+import type { GangRuleEffect } from '@/utils/gang-rules';
 
 export interface GangOrigin {
   id: string;
