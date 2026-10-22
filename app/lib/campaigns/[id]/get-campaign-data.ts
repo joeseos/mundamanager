@@ -1,316 +1,132 @@
 import { TAGS } from '@/utils/cache-tags';
-import { createServiceRoleClient } from "@/utils/supabase/server";
 import { unstable_cache } from 'next/cache';
-import type { SupabaseClient } from '@supabase/supabase-js';
+import { and, count, eq, isNotNull } from 'drizzle-orm';
 
-import { fetchCampaignAllegiances } from '@/utils/campaigns/allegiances';
+import { getAppDb } from '@/utils/db/client';
+import { campaignTerritories } from '@/utils/db/schema';
+import type { CampaignAllegiance } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
-import { fetchCampaignResources } from '@/utils/campaigns/resources';
-import { CAMPAIGN_TERRITORY_COLUMNS } from '@/utils/campaigns/territories';
-import { fetchAllRows } from '@/utils/supabase/fetch-all-rows';
+import type { CampaignResource } from '@/utils/campaigns/resources';
+import { CAMPAIGN_TERRITORY_FIELDS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
 import { sumFighterKills } from '@/app/lib/shared/gang-data';
 import { groupBy } from '@/utils/gang-assembly';
-import { editionSlugFromJoin } from '@/types/edition';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
-import type { CampaignMapRow, CampaignMapObjectRow, CampaignMapBundle } from '@/types/campaign';
+import { isUuid } from '@/utils/uuid';
+import type { CampaignMapBundle } from '@/types/campaign';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
 
-// Internal helper functions (unchanged from original)
-async function _getCampaignBasic(campaignId: string, supabase: SupabaseClient) {
-  const { data: campaign, error: campaignError } = await supabase
-    .from('campaigns')
-    .select(`
-      id,
-      campaign_name,
-      campaign_type_id,
-      status,
-      description,
-      created_at,
-      updated_at,
-      trading_posts,
-      custom_trading_posts,
-      note,
-      image_url,
-      discord_guild_id,
-      discord_channel_id,
-      allow_join_requests,
-      current_cycle
-    `)
-    .eq('id', campaignId)
-    .single();
+async function _getCampaignBasic(campaignId: string) {
+  const campaign = await getAppDb().query.campaigns.findFirst({
+    columns: {
+      id: true,
+      campaign_name: true,
+      campaign_type_id: true,
+      status: true,
+      description: true,
+      trading_posts: true,
+      custom_trading_posts: true,
+      note: true,
+      image_url: true,
+      discord_guild_id: true,
+      discord_channel_id: true,
+      allow_join_requests: true,
+      current_cycle: true,
+    },
+    extras: (campaign, { sql }) => ({
+      created_at: sql<string>`to_json(${campaign.created_at})`.as('created_at'),
+      updated_at: sql<string | null>`to_json(${campaign.updated_at})`.as('updated_at'),
+    }),
+    where: (campaign, { eq }) => eq(campaign.id, campaignId),
+    with: {
+      campaign_type: {
+        columns: { campaign_type_name: true, image_url: true },
+        with: { editions: { columns: { slug: true } } },
+      },
+    },
+  });
+  if (!campaign) return null;
 
-  if (campaignError) {
-    // Return null for not found errors or invalid UUID format
-    if (campaignError.code === 'PGRST116' || campaignError.code === '22P02') return null;
-    throw campaignError;
-  }
-
-  let campaignTypeName = '';
-  let campaignTypeImageUrl = '';
-  let campaignTypeEditionSlug: string | null = null;
-  if (campaign.campaign_type_id) {
-    const { data: campaignType, error: typeError } = await supabase
-      .from('campaign_types')
-      .select('campaign_type_name, image_url, editions:edition_id(slug)')
-      .eq('id', campaign.campaign_type_id)
-      .single();
-
-    if (!typeError && campaignType) {
-      campaignTypeName = campaignType.campaign_type_name;
-      campaignTypeImageUrl = campaignType.image_url || '';
-      campaignTypeEditionSlug = editionSlugFromJoin((campaignType as any).editions);
-    }
-  }
-
+  const { campaign_type, ...campaignRow } = campaign;
   return {
-    ...campaign,
-    campaign_types: campaignTypeName ? {
-      campaign_type_name: campaignTypeName,
-      image_url: campaignTypeImageUrl,
-      edition_slug: campaignTypeEditionSlug
+    ...campaignRow,
+    campaign_types: campaign_type?.campaign_type_name ? {
+      campaign_type_name: campaign_type.campaign_type_name,
+      image_url: campaign_type.image_url || '',
+      edition_slug: campaign_type.editions?.slug ?? null
     } : null
   };
 }
 
-async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient) {
-  const { data: members, error: membersError } = await supabase
-    .from('campaign_members')
-    .select(`
-      id,
-      user_id,
-      role,
-      invited_at,
-      joined_at,
-      invited_by
-    `)
-    .eq('campaign_id', campaignId);
+async function _getCampaignMembers(campaignId: string) {
+  const db = getAppDb();
+  const [members, memberGangs, territoryCounts] = await Promise.all([
+    db.query.campaignMembers.findMany({
+      columns: { id: true, user_id: true, role: true, invited_by: true },
+      extras: (member, { sql }) => ({
+        invited_at: sql<string | null>`to_json(${member.invited_at})`.as('invited_at'),
+        joined_at: sql<string | null>`to_json(${member.joined_at})`.as('joined_at'),
+      }),
+      where: (member, { eq }) => eq(member.campaign_id, campaignId),
+      with: { profile: { columns: { id: true, username: true, updated_at: true, user_role: true } } },
+    }),
+    // ACCEPTED and PENDING gangs; pending ones are shown with a label
+    db.query.campaignGangs.findMany({
+      columns: { id: true, gang_id: true, campaign_member_id: true, status: true },
+      where: (cg, { and, eq, inArray }) =>
+        and(eq(cg.campaign_id, campaignId), inArray(cg.status, ['ACCEPTED', 'PENDING'])),
+      with: {
+        gang: {
+          columns: {
+            name: true,
+            gang_type: true,
+            gang_type_id: true,
+            gang_colour: true,
+            reputation: true,
+            rating: true,
+            wealth: true,
+            credits: true,
+          },
+          with: { gang_types: { columns: { parent_gang_type_name: true } } },
+        },
+        campaign_type_allegiance: { columns: { id: true, allegiance_name: true } },
+        campaign_allegiance: { columns: { id: true, allegiance_name: true } },
+        campaign_gang_resources: {
+          columns: { campaign_type_resource_id: true, campaign_resource_id: true, quantity: true },
+          with: {
+            campaign_type_resource: { columns: { resource_name: true } },
+            campaign_resource: { columns: { resource_name: true } },
+          },
+        },
+      },
+    }),
+    db
+      .select({ gang_id: campaignTerritories.gang_id, count: count() })
+      .from(campaignTerritories)
+      .where(and(eq(campaignTerritories.campaign_id, campaignId), isNotNull(campaignTerritories.gang_id)))
+      .groupBy(campaignTerritories.gang_id),
+  ]);
 
-  if (membersError) throw membersError;
+  const territoryCountByGang = new Map(territoryCounts.map((t) => [t.gang_id, t.count]));
+  const gangsByMember = groupBy(memberGangs, 'campaign_member_id');
 
-  const userIds = members?.map(m => m.user_id).filter(Boolean) || [];
-  let profilesData: any[] = [];
-  
-  if (userIds.length > 0) {
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select(`
-        id,
-        username,
-        updated_at,
-        user_role
-      `)
-      .in('id', userIds);
-
-    if (!profilesError && profiles) {
-      profilesData = profiles;
-    }
-  }
-
-  // Get all gangs (ACCEPTED and PENDING) - we'll show pending with a label
-  const { data: campaignGangs, error: gangsError } = await supabase
-    .from('campaign_gangs')
-    .select(`
-      id,
-      gang_id,
-      user_id,
-      campaign_member_id,
-      status,
-      campaign_type_allegiance_id,
-      campaign_allegiance_id
-    `)
-    .eq('campaign_id', campaignId)
-    .in('status', ['ACCEPTED', 'PENDING']);
-
-  if (gangsError) throw gangsError;
-
-  const gangIds = campaignGangs?.map(cg => cg.gang_id) || [];
-  let gangsData: any[] = [];
-  
-  if (gangIds.length > 0) {
-    const { data: gangs, error: gangsDetailError } = await supabase
-      .from('gangs')
-      .select(`
-        id,
-        name,
-        gang_type,
-        gang_type_id,
-        gang_colour,
-        reputation,
-        rating,
-        wealth,
-        credits,
-        gang_types!gang_type_id ( parent_gang_type_name )
-      `)
-      .in('id', gangIds);
-
-    if (gangsDetailError) throw gangsDetailError;
-    gangsData = gangs || [];
-  }
-
-  // Fetch allegiance data separately
-  const typeAllegianceIds = campaignGangs?.map(cg => cg.campaign_type_allegiance_id).filter(Boolean) || [];
-  const customAllegianceIds = campaignGangs?.map(cg => cg.campaign_allegiance_id).filter(Boolean) || [];
-  
-  let typeAllegiancesMap: Record<string, { id: string; allegiance_name: string }> = {};
-  let customAllegiancesMap: Record<string, { id: string; allegiance_name: string }> = {};
-  
-  if (typeAllegianceIds.length > 0) {
-    const { data: typeAllegiances, error: typeError } = await supabase
-      .from('campaign_type_allegiances')
-      .select('id, allegiance_name')
-      .in('id', typeAllegianceIds);
-    
-    if (!typeError && typeAllegiances) {
-      typeAllegiancesMap = Object.fromEntries(
-        typeAllegiances.map(a => [a.id, { id: a.id, allegiance_name: a.allegiance_name }])
-      );
-    }
-  }
-  
-  if (customAllegianceIds.length > 0) {
-    const { data: customAllegiances, error: customError } = await supabase
-      .from('campaign_allegiances')
-      .select('id, allegiance_name')
-      .in('id', customAllegianceIds);
-    
-    if (!customError && customAllegiances) {
-      customAllegiancesMap = Object.fromEntries(
-        customAllegiances.map(a => [a.id, { id: a.id, allegiance_name: a.allegiance_name }])
-      );
-    }
-  }
-
-  // Fetch territory counts for each gang in this campaign
-  let territoryCounts: {[gangId: string]: number} = {};
-  if (gangIds.length > 0) {
-    const { data: territories, error: territoriesError } = await supabase
-      .from('campaign_territories')
-      .select('gang_id')
-      .eq('campaign_id', campaignId)
-      .in('gang_id', gangIds);
-
-    if (!territoriesError && territories) {
-      // Count territories per gang
-      territories.forEach(territory => {
-        if (territory.gang_id) {
-          territoryCounts[territory.gang_id] = (territoryCounts[territory.gang_id] || 0) + 1;
-        }
-      });
-    }
-  }
-
-  // Fetch resource data from campaign_gang_resources for each gang
-  // This is keyed by campaign_gang_id, so we need the campaign_gangs.id values
-  const campaignGangIds = campaignGangs?.map(cg => cg.id) || [];
-  let gangResourcesMap: Record<string, Array<{ resource_id: string; resource_name: string; quantity: number; is_custom: boolean }>> = {};
-  
-  if (campaignGangIds.length > 0) {
-    // Fetch all gang resources for this campaign's gangs
-    const { data: gangResources, error: gangResourcesError } = await supabase
-      .from('campaign_gang_resources')
-      .select(`
-        id,
-        campaign_gang_id,
-        campaign_type_resource_id,
-        campaign_resource_id,
-        quantity
-      `)
-      .in('campaign_gang_id', campaignGangIds);
-
-    if (!gangResourcesError && gangResources) {
-      // Fetch resource names for type resources
-      const typeResourceIds = gangResources.map(gr => gr.campaign_type_resource_id).filter(Boolean);
-      const customResourceIds = gangResources.map(gr => gr.campaign_resource_id).filter(Boolean);
-      
-      let typeResourcesMap: Record<string, string> = {};
-      let customResourcesMap: Record<string, string> = {};
-      
-      if (typeResourceIds.length > 0) {
-        const { data: typeResources, error: typeResourcesError } = await supabase
-          .from('campaign_type_resources')
-          .select('id, resource_name')
-          .in('id', typeResourceIds);
-        
-        if (!typeResourcesError && typeResources) {
-          typeResourcesMap = Object.fromEntries(
-            typeResources.map(r => [r.id, r.resource_name])
-          );
-        }
-      }
-      
-      if (customResourceIds.length > 0) {
-        const { data: customResources, error: customResourcesError } = await supabase
-          .from('campaign_resources')
-          .select('id, resource_name')
-          .in('id', customResourceIds);
-        
-        if (!customResourcesError && customResources) {
-          customResourcesMap = Object.fromEntries(
-            customResources.map(r => [r.id, r.resource_name])
-          );
-        }
-      }
-      
-      // Build the resources map keyed by campaign_gang_id
-      gangResources.forEach(gr => {
-        const campaignGangId = gr.campaign_gang_id;
-        if (!gangResourcesMap[campaignGangId]) {
-          gangResourcesMap[campaignGangId] = [];
-        }
-        
-        const isCustom = !!gr.campaign_resource_id;
-        const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
-        const resourceName = isCustom 
-          ? customResourcesMap[resourceId] 
-          : typeResourcesMap[resourceId];
-        
-        if (resourceId && resourceName) {
-          gangResourcesMap[campaignGangId].push({
-            resource_id: resourceId,
-            resource_name: resourceName,
-            quantity: Number(gr.quantity) || 0,
-            is_custom: isCustom
-          });
-        }
-      });
-    }
-  }
-
-  // Rating now comes directly from the gangs query above; no per-gang fetches needed
-
-  const membersWithGangs = members?.map(member => {
-    const memberProfile = profilesData.find(p => p.id === member.user_id);
-    
-    // First try proper relationship (campaign_member_id)
-    let memberGangs = campaignGangs?.filter(cg => 
-      cg.campaign_member_id === member.id
-    ) || [];
-    
-    // If no gangs found by campaign_member_id, check for orphaned gangs by user_id
-    // (this handles data inconsistency where campaign_member_id is wrong but user_id is correct)
-    if (memberGangs.length === 0) {
-      // Get all valid campaign member IDs to avoid claiming gangs that are properly assigned
-      const validCampaignMemberIds = members?.map(m => m.id) || [];
-      
-      // Only claim gangs that don't have a valid campaign_member_id relationship
-      // (i.e., orphaned gangs with invalid campaign_member_id)
-      memberGangs = campaignGangs?.filter(cg => 
-        cg.user_id === member.user_id &&
-        !validCampaignMemberIds.includes(cg.campaign_member_id)
-      ) || [];
-    }
-
-    const gangs = memberGangs.map(cg => {
-      const gangDetails = gangsData.find(g => g.id === cg.gang_id);
-      
-      // Get allegiance info from the maps
-      const typeAllegiance = cg.campaign_type_allegiance_id ? typeAllegiancesMap[cg.campaign_type_allegiance_id] : null;
-      const customAllegiance = cg.campaign_allegiance_id ? customAllegiancesMap[cg.campaign_allegiance_id] : null;
-      
-      const allegiance = typeAllegiance || customAllegiance;
-      
+  return members.map((member) => ({
+    id: member.id,
+    user_id: member.user_id,
+    username: member.profile?.username || '',
+    role: member.role,
+    invited_at: member.invited_at,
+    joined_at: member.joined_at,
+    invited_by: member.invited_by,
+    profile: {
+      id: member.profile?.id || '',
+      username: member.profile?.username || '',
+      updated_at: member.profile?.updated_at || '',
+      user_role: member.profile?.user_role || ''
+    },
+    gangs: (gangsByMember[member.id] ?? []).map((cg) => {
+      const allegiance = cg.campaign_type_allegiance ?? cg.campaign_allegiance;
       return {
         // Relationship metadata
         campaign_gang_id: cg.id,
@@ -319,178 +135,104 @@ async function _getCampaignMembers(campaignId: string, supabase: SupabaseClient)
 
         // Gang data (clean names for id/name, database names for gang_type/gang_colour)
         id: cg.gang_id,
-        name: gangDetails?.name || '',
-        gang_type: gangDetails?.gang_type || '',
-        gang_type_id: gangDetails?.gang_type_id ?? null,
-        parent_gang_type_name: joinedParentGangTypeName(gangDetails?.gang_types),
-        gang_colour: gangDetails?.gang_colour || '#000000',
-        rating: gangDetails?.rating || 0,
-        wealth: gangDetails?.wealth || 0,
-        credits: gangDetails?.credits || 0,
-        reputation: gangDetails?.reputation || 0,
-        territory_count: territoryCounts[cg.gang_id] || 0,
+        name: cg.gang?.name || '',
+        gang_type: cg.gang?.gang_type || '',
+        gang_type_id: cg.gang?.gang_type_id ?? null,
+        parent_gang_type_name: joinedParentGangTypeName(cg.gang?.gang_types),
+        gang_colour: cg.gang?.gang_colour || '#000000',
+        rating: cg.gang?.rating || 0,
+        wealth: cg.gang?.wealth || 0,
+        credits: cg.gang?.credits || 0,
+        reputation: cg.gang?.reputation || 0,
+        territory_count: territoryCountByGang.get(cg.gang_id) || 0,
 
         // Normalised resources from campaign_gang_resources table
-        resources: gangResourcesMap[cg.id] || [],
-        
+        resources: cg.campaign_gang_resources.flatMap((gr) => {
+          const isCustom = !!gr.campaign_resource_id;
+          const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
+          const resourceName = (isCustom ? gr.campaign_resource : gr.campaign_type_resource)?.resource_name;
+          return resourceId && resourceName
+            ? [{ resource_id: resourceId, resource_name: resourceName, quantity: gr.quantity, is_custom: isCustom }]
+            : [];
+        }),
+
         // Allegiance information
         allegiance: allegiance ? {
           id: allegiance.id,
           name: allegiance.allegiance_name,
-          is_custom: !!customAllegiance
+          is_custom: !cg.campaign_type_allegiance
         } : null
       };
-    });
+    })
+  }));
+}
 
-    return {
-      id: member.id,
-      user_id: member.user_id,
-      username: memberProfile?.username || '',
-      role: member.role,
-      invited_at: member.invited_at,
-      joined_at: member.joined_at,
-      invited_by: member.invited_by,
-      profile: {
-        id: memberProfile?.id || '',
-        username: memberProfile?.username || '',
-        updated_at: memberProfile?.updated_at || '',
-        user_role: memberProfile?.user_role || ''
+async function _getCampaignTerritories(campaignId: string) {
+  const territories = await getAppDb().query.campaignTerritories.findMany({
+    columns: CAMPAIGN_TERRITORY_FIELDS,
+    extras: (territory, { sql }) => ({
+      created_at: sql<string>`to_json(${territory.created_at})`.as('created_at'),
+    }),
+    where: (territory, { eq }) => eq(territory.campaign_id, campaignId),
+    with: {
+      gang: {
+        columns: { id: true, name: true, gang_type: true, gang_colour: true },
+        with: { gang_types: { columns: { parent_gang_type_name: true } } },
       },
-      gangs
-    };
-  }) || [];
+      // Catalog/template name for Reset-to-original in the edit modal
+      territory: { columns: { territory_name: true } },
+    },
+  });
 
-  return membersWithGangs;
+  return territories.map(({ gang, territory, ...row }) => ({
+    ...shapeCampaignTerritory(row, territory?.territory_name ?? null),
+    owning_gangs: gang ? [{
+      id: gang.id,
+      name: gang.name || '',
+      gang_type: gang.gang_type || '',
+      parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
+      gang_colour: gang.gang_colour || '#000000'
+    }] : []
+  }));
 }
 
-async function _getCampaignTerritories(campaignId: string, supabase: SupabaseClient) {
-  const { data: territories, error } = await supabase
-    .from('campaign_territories')
-    .select(CAMPAIGN_TERRITORY_COLUMNS)
-    .eq('campaign_id', campaignId);
-
-  if (error) throw error;
-
-  const territoryGangIds = territories?.map(t => t.gang_id).filter(Boolean) || [];
-  let territoryGangsData: any[] = [];
-  
-  if (territoryGangIds.length > 0) {
-    const { data: gangs, error: gangsError } = await supabase
-      .from('gangs')
-      .select(`
-        id,
-        name,
-        gang_type,
-        gang_colour,
-        gang_types!gang_type_id ( parent_gang_type_name )
-      `)
-      .in('id', territoryGangIds);
-
-    if (!gangsError && gangs) {
-      territoryGangsData = gangs;
-    }
-  }
-
-  // Catalog/template names for Reset-to-original in the edit modal
-  const templateTerritoryIds = [
-    ...new Set(
-      (territories ?? [])
-        .map((t) => t.territory_id)
-        .filter((id): id is string => typeof id === 'string' && id.length > 0)
-    ),
-  ];
-  let templateNameById: Record<string, string> = {};
-  if (templateTerritoryIds.length > 0) {
-    const { data: templates, error: templatesError } = await supabase
-      .from('territories')
-      .select('id, territory_name')
-      .in('id', templateTerritoryIds);
-
-    if (!templatesError && templates) {
-      templateNameById = Object.fromEntries(
-        templates.map((t) => [t.id, t.territory_name])
-      );
-    }
-  }
-
-  return territories?.map(territory => {
-    const gangDetails = territoryGangsData.find(g => g.id === territory.gang_id);
-    const originalTerritoryName = territory.territory_id
-      ? (templateNameById[territory.territory_id] ?? null)
-      : null;
-    return {
-      id: territory.id,
-      territory_id: territory.territory_id,
-      territory_name: territory.territory_name,
-      original_territory_name: originalTerritoryName,
-      gang_id: territory.gang_id,
-      created_at: territory.created_at,
-      ruined: territory.ruined || false,
-      default_gang_territory: territory.default_gang_territory || false,
-      playing_card: territory.playing_card ?? null,
-      description: territory.description ?? null,
-      is_custom: !territory.territory_id,
-      map_object_id: territory.map_object_id ?? null,
-      map_hex_coords: territory.map_hex_coords ?? null,
-      show_name_on_map: territory.show_name_on_map ?? true,
-      owning_gangs: gangDetails ? [{
-        id: gangDetails.id,
-        name: gangDetails.name,
-        gang_type: gangDetails.gang_type || '',
-        parent_gang_type_name: joinedParentGangTypeName(gangDetails.gang_types),
-        gang_colour: gangDetails.gang_colour || '#000000'
-      }] : []
-    };
-  }) || [];
-}
-
-async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient, limit = 50) {
-  const { data, error } = await supabase
-    .from('campaign_battles')
-    .select(`
-      id,
-      created_at,
-      updated_at,
-      scenario,
-      deployment_id,
-      objective_id,
-      crew_selection_id,
-      deployment_name,
-      objective_name,
-      crew_selection_name,
-      winner_id,
-      note,
-      participants,
-      scenario_id,
-      campaign_territory_id,
-      cycle,
-      status,
-      challenger_gang_id,
-      challenged_gang_id
-    `)
-    .eq('campaign_id', campaignId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-
-  const scenarioIds = data?.map(b => b.scenario_id).filter(Boolean) || [];
-  let scenariosData: any[] = [];
-  
-  if (scenarioIds.length > 0) {
-    const { data: scenarios, error: scenariosError } = await supabase
-      .from('scenarios')
-      .select('id, scenario_name, scenario_number')
-      .in('id', scenarioIds);
-
-    if (!scenariosError && scenarios) {
-      scenariosData = scenarios;
-    }
-  }
+async function _getCampaignBattles(campaignId: string, limit: number) {
+  const db = getAppDb();
+  const battles = await db.query.campaignBattles.findMany({
+    columns: {
+      id: true,
+      scenario: true,
+      deployment_id: true,
+      objective_id: true,
+      crew_selection_id: true,
+      deployment_name: true,
+      objective_name: true,
+      crew_selection_name: true,
+      winner_id: true,
+      note: true,
+      participants: true,
+      campaign_territory_id: true,
+      cycle: true,
+      status: true,
+      challenger_gang_id: true,
+      challenged_gang_id: true,
+    },
+    extras: (battle, { sql }) => ({
+      created_at: sql<string>`to_json(${battle.created_at})`.as('created_at'),
+      updated_at: sql<string | null>`to_json(${battle.updated_at})`.as('updated_at'),
+    }),
+    where: (battle, { eq }) => eq(battle.campaign_id, campaignId),
+    orderBy: (battle, { desc }) => desc(battle.created_at),
+    limit,
+    with: {
+      scenario_details: { columns: { scenario_name: true, scenario_number: true } },
+      campaign_territory: { columns: { territory_name: true } },
+    },
+  });
 
   const gangIdSet = new Set<string>();
   const parsedParticipantsMap = new Map<string, any[]>();
-  data?.forEach(b => {
+  battles.forEach(b => {
     // Legacy winner_id is still added for back-compat (single-winner rows
     // where no participant carries the is_winner flag).
     if (b.winner_id) gangIdSet.add(b.winner_id);
@@ -506,40 +248,18 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       } catch { /* ignore */ }
     }
   });
+
   const gangIds = Array.from(gangIdSet);
+  const gangs = gangIds.length > 0
+    ? await db.query.gangs.findMany({
+        columns: { id: true, name: true },
+        where: (gang, { inArray }) => inArray(gang.id, gangIds),
+      })
+    : [];
+  const gangMap = new Map(gangs.map(gang => [gang.id, gang]));
 
-  let gangsData: { id: string; name: string; gang_colour: string }[] = [];
-  if (gangIds.length > 0) {
-    const { data: gangs, error: gangsError } = await supabase
-      .from('gangs')
-      .select('id, name, gang_colour')
-      .in('id', gangIds);
-
-    if (gangsError) throw gangsError;
-    gangsData = gangs || [];
-  }
-
-  const gangMap = new Map(gangsData.map(gang => [gang.id, gang]));
-  const scenarioMap = new Map(scenariosData.map(scenario => [scenario.id, scenario]));
-
-  // Fetch territory names from campaign_territories by instance ID
-  const campaignTerritoryIds = data?.map(b => b.campaign_territory_id).filter(Boolean) || [];
-  const territoriesMap = new Map<string, string>(); // campaign_territory_id → name
-
-  if (campaignTerritoryIds.length > 0) {
-    const { data: territories } = await supabase
-      .from('campaign_territories')
-      .select('id, territory_name')
-      .in('id', campaignTerritoryIds);
-
-    territories?.forEach(t => territoriesMap.set(t.id, t.territory_name));
-  }
-
-  return data?.map(battle => {
-    const scenarioDetails = scenarioMap.get(battle.scenario_id);
-    const territoryName = battle.campaign_territory_id
-      ? territoriesMap.get(battle.campaign_territory_id)
-      : undefined;
+  return battles.map(battle => {
+    const scenarioDetails = battle.scenario_details;
 
     const parsedParticipants = parsedParticipantsMap.get(battle.id);
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
@@ -575,9 +295,9 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       note: battle.note,
       participants: battle.participants,
       campaign_territory_id: battle.campaign_territory_id,
-      territory_name: territoryName,
+      territory_name: battle.campaign_territory?.territory_name ?? undefined,
       cycle: battle.cycle,
-      status: battle.status ?? 'played',
+      status: battle.status,
       challenger_gang_id: battle.challenger_gang_id,
       challenged_gang_id: battle.challenged_gang_id,
       attacker: attackerId ? {
@@ -595,17 +315,70 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
       winners,
       territory_claimer,
     };
-  }) || [];
+  });
 }
 
-// 🚀 OPTIMIZED PUBLIC API FUNCTIONS USING unstable_cache()
-//
-// Every entry below is keyed by campaign id alone and shared by every viewer, so it
-// must be filled by a client whose visibility cannot vary per request. A request-scoped
-// RLS client matches no policy when its session is missing and returns zero rows with no
-// error — unstable_cache cannot tell that from an answer, and revalidate:false makes it
-// permanent. Each reader therefore builds its own service-role client inside the cached
-// callback (so cache hits skip it entirely) and takes no client from its caller.
+/** A campaign type's predefined entries (none for a Custom campaign), then the campaign's own. */
+function typeThenCustom<T>(typeName: string | null, typeEntries: T[], customEntries: T[]) {
+  return [
+    ...(typeName === 'Custom' ? [] : typeEntries).map((entry) => ({ ...entry, is_custom: false })),
+    ...customEntries.map((entry) => ({ ...entry, is_custom: true })),
+  ];
+}
+
+async function _getCampaignAllegiances(campaignId: string): Promise<CampaignAllegiance[]> {
+  const campaign = await getAppDb().query.campaigns.findFirst({
+    columns: {},
+    where: (campaign, { eq }) => eq(campaign.id, campaignId),
+    with: {
+      campaign_type: {
+        columns: { campaign_type_name: true },
+        with: {
+          campaign_type_allegiances: {
+            columns: { id: true, allegiance_name: true },
+            orderBy: (allegiance, { asc }) => asc(allegiance.allegiance_name),
+          },
+        },
+      },
+      campaign_allegiances: {
+        columns: { id: true, allegiance_name: true },
+        orderBy: (allegiance, { asc }) => asc(allegiance.allegiance_name),
+      },
+    },
+  });
+  if (!campaign?.campaign_type) return [];
+  const { campaign_type: type } = campaign;
+  return typeThenCustom(type.campaign_type_name, type.campaign_type_allegiances, campaign.campaign_allegiances);
+}
+
+async function _getCampaignResources(campaignId: string): Promise<CampaignResource[]> {
+  const campaign = await getAppDb().query.campaigns.findFirst({
+    columns: {},
+    where: (campaign, { eq }) => eq(campaign.id, campaignId),
+    with: {
+      campaign_type: {
+        columns: { campaign_type_name: true },
+        with: {
+          campaign_type_resources: {
+            columns: { id: true, resource_name: true },
+            orderBy: (resource, { asc }) => asc(resource.resource_name),
+          },
+        },
+      },
+      campaign_resources: {
+        columns: { id: true, resource_name: true },
+        orderBy: (resource, { asc }) => asc(resource.resource_name),
+      },
+    },
+  });
+  if (!campaign?.campaign_type) return [];
+  const { campaign_type: type } = campaign;
+  return typeThenCustom(type.campaign_type_name, type.campaign_type_resources, campaign.campaign_resources);
+}
+
+// Every entry below is keyed by campaign id alone and shared by every viewer. The
+// direct connection reads what the read policies give any signed-in user (every row
+// of these tables), not what the viewer may see, so callers check access.
 
 /**
  * Get gang IDs for a campaign (cached)
@@ -614,15 +387,11 @@ async function _getCampaignBattles(campaignId: string, supabase: SupabaseClient,
 const getCampaignGangIds = async (campaignId: string) => {
   return unstable_cache(
     async () => {
-      const supabase = createServiceRoleClient();
-      const { data: campaignGangs, error } = await supabase
-        .from('campaign_gangs')
-        .select('gang_id')
-        .eq('campaign_id', campaignId);
-
-      // Throw rather than cache an empty list until the next membership change.
-      if (error) throw error;
-      return campaignGangs?.map(cg => cg.gang_id) || [];
+      const rows = await getAppDb().query.campaignGangs.findMany({
+        columns: { gang_id: true },
+        where: (cg, { eq }) => eq(cg.campaign_id, campaignId),
+      });
+      return rows.flatMap((cg) => cg.gang_id ?? []);
     },
     [`campaign-gang-ids-v2-${campaignId}`],
     {
@@ -638,9 +407,12 @@ const getCampaignGangIds = async (campaignId: string) => {
  * Invalidation: Server actions only via revalidateTag()
  */
 export const getCampaignBasic = async (campaignId: string) => {
+  // The id comes from the URL; Postgres would reject a malformed one
+  if (!isUuid(campaignId)) return null;
+
   return unstable_cache(
     async () => {
-      return _getCampaignBasic(campaignId, createServiceRoleClient());
+      return _getCampaignBasic(campaignId);
     },
     [`campaign-basic-v3-${campaignId}`],
     {
@@ -676,7 +448,7 @@ export const getCampaignMembers = async (campaignId: string) => {
 
   return unstable_cache(
     async () => {
-      return _getCampaignMembers(campaignId, createServiceRoleClient());
+      return _getCampaignMembers(campaignId);
     },
     [`campaign-members-v4-${campaignId}`],
     {
@@ -697,13 +469,15 @@ export const getCampaignTerritories = async (campaignId: string) => {
   const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignTerritories(campaignId, createServiceRoleClient());
+      return _getCampaignTerritories(campaignId);
     },
-    [`campaign-territories-v3-${campaignId}`],
+    [`campaign-territories-v4-${campaignId}`],
     {
       tags: [
         TAGS.campaignTerritories(campaignId),
         TAGS.globalGangTypes(),
+        // The catalog name is read in for Reset, so an admin edit to a territory refreshes this entry
+        TAGS.globalTerritories(),
         ...gangIds.map(gangId => TAGS.gangOverview(gangId))
       ],
       revalidate: false
@@ -722,7 +496,7 @@ export const getCampaignBattles = async (campaignId: string, limit = 100) => {
   const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignBattles(campaignId, createServiceRoleClient(), limit);
+      return _getCampaignBattles(campaignId, limit);
     },
     [`campaign-battles-v2-${campaignId}-${limit}`],
     {
@@ -744,16 +518,7 @@ export const getCampaignBattles = async (campaignId: string, limit = 100) => {
 export async function getCampaignAllegiances(campaignId: string) {
   return unstable_cache(
     async () => {
-      try {
-        return await fetchCampaignAllegiances(campaignId, createServiceRoleClient());
-      } catch (error) {
-        // Return empty array if campaign not found (graceful degradation for server-side)
-        if (error instanceof Error && error.message === 'Campaign not found') {
-          return [];
-        }
-        // Re-throw other errors
-        throw error;
-      }
+      return _getCampaignAllegiances(campaignId);
     },
     [`campaign-allegiances-v2-${campaignId}`],
     {
@@ -775,7 +540,7 @@ export async function getCampaignCaptives(campaignId: string) {
   const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignCaptives(campaignId, createServiceRoleClient());
+      return _getCampaignCaptives(campaignId);
     },
     [`campaign-captives-v2-${campaignId}`],
     {
@@ -788,73 +553,51 @@ export async function getCampaignCaptives(campaignId: string) {
   )();
 }
 
-async function _getCampaignCaptives(campaignId: string, supabase: SupabaseClient) {
-  const { data: campaignGangs, error: gangsError } = await supabase
-    .from('campaign_gangs')
-    .select('gang_id')
-    .eq('campaign_id', campaignId)
-    .eq('status', 'ACCEPTED');
+async function _getCampaignCaptives(campaignId: string) {
+  const holders = await getAppDb().query.campaignGangs.findMany({
+    columns: { gang_id: true },
+    where: (cg, { and, eq }) => and(eq(cg.campaign_id, campaignId), eq(cg.status, 'ACCEPTED')),
+    with: {
+      gang: {
+        columns: { name: true },
+        with: {
+          captives: {
+            columns: { id: true, fighter_name: true, fighter_type: true },
+            where: (fighter, { eq }) => eq(fighter.captured, true),
+            with: { gang: { columns: { name: true } } },
+          },
+        },
+      },
+    },
+  });
 
-  if (gangsError || !campaignGangs?.length) return [];
-
-  const gangIds = campaignGangs.map((cg) => cg.gang_id);
-
-  const { data: fighters, error: fightersError } = await supabase
-    .from('fighters')
-    .select('id, fighter_name, fighter_type, gang_id, captured_by_gang_id')
-    .eq('captured', true)
-    .in('captured_by_gang_id', gangIds);
-
-  if (fightersError || !fighters?.length) return [];
-
-  const gangIdsToResolve = new Set<string>();
-  for (const f of fighters) {
-    gangIdsToResolve.add(f.captured_by_gang_id as string);
-    gangIdsToResolve.add(f.gang_id);
-  }
-
-  const { data: gangs } = await supabase
-    .from('gangs')
-    .select('id, name')
-    .in('id', Array.from(gangIdsToResolve));
-
-  const gangNameMap = new Map((gangs ?? []).map((g) => [g.id, g.name]));
-
-  const byHoldingGang: Record<string, { gangId: string; gangName: string; captives: Array<{ fighterId: string; fighterName: string; fighterType?: string; originalGangName: string }> }> = {};
-
-  for (const f of fighters) {
-    const key = f.captured_by_gang_id as string;
-    if (!byHoldingGang[key]) {
-      byHoldingGang[key] = {
-        gangId: key,
-        gangName: gangNameMap.get(key) ?? 'Unknown',
-        captives: []
-      };
-    }
-    byHoldingGang[key].captives.push({
-      fighterId: f.id,
-      fighterName: f.fighter_name,
-      fighterType: f.fighter_type ?? undefined,
-      originalGangName: gangNameMap.get(f.gang_id) ?? 'Unknown'
+  // Keyed by gang, so a gang listed twice in the campaign still shows once
+  const byHoldingGang = new Map<string, { gangId: string; gangName: string; captives: Array<{ fighterId: string; fighterName: string; fighterType?: string; originalGangName: string }> }>();
+  for (const { gang_id, gang } of holders) {
+    if (!gang_id || !gang?.captives.length) continue;
+    byHoldingGang.set(gang_id, {
+      gangId: gang_id,
+      gangName: gang.name ?? 'Unknown',
+      captives: gang.captives.map((f) => ({
+        fighterId: f.id,
+        fighterName: f.fighter_name ?? 'Unknown',
+        fighterType: f.fighter_type ?? undefined,
+        originalGangName: f.gang?.name ?? 'Unknown'
+      }))
     });
   }
 
-  return Object.values(byHoldingGang).sort((a, b) => a.gangName.localeCompare(b.gangName));
+  return [...byHoldingGang.values()].sort((a, b) => a.gangName.localeCompare(b.gangName));
 }
 
-async function _getCampaignOoaCounts(gangIds: string[], supabase: SupabaseClient) {
+async function _getCampaignOoaCounts(gangIds: string[]) {
   if (gangIds.length === 0) return [];
 
-  const fighters = await fetchAllRows<{ gang_id: string; kills: number | null }>((from, to) =>
-    supabase
-      .from('fighters')
-      .select('gang_id, kills')
-      .in('gang_id', gangIds)
-      // Fighters without kills add nothing to the sum.
-      .gt('kills', 0)
-      .order('id')
-      .range(from, to)
-  );
+  const fighters = await getAppDb().query.fighters.findMany({
+    columns: { gang_id: true, kills: true },
+    // Fighters without kills add nothing to the sum.
+    where: (fighter, { and, gt, inArray }) => and(inArray(fighter.gang_id, gangIds), gt(fighter.kills, 0)),
+  });
 
   return Object.entries(groupBy(fighters, 'gang_id'))
     .map(([gang_id, list]) => ({ gang_id, ooa_count: sumFighterKills(list) }));
@@ -869,7 +612,7 @@ export const getCampaignOoaCounts = async (campaignId: string) => {
   const gangIds = await getCampaignGangIds(campaignId);
   return unstable_cache(
     async () => {
-      return _getCampaignOoaCounts(gangIds, createServiceRoleClient());
+      return _getCampaignOoaCounts(gangIds);
     },
     [`campaign-ooa-counts-v2-${campaignId}`],
     {
@@ -890,16 +633,7 @@ export const getCampaignOoaCounts = async (campaignId: string) => {
 export async function getCampaignResources(campaignId: string) {
   return unstable_cache(
     async () => {
-      try {
-        return await fetchCampaignResources(campaignId, createServiceRoleClient());
-      } catch (error) {
-        // Return empty array if campaign not found (graceful degradation for server-side)
-        if (error instanceof Error && error.message === 'Campaign not found') {
-          return [];
-        }
-        // Re-throw other errors
-        throw error;
-      }
+      return _getCampaignResources(campaignId);
     },
     [`campaign-resources-v2-${campaignId}`],
     {
@@ -913,45 +647,34 @@ export async function getCampaignResources(campaignId: string) {
 // Campaign Map
 // ---------------------------------------------------------------------------
 
-async function _getCampaignMapWithObjects(
-  campaignId: string,
-  supabase: SupabaseClient
-): Promise<CampaignMapBundle> {
-  // Single round trip: pull the map row plus its child objects via the
-  // FK relationship campaign_map_objects.campaign_map_id -> campaign_maps.id.
-  const { data, error } = await supabase
-    .from('campaign_maps')
-    .select(`
-      id,
-      campaign_id,
-      background_image_url,
-      hex_grid_enabled,
-      hex_size,
-      created_at,
-      updated_at,
-      campaign_map_objects (
-        id,
-        campaign_map_id,
-        object_type,
-        geometry,
-        properties,
-        created_at,
-        updated_at
-      )
-    `)
-    .eq('campaign_id', campaignId)
-    .maybeSingle();
+async function _getCampaignMapWithObjects(campaignId: string): Promise<CampaignMapBundle> {
+  const map = await getAppDb().query.campaignMaps.findFirst({
+    columns: { id: true, campaign_id: true, background_image_url: true, hex_grid_enabled: true, hex_size: true },
+    extras: (map, { sql }) => ({
+      created_at: sql<string>`to_json(${map.created_at})`.as('created_at'),
+      updated_at: sql<string | null>`to_json(${map.updated_at})`.as('updated_at'),
+    }),
+    where: (map, { eq }) => eq(map.campaign_id, campaignId),
+    with: {
+      campaign_map_objects: {
+        columns: {
+          id: true,
+          campaign_map_id: true,
+          object_type: true,
+          geometry: true,
+          properties: true,
+          created_at: true,
+          updated_at: true,
+        },
+      },
+    },
+  });
+  if (!map) return { map: null, objects: [] };
 
-  if (error) throw error;
-  if (!data) return { map: null, objects: [] };
-
-  const { campaign_map_objects: embeddedObjects, ...mapRow } = data as CampaignMapRow & {
-    campaign_map_objects: CampaignMapObjectRow[] | null;
-  };
-
+  const { campaign_map_objects: objects, ...mapRow } = map;
   return {
     map: mapRow,
-    objects: embeddedObjects ?? [],
+    objects: objects.map((object) => ({ ...object, properties: object.properties ?? {} })),
   };
 }
 
@@ -960,7 +683,7 @@ export const getCampaignMapWithObjects = async (
 ): Promise<CampaignMapBundle> => {
   return unstable_cache(
     async () => {
-      return _getCampaignMapWithObjects(campaignId, createServiceRoleClient());
+      return _getCampaignMapWithObjects(campaignId);
     },
     [`campaign-map-v2-${campaignId}`],
     {
@@ -977,18 +700,23 @@ export const getCampaignMapWithObjects = async (
 export async function getCampaignSharedTradingPosts(campaignId: string) {
   return unstable_cache(
     async () => {
-      const supabase = createServiceRoleClient();
-      const { data } = await supabase
-        .from('custom_shared')
-        .select('custom_trading_post_id, custom_trading_posts!inner(id, custom_trading_post_name, editions:edition_id (slug))')
-        .eq('campaign_id', campaignId)
-        .not('custom_trading_post_id', 'is', null);
+      const shares = await getAppDb().query.customShared.findMany({
+        columns: {},
+        where: (share, { and, eq, isNotNull }) =>
+          and(eq(share.campaign_id, campaignId), isNotNull(share.custom_trading_post_id)),
+        with: {
+          custom_trading_post: {
+            columns: { id: true, custom_trading_post_name: true },
+            with: { editions: { columns: { slug: true } } },
+          },
+        },
+      });
 
-      return (data || []).map((row: any) => ({
-        id: row.custom_trading_posts.id,
-        trading_post_name: row.custom_trading_posts.custom_trading_post_name,
-        edition_slug: editionSlugFromJoin(row.custom_trading_posts.editions),
-      }));
+      return shares.flatMap(({ custom_trading_post: post }) => post ? [{
+        id: post.id,
+        trading_post_name: post.custom_trading_post_name,
+        edition_slug: post.editions?.slug ?? null,
+      }] : []);
     },
     [`campaign-shared-trading-posts-v3-${campaignId}`],
     {

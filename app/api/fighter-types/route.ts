@@ -9,7 +9,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
 async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId: string) {
-  const customFighters = await getUserCustomFighterTypes(userId, supabase);
+  const customFighters = await getUserCustomFighterTypes(userId);
 
   // Fetch shared custom fighters from campaigns the user is a member of
   const { data: campaignMembers } = await supabase
@@ -413,8 +413,9 @@ export async function GET(request: Request) {
       }
     }
 
-    // include_all_types already returns every gang type's fighters, shared ones included.
-    if (isVehicleParam === 'true' && !includeAllTypes) {
+    // Also needed for include_all_types: "Available to All" is a hidden gang type, so the
+    // hidden-gang-type filter above drops its vehicles.
+    if (isVehicleParam === 'true') {
       data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
     }
 

@@ -107,6 +107,7 @@ interface GangProps {
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
   onGangRatingUpdate?: (newRating: number) => void;
+  onGangReputationUpdate?: (newReputation: number) => void;
   positioning: Record<number, string>;
   gang_subtypes: Array<{id: string, subtype: string}> | null;
   vehicles?: VehicleProps[];
@@ -161,6 +162,7 @@ export default function Gang({
   onGangCreditsUpdate,
   onGangWealthUpdate,
   onGangRatingUpdate,
+  onGangReputationUpdate,
   positioning,
   gang_subtypes,
   vehicles,
@@ -524,7 +526,9 @@ export default function Gang({
       }
 
       if (updates.reputation !== undefined && updates.reputation_operation) {
-        setReputation(snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
+        const newReputation = snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation);
+        setReputation(newReputation);
+        onGangReputationUpdate?.(newReputation);
       }
 
       if (updates.trade_points !== undefined && updates.trade_points_operation) {
@@ -577,6 +581,7 @@ export default function Gang({
         setGangOriginId(s.gangOriginId);
         setGangOriginName(s.gangOriginName);
         setReputation(s.reputation);
+        onGangReputationUpdate?.(s.reputation);
         setTradePoints(s.tradePoints);
         setGangSubtypes(s.gangSubtypes);
         setGangHasSubtypes(s.gangHasSubtypes);

@@ -4,7 +4,12 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { hasPostCycleActions } from '@/types/edition';
 import { getEditionIdBySlug } from '@/utils/editions';
-import { getGangCore, getGangFightersList, getGangSubtypes } from '@/app/lib/shared/gang-data';
+import {
+  getGangCampaigns,
+  getGangCore,
+  getGangFightersList,
+  getGangSubtypes,
+} from '@/app/lib/shared/gang-data';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard } from '@/types/tactics-card';
@@ -24,6 +29,7 @@ import {
   medicalEscortCost,
   patientOf,
   postCycleAvailability,
+  reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
   validatePostCycleAssignment,
@@ -438,7 +444,7 @@ export async function resolvePostCycleAction(
     const user = await getAuthenticatedUser(supabase);
     const { assignment, gangId } = params;
 
-    const gang = await getGangCore(gangId, supabase);
+    const gang = await getGangCore(gangId);
     if (!gang) return { success: false, error: 'Gang not found' };
 
     const editionSlug = gang.edition_slug;
@@ -452,8 +458,8 @@ export async function resolvePostCycleAction(
     // The gang row holds subtype ids; the names decide Chaos Corrupted. A gang
     // with no subtypes skips the lookup, and the rest read a cached list.
     const [fighters, gangSubtypes] = await Promise.all([
-      getGangFightersList(gangId, supabase, { gangEditionSlug: editionSlug }),
-      getGangSubtypes(gang.gang_subtypes ?? [], supabase),
+      getGangFightersList(gangId, { gangEditionSlug: editionSlug }),
+      getGangSubtypes(gang.gang_subtypes ?? []),
     ]);
 
     const issues = validatePostCycleAssignment(
@@ -540,6 +546,85 @@ export async function resolvePostCycleAction(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to resolve the action',
+    };
+  }
+}
+
+export interface CollectIncomeParams {
+  gangId: string;
+  /** Collect 10x the gang's Reputation. */
+  reputation: boolean;
+  /** campaign_territories ids; each adds its credits. */
+  territoryIds: string[];
+}
+
+export interface CollectIncomeResult {
+  success: boolean;
+  error?: string;
+  gang?: { credits: number; rating: number; wealth: number };
+}
+
+/** Collect Income: adds the picked Reputation and territory credits to the gang. */
+export async function collectIncome({
+  gangId,
+  reputation,
+  territoryIds,
+}: CollectIncomeParams): Promise<CollectIncomeResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const gang = await getGangCore(gangId);
+    if (!gang) return { success: false, error: 'Gang not found' };
+    if (!hasPostCycleActions(gang.edition_slug)) {
+      return {
+        success: false,
+        error: 'Collect Income is only available for Necromunda (2026) gangs',
+      };
+    }
+
+    const sources: Array<{ name: string; credits: number }> = [];
+    if (reputation) {
+      const credits = reputationIncome(gang.reputation);
+      if (credits === 0) return { success: false, error: 'The gang has no Reputation to collect on' };
+      sources.push({ name: `${gang.reputation} Reputation`, credits });
+    }
+    if (territoryIds.length > 0) {
+      const held = new Map(
+        (await getGangCampaigns(gangId))
+          .flatMap((campaign) => campaign.territories)
+          .map((territory) => [territory.id, territory])
+      );
+      for (const id of new Set(territoryIds)) {
+        const territory = held.get(id);
+        if (!territory) return { success: false, error: 'The gang does not hold that territory' };
+        if (!territory.credits) {
+          return { success: false, error: `${territory.territory_name} gives no credits` };
+        }
+        sources.push({ name: territory.territory_name, credits: territory.credits });
+      }
+    }
+    if (sources.length === 0) return { success: false, error: 'Nothing to collect' };
+
+    const credits = sources.reduce((sum, source) => sum + source.credits, 0);
+    const financials = await updateGangFinancials(supabase, { gangId, creditsDelta: credits });
+    if (!financials.success) return { success: false, error: financials.error };
+
+    await logPostCycleAction({
+      gang_id: gangId,
+      action: 'collect_income',
+      outcome: `Gained ${credits} credits from ${sources
+        .map((source) => `${source.name} (+${source.credits})`)
+        .join(', ')}.`,
+      user_id: user.id,
+    });
+
+    return { success: true, gang: financials.newValues };
+  } catch (error) {
+    console.error('Error collecting income:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to collect income',
     };
   }
 }

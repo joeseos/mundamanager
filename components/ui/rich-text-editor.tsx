@@ -9,6 +9,11 @@ import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 
+// On mobile the toolbar is fixed to the top of the screen instead of sitting above the text.
+const isMobileViewport = () =>
+  window.innerWidth <= 768 ||
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 // Upper bound for a user-chosen display width, in CSS px.
 const MAX_IMAGE_WIDTH = 2000;
 const IMAGE_WIDTH_PRESETS = [
@@ -87,7 +92,7 @@ export interface RichTextEditorHandle {
   setContent: (html: string) => void;
 }
 
-interface RichTextEditorProps {
+export interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
   placeholder?: string;
@@ -100,6 +105,8 @@ interface RichTextEditorProps {
   maxImages?: number | null; // Max hosted images; null = unlimited; defaults to 5
   enableImages?: boolean; // When false, hide all image upload/hotlink UI
   stickyWithinScrollContainer?: boolean; // When true, sticky toolbar follows nearest scrollable parent
+  // Matches the notification sanitizer: headings 1–3, no code, no horizontal rule.
+  notificationFormatting?: boolean;
 }
 
 const colors = [
@@ -131,6 +138,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     maxImages,
     enableImages,
     stickyWithinScrollContainer = false,
+    notificationFormatting = false,
   }: RichTextEditorProps,
   ref
 ) {
@@ -141,7 +149,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const [imageUrl, setImageUrl] = useState('');
   const [imageWidth, setImageWidth] = useState(''); // '' = original size
   const [isEditingImage, setIsEditingImage] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  // Known on the first render (the editor only renders in the browser), so
+  // the toolbar doesn't start inline and then jump to the top of the screen.
+  const [isMobile, setIsMobile] = useState(isMobileViewport);
   const [toolbarTop, setToolbarTop] = useState(90);
   const [scrollY, setScrollY] = useState(0);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -198,7 +208,17 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: false }),
+      StarterKit.configure(
+        notificationFormatting
+          ? {
+              link: false,
+              heading: { levels: [1, 2, 3] as [1, 2, 3] },
+              code: false,
+              codeBlock: false,
+              horizontalRule: false,
+            }
+          : { link: false },
+      ),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -250,7 +270,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
         class: 'focus:outline-hidden min-h-[200px] ProseMirror',
       },
     },
-    immediatelyRender: false,
+    // Every caller mounts the editor only after a click, never on the server,
+    // so it can render on its first pass instead of after a blank frame.
+    immediatelyRender: true,
   });
 
   // Close dropdowns when clicking outside
@@ -278,12 +300,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   // Detect mobile device and handle mobile-specific behavior
   useEffect(() => {
     const checkMobile = () => {
-      const isMobileDevice = window.innerWidth <= 768 || 
-                            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      setIsMobile(isMobileDevice);
+      setIsMobile(isMobileViewport());
     };
 
-    checkMobile();
     window.addEventListener('resize', checkMobile);
     
     return () => {

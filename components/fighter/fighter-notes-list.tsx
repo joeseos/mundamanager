@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { Button } from '../ui/button';
+import { LazyRichTextEditor } from '../ui/lazy-rich-text-editor';
 import { toast } from 'sonner';
-import { RichTextEditor } from '../ui/rich-text-editor';
+import '../ui/rich-text-editor.css'; // Styles the read-only notes and the editor placeholder
 import { UserPermissions } from '@/types/user-permissions';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { useMutation } from '@tanstack/react-query';
@@ -135,7 +136,10 @@ function NoteEditor({
 
         {isEditing ? (
           <div className="bg-white rounded-md">
-            <RichTextEditor
+            {/* Until the editor's code arrives, show the note in the editor's frame so nothing
+                moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
+            <LazyRichTextEditor
+              fallbackHtml={content}
               content={content}
               onChange={onContentChange}
               placeholder={placeholder}

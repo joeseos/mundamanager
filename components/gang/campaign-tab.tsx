@@ -40,6 +40,8 @@ interface Territory {
   description?: string | null;
   ruined?: boolean;
   default_gang_territory?: boolean;
+  /** Credits the territory gives; null when unset */
+  credits?: number | null;
   created_at?: string;
 }
 
@@ -442,7 +444,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                 {/* Territories Table */}
                 {campaign.territories && campaign.territories.length > 0 ? (
                   <div className="mt-8">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
+                    <h3 className="text-xl md:text-2xl font-bold mb-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         Territories
                       </div>
@@ -457,11 +459,12 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                       <thead>
                         <tr className="bg-muted border-b">
                           <th className="px-2 py-2 font-medium text-center w-11 min-w-[2.75rem]">Ref.</th>
-                          <th className="px-4 py-2 font-medium text-left">Territory</th>
-                          <th className="px-4 py-2 font-medium text-left">
+                          <th className="w-1/3 px-4 py-2 font-medium text-left">Territory</th>
+                          <th className="w-1/4 px-4 py-2 font-medium text-left">
                             <span className="hidden sm:inline">Description</span>
                             <span className="sm:hidden">Desc.</span>
                           </th>
+                          <th className="px-4 py-2 font-medium text-right">Credits</th>
                           <th className="px-4 py-2 font-medium text-right">Status</th>
                         </tr>
                       </thead>
@@ -488,6 +491,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                                   </span>
                                 )}
                               </td>
+                              <td className="px-4 py-2 text-right">{territory.credits ?? ''}</td>
                               <td className="px-4 py-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {territory.ruined && (
@@ -545,7 +549,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
         
         return (
           <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap">
+            <h3 className="text-xl md:text-2xl font-bold mb-4 flex items-center justify-between flex-wrap">
               <div className="flex items-center gap-2">
                 Battle Logs
               </div>
@@ -760,7 +764,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
       {/* Captured Fighters */}
       {campaigns.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4">
+          <h3 className="text-xl md:text-2xl font-bold mb-4">
             Captured Fighters
           </h3>
           {captives.length === 0 ? (

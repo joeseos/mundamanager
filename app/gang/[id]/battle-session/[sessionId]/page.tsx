@@ -21,7 +21,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     redirect(signInPath(currentPath));
   }
 
-  const session = await getBattleSessionCached(sessionId, supabase);
+  const session = await getBattleSessionCached(sessionId);
 
   if (!session) {
     notFound();
@@ -47,9 +47,9 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
   );
 
   const [gangFighterLists, gangPositioningList, scenarios, scenarioTables, campaignTerritories] = await Promise.all([
-    Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, supabase, { expandLoadoutsForPrint: true }))),
-    Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId, supabase))),
-    getScenariosCached(supabase),
+    Promise.all(uniqueGangIds.map((gId) => getGangFightersList(gId, { expandLoadoutsForPrint: true }))),
+    Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId))),
+    getScenariosCached(),
     getScenarioTablesCached(),
     session.campaign_id ? getCampaignTerritories(session.campaign_id) : Promise.resolve([]),
   ]);

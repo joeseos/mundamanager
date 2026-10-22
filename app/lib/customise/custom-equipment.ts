@@ -1,28 +1,27 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
-import { createClient } from "@/utils/supabase/server";
+import { getAppDb } from '@/utils/db/client';
 import { CustomEquipment } from "@/types/equipment";
 import { withEditionSlug } from "@/types/edition";
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 // Re-export for backward compatibility
 export type { CustomEquipment } from "@/types/equipment";
 
-export async function getUserCustomEquipment(userId: string, supabase: SupabaseClient): Promise<CustomEquipment[]> {
+export async function getUserCustomEquipment(userId: string): Promise<CustomEquipment[]> {
   return unstable_cache(
     async () => {
-      const { data: customEquipment, error } = await supabase
-        .from('custom_equipment')
-        .select('*, editions:edition_id (slug)')
-        .eq('user_id', userId)
-        .order('equipment_name', { ascending: true });
+      const customEquipment = await getAppDb().query.customEquipment.findMany({
+        columns: { created_at: false, updated_at: false },
+        extras: (item, { sql }) => ({
+          created_at: sql<string>`to_json(${item.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${item.updated_at})`.as('updated_at'),
+        }),
+        where: (item, { eq }) => eq(item.user_id, userId),
+        orderBy: (item, { asc }) => asc(item.equipment_name),
+        with: { editions: { columns: { slug: true } } },
+      });
 
-      if (error) {
-        console.error('Error fetching custom equipment:', error);
-        throw new Error(`Failed to fetch custom equipment: ${error.message}`);
-      }
-
-      return (customEquipment || []).map(withEditionSlug);
+      return customEquipment.map(withEditionSlug);
     },
     [`user-custom-equipment-v3-${userId}`],
     {
@@ -30,34 +29,4 @@ export async function getUserCustomEquipment(userId: string, supabase: SupabaseC
       revalidate: false,
     }
   )();
-}
-
-export async function getUserCustomEquipmentByCategory(category?: string): Promise<CustomEquipment[]> {
-  const supabase = await createClient();
-
-  // Get the current user
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    throw new Error('Unauthorized');
-  }
-
-  let query = supabase
-    .from('custom_equipment')
-    .select('*, editions:edition_id (slug)')
-    .eq('user_id', user.id);
-
-  // Apply category filter if specified
-  if (category) {
-    query = query.eq('equipment_category', category);
-  }
-
-  const { data: customEquipment, error } = await query.order('equipment_name', { ascending: true });
-
-  if (error) {
-    console.error('Error fetching custom equipment by category:', error);
-    throw new Error(`Failed to fetch custom equipment: ${error.message}`);
-  }
-
-  return (customEquipment || []).map(withEditionSlug);
 }

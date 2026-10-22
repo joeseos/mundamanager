@@ -21,7 +21,6 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
-import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
@@ -85,6 +84,8 @@ interface Territory {
   territory_name: string;
   /** Catalog/template name when linked via territory_id; null for custom territories */
   original_territory_name?: string | null;
+  /** Credits the territory gives; null when unset */
+  credits?: number | null;
   playing_card?: string | null;
   gang_id: string | null;
   created_at: string;
@@ -119,7 +120,7 @@ interface CampaignPageContentProps {
     edition_slug?: string | null;
     image_url?: string;
     status: string | null;
-    description: string;
+    description: string | null;
     created_at: string;
     updated_at: string | null;
     note: string | null;
@@ -136,9 +137,9 @@ interface CampaignPageContentProps {
     battleSessions?: BattleSession[];
     triumphs: {
       id: string;
-      triumph: string;
-      criteria: string;
-      campaign_type_id: string;
+      triumph: string | null;
+      criteria: string | null;
+      campaign_type_id: string | null;
       created_at: string;
       updated_at: string | null;
     }[];
@@ -156,7 +157,7 @@ interface CampaignPageContentProps {
   scenarioTables?: ScenarioTableWithEntries[];
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
-  tradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
+  tradingPostTypes?: Array<{ id: string; trading_post_name: string | null; edition_slug?: string | null }>;
   customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
@@ -213,7 +214,6 @@ export default function CampaignPageContent({
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -260,6 +260,7 @@ export default function CampaignPageContent({
       playing_card?: string | null;
       description?: string | null;
       territory_name?: string;
+      credits?: number | null;
       map_object_id?: string | null;
       map_hex_coords?: { x: number; y: number; z: number } | null;
       show_name_on_map?: boolean;
@@ -361,21 +362,6 @@ export default function CampaignPageContent({
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
 
-  // Add this function to handle the Add button click
-  const handleAddBattleLog = () => {
-    console.log('Add battle log button clicked');
-    console.log('User role:', safePermissions.campaignRole);
-    console.log('Is admin:', isAdmin);
-    console.log('battleLogsRef exists:', !!battleLogsRef.current);
-    
-    if (battleLogsRef.current) {
-      console.log('Opening battle log modal via ref');
-      battleLogsRef.current.openAddModal();
-    } else {
-      console.error('battleLogsRef.current is null');
-    }
-  };
-
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
@@ -428,10 +414,10 @@ export default function CampaignPageContent({
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
+    <main className="campaign-page flex min-h-screen flex-col items-center print:min-h-0">
       <div ref={campaignContentRef} className="container mx-auto max-w-5xl w-full space-y-4">
         {/* Tabs navigation */}
-        <div className="bg-card rounded-lg mb-4 flex">
+        <div className="bg-card rounded-lg mb-4 flex print:hidden">
           <button
             onClick={() => setActiveTab(0)}
             className={`flex-1 py-4 text-center transition-colors ${
@@ -891,54 +877,13 @@ export default function CampaignPageContent({
           {/* Battle Log tab content */}
           {activeTab === 2 && (
             <>
-            {(campaignData.battleSessions ?? []).length > 0 || userId ? (
-              <div className="bg-card shadow-md rounded-lg p-4 mb-4">
-                <CampaignBattleSessions
-                  sessions={campaignData.battleSessions || []}
-                  campaignId={campaignData.id}
-                  userId={userId}
-                  canAdd={safePermissions.canAddBattleLogs}
-                  editionSlug={campaignData.edition_slug ?? null}
-                  campaignGangs={campaignData.members.flatMap((m: Member) =>
-                    m.gangs
-                      .filter((g) => g.status === 'ACCEPTED')
-                      .map((g) => ({
-                        id: g.id,
-                        name: g.name,
-                        gang_colour: g.gang_colour,
-                        user_id: m.user_id,
-                        owner_username: m.username,
-                      }))
-                  )}
-                />
-              </div>
-            ) : null}
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
-                <div className="flex justify-between items-start mb-4">
+                <div className="mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-                  <div className="flex gap-2">
-                    {safePermissions.canEditCampaign && (
-                      <Button
-                        variant="outline"
-                        onClick={() => battleLogsRef.current?.openChallengeRoundModal()}
-                      >
-                        Challenge Round
-                      </Button>
-                    )}
-                    {safePermissions.canAddBattleLogs && (
-                      <Button
-                        className="bg-neutral-900 hover:bg-gray-800 text-white"
-                        onClick={handleAddBattleLog}
-                      >
-                        Add
-                      </Button>
-                    )}
-                  </div>
                 </div>
                 <div id="campaign-battle-logs">
                   <CampaignBattleLogsList
-                    ref={battleLogsRef}
                     campaignId={campaignData.id}
                     editionSlug={campaignData.edition_slug ?? null}
                     battles={campaignData.battles || []}
@@ -963,13 +908,33 @@ export default function CampaignPageContent({
                     }}
                     members={campaignData.members}
                     territories={campaignData.territories}
-                    noContainer={true}
-                    hideAddButton={true}
+                    hideAddButton={!safePermissions.canAddBattleLogs}
+                    canStartChallengeRound={!!safePermissions.canEditCampaign}
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                     currentCycle={campaignData.current_cycle ?? null}
                     scenarioTables={scenarioTables}
+                    battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
+                      <CampaignBattleSessions
+                        sessions={campaignData.battleSessions || []}
+                        campaignId={campaignData.id}
+                        userId={userId}
+                        canAdd={safePermissions.canAddBattleLogs}
+                        editionSlug={campaignData.edition_slug ?? null}
+                        campaignGangs={campaignData.members.flatMap((m: Member) =>
+                          m.gangs
+                            .filter((g) => g.status === 'ACCEPTED')
+                            .map((g) => ({
+                              id: g.id,
+                              name: g.name,
+                              gang_colour: g.gang_colour,
+                              user_id: m.user_id,
+                              owner_username: m.username,
+                            }))
+                        )}
+                      />
+                    ) : null}
                   />
                 </div>
               </div>
@@ -979,11 +944,12 @@ export default function CampaignPageContent({
 
           {/* Notes tab content */}
           {activeTab === 3 && (
-            <div className="bg-card shadow-md rounded-lg p-4">
+            <div className="bg-card shadow-md rounded-lg p-4 print:bg-transparent print:shadow-none print:p-0 print:rounded-none">
               <div>
               <CampaignNotes
                 campaignId={campaignData.id}
                 initialNote={campaignData.note || ''}
+                canEdit={!!safePermissions.canEditCampaign}
                 onNoteUpdate={(updatedNote) => {
                   setCampaignData(prev => ({ ...prev, note: updatedNote }));
                 }}

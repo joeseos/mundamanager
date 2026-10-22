@@ -19,7 +19,7 @@ import { sameEditionForDisplay } from '@/types/edition'
 
 interface TradingPostType {
   id: string;
-  trading_post_name: string;
+  trading_post_name: string | null;
   edition_slug?: string | null;
 }
 
@@ -248,8 +248,8 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               <option value="">Select campaign type</option>
               {editionCampaignTypes
                 .sort((a, b) => {
-                  const typeA = a.campaign_type_name.toLowerCase();
-                  const typeB = b.campaign_type_name.toLowerCase();
+                  const typeA = (a.campaign_type_name ?? '').toLowerCase();
+                  const typeB = (b.campaign_type_name ?? '').toLowerCase();
 
                   const rankA = campaignRank[typeA] ?? Infinity;
                   const rankB = campaignRank[typeB] ?? Infinity;
@@ -258,7 +258,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                     return rankA - rankB;
                   }
 
-                  return a.campaign_type_name.localeCompare(b.campaign_type_name);
+                  return (a.campaign_type_name ?? '').localeCompare(b.campaign_type_name ?? '');
                 })
                 .map((type) => (
                   <option key={type.id} value={type.id}>
@@ -285,14 +285,14 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {editionTradingPostTypes
                   .sort((a, b) => {
-                    const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
-                    const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;
+                    const rankA = tradingPostRank[(a.trading_post_name ?? '').toLowerCase()] ?? Infinity;
+                    const rankB = tradingPostRank[(b.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                     return rankA - rankB;
                   })
                   .map((type, index, arr) => {
-                    const currentRank = tradingPostRank[type.trading_post_name.toLowerCase()] ?? Infinity;
+                    const currentRank = tradingPostRank[(type.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                     const prevRank = index > 0 
-                      ? (tradingPostRank[arr[index - 1].trading_post_name.toLowerCase()] ?? Infinity)
+                      ? (tradingPostRank[(arr[index - 1].trading_post_name ?? '').toLowerCase()] ?? Infinity)
                       : null;
                     
                     // Add divider between rank <= 2 and rank >= 11

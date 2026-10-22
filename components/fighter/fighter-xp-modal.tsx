@@ -52,6 +52,8 @@ interface FighterXpModalProps {
    * null for custom fighter types. Unset/unknown → manual XP entry only.
    */
   editionSlug?: string | null;
+  /** Battle sessions award participation XP from the post-battle view instead. */
+  hideBattleParticipation?: boolean;
   onClose: () => void;
   onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;
 }
@@ -67,6 +69,7 @@ export function FighterXpModal({
   gangId,
   campaignId,
   editionSlug,
+  hideBattleParticipation = false,
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
@@ -84,8 +87,11 @@ export function FighterXpModal({
   // The edition decides which XP awards exist; an unknown edition offers none,
   // leaving the manual amount field below as the only way to add XP.
   const awards = useMemo(
-    () => xpAwardsFor(editionSlug).map((id): XpCase => ({ id, ...XP_CASES[id] })),
-    [editionSlug]
+    () =>
+      xpAwardsFor(editionSlug)
+        .filter((id) => !(hideBattleParticipation && id === 'battleParticipation'))
+        .map((id): XpCase => ({ id, ...XP_CASES[id] })),
+    [editionSlug, hideBattleParticipation]
   );
 
   // Repeatable awards render with -/+ steppers, once-only ones as checkboxes.

@@ -286,7 +286,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
     // Helper to compute effective fighter total cost (includes vehicles, effects, skills, beasts, adjustments)
     const getEffectiveCost = async () => {
       try {
-        return await getFighterTotalCost(params.fighter_id, supabase);
+        return await getFighterTotalCost(params.fighter_id);
       } catch (e) {
         console.error('Failed to compute fighter total cost for rating adjustment:', e);
         return 0;
@@ -1806,6 +1806,20 @@ export async function updateFighterDetails(params: UpdateFighterDetailsParams): 
           newCredits: costAdjustmentFinancialResult?.newValues?.credits,
           newRating: costAdjustmentFinancialResult?.newValues?.rating,
           newWealth: costAdjustmentFinancialResult?.newValues?.wealth
+        });
+      }
+
+      if (changesStartingXp) {
+        await logFighterAction({
+          gang_id: fighter.gang_id,
+          fighter_id: params.fighter_id,
+          fighter_name: updatedFighter.fighter_name,
+          action_type: 'fighter_starting_xp_changed',
+          old_value: previousStartingXp ?? undefined,
+          new_value: updatedFighter.starting_xp,
+          old_xp: previousXp,
+          new_xp: updatedFighter.xp,
+          user_id: user.id
         });
       }
     } catch (logError) {

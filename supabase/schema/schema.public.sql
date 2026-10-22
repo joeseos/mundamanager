@@ -1110,7 +1110,15 @@ CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge') THEN
+   IF NEW.type IN (
+      'campaign_invite',
+      'gang_invite',
+      'friend_request',
+      'campaign_join_request',
+      'campaign_challenge',
+      'mm_staff_message',
+      'mm_announcement'
+   ) THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;
@@ -1336,7 +1344,7 @@ BEGIN
                 OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
             )
         LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
-            AND (sao.skill_type_id = cs.skill_type_id OR sao.skill_type_id = cs.custom_skill_type_id)
+            AND (sao.skill_type_id = cs.skill_type_id OR sao.custom_skill_type_id = cs.custom_skill_type_id)
         WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
         AND COALESCE(
             sao.access_level,
@@ -4626,6 +4634,12 @@ CREATE TABLE public.battle_sessions (
     deployment_id uuid,
     objective_id uuid,
     crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    CONSTRAINT battle_sessions_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT battle_sessions_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT battle_sessions_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
@@ -4658,6 +4672,27 @@ COMMENT ON COLUMN public.battle_sessions.objective_id IS 'N26 Objective for this
 --
 
 COMMENT ON COLUMN public.battle_sessions.crew_selection_id IS 'N26 Crew selection for this session. Its scenario_crew_selection_rules fill in the crew picker.';
+
+
+--
+-- Name: COLUMN battle_sessions.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set. Copied into campaign_battles on completion.';
 
 
 --
@@ -4705,6 +4740,12 @@ CREATE TABLE public.campaign_battles (
     deployment_id uuid,
     objective_id uuid,
     crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    CONSTRAINT campaign_battles_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT campaign_battles_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT campaign_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
@@ -4763,6 +4804,27 @@ COMMENT ON COLUMN public.campaign_battles.objective_id IS 'N26 Objective rolled 
 --
 
 COMMENT ON COLUMN public.campaign_battles.crew_selection_id IS 'N26 Crew selection rolled for this battle: a scenario_table_entries row of a crew_selection table.';
+
+
+--
+-- Name: COLUMN campaign_battles.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set.';
 
 
 --
@@ -4932,7 +4994,8 @@ CREATE TABLE public.campaign_territories (
     description text,
     map_object_id uuid,
     map_hex_coords jsonb,
-    show_name_on_map boolean DEFAULT true
+    show_name_on_map boolean DEFAULT true,
+    credits numeric
 );
 
 
@@ -5867,11 +5930,13 @@ CREATE TABLE public.fighter_ooa_records (
 CREATE TABLE public.fighter_skill_access_override (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     fighter_id uuid NOT NULL,
-    skill_type_id uuid NOT NULL,
+    skill_type_id uuid,
     access_level text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     user_id uuid,
+    custom_skill_type_id uuid,
+    CONSTRAINT chk_fsao_skill_type_xor CHECK ((((skill_type_id IS NOT NULL) AND (custom_skill_type_id IS NULL)) OR ((skill_type_id IS NULL) AND (custom_skill_type_id IS NOT NULL)))),
     CONSTRAINT fighter_skill_access_override_access_level_check CHECK ((access_level = ANY (ARRAY['primary'::text, 'secondary'::text, 'allowed'::text, 'denied'::text])))
 );
 
@@ -6584,10 +6649,18 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text])))
+    is_html boolean DEFAULT false NOT NULL,
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
+
+
+--
+-- Name: COLUMN notifications.is_html; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notifications.is_html IS 'True when text is sanitized TipTap HTML. False is plain text, with optional **bold**.';
 
 
 --
@@ -6838,7 +6911,8 @@ CREATE TABLE public.territories (
     territory_name text NOT NULL,
     updated_at timestamp with time zone,
     playing_card text,
-    edition_id uuid
+    edition_id uuid,
+    credits numeric
 );
 
 
@@ -7527,6 +7601,14 @@ ALTER TABLE ONLY public.fighter_loadouts
 
 ALTER TABLE ONLY public.fighter_ooa_records
     ADD CONSTRAINT fighter_ooa_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fighter_skill_access_override fighter_skill_access_override_custom_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_skill_access_override
+    ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_key UNIQUE (fighter_id, custom_skill_type_id);
 
 
 --
@@ -8273,6 +8355,13 @@ CREATE INDEX campaign_battles_objective_id_idx ON public.campaign_battles USING 
 
 
 --
+-- Name: campaign_battles_scenario_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_scenario_id_idx ON public.campaign_battles USING btree (scenario_id);
+
+
+--
 -- Name: campaign_battles_winner_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8319,6 +8408,13 @@ CREATE INDEX campaign_members_invited_by_idx ON public.campaign_members USING bt
 --
 
 CREATE INDEX campaign_members_is_favourite_idx ON public.campaign_members USING btree (is_favourite);
+
+
+--
+-- Name: campaign_territories_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_territories_gang_id_idx ON public.campaign_territories USING btree (gang_id);
 
 
 --
@@ -8676,6 +8772,13 @@ CREATE INDEX fighter_effect_types_effect_name_idx ON public.fighter_effect_types
 --
 
 CREATE INDEX fighter_effect_types_fighter_effect_category_id_idx ON public.fighter_effect_types USING btree (fighter_effect_category_id);
+
+
+--
+-- Name: fighter_effects_fighter_effect_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effects_fighter_effect_type_id_idx ON public.fighter_effects USING btree (fighter_effect_type_id);
 
 
 --
@@ -9162,6 +9265,13 @@ CREATE INDEX gangs_created_at_idx ON public.gangs USING btree (created_at);
 
 
 --
+-- Name: gangs_credits_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_credits_idx ON public.gangs USING btree (credits);
+
+
+--
 -- Name: gangs_custom_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9183,6 +9293,20 @@ CREATE INDEX gangs_gang_type_id_idx ON public.gangs USING btree (gang_type_id);
 
 
 --
+-- Name: gangs_gang_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_gang_type_idx ON public.gangs USING btree (gang_type);
+
+
+--
+-- Name: gangs_hidden_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_hidden_idx ON public.gangs USING btree (hidden);
+
+
+--
 -- Name: gangs_is_favourite_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9190,10 +9314,24 @@ CREATE INDEX gangs_is_favourite_idx ON public.gangs USING btree (is_favourite);
 
 
 --
+-- Name: gangs_last_updated_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_last_updated_idx ON public.gangs USING btree (last_updated);
+
+
+--
 -- Name: gangs_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX gangs_name_idx ON public.gangs USING btree (name);
+
+
+--
+-- Name: gangs_reputation_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_reputation_idx ON public.gangs USING btree (reputation);
 
 
 --
@@ -9589,6 +9727,13 @@ CREATE INDEX idx_friends_addressee ON public.friends USING btree (addressee_id);
 
 
 --
+-- Name: idx_fsao_custom_skill_type_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fsao_custom_skill_type_id ON public.fighter_skill_access_override USING btree (custom_skill_type_id);
+
+
+--
 -- Name: idx_fte_fighter_type_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9736,6 +9881,13 @@ CREATE INDEX scenarios_scenario_name_idx ON public.scenarios USING btree (scenar
 
 
 --
+-- Name: scenarios_scenario_number_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenarios_scenario_number_idx ON public.scenarios USING btree (scenario_number);
+
+
+--
 -- Name: skill_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9796,6 +9948,13 @@ CREATE INDEX territories_campaign_type_id_idx ON public.territories USING btree 
 --
 
 CREATE INDEX territories_edition_id_idx ON public.territories USING btree (edition_id);
+
+
+--
+-- Name: territories_territory_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX territories_territory_name_idx ON public.territories USING btree (territory_name);
 
 
 --
@@ -11229,6 +11388,14 @@ ALTER TABLE ONLY public.fighter_ooa_records
 
 
 --
+-- Name: fighter_skill_access_override fighter_skill_access_override_custom_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_skill_access_override
+    ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_fkey FOREIGN KEY (custom_skill_type_id) REFERENCES public.custom_skill_types(id) ON DELETE CASCADE;
+
+
+--
 -- Name: fighter_skill_access_override fighter_skill_access_override_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11801,7 +11968,7 @@ ALTER TABLE ONLY public.notifications
 --
 
 ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 
 --
@@ -14238,7 +14405,7 @@ CREATE POLICY "Users can create loadouts for their gang fighters" ON public.figh
 -- Name: notifications Users can create notifications; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK ((sender_id = ( SELECT auth.uid() AS uid)));
+CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (((sender_id = ( SELECT auth.uid() AS uid)) AND (is_html = false) AND (((type)::text <> ALL (ARRAY['user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text])) OR (((type)::text = ANY (ARRAY['mm_staff_message'::text, 'mm_announcement'::text])) AND ( SELECT private.is_admin() AS is_admin)))));
 
 
 --

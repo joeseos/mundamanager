@@ -22,13 +22,13 @@ export default async function AccountPage() {
   }
 
   // Fetch profile data via the cached entry (user-{id})
-  const profile = await getUserProfile(user.id, supabase).catch((error) => {
+  const profile = await getUserProfile(user.id).catch((error) => {
     console.error('Error fetching profile:', error);
     return null;
   });
 
   // Fetch all friends and requests
-  const friends = await getFriendsAndRequests(user.id, supabase);
+  const friends = await getFriendsAndRequests(user.id);
 
   // Fetch the user's email notification preferences (RLS-scoped to this user).
   const { data: notificationPreferences } = await supabase

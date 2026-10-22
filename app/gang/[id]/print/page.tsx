@@ -28,7 +28,6 @@ export default async function PrintGangPage(props: {
     const {
       getGangCore,
       getGangPositioning,
-      getGangType,
       getGangTypeConfig,
       getGangFightersList,
       getGangCampaigns,
@@ -38,7 +37,7 @@ export default async function PrintGangPage(props: {
     } = await import("@/app/lib/shared/gang-data");
 
     // Fetch the gang core first to check if gang exists
-    const gangBasic = await getGangCore(params.id, supabase);
+    const gangBasic = await getGangCore(params.id);
 
     if (!gangBasic) {
       notFound();
@@ -62,23 +61,21 @@ export default async function PrintGangPage(props: {
     // Fetch all related data in parallel
     const [
       gangPositioning,
-      gangType,
       fighters,
       campaigns,
       gangSubtypes,
       stash,
       ownerProfile,
     ] = await Promise.all([
-      getGangPositioning(params.id, supabase),
-      getGangType(gangBasic, supabase),
-      getGangFightersList(params.id, supabase, {
+      getGangPositioning(params.id),
+      getGangFightersList(params.id, {
         expandLoadoutsForPrint: true,
         gangEditionSlug: gangBasic.edition_slug ?? null,
       }),
-      getGangCampaigns(params.id, supabase),
-      getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
-      getGangStash(params.id, supabase),
-      getUserProfile(gangBasic.user_id, supabase),
+      getGangCampaigns(params.id),
+      getGangSubtypes(gangBasic.gang_subtypes || []),
+      getGangStash(params.id),
+      getUserProfile(gangBasic.user_id),
     ]);
 
     // Initialize positioning if needed (lazy initialization only)
@@ -101,7 +98,7 @@ export default async function PrintGangPage(props: {
       name: gangBasic.name,
       gang_type: gangBasic.gang_type,
       gang_type_id: gangBasic.gang_type_id,
-      parent_gang_type_name: gangType.parent_gang_type_name ?? null,
+      parent_gang_type_name: gangTypeConfig?.parent_gang_type_name ?? null,
       image_url: gangBasic.image_url,
       gang_portrait_url: gangBasic.gang_portrait_url ?? null,
       gang_colour: gangBasic.gang_colour,

@@ -9,9 +9,9 @@ import { compactGangTypeLabel } from '@/utils/gang-type-label';
 
 interface CampaignTriumph {
   id: string;
-  triumph: string;
-  criteria: string;
-  campaign_type_id: string;
+  triumph: string | null;
+  criteria: string | null;
+  campaign_type_id: string | null;
   created_at: string;
   updated_at: string | null;
 }
