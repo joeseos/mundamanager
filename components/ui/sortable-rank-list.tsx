@@ -12,6 +12,8 @@ import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 export interface SortableRankItem {
   id: string;
   name: string;
+  /** Shown muted after the name, e.g. a gang owner's username. */
+  secondary?: string;
   /** Shown at the end of the row, e.g. a gang's rating. */
   detail?: string | number;
 }
@@ -20,12 +22,14 @@ function SortableRankRow({
   id,
   rank,
   name,
+  secondary,
   detail,
   onRemove,
 }: {
   id: string;
   rank: number;
   name: string;
+  secondary?: string;
   detail?: string | number;
   onRemove?: () => void;
 }) {
@@ -68,7 +72,10 @@ function SortableRankRow({
       <span className="shrink-0 p-1 text-muted-foreground" aria-hidden="true">
         <LuGripVertical className="h-4 w-4" />
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
+      <span className="min-w-0 flex-1 truncate text-sm">
+        {name}
+        {secondary && <span className="text-xs text-muted-foreground">{` \u2022 ${secondary}`}</span>}
+      </span>
       {detail != null && (
         <span className="shrink-0 text-right text-sm text-muted-foreground">{detail}</span>
       )}
@@ -166,6 +173,7 @@ export function SortableRankList<T extends SortableRankItem>({
               id={item.id}
               rank={i + 1}
               name={item.name}
+              secondary={item.secondary}
               detail={item.detail}
               onRemove={onRemove ? () => onRemove(item.id) : undefined}
             />
