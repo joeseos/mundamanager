@@ -1148,7 +1148,6 @@ export default function CampaignPageContent({
       {showMessageModal && safePermissions.canManageMembers && (
         <CampaignMessageModal
           campaignId={campaignData.id}
-          campaignName={campaignData.campaign_name}
           players={campaignData.members
             .filter((member) => member.user_id)
             .map((member) => ({

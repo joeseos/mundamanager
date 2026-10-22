@@ -2,9 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   CAMPAIGN_MESSAGE_DAILY_CAP,
   CAMPAIGN_MESSAGE_SENDER_DAILY_CAP,
-  NOTIFICATION_BROADCAST_MAX_LENGTH,
   SENT_NOTIFICATIONS_FETCH_LIMIT,
-  isSafeNotificationLink,
   notificationPreview,
 } from '@/utils/notifications'
 import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html'
@@ -15,7 +13,6 @@ type SendRow = {
   id: string
   type: string
   text: string
-  link: string | null
   created_at: string
   sender_id: string | null
   recipient_count: number
@@ -31,7 +28,6 @@ export type SentNotificationView = {
   recipientUsernames: string[]
   preview: string
   text: string
-  link: string
 }
 
 async function usernamesById(
@@ -66,7 +62,7 @@ export async function loadNotificationSends(
 ): Promise<SentNotificationView[]> {
   let query = serviceClient
     .from('notification_sends')
-    .select('id, type, text, link, created_at, sender_id, recipient_count, sample_receiver_ids')
+    .select('id, type, text, created_at, sender_id, recipient_count, sample_receiver_ids')
 
   if ('campaignId' in filter) {
     query = query.eq('campaign_id', filter.campaignId).eq('type', 'campaign_message')
@@ -108,7 +104,6 @@ export async function loadNotificationSends(
       recipientUsernames,
       preview: notificationPreview(text),
       text,
-      link: isSafeNotificationLink(row.link) ? row.link.trim() : '',
     }
   })
 }
@@ -137,15 +132,6 @@ export function notificationSendFailure(
   }
   if (message.includes('no recipients')) {
     return { status: 400, error: 'No recipients found' }
-  }
-  if (message.includes('expires_in_days')) {
-    return { status: 400, error: 'Expires in days must be between 1 and 365' }
-  }
-  if (message.includes('message must be at most')) {
-    return {
-      status: 400,
-      error: `Message must be at most ${NOTIFICATION_BROADCAST_MAX_LENGTH} characters`,
-    }
   }
   return { status: 500, error: fallback }
 }

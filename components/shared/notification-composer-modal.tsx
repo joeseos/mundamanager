@@ -32,6 +32,12 @@ export type ComposerRecipient = {
   username: string
 }
 
+type PickerProps = {
+  disabled: boolean
+  excludeIds: string[]
+  onSelect: (recipient: ComposerRecipient) => void
+}
+
 async function loadSentNotifications(historyUrl: string): Promise<SentNotificationRow[]> {
   const response = await fetch(historyUrl)
   const data = await response.json()
@@ -47,47 +53,43 @@ export function NotificationComposerModal({
   historyHelper,
   onClose,
   historyUrl,
+  sendUrl,
   recipientNoun,
-  campaignName,
+  selectedAudience,
   typeLabel,
   typeIcon,
   allLabel,
   allWarning,
-  audienceAll,
-  onToggleAll,
   allToggleDisabled = false,
   allowSendAll = true,
-  selected,
-  onRemoveRecipient,
   picker,
   extraFields,
-  onSend,
+  extraBody,
 }: {
   title: string
   composeHelper: string
   historyHelper: string
   onClose: () => void
   historyUrl: string
+  sendUrl: string
   recipientNoun: 'user' | 'player'
-  campaignName?: string
+  selectedAudience: 'users' | 'players'
   typeLabel: (send: SentNotificationRow) => string
   typeIcon: (send: SentNotificationRow) => ReactNode
   allLabel: string
   allWarning: string
-  audienceAll: boolean
-  onToggleAll: () => void
   allToggleDisabled?: boolean
   allowSendAll?: boolean
-  selected: ComposerRecipient[]
-  onRemoveRecipient: (id: string) => void
-  picker: ReactNode
+  picker: (input: PickerProps) => ReactNode
   extraFields?: ReactNode
-  onSend: (input: { text: string; expiresInDays: number }) => Promise<boolean>
+  extraBody?: Record<string, unknown>
 }) {
   const queryClient = useQueryClient()
   const [view, setView] = useState<ModalView>('compose')
   const [text, setText] = useState('')
   const [expiresInDays, setExpiresInDays] = useState(30)
+  const [audienceAll, setAudienceAll] = useState(false)
+  const [selected, setSelected] = useState<ComposerRecipient[]>([])
 
   const history = useQuery({
     queryKey: ['sent-notifications', historyUrl],
@@ -117,11 +119,44 @@ export function NotificationComposerModal({
         ? 'loading'
         : 'idle'
 
+  const toggleAll = () => {
+    if (audienceAll) {
+      setAudienceAll(false)
+      return
+    }
+    setSelected([])
+    setAudienceAll(true)
+  }
+
   const handleSend = async () => {
     if (!canSend) return false
-    const sent = await onSend({ text: text.trim(), expiresInDays })
-    if (sent) queryClient.invalidateQueries({ queryKey: ['sent-notifications', historyUrl] })
-    return sent
+    const plural = recipientNoun === 'user' ? 'users' : 'players'
+    const sentLabel = recipientNoun === 'user' ? 'Notification' : 'Message'
+    try {
+      const response = await fetch(sendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: text.trim(),
+          expiresInDays,
+          audience: audienceAll ? 'all' : selectedAudience,
+          userIds: audienceAll ? undefined : selected.map((recipient) => recipient.id),
+          ...extraBody,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send')
+      }
+      const count = data.count ?? 0
+      toast.success(`${sentLabel} sent to ${count} ${count === 1 ? recipientNoun : plural}`)
+      queryClient.invalidateQueries({ queryKey: ['sent-notifications', historyUrl] })
+      return true
+    } catch (error) {
+      console.error('Failed to send notification:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to send')
+      return false
+    }
   }
 
   return (
@@ -159,11 +194,22 @@ export function NotificationComposerModal({
             <div className="relative z-[80] space-y-2">
               <Label>Recipients</Label>
               <div className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">{picker}</div>
+                <div className="min-w-0 flex-1">
+                  {picker({
+                    disabled: audienceAll,
+                    excludeIds: selected.map((recipient) => recipient.id),
+                    onSelect: (recipient) => {
+                      setSelected((prev) => {
+                        if (prev.some((item) => item.id === recipient.id)) return prev
+                        return [...prev, recipient]
+                      })
+                    },
+                  })}
+                </div>
                 <Button
                   type="button"
                   variant={audienceAll ? 'default' : 'outline'}
-                  onClick={onToggleAll}
+                  onClick={toggleAll}
                   disabled={allToggleDisabled}
                   className={`shrink-0 ${selectedViewButtonClass(audienceAll)}`}
                 >
@@ -181,7 +227,9 @@ export function NotificationComposerModal({
                       {recipient.username}
                       <button
                         type="button"
-                        onClick={() => onRemoveRecipient(recipient.id)}
+                        onClick={() =>
+                          setSelected((prev) => prev.filter((item) => item.id !== recipient.id))
+                        }
                         className="rounded-full p-0.5 hover:bg-muted"
                         aria-label={`Remove ${recipient.username}`}
                       >
@@ -235,7 +283,6 @@ export function NotificationComposerModal({
             sends={history.data ?? []}
             status={historyStatus}
             recipientNoun={recipientNoun}
-            campaignName={campaignName}
             typeLabel={typeLabel}
             typeIcon={typeIcon}
           />

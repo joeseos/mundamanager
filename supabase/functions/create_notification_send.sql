@@ -154,8 +154,6 @@ BEGIN
     type,
     campaign_id,
     text,
-    link,
-    expires_at,
     recipient_count,
     sample_receiver_ids
   ) VALUES (
@@ -163,8 +161,6 @@ BEGIN
     p_type,
     p_campaign_id,
     p_text,
-    v_link,
-    v_expires_at,
     cardinality(v_receiver_ids),
     v_sample
   )

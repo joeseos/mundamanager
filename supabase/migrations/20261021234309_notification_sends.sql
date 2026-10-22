@@ -40,8 +40,6 @@ CREATE TABLE public.notification_sends (
   type text NOT NULL,
   campaign_id uuid REFERENCES public.campaigns(id) ON DELETE CASCADE,
   text text NOT NULL,
-  link text,
-  expires_at timestamptz NOT NULL,
   recipient_count integer NOT NULL,
   sample_receiver_ids uuid[] NOT NULL DEFAULT '{}',
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -232,8 +230,6 @@ BEGIN
     type,
     campaign_id,
     text,
-    link,
-    expires_at,
     recipient_count,
     sample_receiver_ids
   ) VALUES (
@@ -241,8 +237,6 @@ BEGIN
     p_type,
     p_campaign_id,
     p_text,
-    v_link,
-    v_expires_at,
     cardinality(v_receiver_ids),
     v_sample
   )

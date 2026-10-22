@@ -1,13 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from 'sonner'
 import { LuMegaphone, LuMessageSquareText } from 'react-icons/lu'
-import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
-import {
-  NotificationComposerModal,
-  type ComposerRecipient,
-} from '@/components/shared/notification-composer-modal'
+import UserSearchBar from '@/components/shared/user-search-bar'
+import { NotificationComposerModal } from '@/components/shared/notification-composer-modal'
 import {
   ADMIN_NOTIFICATION_TYPES,
   adminNotificationTypeLabel,
@@ -15,25 +11,7 @@ import {
 } from '@/utils/notifications'
 
 export function AdminNotificationsModal({ onClose }: { onClose: () => void }) {
-  const [audienceAll, setAudienceAll] = useState(false)
-  const [selectedUsers, setSelectedUsers] = useState<ComposerRecipient[]>([])
   const [type, setType] = useState<AdminNotificationType>('mm_announcement')
-
-  const handleSelectUser = (user: UserSearchResult) => {
-    setSelectedUsers((prev) => {
-      if (prev.some((selected) => selected.id === user.id)) return prev
-      return [...prev, user]
-    })
-  }
-
-  const toggleAllUsers = () => {
-    if (audienceAll) {
-      setAudienceAll(false)
-      return
-    }
-    setSelectedUsers([])
-    setAudienceAll(true)
-  }
 
   return (
     <NotificationComposerModal
@@ -42,7 +20,9 @@ export function AdminNotificationsModal({ onClose }: { onClose: () => void }) {
       historyHelper="Announcements and staff messages already sent."
       onClose={onClose}
       historyUrl="/api/admin/notifications"
+      sendUrl="/api/admin/notifications"
       recipientNoun="user"
+      selectedAudience="users"
       typeLabel={(send) =>
         send.type && send.type in adminNotificationTypeLabel
           ? adminNotificationTypeLabel[send.type as AdminNotificationType]
@@ -57,20 +37,15 @@ export function AdminNotificationsModal({ onClose }: { onClose: () => void }) {
       }
       allLabel="All users"
       allWarning="This will send the notification to every user in the database. Double-check the message before sending."
-      audienceAll={audienceAll}
-      onToggleAll={toggleAllUsers}
-      selected={selectedUsers}
-      onRemoveRecipient={(userId) =>
-        setSelectedUsers((prev) => prev.filter((user) => user.id !== userId))
-      }
-      picker={
+      extraBody={{ type }}
+      picker={({ disabled, excludeIds, onSelect }) => (
         <UserSearchBar
           placeholder="Search users by username"
-          onSelect={handleSelectUser}
-          disabled={audienceAll}
-          excludeIds={selectedUsers.map((user) => user.id)}
+          onSelect={onSelect}
+          disabled={disabled}
+          excludeIds={excludeIds}
         />
-      }
+      )}
       extraFields={
         <div className="space-y-2">
           <label htmlFor="notification-type" className="text-sm font-medium leading-none">
@@ -90,33 +65,6 @@ export function AdminNotificationsModal({ onClose }: { onClose: () => void }) {
           </select>
         </div>
       }
-      onSend={async ({ text, expiresInDays }) => {
-        try {
-          const response = await fetch('/api/admin/notifications', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              text,
-              type,
-              expiresInDays,
-              audience: audienceAll ? 'all' : 'users',
-              userIds: audienceAll ? undefined : selectedUsers.map((user) => user.id),
-            }),
-          })
-          const data = await response.json()
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to send notifications')
-          }
-          toast.success(
-            `Notification sent to ${data.count} ${data.count === 1 ? 'user' : 'users'}`
-          )
-          return true
-        } catch (error) {
-          console.error('Failed to send notifications:', error)
-          toast.error(error instanceof Error ? error.message : 'Failed to send notifications')
-          return false
-        }
-      }}
     />
   )
 }
