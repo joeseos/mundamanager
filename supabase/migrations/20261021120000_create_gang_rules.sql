@@ -24,6 +24,7 @@ WHERE NOT EXISTS (
 CREATE TABLE public.gang_rules (
     id                     uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at             timestamptz NOT NULL DEFAULT now(),
+    updated_at             timestamptz,
 
     -- the change, kept in the effect's type_specific_data and modifiers
     fighter_effect_type_id uuid        NOT NULL REFERENCES public.fighter_effect_types(id) ON DELETE CASCADE,
@@ -66,14 +67,20 @@ CREATE POLICY gang_rules_admin_insert_policy
     TO authenticated
     WITH CHECK ((SELECT private.is_admin()));
 
+CREATE POLICY gang_rules_admin_update_policy
+    ON public.gang_rules
+    FOR UPDATE
+    TO authenticated
+    USING ((SELECT private.is_admin()))
+    WITH CHECK ((SELECT private.is_admin()));
+
 CREATE POLICY gang_rules_admin_delete_policy
     ON public.gang_rules
     FOR DELETE
     TO authenticated
     USING ((SELECT private.is_admin()));
 
--- Rows are only added or removed, never edited.
-GRANT SELECT, INSERT, DELETE ON public.gang_rules
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.gang_rules
     TO authenticated, service_role;
 
 -- N26 Chymist Cult: Deadly Poisons
