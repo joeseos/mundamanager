@@ -929,6 +929,7 @@ export const campaignBattles = pgTable('campaign_battles', {
   crew_selection_name: text('crew_selection_name'),
   deployment_name: text('deployment_name'),
   objective_name: text('objective_name'),
+  challenge_order: integer('challenge_order'),
 });
 
 export const campaignMaps = pgTable('campaign_maps', {

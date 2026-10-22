@@ -123,6 +123,8 @@ export interface Battle {
   challenger_gang_id?: string | null;
   /** Gang the challenge was issued to. Null on a slot with no opponent yet. */
   challenged_gang_id?: string | null;
+  /** Place in its challenge round's order, from 1. Null outside a round. */
+  challenge_order?: number | null;
   attacker?: GangReference;
   defender?: GangReference;
   winner?: GangReference;

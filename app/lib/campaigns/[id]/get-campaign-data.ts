@@ -216,6 +216,7 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       status: true,
       challenger_gang_id: true,
       challenged_gang_id: true,
+      challenge_order: true,
     },
     extras: (battle, { sql }) => ({
       created_at: sql<string>`to_json(${battle.created_at})`.as('created_at'),
@@ -300,6 +301,7 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       status: battle.status,
       challenger_gang_id: battle.challenger_gang_id,
       challenged_gang_id: battle.challenged_gang_id,
+      challenge_order: battle.challenge_order,
       attacker: attackerId ? {
         id: attackerId,
         name: gangMap.get(attackerId)?.name || 'Unknown'
