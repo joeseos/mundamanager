@@ -352,4 +352,6 @@ export interface FighterDetailsPatch {
   fighter_specialisation_id?: string | null;
   special_rules?: string[];
   promoted_from_prospect?: boolean;
+  xp?: number;
+  starting_xp?: number | null;
 }

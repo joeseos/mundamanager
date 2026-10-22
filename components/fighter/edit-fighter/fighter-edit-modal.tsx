@@ -89,6 +89,8 @@ interface EditFighterModalProps {
   gangId: string;
   gangTypeId?: string | null;
   customGangTypeId?: string | null;
+  /** The owning gang's type; gangTypeId is the fighter type's. Archetypes follow the gang, as on the server. */
+  owningGangTypeId?: string | null;
   is_spyrer?: boolean;
   onClose: () => void;
   onSubmit?: (values: {
@@ -119,6 +121,7 @@ export function EditFighterModal({
   gangId,
   gangTypeId,
   customGangTypeId,
+  owningGangTypeId,
   onClose,
   onSubmit,
   onStatsUpdate,
@@ -361,7 +364,7 @@ export function EditFighterModal({
   }, [selectedFighterSubtypes, fighter.fighter_subtypes, defaultFighterSubtypeName]);
 
   const archetypeCatalogSubtype = getArchetypeCatalogSubtype(subtypesForArchetype, {
-    gangTypeId,
+    gangTypeId: owningGangTypeId,
   });
 
   const archetypeFighterSubtypeId = useMemo(() => {
@@ -471,7 +474,7 @@ export function EditFighterModal({
 
   // Eligible when Outcasts (N23/N26) + any selected subtype is in that gang's archetype list
   const canUseArchetypes = isArchetypeEligible({
-    gangTypeId,
+    gangTypeId: owningGangTypeId,
     fighterSubtypes: subtypesForArchetype,
   });
 
