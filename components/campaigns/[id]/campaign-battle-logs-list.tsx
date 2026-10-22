@@ -323,8 +323,12 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
       if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
 
-      // Slots opened together tie on every column, so rank them by challenger rating.
+      // Slots created together tie on every column, so list them in the round's
+      // challenge order. Rounds created before it was set fall back to challenger rating.
       if (!isPlayedBattle(a) && !isPlayedBattle(b)) {
+        if (a.challenge_order != null && b.challenge_order != null) {
+          return a.challenge_order - b.challenge_order;
+        }
         return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
           - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
       }
@@ -635,15 +639,20 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return rows;
   }, [members, battles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
-  // Check if user can edit/delete this battle
-  // A challenge round is only opened for accepted gangs, so count those rather
-  // than availableGangs, which also carries pending ones.
-  const acceptedGangCount = useMemo(
-    () => members.reduce(
-      (total, member) =>
-        total + (member.gangs?.filter((g) => g.status === 'ACCEPTED').length ?? 0),
-      0
-    ),
+  // A challenge round is only created for accepted gangs, so list those rather
+  // than availableGangs, which also carries pending ones. Lowest rating first,
+  // the order the round is offered in until the arbitrator changes it.
+  const acceptedGangs = useMemo(
+    () => members
+      .flatMap((member) => (member.gangs ?? [])
+        .filter((g) => g.status === 'ACCEPTED')
+        .map((g) => ({
+          id: g.id,
+          name: g.name,
+          secondary: member.profile?.username || member.username,
+          detail: g.rating ?? 0,
+        })))
+      .sort((a, b) => a.detail - b.detail),
     [members]
   );
 
@@ -652,6 +661,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return availableGangs.find(g => g.id === gangId)?.user_id === userId;
   }, [availableGangs, userId]);
 
+  // Check if user can edit/delete this battle
   const canUserEditBattle = useCallback((battle: Battle): boolean => {
     // Admins can edit any battle
     if (isAdmin) return true;
@@ -1398,7 +1408,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
       {showChallengeRoundModal && (
         <CampaignChallengeRoundModal
           campaignId={campaignId}
-          gangCount={acceptedGangCount}
+          gangs={acceptedGangs}
           defaultCycle={currentCycle}
           onClose={() => setShowChallengeRoundModal(false)}
           onSuccess={(created) => onBattlesChange(prev => [...prev, ...created])}

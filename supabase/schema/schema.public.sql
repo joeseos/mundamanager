@@ -1344,7 +1344,7 @@ BEGIN
                 OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
             )
         LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
-            AND (sao.skill_type_id = cs.skill_type_id OR sao.skill_type_id = cs.custom_skill_type_id)
+            AND (sao.skill_type_id = cs.skill_type_id OR sao.custom_skill_type_id = cs.custom_skill_type_id)
         WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
         AND COALESCE(
             sao.access_level,
@@ -5930,11 +5930,13 @@ CREATE TABLE public.fighter_ooa_records (
 CREATE TABLE public.fighter_skill_access_override (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     fighter_id uuid NOT NULL,
-    skill_type_id uuid NOT NULL,
+    skill_type_id uuid,
     access_level text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     user_id uuid,
+    custom_skill_type_id uuid,
+    CONSTRAINT chk_fsao_skill_type_xor CHECK ((((skill_type_id IS NOT NULL) AND (custom_skill_type_id IS NULL)) OR ((skill_type_id IS NULL) AND (custom_skill_type_id IS NOT NULL)))),
     CONSTRAINT fighter_skill_access_override_access_level_check CHECK ((access_level = ANY (ARRAY['primary'::text, 'secondary'::text, 'allowed'::text, 'denied'::text])))
 );
 
@@ -7599,6 +7601,14 @@ ALTER TABLE ONLY public.fighter_loadouts
 
 ALTER TABLE ONLY public.fighter_ooa_records
     ADD CONSTRAINT fighter_ooa_records_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fighter_skill_access_override fighter_skill_access_override_custom_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_skill_access_override
+    ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_key UNIQUE (fighter_id, custom_skill_type_id);
 
 
 --
@@ -9717,6 +9727,13 @@ CREATE INDEX idx_friends_addressee ON public.friends USING btree (addressee_id);
 
 
 --
+-- Name: idx_fsao_custom_skill_type_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fsao_custom_skill_type_id ON public.fighter_skill_access_override USING btree (custom_skill_type_id);
+
+
+--
 -- Name: idx_fte_fighter_type_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11368,6 +11385,14 @@ ALTER TABLE ONLY public.fighter_ooa_records
 
 ALTER TABLE ONLY public.fighter_ooa_records
     ADD CONSTRAINT fighter_ooa_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_skill_access_override fighter_skill_access_override_custom_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_skill_access_override
+    ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_fkey FOREIGN KEY (custom_skill_type_id) REFERENCES public.custom_skill_types(id) ON DELETE CASCADE;
 
 
 --

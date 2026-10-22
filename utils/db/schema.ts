@@ -181,6 +181,20 @@ export const fighterTypes = pgTable('fighter_types', {
   fighter_variant: text('fighter_variant'),
 });
 
+export const countLimits = pgTable('count_limits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  fighter_type_id: uuid('fighter_type_id'),
+  gang_type_id: uuid('gang_type_id'),
+  gang_origin_id: uuid('gang_origin_id'),
+  gang_subtype_id: uuid('gang_subtype_id'),
+  min_count: integer('min_count'),
+  max_count: integer('max_count'),
+  equipment_id: uuid('equipment_id'),
+  for_fighter_type_id: uuid('for_fighter_type_id'),
+});
+
 export const customFighterTypes = pgTable('custom_fighter_types', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -950,6 +964,7 @@ export const campaignBattles = pgTable('campaign_battles', {
   crew_selection_name: text('crew_selection_name'),
   deployment_name: text('deployment_name'),
   objective_name: text('objective_name'),
+  challenge_order: integer('challenge_order'),
 });
 
 export const campaignMaps = pgTable('campaign_maps', {
@@ -1200,10 +1215,20 @@ export const fightersRelations = relations(fighters, ({ one, many }) => ({
   vehicles: many(vehicles),
 }));
 
-export const fighterTypesRelations = relations(fighterTypes, ({ one }) => ({
+export const fighterTypesRelations = relations(fighterTypes, ({ one, many }) => ({
   editions: one(editions, {
     fields: [fighterTypes.edition_id],
     references: [editions.id],
+  }),
+  // fighter_type_id, not for_fighter_type_id: that column limits equipment.
+  count_limits: many(countLimits, { relationName: 'fighter_type_count_limits' }),
+}));
+
+export const countLimitsRelations = relations(countLimits, ({ one }) => ({
+  fighter_types: one(fighterTypes, {
+    fields: [countLimits.fighter_type_id],
+    references: [fighterTypes.id],
+    relationName: 'fighter_type_count_limits',
   }),
 }));
 

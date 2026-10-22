@@ -29,8 +29,12 @@ import {
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
 
-export default async function CampaignPage(props: { params: Promise<{ id: string }> }) {
+export default async function CampaignPage(props: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const params = await props.params;
+  const { tab } = await props.searchParams;
   const supabase = await createClient();
 
   // Get the user data once at the page level via claims. This is the authorisation
@@ -229,6 +233,8 @@ export default async function CampaignPage(props: { params: Promise<{ id: string
         mapObjects={pageProps.campaignMapObjects}
         hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
         scenarioTables={pageProps.scenarioTables}
+        // Challenge notifications link to ?tab=battles.
+        initialTab={tab === 'battles' ? 2 : 0}
       />
     </CampaignErrorBoundary>
   );

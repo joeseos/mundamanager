@@ -136,6 +136,11 @@ export interface GangFighter {
   fighter_name: string;
   label?: string;
   fighter_type: string;
+  fighter_type_id?: string;
+  custom_fighter_type_id?: string | null;
+  /** Gang-scoped count_limits for this fighter's type. Null when the type has no rule. */
+  min_count?: number | null;
+  max_count?: number | null;
   fighter_subtypes: string[];
   promoted_from_prospect?: boolean;
   fighter_specialisation?: {
@@ -204,6 +209,13 @@ export interface GetGangFightersListOptions {
    * yields null for custom fighter types.
    */
   gangEditionSlug?: string | null;
+  /**
+   * Used to pick this gang's count_limits rule. Omitted makes getGangFightersList
+   * read them from the gang; passing a slug does not skip that read.
+   */
+  gangTypeId?: string | null;
+  gangOriginId?: string | null;
+  gangSubtypeIds?: string[] | null;
 }
 
 /**

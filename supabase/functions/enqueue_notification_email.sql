@@ -17,14 +17,15 @@
 -- emailed. This is intentionally NOT the preference check: it only avoids creating
 -- skipped delivery rows (and waking the worker via the webhook) for the majority of
 -- notifications, which are in-app only (info / warning / error / battle_invite).
--- user_message and campaign_message are also withheld: any signed-in user can
--- insert a notifications row, and those types have no composer yet that checks
--- the recipient. Add them here only together with that authorization.
+-- user_message stays withheld: there is no composer yet that checks the
+-- recipient. campaign_message is included because the campaign message route
+-- checks that the sender is the owner, an arbitrator, or an app admin, and
+-- that every recipient is a member of that campaign.
 -- The worker remains the single authority on per-user preferences + defaults,
 -- resolved at send time, so a preference change AFTER enqueue is still honored.
 --
 -- Keep this list in step with the supportsEmail:true entries in
--- utils/notifications.ts, except user_message and campaign_message (see above).
+-- utils/notifications.ts, except user_message (see above).
 -- The UNIQUE (notification_id) constraint
 -- + ON CONFLICT DO NOTHING keeps it idempotent.
 
@@ -34,7 +35,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public AS $$
 BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge', 'mm_staff_message', 'mm_announcement') THEN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge', 'campaign_message', 'mm_staff_message', 'mm_announcement') THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;

@@ -623,13 +623,16 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     if (challengeIssued || challengeAnswered) {
       // A failed notification must never fail the save.
       try {
-        const [{ data: challengeGangs }, { data: stakedTerritory }] = await Promise.all([
+        const [{ data: challengeGangs }, { data: stakedTerritory }, { data: senderProfile }] = await Promise.all([
           supabase
             .from('gangs')
             .select('id, name, user_id')
             .in('id', [existingBattle.challenger_gang_id, challengedGangId]),
           challengeIssued && newTerritoryId
             ? supabase.from('campaign_territories').select('territory_name').eq('id', newTerritoryId).maybeSingle()
+            : Promise.resolve({ data: null }),
+          challengeIssued
+            ? supabase.from('profiles').select('username').eq('id', user.id).maybeSingle()
             : Promise.resolve({ data: null }),
         ]);
         const challenger = challengeGangs?.find((g) => g.id === existingBattle.challenger_gang_id);
@@ -643,7 +646,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
             stakedTerritory?.territory_name ? `Territory: **${stakedTerritory.territory_name}**` : null,
           ].filter(Boolean);
           const text = challengeIssued
-            ? `**${challenger.name}** has challenged your gang **${challenged.name}** in the campaign **${campaignName}**.` +
+            ? `**${senderProfile?.username || 'Someone'}** has challenged your gang **${challenged.name}** with **${challenger.name}** in the campaign **${campaignName}**.` +
               (details.length ? `\n\n${details.join('\n')}` : '') +
               `\n\nOpen the challenge in the campaign's battle logs to accept or decline it.`
             : `**${challenged.name}** has ${nextStatus === 'challenge_accepted' ? 'accepted' : 'declined'} the challenge from **${challenger.name}** in the campaign **${campaignName}**.`;
@@ -652,7 +655,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
             sender_id: user.id,
             type: challengeIssued ? 'campaign_challenge' : 'info',
             text,
-            link: `/campaigns/${campaignId}`,
+            link: `/campaigns/${campaignId}?tab=battles`,
             dismissed: false,
           });
           if (notifyError) console.error('Error sending challenge notification:', notifyError);
@@ -868,23 +871,25 @@ export interface ChallengeRoundResult {
 }
 
 /**
- * Open a challenge round: one slot per accepted gang, for the given cycle.
+ * Create a challenge round: one slot per accepted gang, for the given cycle,
+ * numbered in `gangOrder`, the order the arbitrator set for issuing challenges.
  * Each slot is a battle log in `challenge_pending` with no opponent yet; the
  * gang's owner names an opponent by editing it, which issues the challenge.
  *
  * Deliberately not idempotent — a campaign may run several rounds per cycle,
- * so a second call opens another round.
+ * so a second call creates another round.
  */
 export async function generateChallengeRound(
   campaignId: string,
-  cycle: number | null
+  cycle: number | null,
+  gangOrder: string[]
 ): Promise<ChallengeRoundResult> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
     if (!(await checkCampaignArbitrator(user.id, campaignId))) {
-      return { success: false, error: 'Only the campaign arbitrator can open a challenge round' };
+      return { success: false, error: 'Only the campaign arbitrator can create a challenge round' };
     }
 
     const { data: gangs, error: gangsError } = await supabase
@@ -899,8 +904,14 @@ export async function generateChallengeRound(
     if (gangIds.length === 0) {
       return { success: false, error: 'No accepted gangs in this campaign' };
     }
+    // A gang accepted after the modal opened is not in gangOrder; it goes last.
+    const position = (gangId: string) => {
+      const i = gangOrder.indexOf(gangId);
+      return i === -1 ? gangOrder.length : i;
+    };
+    gangIds.sort((a, b) => position(a) - position(b));
 
-    const rows = gangIds.map((gangId) => {
+    const rows = gangIds.map((gangId, i) => {
       // Seeding the challenger is what lets the existing RLS UPDATE policy
       // ("any gang owner in participants") cover them filling the slot in.
       // Role stays 'none' — attacker/defender is settled when it is played.
@@ -915,6 +926,7 @@ export async function generateChallengeRound(
         challenger_gang_id: gangId,
         challenged_gang_id: null,
         cycle,
+        challenge_order: i + 1,
         participants: JSON.stringify(participants),
       };
     });
@@ -922,7 +934,7 @@ export async function generateChallengeRound(
     const { data: inserted, error: insertError } = await supabase
       .from('campaign_battles')
       .insert(rows)
-      .select('id, created_at, updated_at, scenario, winner_id, note, participants, campaign_territory_id, cycle, status, challenger_gang_id, challenged_gang_id');
+      .select('id, created_at, updated_at, scenario, winner_id, note, participants, campaign_territory_id, cycle, status, challenger_gang_id, challenged_gang_id, challenge_order');
     if (insertError) throw insertError;
 
     invalidateCampaignBattles(campaignId);
@@ -946,7 +958,7 @@ export async function generateChallengeRound(
     console.error('Error generating challenge round:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to open challenge round',
+      error: error instanceof Error ? error.message : 'Failed to create challenge round',
     };
   }
 }

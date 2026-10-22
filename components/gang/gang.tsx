@@ -29,7 +29,9 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
 import { detailGangTypeLabel } from '@/utils/gang-type-label';
+import { withVariantGroups } from '@/utils/variantFamily';
 
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
@@ -40,6 +42,12 @@ const GangImageEditModal = dynamic(
   { ssr: false }
 );
 
+function isCompanionSubtype(subtypes: string[]) {
+  return subtypes.some((subtype) => {
+    const name = subtype.toLowerCase();
+    return name === 'exotic beast' || name === 'pet';
+  });
+}
 
 interface GangProps {
   id: string;
@@ -338,13 +346,30 @@ export default function Gang({
     );
   }, [fighters]);
 
-  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes
+  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes.
+  // The left-hand limit sums the variant family. Each row keeps its own cap.
   const fighterTypeSubtypeCounts = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; subtypes: string[] }>();
+    const familyKeyById = new Map(
+      withVariantGroups(activeFighters.map((fighter) => ({
+        id: fighter.id,
+        fighter_type: fighter.fighter_type,
+        fighter_subtypes: fighter.fighter_subtypes,
+        edition_slug,
+      }))).map((row) => [row.id, row.typeSubtypeKey])
+    );
+    const counts = new Map<string, {
+      label: string;
+      count: number;
+      subtypes: string[];
+      min_count: number | null;
+      max_count: number | null;
+      familyKey: string;
+    }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
       const subtypeLabel = formatFighterSubtypeDisplay(fighter.fighter_subtypes, edition_slug);
       const key = `${typeLabel} (${subtypeLabel})`;
+      const familyKey = familyKeyById.get(fighter.id) ?? key;
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
@@ -353,15 +378,29 @@ export default function Gang({
           label: key,
           count: 1,
           subtypes: fighter.fighter_subtypes ?? [],
+          min_count: fighter.min_count ?? null,
+          max_count: fighter.max_count ?? null,
+          familyKey,
         });
       }
     }
-    return Array.from(counts.values()).sort((a, b) => {
-      const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
-      const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
-      if (rankA !== rankB) return rankA - rankB;
-      return a.label.localeCompare(b.label);
-    });
+    const rows = Array.from(counts.values());
+    const familyCount = new Map<string, number>();
+    for (const row of rows) {
+      if (isCompanionSubtype(row.subtypes)) continue;
+      familyCount.set(row.familyKey, (familyCount.get(row.familyKey) ?? 0) + row.count);
+    }
+    return rows
+      .map((row) => ({
+        ...row,
+        familyCount: familyCount.get(row.familyKey) ?? row.count,
+      }))
+      .sort((a, b) => {
+        const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
+        const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
+        if (rankA !== rankB) return rankA - rankB;
+        return a.label.localeCompare(b.label);
+      });
   }, [activeFighters, edition_slug]);
 
   const fighterTypeSubtypeTotal = useMemo(() => {
@@ -1353,6 +1392,7 @@ export default function Gang({
               onFighterReconcile={onFighterReconcile}
               gangSubtypes={gangSubtypes}
               gangAffiliationId={gangAffiliationId}
+              fighters={fighters}
             />
           )}
 
@@ -1373,6 +1413,7 @@ export default function Gang({
                 onFighterReconcile={onFighterReconcile}
                 gangSubtypes={gangSubtypes}
                 gangAffiliationId={gangAffiliationId}
+                fighters={fighters}
               />
             ) : (
               <AddVehicle
@@ -1405,6 +1446,7 @@ export default function Gang({
               onFighterRollback={onFighterRollback}
               onFighterReconcile={onFighterReconcile}
               gangAffiliationId={gangAffiliationId}
+              fighters={fighters}
             />
           )}
 
@@ -1454,18 +1496,28 @@ export default function Gang({
                 <div>No fighters</div>
               ) : (
                 <>
-                  {fighterTypeSubtypeCounts.map(({ label, count }) => (
-                    <div key={label} className="flex justify-between gap-3">
-                      <span>{label}</span>
-                      <span>{count}</span>
-                    </div>
-                  ))}
-                  <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
-                    <span>Total :</span>
-                    <span>{fighterTypeSubtypeTotal}</span>
-                  </div>
+                  {fighterTypeSubtypeCounts.map(({ label, count, familyCount, subtypes, min_count, max_count }) => {
+                    const isCompanion = isCompanionSubtype(subtypes);
+                    const limit = fighterCountLimitDisplay({ min_count, max_count, current: familyCount });
+                    const limitText = isCompanion ? '\u2014' : limit.text;
+                    return (
+                      <div key={label} className="flex justify-between gap-3">
+                        <span>
+                          <span className={`inline-block w-11 text-center mr-1 ${!isCompanion && limit.over ? 'text-red-500' : 'text-gray-400'}`}>
+                            {limitText}
+                          </span>
+                          {label}
+                        </span>
+                        <span>{count}</span>
+                      </div>
+                    );
+                  })}
                 </>
               )}
+              <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+                <span>Total :</span>
+                <span>{fighterTypeSubtypeTotal}</span>
+              </div>
             </div>
           </Tooltip>
           <Tooltip
