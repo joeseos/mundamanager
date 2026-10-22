@@ -1,15 +1,15 @@
 -- Gang rules: a rule that applies to every fighter of a gang's own gang type, decided by the
 -- gang's type, origin or subtype rather than stored per fighter or per weapon. For now the app
--- applies them to weapons (requires_traits / excludes_traits pick which ones).
+-- applies them to weapons, picked by trait and/or equipment category.
 --
 -- First user: the N26 Chymist Cult's "Deadly Poisons" -- weapons with Toxin and without Shred gain
 -- Shred (6+). Without this the rule needs a duplicate of every Toxin weapon.
 --
 -- The change itself is an ordinary fighter_effect_types row in the new 'gang-rules'
--- category, so it reuses type_specific_data (requires_traits, excludes_traits, traits_to_add,
--- traits_to_remove) and fighter_effect_type_modifiers for stat changes, and the existing effect
--- editor. This table only says which gangs of a gang type it applies to, in the same shape as
--- fighter_type_availability.
+-- category, so it reuses type_specific_data (requires_traits, excludes_traits,
+-- equipment_category_ids, traits_to_add, traits_to_remove) and fighter_effect_type_modifiers for
+-- stat changes. This table only says which gangs of a gang type it applies to, in the same shape
+-- as fighter_type_availability.
 --
 -- The app resolves the rules when it assembles a roster (utils/gang-rules.ts) and applies
 -- them only to fighters of the gang's own gang type: hired guns, Dramatis Personae and

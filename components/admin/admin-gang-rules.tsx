@@ -241,7 +241,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
         </Button>
       </div>
       <p className="text-xs text-muted-foreground mb-2">
-        Changes to every weapon this gang type&apos;s own fighters carry. Hired guns and other fighters from outside its list are not affected.
+        Changes to the weapons this gang type&apos;s own fighters carry. Hired guns and other fighters from outside its list are not affected.
       </p>
       <div className="flex flex-wrap gap-2">
         {rules.map(rule => (
