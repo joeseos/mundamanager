@@ -121,7 +121,6 @@ export async function POST(
       p_type: 'campaign_message',
       p_campaign_id: campaignId,
       p_text: prepared.text,
-      p_link: `/campaigns/${campaignId}`,
       p_expires_in_days: expiresInDays,
       p_audience: audience === 'all' ? 'all' : 'selected',
       p_receiver_ids: receiverIds,

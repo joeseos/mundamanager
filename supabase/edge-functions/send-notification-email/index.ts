@@ -49,8 +49,7 @@ const MASTER_PREF_KEY = "all";
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
 // A `{sender}` token in a subject is replaced with the sender's username (see resolveSubject).
 // `ctaPath` points the email button at an app path instead of notification.link.
-// Announcements, staff messages, and campaign messages prefer notification.link
-// and use ctaPath only when that link is empty or not a safe https or site-relative URL.
+// When it is absent, the button uses notification.link.
 const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; ctaPath?: string }> = {
   campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
   gang_invite: {
@@ -77,37 +76,18 @@ const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; c
   campaign_message: {
     defaultEnabled: true,
     subject: "{sender} sent a campaign message",
-    ctaPath: "/account",
   },
   mm_staff_message: {
     defaultEnabled: true,
     subject: "A message from Munda Manager",
-    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: "/account",
   },
   mm_announcement: {
     defaultEnabled: true,
     subject: "An announcement from Munda Manager",
-    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: "/account",
   },
 };
-
-const PREFER_EMBEDDED_LINK = new Set([
-  "mm_announcement",
-  "mm_staff_message",
-  "campaign_message",
-]);
-
-function embeddedCtaUrl(link: string | null | undefined): string | null {
-  if (!link) return null;
-  const trimmed = link.trim();
-  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
-    return `${APP_URL.replace(/\/$/, "")}${trimmed}`;
-  }
-  if (/^https:\/\//i.test(trimmed)) return trimmed;
-  return null;
-}
 
 function isEmailEnabled(
   type: string,
@@ -288,15 +268,12 @@ async function buildEmail(delivery: {
     bodyHtml: htmlBody ? htmlBody.html : notificationTextToHtml(notification.text),
     bodyText: htmlBody ? htmlBody.text : notificationTextToPlain(notification.text),
     bodyIsHtml: Boolean(htmlBody),
-    ctaUrl: (PREFER_EMBEDDED_LINK.has(notification.type)
-      ? embeddedCtaUrl(notification.link)
-      : null)
-      ?? (cfg.ctaPath
-        ? `${APP_URL}${cfg.ctaPath}`
-        // In-app links may be app-relative; an email needs them absolute.
-        : notification.link?.startsWith("/")
-          ? `${APP_URL}${notification.link}`
-          : notification.link),
+    ctaUrl: cfg.ctaPath
+      ? `${APP_URL}${cfg.ctaPath}`
+      // In-app links may be app-relative; an email needs them absolute.
+      : notification.link?.startsWith("/")
+        ? `${APP_URL}${notification.link}`
+        : notification.link,
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });

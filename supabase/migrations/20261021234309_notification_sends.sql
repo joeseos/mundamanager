@@ -64,7 +64,9 @@ CREATE INDEX notification_sends_campaign_created_idx
 ALTER TABLE public.notifications
   ADD COLUMN send_id uuid REFERENCES public.notification_sends(id) ON DELETE SET NULL;
 
-CREATE INDEX notifications_send_id_idx ON public.notifications (send_id);
+CREATE INDEX notifications_send_id_idx
+  ON public.notifications (send_id)
+  WHERE send_id IS NOT NULL;
 
 ALTER TABLE public.notification_sends ENABLE ROW LEVEL SECURITY;
 
@@ -92,7 +94,6 @@ CREATE OR REPLACE FUNCTION public.create_notification_send(
   p_type text,
   p_campaign_id uuid,
   p_text text,
-  p_link text,
   p_expires_in_days integer,
   p_audience text,
   p_receiver_ids uuid[]
@@ -138,10 +139,9 @@ BEGIN
     RAISE EXCEPTION 'campaign_id must be null';
   END IF;
 
-  v_link := NULLIF(btrim(COALESCE(p_link, '')), '');
-  IF p_type = 'campaign_message' AND v_link IS NULL THEN
-    v_link := '/campaigns/' || p_campaign_id::text;
-  END IF;
+  v_link := CASE
+    WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
+  END;
 
   IF p_audience = 'all' AND p_type = 'campaign_message' THEN
     SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
@@ -200,6 +200,19 @@ BEGIN
         AND created_at >= v_today_start
     ) >= 5 THEN
       RAISE EXCEPTION 'campaign_message_daily_cap';
+    END IF;
+
+    -- Same sender cap as CAMPAIGN_MESSAGE_SENDER_DAILY_CAP in utils/notifications.ts.
+    -- App admins are not exempt: this counts every campaign_message they send.
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_sender_id::text, 1));
+    IF (
+      SELECT count(*)
+      FROM public.notification_sends
+      WHERE sender_id = p_sender_id
+        AND type = 'campaign_message'
+        AND created_at >= v_today_start
+    ) >= 10 THEN
+      RAISE EXCEPTION 'campaign_message_sender_daily_cap';
     END IF;
   END IF;
 
@@ -262,7 +275,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) TO service_role;
+REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) TO service_role;

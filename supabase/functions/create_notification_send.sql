@@ -3,7 +3,7 @@
 -- The Sent lists read notification_sends. Recipient rows in notifications can expire
 -- or be deleted without changing that history. Campaign messages email every current
 -- campaign member (not only members with an accepted gang) and are capped at 5 sends
--- per campaign per UTC day.
+-- per campaign per UTC day, and at 10 campaign messages per sender per UTC day.
 --
 -- service_role only. The Next.js routes check the caller is an admin, or a campaign
 -- owner, arbitrator, or app admin, before calling this.
@@ -16,7 +16,6 @@ CREATE OR REPLACE FUNCTION public.create_notification_send(
   p_type text,
   p_campaign_id uuid,
   p_text text,
-  p_link text,
   p_expires_in_days integer,
   p_audience text,
   p_receiver_ids uuid[]
@@ -62,10 +61,9 @@ BEGIN
     RAISE EXCEPTION 'campaign_id must be null';
   END IF;
 
-  v_link := NULLIF(btrim(COALESCE(p_link, '')), '');
-  IF p_type = 'campaign_message' AND v_link IS NULL THEN
-    v_link := '/campaigns/' || p_campaign_id::text;
-  END IF;
+  v_link := CASE
+    WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
+  END;
 
   IF p_audience = 'all' AND p_type = 'campaign_message' THEN
     SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
@@ -124,6 +122,19 @@ BEGIN
         AND created_at >= v_today_start
     ) >= 5 THEN
       RAISE EXCEPTION 'campaign_message_daily_cap';
+    END IF;
+
+    -- Same sender cap as CAMPAIGN_MESSAGE_SENDER_DAILY_CAP in utils/notifications.ts.
+    -- App admins are not exempt: this counts every campaign_message they send.
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_sender_id::text, 1));
+    IF (
+      SELECT count(*)
+      FROM public.notification_sends
+      WHERE sender_id = p_sender_id
+        AND type = 'campaign_message'
+        AND created_at >= v_today_start
+    ) >= 10 THEN
+      RAISE EXCEPTION 'campaign_message_sender_daily_cap';
     END IF;
   END IF;
 
@@ -186,7 +197,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, text, integer, text, uuid[]) TO service_role;
+REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) TO service_role;

@@ -39,8 +39,7 @@ export interface NotificationEmailConfig {
   /**
    * App path for the email button, overriding the notification's `link`. Used when the
    * notification is acted on elsewhere (e.g. accept/decline in the account notifications list).
-   * For announcements and staff messages the worker uses `link` as the button
-   * instead, and falls back to this path when that link is empty or not a safe URL.
+   * When this is absent, the button uses `link`.
    */
   ctaPath?: string;
 }
@@ -93,7 +92,6 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: 'An announcement from Munda Manager',
-    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: '/account',
   },
   // A user sends a message to another user. Read from the account notifications list.
@@ -110,7 +108,6 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: '{sender} sent a campaign message',
-    ctaPath: '/account',
   },
   // Munda Manager staff messages to users.
   mm_staff_message: {
@@ -118,7 +115,6 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: 'A message from Munda Manager',
-    // Fallback only. notification.link is the email button when it is a safe URL.
     ctaPath: '/account',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
@@ -162,6 +158,9 @@ export const NOTIFICATION_EXPIRES_MAX_DAYS = 365;
 
 /** Campaign message sends allowed per campaign per UTC day. */
 export const CAMPAIGN_MESSAGE_DAILY_CAP = 5;
+
+/** Campaign message sends allowed per sender per UTC day, across every campaign they run. */
+export const CAMPAIGN_MESSAGE_SENDER_DAILY_CAP = 10;
 
 /** Sent history window. The fighter and gang log routes use the same cap. */
 export const SENT_NOTIFICATIONS_FETCH_LIMIT = 100;

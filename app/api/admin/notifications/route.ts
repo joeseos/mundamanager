@@ -111,7 +111,6 @@ export async function POST(request: Request) {
       p_type: body.type,
       p_campaign_id: null,
       p_text: prepared.text,
-      p_link: null,
       p_expires_in_days: expiresInDays,
       p_audience: audience === 'all' ? 'all' : 'selected',
       p_receiver_ids: receiverIds,

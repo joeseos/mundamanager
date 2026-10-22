@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   CAMPAIGN_MESSAGE_DAILY_CAP,
+  CAMPAIGN_MESSAGE_SENDER_DAILY_CAP,
   NOTIFICATION_BROADCAST_MAX_LENGTH,
   SENT_NOTIFICATIONS_FETCH_LIMIT,
   isSafeNotificationLink,
@@ -116,6 +117,12 @@ export function notificationSendFailure(
   message: string,
   fallback: string
 ): { status: number; error: string } {
+  if (message.includes('campaign_message_sender_daily_cap')) {
+    return {
+      status: 429,
+      error: `You can send ${CAMPAIGN_MESSAGE_SENDER_DAILY_CAP} campaign messages per day.`,
+    }
+  }
   if (message.includes('campaign_message_daily_cap')) {
     return {
       status: 429,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import Modal from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -84,6 +84,7 @@ export function NotificationComposerModal({
   extraFields?: ReactNode
   onSend: (input: { text: string; expiresInDays: number }) => Promise<boolean>
 }) {
+  const queryClient = useQueryClient()
   const [view, setView] = useState<ModalView>('compose')
   const [text, setText] = useState('')
   const [expiresInDays, setExpiresInDays] = useState(30)
@@ -118,7 +119,9 @@ export function NotificationComposerModal({
 
   const handleSend = async () => {
     if (!canSend) return false
-    return onSend({ text: text.trim(), expiresInDays })
+    const sent = await onSend({ text: text.trim(), expiresInDays })
+    if (sent) queryClient.invalidateQueries({ queryKey: ['sent-notifications', historyUrl] })
+    return sent
   }
 
   return (

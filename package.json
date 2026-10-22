@@ -6,7 +6,6 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test:notification-html-allowlist": "node --test utils/notification-html-allowlist.test.mjs",
     "clean": "next clean"
   },
   "dependencies": {

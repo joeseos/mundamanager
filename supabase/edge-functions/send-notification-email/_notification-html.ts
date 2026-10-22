@@ -1,100 +1,16 @@
 // @ts-nocheck
 //
 // HTML notifications (is_html) for the SES worker.
-// Copies the allowlist in utils/sanitize-notification-html.ts. Deno cannot
-// import that Next module, so this file is the copy that sends the email.
-// Keep the allowlist in sync.
+// The in-app allowlist is _notification-html-allowlist.ts. This file adds the
+// email layout pass on top of it.
 
 import sanitizeHtml from "npm:sanitize-html@2.18.1";
+import {
+  filterAuthorStyle,
+  notificationHtmlSanitizeOptions,
+} from "./_notification-html-allowlist.ts";
 
 const EMAIL_BORDER = "#262626";
-const HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
-const RGB_COLOR = /^rgba?\(\s*(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*,\s*|\s+)(\d{1,3})(?:\s*(?:,|\/)\s*[\d.]+%?)?\s*\)$/i;
-const TEXT_ALIGN = /^(?:left|right|center|justify)$/i;
-
-function authorColor(value) {
-  const trimmed = value.trim().replace(/!important$/i, "").trim();
-  if (HEX_COLOR.test(trimmed)) return trimmed;
-  const match = trimmed.match(RGB_COLOR);
-  if (!match) return null;
-  const channels = [match[1], match[2], match[3]].map((part) => Number(part));
-  if (channels.some((channel) => channel > 255)) return null;
-  return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
-}
-
-const notificationHtmlSanitizeOptions = {
-  allowedTags: [
-    "p", "br", "strong", "b", "em", "i", "u", "s",
-    "h1", "h2", "h3", "ul", "ol", "li", "blockquote", "a", "span",
-  ],
-  allowedAttributes: {
-    a: ["href", "target", "rel"],
-    span: ["style"],
-    p: ["style"],
-    h1: ["style"],
-    h2: ["style"],
-    h3: ["style"],
-  },
-  // Styles are reduced in transformTags. PostCSS (allowedStyles) drops them
-  // when the parser throws outside Deno.
-  parseStyleAttributes: false,
-  allowedSchemes: ["https"],
-  allowProtocolRelative: false,
-  disallowedTagsMode: "discard",
-  transformTags: {
-    span: withAuthorStyle,
-    p: withAuthorStyle,
-    h1: withAuthorStyle,
-    h2: withAuthorStyle,
-    h3: withAuthorStyle,
-    a: (tagName, attribs) => {
-      const href = (attribs.href ?? "").trim();
-      if (!isKeptHref(href)) {
-        return { tagName: "span", attribs: {} };
-      }
-      const next = { href };
-      if (/^https:\/\//i.test(href)) {
-        next.target = "_blank";
-        next.rel = "noopener noreferrer nofollow";
-      }
-      return { tagName, attribs: next };
-    },
-  },
-};
-
-function filterAuthorStyle(style) {
-  if (!style) return "";
-  const kept = [];
-  for (const decl of style.split(";")) {
-    const colon = decl.indexOf(":");
-    if (colon === -1) continue;
-    const prop = decl.slice(0, colon).trim().toLowerCase();
-    const value = decl.slice(colon + 1).trim();
-    if (prop === "color") {
-      const hex = authorColor(value);
-      if (hex) kept.push(`color:${hex}`);
-    }
-    else if (prop === "text-align" && TEXT_ALIGN.test(value)) {
-      kept.push(`text-align:${value.toLowerCase()}`);
-    }
-  }
-  return kept.join(";");
-}
-
-function withAuthorStyle(tagName, attribs) {
-  const style = filterAuthorStyle(attribs.style);
-  const next = { ...attribs };
-  if (style) next.style = style;
-  else delete next.style;
-  return { tagName, attribs: next };
-}
-
-function isKeptHref(href) {
-  const trimmed = href.trim();
-  if (!trimmed || trimmed.startsWith("//")) return false;
-  if (trimmed.startsWith("/")) return true;
-  return /^https:\/\//i.test(trimmed);
-}
 
 function appendStyle(existing, extra) {
   const base = (existing ?? "").trim().replace(/;+\s*$/, "");
