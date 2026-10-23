@@ -14,14 +14,14 @@ import { revalidateTag } from 'next/cache';
  * gang-roster-{id}            | fighters AND all gang vehicles,       | any fighter OR vehicle mutation —
  *                             | their equipment, effects, loadouts,   | NOT updateGangFinancials
  *                             | stats (45 KB - 1 MB); campaign OOA    |
- *                             | counts (Triumphs), public campaign    |
- *                             | fighters                              |
+ *                             | counts (Triumphs), public export      |
+ *                             | fighters (one entry per gang)         |
  * gang-overview-{id}          | name/rating/wealth/credits copies on  | updateGangFinancials (choke point)
  *                             | other pages (campaign, home)          | + gang name/reputation edits —
  *                             |                                       | NOT xp/image/loadouts
  * gang-campaigns-{id}         | gang's campaigns bundle               | join/leave/allegiance changes
- * gang-positioning-{id}       | card positioning, public campaign     | drag/reorder only
- *                             | fighters                              |
+ * gang-positioning-{id}       | card positioning, public export       | drag/reorder only
+ *                             | fighters (one entry per gang)         |
  * gang-stash-{id}             | stash equipment                       | stash mutations
  * fighter-{id}                | id→gang resolver + advancement caches | fighter mutations (always
  *                             |                                       | alongside gang-{id})

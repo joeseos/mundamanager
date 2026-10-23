@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { and, count, eq, isNotNull } from 'drizzle-orm';
 
 import { getAppDb } from '@/utils/db/client';
-import { campaignGangs, campaignTerritories } from '@/utils/db/schema';
+import { campaignTerritories } from '@/utils/db/schema';
 import type { CampaignAllegiance } from '@/utils/campaigns/allegiances';
 import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
 import type { CampaignResource } from '@/utils/campaigns/resources';
@@ -606,22 +606,15 @@ async function _getCampaignOoaCounts(gangIds: string[]) {
     .map(([gang_id, list]) => ({ gang_id, ooa_count: sumFighterKills(list) }));
 }
 
-/** Basic roster rows in each gang's saved display order, fetched in one query. */
-async function _getCampaignFighters(campaignId: string) {
-  const db = getAppDb();
-  const gangs = await db.query.gangs.findMany({
-    columns: { id: true, positioning: true },
-    // An invitation alone must never make a roster available to a caller.
-    where: (gang, { inArray }) => inArray(gang.id,
-      db.select({ gang_id: campaignGangs.gang_id })
-        .from(campaignGangs)
-        .where(and(eq(campaignGangs.campaign_id, campaignId), eq(campaignGangs.status, 'ACCEPTED')))
-    ),
+/** A gang's basic roster rows in its saved display order. */
+async function _getGangExportFighters(gangId: string) {
+  const gang = await getAppDb().query.gangs.findFirst({
+    columns: { positioning: true },
+    where: (gang, { eq }) => eq(gang.id, gangId),
     with: {
       fighters: {
         columns: {
           id: true,
-          gang_id: true,
           fighter_name: true,
           fighter_type: true,
           fighter_subtypes: true,
@@ -644,36 +637,63 @@ async function _getCampaignFighters(campaignId: string) {
     },
   });
 
-  return Object.fromEntries(gangs.map(gang => {
-    const hasPositioning = gang.positioning && Object.keys(gang.positioning).length > 0;
-    // Match initializePositioningIfNeeded without writing during a public read.
-    const fighters = hasPositioning
-      ? sortFightersByPositioning(gang.fighters, gang.positioning)
-      : [...gang.fighters].sort((a, b) =>
-        (a.fighter_name ?? '').localeCompare(b.fighter_name ?? '')
-      );
-    return [gang.id, fighters] as const;
-  }));
+  if (!gang) return [];
+
+  const hasPositioning = gang.positioning && Object.keys(gang.positioning).length > 0;
+  // Match initializePositioningIfNeeded without writing during a public read.
+  return hasPositioning
+    ? sortFightersByPositioning(gang.fighters, gang.positioning)
+    : [...gang.fighters].sort((a, b) =>
+      (a.fighter_name ?? '').localeCompare(b.fighter_name ?? '')
+    );
 }
+
+/**
+ * One entry per gang, so each carries two tags whatever the campaign's size
+ * (unstable_cache keeps at most 128 tags per entry), and a fighter edit
+ * rebuilds only that gang's rows.
+ */
+const getGangExportFighters = async (gangId: string) => {
+  return unstable_cache(
+    async () => _getGangExportFighters(gangId),
+    [`gang-export-fighters-v1-${gangId}`],
+    {
+      tags: [TAGS.gangRoster(gangId), TAGS.gangPositioning(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/** IDs of the campaign's ACCEPTED gangs; accepting an invitation busts campaign-members. */
+const getAcceptedCampaignGangIds = async (campaignId: string) => {
+  return unstable_cache(
+    async () => {
+      const rows = await getAppDb().query.campaignGangs.findMany({
+        columns: { gang_id: true },
+        where: (cg, { and, eq }) => and(eq(cg.campaign_id, campaignId), eq(cg.status, 'ACCEPTED')),
+      });
+      return [...new Set(rows.flatMap((cg) => cg.gang_id ?? []))];
+    },
+    [`campaign-accepted-gang-ids-v1-${campaignId}`],
+    {
+      tags: [TAGS.campaignMembers(campaignId)],
+      revalidate: false
+    }
+  )();
+};
 
 /**
  * Public export roster data is separate from campaign members/standings so
  * fighter edits refresh the export without rebuilding the campaign page.
- * Only ACCEPTED gangs are queried; results stay keyed by gang ID.
+ * Only ACCEPTED gangs are read, since an invitation alone must never make a
+ * roster available to a caller; results stay keyed by gang ID.
  */
 export const getCampaignFighters = async (campaignId: string) => {
-  const gangIds = await getCampaignGangIds(campaignId);
-  return unstable_cache(
-    async () => _getCampaignFighters(campaignId),
-    [`campaign-fighters-v5-${campaignId}`],
-    {
-      tags: [
-        TAGS.campaignMembers(campaignId),
-        ...gangIds.flatMap(gangId => [TAGS.gangRoster(gangId), TAGS.gangPositioning(gangId)])
-      ],
-      revalidate: false
-    }
-  )();
+  const gangIds = await getAcceptedCampaignGangIds(campaignId);
+  const rosters = await Promise.all(
+    gangIds.map(async gangId => [gangId, await getGangExportFighters(gangId)] as const)
+  );
+  return Object.fromEntries(rosters);
 };
 
 /**
