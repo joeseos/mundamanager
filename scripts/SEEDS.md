@@ -137,6 +137,8 @@ scenario catalogs do not require the generator to invent official reference data
 ### Battles, challenges, and sessions
 
 - Twenty played battle reports by default, each with an out-of-action record.
+  Their dates are sampled after the latest fighter recruitment in both rosters,
+  so battles and out-of-action records do not predate the fighters involved.
 - One challenge slot per gang, cycling through pending, issued, accepted, and
   declined states.
 - Three more accepted challenges linked to unfinished sessions.
@@ -161,6 +163,11 @@ records, not four more battle-log rows.
 ### Activity and notifications
 
 - Fighter recruitment, campaign membership, and battle-result gang logs.
+  Recruitment logs use the fighter's exact creation timestamp; battle-result logs
+  use the corresponding battle timestamp.
+- Campaign and battle log types/wording match the app: `campaign_joined`,
+  `battle_won`, `battle_lost`, and `battle_draw`, including campaign/scenario names,
+  attacker/defender roles, and result text. The normal log filters work on them.
 - Friend relationships/requests between generated accounts.
 - Five in-app notifications per generated account: fifty by default.
 - One campaign-message sent-history record for those generated recipients.
@@ -225,16 +232,18 @@ outcomes, and many other values are sampled from bounded choices.
 
 The same seed, edition, sizing options, reference catalog, and generator code
 reproduce random choices and IDs on a fresh database. This does **not** mean every
-stored byte is deterministic: password hashes use fresh salts, and auth-trigger
-defaults may use the database clock. Generator code/catalog changes can also
+stored byte is deterministic: password hashes use fresh salts, notification
+expiration uses generation time, and auth-trigger defaults may use the database
+clock. Generator code/catalog changes can also
 change the sequence of choices.
 
 `--date` controls timestamps, not the dataset namespace. It uses UTC midnight so
 a run early in the morning does not create future event timestamps. Generated
 membership timestamps use this anchor too, including memberships added for
-existing accounts. Notification expiration is intentionally later than its
-creation time; with a sufficiently old anchor, notifications may already be
-expired when you open the app.
+existing accounts. Notification **creation** times remain historical, but their
+expiration is **30 days after the actual generation time**, independent of
+`--date`. Even a campaign anchored years in the past gets visible notification
+fixtures for the next 30 days.
 
 ## Accounts and sign-in
 
@@ -282,7 +291,8 @@ editable campaign descriptions are not used as the manifest.
   surviving accounts.
 
 Changing the generator does not automatically repair previously generated
-rosters, financial values, or session records. Use a new seed to exercise the
+rosters, financial values, session records, log types, or notification expiration.
+Use a new seed to exercise the
 latest fixture behavior without discarding work in an older dataset.
 
 ## How generation works internally
@@ -378,7 +388,9 @@ RUN_DEV_DATASET_INTEGRATION=1 node --test scripts/dev-dataset-utils.test.mjs scr
 
 Use Node 24 as above. Tests cover both editions, default/minimum rosters,
 account hashes/identities, existing-user inclusion, role preservation, relationships,
-crew state eligibility, edition conditions, ratings, no-op reruns, partial datasets,
+crew state eligibility, edition conditions, ratings, app-compatible log types and
+descriptions, recruitment/battle chronology, visible notifications with historical
+dates, no-op reruns, partial datasets,
 timestamp helpers, batched reference reads, email suppression, and rollback/trigger
 restoration. Integration tests create temporary accounts and records inside
 transactions/savepoints; they do not keep a populated campaign afterward.
@@ -397,7 +409,7 @@ transactions/savepoints; they do not keep a populated campaign afterward.
 | Unexpected trigger | Review the local trigger and its side effects before changing the tool's allowlist. |
 | No campaign after success | A preview succeeded but rolled back. Run again with `--apply` to keep it. |
 | Existing login cannot see the campaign | Confirm `--apply`, local app/database configuration, membership output, and cached user/campaign data. |
-| Notifications are not visible | Check `--date`: sufficiently old fixtures have expired notifications. |
+| Notifications are not visible | Confirm `--apply` and the local app/database. Fresh notifications expire 30 days after generation, not after `--date`; unchanged older datasets may still contain expired rows. Use a new seed for current fixtures. |
 
 There is **no automatic cleanup/reset command**. Review generated IDs and their
 dependencies before deleting anything. Deleting only a campaign is not complete
