@@ -805,6 +805,7 @@ export default function FighterAddModal({
       return {
         label: (
           <>
+            {/* Red at the cap (current >= max) so hiring shows the limit is full. The gang composition tooltip turns red only once the count is past the maximum. */}
             <span className={`inline-block w-11 text-center mr-1 ${limit.over ? 'text-red-500' : 'text-gray-400'}`}>
               {limit.text}
             </span>

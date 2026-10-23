@@ -55,6 +55,10 @@ export interface CreatedBeast {
   fighter_type: string;
   fighter_subtypes: string[];
   fighter_type_id: string;
+  /** fighter_types.gang_type_id, so composition can see the beast before the roster reloads. */
+  fighter_gang_type_id: string | null;
+  /** Exotic beasts are catalog fighter types, so this stays null. */
+  fighter_custom_gang_type_id: null;
   credits: number;
   equipment_source: string;
   created_at: string;
@@ -244,6 +248,8 @@ export async function createExoticBeastsForEquipment(
         fighter_type: newFighter.fighter_type,
         fighter_subtypes: newFighter.fighter_subtypes || [],
         fighter_type_id: beastConfig.fighter_type_id,
+        fighter_gang_type_id: fighterType.gang_type_id ?? null,
+        fighter_custom_gang_type_id: null,
         credits: fighterType.cost || 0,
         equipment_source: 'Granted by equipment',
         created_at: newFighter.created_at,

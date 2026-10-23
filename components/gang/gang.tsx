@@ -1574,6 +1574,8 @@ export default function Gang({
                     const isCompanion = isCompanionSubtype(subtypes);
                     const limit = fighterCountLimitDisplay({ min_count, max_count, current: familyCount });
                     const limitText = isCompanion ? '\u2014' : limit.text;
+                    // Red only once the count is past the maximum, so 1/1 stays gray.
+                    // The add-fighter dropdown turns red when current >= max (limit.over), so the cap shows as full while hiring.
                     const overMax = !isCompanion && max_count != null && max_count > 0 && familyCount > max_count;
                     return (
                       <div key={label} className={`flex justify-between gap-3 ${isCompanion ? 'text-gray-400' : ''}`}>
