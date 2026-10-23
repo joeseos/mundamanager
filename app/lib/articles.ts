@@ -25,7 +25,7 @@ export interface PublishedArticle extends PublishedArticleSummary {
  * unpublish and delete, so these can be cached indefinitely.
  *
  * Content is sanitized here, once per cache entry, rather than on save: RLS lets
- * an editor write the tables directly, past the API route.
+ * an editor write the table directly, past the API route.
  */
 function anonClient() {
   return createClient(

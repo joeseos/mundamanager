@@ -14,10 +14,12 @@ type ArticleRow = {
   summary: string | null;
   content: string;
   published_at: string | null;
-  article_drafts: { title: string; summary: string | null; content: string } | null;
+  draft_title: string | null;
+  draft_summary: string | null;
+  draft_content: string | null;
 };
 
-const ARTICLE_COLUMNS = 'id, slug, title, summary, content, published_at, article_drafts (title, summary, content)';
+const ARTICLE_COLUMNS = 'id, slug, title, summary, content, published_at, draft_title, draft_summary, draft_content';
 
 async function getEditor() {
   const supabase = await createClient();
@@ -43,17 +45,17 @@ export async function GET(request: NextRequest) {
     if (!id) {
       const { data, error } = await editor.supabase
         .from('articles')
-        .select('id, slug, title, published_at, article_drafts (title)')
+        .select('id, slug, title, published_at, draft_title')
         .order('created_at', { ascending: false });
       if (error) throw error;
 
       return NextResponse.json(
-        ((data ?? []) as unknown as Pick<ArticleRow, 'id' | 'slug' | 'title' | 'published_at' | 'article_drafts'>[]).map((row) => ({
+        (data ?? []).map((row) => ({
           id: row.id,
           slug: row.slug,
-          title: row.article_drafts?.title ?? row.title,
+          title: row.draft_title ?? row.title,
           published_at: row.published_at,
-          has_draft: row.article_drafts !== null,
+          has_draft: row.draft_title !== null,
         }))
       );
     }
@@ -66,17 +68,17 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
     if (!data) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
 
-    const row = data as unknown as ArticleRow;
-    const draft = row.article_drafts;
+    const row = data as ArticleRow;
+    const hasDraft = row.draft_title !== null;
     return NextResponse.json({
       id: row.id,
       slug: row.slug,
-      title: draft?.title ?? row.title,
-      summary: draft ? draft.summary : row.summary,
-      content: draft?.content ?? row.content,
+      title: row.draft_title ?? row.title,
+      summary: hasDraft ? row.draft_summary : row.summary,
+      content: row.draft_content ?? row.content,
       published_content: row.content,
       published_at: row.published_at,
-      has_draft: draft !== null,
+      has_draft: hasDraft,
     });
   } catch (error) {
     console.error('Error fetching articles:', error);
@@ -86,8 +88,8 @@ export async function GET(request: NextRequest) {
 
 /**
  * Save an article without publishing it. Body: { id, slug, title, summary, content }.
- * Creates the article on its first save. The changes go to article_drafts, so a
- * published article stays as it is until it is published again.
+ * Creates the article on its first save. The changes go to the draft_* columns,
+ * so a published article stays as it is until it is published again.
  */
 export async function PUT(request: Request) {
   const editor = await getEditor();
@@ -129,25 +131,24 @@ export async function PUT(request: Request) {
       );
     }
 
-    // The live row only changes here for a new article or a new slug; the rest waits for Publish.
-    const { error: articleError } = !existing
-      ? await supabase
-          .from('articles')
-          .insert({ id, slug, title, author_id: user.id, updated_by: user.id })
-      : existing.slug !== slug
-        ? await supabase.from('articles').update({ slug }).eq('id', id)
-        : { error: null };
-    if (articleError) {
-      if (articleError.code === '23505') {
+    // Only the slug changes the live version here (a new article needs a title too); the rest waits for Publish.
+    const draft = {
+      slug,
+      draft_title: title,
+      draft_summary: summary,
+      draft_content: content,
+      updated_at: now,
+      updated_by: user.id,
+    };
+    const { error } = existing
+      ? await supabase.from('articles').update(draft).eq('id', id)
+      : await supabase.from('articles').insert({ ...draft, id, title, author_id: user.id });
+    if (error) {
+      if (error.code === '23505') {
         return NextResponse.json({ error: 'Another article already uses this slug' }, { status: 409 });
       }
-      throw articleError;
+      throw error;
     }
-
-    const { error: draftError } = await supabase
-      .from('article_drafts')
-      .upsert({ article_id: id, title, summary, content, updated_at: now, updated_by: user.id });
-    if (draftError) throw draftError;
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -177,37 +178,38 @@ export async function PATCH(request: Request) {
         .eq('id', id);
       if (error) throw error;
     } else {
-      const { data, error: fetchError } = await supabase
+      const { data: row, error: fetchError } = await supabase
         .from('articles')
-        .select('published_at, article_drafts (title, summary, content, updated_at)')
+        .select('published_at, updated_at, draft_title, draft_summary, draft_content')
         .eq('id', id)
         .maybeSingle();
       if (fetchError) throw fetchError;
-      if (!data) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
+      if (!row) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
 
-      const draft = (data as unknown as {
-        article_drafts: (NonNullable<ArticleRow['article_drafts']> & { updated_at: string }) | null;
-      }).article_drafts;
-      const { error } = await supabase
+      // Only if nothing was saved since the read, so a newer save is never cleared unpublished.
+      const { data: published, error } = await supabase
         .from('articles')
         .update({
-          ...(draft ? { title: draft.title, summary: draft.summary, content: draft.content } : {}),
-          published_at: data.published_at ?? now,
+          ...(row.draft_title !== null
+            ? {
+                title: row.draft_title,
+                summary: row.draft_summary,
+                content: row.draft_content ?? '',
+                draft_title: null,
+                draft_summary: null,
+                draft_content: null,
+              }
+            : {}),
+          published_at: row.published_at ?? now,
           updated_at: now,
           updated_by: user.id,
         })
-        .eq('id', id);
+        .eq('id', id)
+        .filter('updated_at', row.updated_at === null ? 'is' : 'eq', row.updated_at)
+        .select('id');
       if (error) throw error;
-
-      if (draft) {
-        // Only the draft that was published: a newer save stays as unpublished changes.
-        // The article is live either way, so a failed delete only leaves a stale draft.
-        const { error: deleteError } = await supabase
-          .from('article_drafts')
-          .delete()
-          .eq('article_id', id)
-          .eq('updated_at', draft.updated_at);
-        if (deleteError) console.error('Error deleting published article draft:', deleteError);
+      if (published.length === 0) {
+        return NextResponse.json({ error: 'The article changed while publishing. Try again.' }, { status: 409 });
       }
     }
 
@@ -219,7 +221,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-/** Delete an article, its draft and its images. */
+/** Delete an article and its images. */
 export async function DELETE(request: NextRequest) {
   const editor = await getEditor();
   if (!editor) return unauthorized();

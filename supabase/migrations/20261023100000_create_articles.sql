@@ -7,16 +7,16 @@
 -- Design notes:
 -- - Writers are admins plus the new 'editor' value of profiles.user_role,
 --   checked by private.is_editor(). Editors see only the Articles card on /admin.
--- - articles holds the live version. Saving writes article_drafts instead, so an
---   editor can save changes to a published article without publishing them.
---   Publishing copies the draft into articles and deletes it. The drafts are a
---   separate table because RLS filters rows, not columns: draft columns on a
---   published row would be readable by anyone.
+-- - title, summary and content are the live version. Saving writes the draft_*
+--   columns instead, so an editor can save changes to a published article
+--   without publishing them. Publishing copies the draft columns over the live
+--   ones and clears them. draft_* can be read like the rest of the row; the
+--   public pages just don't show it.
 -- - published_at IS NULL means not published. The slug is the URL
 --   (/articles/<slug>) and can't change while the article is published.
--- - updated_at is set by the application write path.
+-- - updated_at is set by the application write path, on every save and publish.
 --
--- DEPLOY ORDER: apply before merging; the new pages and routes read these tables.
+-- DEPLOY ORDER: apply before merging; the new pages and routes read this table.
 
 BEGIN;
 
@@ -47,35 +47,30 @@ CREATE TABLE public.articles (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone,
   updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  draft_title text,
+  draft_summary text,
+  draft_content text,
   CONSTRAINT articles_slug_format CHECK (slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$')
 );
 
 COMMENT ON TABLE public.articles IS
-  'Published version of each article. Rendered on /articles and /articles/<slug>.';
+  'Articles rendered on /articles and /articles/<slug>. title, summary and content are the published version; draft_* holds saved, unpublished changes.';
 COMMENT ON COLUMN public.articles.content IS
   'Article body as rich-text HTML (TipTap output). Sanitized when the public pages read it.';
 COMMENT ON COLUMN public.articles.published_at IS
   'When the article was published. NULL = not published.';
+COMMENT ON COLUMN public.articles.draft_title IS
+  'Saved, unpublished title. NULL = no unpublished changes.';
+COMMENT ON COLUMN public.articles.draft_summary IS
+  'Saved, unpublished summary.';
+COMMENT ON COLUMN public.articles.draft_content IS
+  'Saved, unpublished body.';
 
 CREATE INDEX articles_published_at_idx
   ON public.articles (published_at DESC)
   WHERE published_at IS NOT NULL;
 
-CREATE TABLE public.article_drafts (
-  article_id uuid PRIMARY KEY REFERENCES public.articles(id) ON DELETE CASCADE,
-  title text NOT NULL,
-  summary text,
-  content text NOT NULL DEFAULT '',
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone,
-  updated_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL
-);
-
-COMMENT ON TABLE public.article_drafts IS
-  'Saved, unpublished changes to an article. Editors only; publishing copies the row into articles.';
-
 ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.article_drafts ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Published articles are viewable by everyone"
   ON public.articles FOR SELECT
@@ -102,30 +97,8 @@ CREATE POLICY "Editors can delete articles"
   TO authenticated
   USING ((SELECT private.is_editor() AS is_editor));
 
-CREATE POLICY "Editors can view article drafts"
-  ON public.article_drafts FOR SELECT
-  TO authenticated
-  USING ((SELECT private.is_editor() AS is_editor));
-
-CREATE POLICY "Editors can create article drafts"
-  ON public.article_drafts FOR INSERT
-  TO authenticated
-  WITH CHECK ((SELECT private.is_editor() AS is_editor));
-
-CREATE POLICY "Editors can update article drafts"
-  ON public.article_drafts FOR UPDATE
-  TO authenticated
-  USING ((SELECT private.is_editor() AS is_editor))
-  WITH CHECK ((SELECT private.is_editor() AS is_editor));
-
-CREATE POLICY "Editors can delete article drafts"
-  ON public.article_drafts FOR DELETE
-  TO authenticated
-  USING ((SELECT private.is_editor() AS is_editor));
-
 GRANT SELECT ON public.articles TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.articles TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.article_drafts TO authenticated;
 
 -- Article images: site-images/articles/<article id>/..., drafts under .../_draft/.
 -- Same policies as the user guide images (20260913185838), for editors.

@@ -109,7 +109,7 @@ export function AdminArticlesModal({ onClose }: AdminArticlesModalProps) {
   return (
     <Modal
       title="Articles"
-      helper="Articles are shown at /articles. Save keeps your changes private until you publish them."
+      helper="Articles are shown at /articles. Save keeps your changes off the site until you publish them."
       onClose={onClose}
       width="2xl"
       headerContent={<Button onClick={handleAdd}>Add</Button>}
