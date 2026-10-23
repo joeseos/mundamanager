@@ -34,7 +34,7 @@ export async function getUserIdFromClaims(supabase: SupabaseClient): Promise<str
   return claims?.userId ?? null;
 }
 
-export async function checkAdmin(supabase: SupabaseClient, user?: { id: string }) {
+async function getUserRole(supabase: SupabaseClient, user?: { id: string }): Promise<string | null> {
   try {
     const authUser = user || await getAuthenticatedUser(supabase);
 
@@ -44,10 +44,20 @@ export async function checkAdmin(supabase: SupabaseClient, user?: { id: string }
       .eq('id', authUser.id)
       .single();
 
-    return profile?.user_role === 'admin';
+    return profile?.user_role ?? null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export async function checkAdmin(supabase: SupabaseClient, user?: { id: string }) {
+  return (await getUserRole(supabase, user)) === 'admin';
+}
+
+/** Article editors: the 'editor' role plus every admin. Same rule as private.is_editor(). */
+export async function checkEditor(supabase: SupabaseClient, user?: { id: string }) {
+  const role = await getUserRole(supabase, user);
+  return role === 'admin' || role === 'editor';
 }
 
 export function safePath(path?: string | null) {

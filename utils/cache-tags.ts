@@ -90,6 +90,7 @@ export const TAGS = {
   globalGangActivity: () => 'global-gang-activity',
   globalCampaignActivity: () => 'global-campaign-activity',
   userGuides: () => 'user-guides',
+  articles: () => 'articles',
   campaignTypes: () => 'campaign-types',
   campaignTriumphs: () => 'campaign-triumphs',
 } as const;
@@ -305,3 +306,5 @@ export const invalidateGangCount = () => bust(TAGS.globalGangCount());
 export const invalidateCampaignCount = () => bust(TAGS.globalCampaignCount());
 /** An admin saved a user guide (any edition). */
 export const invalidateUserGuides = () => bust(TAGS.userGuides());
+/** An editor published, unpublished or deleted an article. */
+export const invalidateArticles = () => bust(TAGS.articles());

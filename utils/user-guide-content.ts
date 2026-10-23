@@ -31,6 +31,24 @@ const HEADING_ANCHOR_RE = /<a\b[^>]*\bclass\s*=\s*(?:"[^"]*\bheading-anchor\b[^"
 /** Class on the hover-revealed "#" link appended to each heading; styled by the renderer. */
 export const HEADING_ANCHOR_CLASS = 'heading-anchor';
 
+/**
+ * Classes for a container rendering prepared HTML (user guides, articles).
+ * scroll-mt keeps anchored headings clear of the sticky header; markers match the TOC.
+ * .heading-anchor is the "#" permalink injected after each heading: hidden until the
+ * heading is hovered (or the link is focused via keyboard).
+ */
+export const PREPARED_CONTENT_CLASS_NAME = [
+  'prose max-w-none',
+  '[&_h1]:scroll-mt-24 [&_h2]:scroll-mt-24 [&_h3]:scroll-mt-24',
+  '[&_li]:marker:text-red-800',
+  '[&_.heading-anchor]:ml-2 [&_.heading-anchor]:no-underline [&_.heading-anchor]:font-normal',
+  '[&_.heading-anchor]:text-muted-foreground [&_.heading-anchor]:opacity-0',
+  '[&_.heading-anchor]:transition-opacity [&_.heading-anchor]:duration-150',
+  '[&_h1:hover_.heading-anchor]:opacity-100 [&_h2:hover_.heading-anchor]:opacity-100 [&_h3:hover_.heading-anchor]:opacity-100',
+  '[&_.heading-anchor:focus-visible]:opacity-100',
+  '[&_.heading-anchor:hover]:text-red-800',
+].join(' ');
+
 /** Lowercase, ASCII-safe slug. Empty input falls back to "section". */
 export function slugifyHeading(text: string): string {
   const slug = text

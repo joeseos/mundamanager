@@ -43,6 +43,9 @@ export default function Footer() {
               <Link href="/user-guide" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 User Guide
               </Link>
+              <Link href="/articles" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                Articles
+              </Link>
               <Link href="/api-access" prefetch={false} className="text-sm text-muted-foreground hover:text-primary transition-colors">
                 API Access
               </Link>

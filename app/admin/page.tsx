@@ -1,9 +1,10 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse, LuNewspaper } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { TbCards } from "react-icons/tb";
+import type { IconType } from "react-icons";
 import { LuSquarePen } from 'react-icons/lu';
 import { useState } from "react";
 import { AdminCreateFighterTypeModal } from "@/components/admin/admin-create-fighter-type";
@@ -25,6 +26,39 @@ import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-
 import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
 import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
 import { AdminUserGuidesModal } from "@/components/admin/admin-user-guides-modal";
+import { AdminArticlesModal } from "@/components/admin/admin-articles-modal";
+import { useClaims } from "@/hooks/use-claims";
+
+interface DashboardSection {
+  title: string;
+  description: string;
+  action: () => void;
+  icon: IconType;
+}
+
+function SectionGrid({ sections }: { sections: DashboardSection[] }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {sections.map((section) => (
+        <button
+          key={section.title}
+          onClick={section.action}
+          className="p-4 bg-muted rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
+        >
+          <div className="flex items-start space-x-3">
+            <section.icon className="h-6 w-6 text-muted-foreground shrink-0" />
+            <div>
+              <h2 className="text-lg md:text-xl font-semibold mb-2">
+                {section.title}
+              </h2>
+              <p className="text-muted-foreground">{section.description}</p>
+            </div>
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,6 +80,10 @@ export default function AdminPage() {
   const [showSupportTools, setShowSupportTools] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserGuides, setShowUserGuides] = useState(false);
+  const [showArticles, setShowArticles] = useState(false);
+  // Display only: every route behind these cards checks the role itself.
+  const { profile } = useClaims();
+  const isEditorOnly = profile?.user_role === 'editor';
 
   const coreSections = [
     {
@@ -168,6 +206,13 @@ export default function AdminPage() {
     icon: LuBookOpenText
   };
 
+  const articlesSection = {
+    title: "Articles",
+    description: "Write and publish articles",
+    action: () => setShowArticles(true),
+    icon: LuNewspaper
+  };
+
   return (
     <>      
       <main className="flex min-h-screen flex-col items-center">
@@ -175,49 +220,24 @@ export default function AdminPage() {
           <div className="bg-card shadow-md rounded-lg p-4">
             <h1 className="text-xl md:text-2xl font-bold mb-4">Admin Dashboard</h1>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {coreSections.map((section) => (
-                <button
-                  key={section.title}
-                  onClick={section.action}
-                  className="p-4 bg-muted rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
-                >
-                  <div className="flex items-start space-x-3">
-                    <section.icon className="h-6 w-6 text-muted-foreground shrink-0" />
-                    <div>
-                      <h2 className="text-lg md:text-xl font-semibold mb-2">
-                        {section.title}
-                      </h2>
-                      <p className="text-muted-foreground">{section.description}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            {!isEditorOnly && (
+              <>
+                <SectionGrid sections={coreSections} />
+                <hr className="my-6 border-t border-border" />
+              </>
+            )}
 
-            <hr className="my-6 border-t border-border" />
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[supportToolsSection, notificationsSection, userGuidesSection, statsSection].map((section) => (
-                <button
-                  key={section.title}
-                  onClick={section.action}
-                  className="p-4 bg-muted rounded-lg shadow-sm hover:shadow-md transition-shadow text-left"
-                >
-                  <div className="flex items-start space-x-3">
-                    <section.icon className="h-6 w-6 text-muted-foreground shrink-0" />
-                    <div>
-                      <h2 className="text-lg md:text-xl font-semibold mb-2">
-                        {section.title}
-                      </h2>
-                      <p className="text-muted-foreground">{section.description}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <SectionGrid
+              sections={isEditorOnly
+                ? [articlesSection]
+                : [supportToolsSection, notificationsSection, userGuidesSection, articlesSection, statsSection]}
+            />
           </div>
         </div>
+
+        {showArticles && (
+          <AdminArticlesModal onClose={() => setShowArticles(false)} />
+        )}
 
         {isModalOpen && (
           <AdminCreateFighterTypeModal

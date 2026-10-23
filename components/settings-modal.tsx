@@ -36,14 +36,14 @@ export function NotificationsSection({ userId }: { userId: string }) {
 
 interface SettingsModalProps {
   user: SupabaseUser;
-  isAdmin?: boolean;
+  showAdminLink?: boolean;
   username?: string;
   patreonTierId?: string;
   patreonTierTitle?: string;
   patronStatus?: string;
 }
 
-export default function SettingsModal({ user, isAdmin, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
+export default function SettingsModal({ user, showAdminLink, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
   const [open, setOpen] = useState(false);
   const notificationCount = useUnreadNotificationCount(user.id);
 
@@ -192,7 +192,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             </div>
           </div>
 
-          {isAdmin && (
+          {showAdminLink && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild onClick={handleLinkClick}>

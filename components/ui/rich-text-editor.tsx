@@ -86,7 +86,7 @@ import '@/components/ui/rich-text-editor.css';
 import { useRichTextImages } from '@/hooks/use-rich-text-images';
 
 export interface RichTextEditorHandle {
-  finalizeAssets: (currentHtml: string) => Promise<string>;
+  finalizeAssets: (currentHtml: string, keepHtml?: string) => Promise<string>;
   discardAssets: () => Promise<void>;
   /** Replace editor HTML without emitting onChange (caller owns draft state). */
   setContent: (html: string) => void;

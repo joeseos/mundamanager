@@ -95,8 +95,11 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/auth/callback');
 
+  // /articles and every /articles/<slug>
+  const isArticlePath = pathname === '/articles' || pathname.startsWith('/articles/');
+
   // Early return for public paths - avoid creating Supabase client unnecessarily
-  if (publicPaths.includes(pathname) || isPasswordResetFlow) {
+  if (publicPaths.includes(pathname) || isPasswordResetFlow || isArticlePath) {
     return NextResponse.next({ request });
   }
 

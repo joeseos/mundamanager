@@ -6,7 +6,7 @@ import { useHomeEdition } from '@/hooks/use-home-edition'
 import { useActiveHeading } from '@/hooks/use-active-heading'
 import { EDITION_N23, EDITION_N26 } from '@/types/edition'
 import type { EditionSlug } from '@/types/edition'
-import type { PreparedUserGuide } from '@/utils/user-guide-content'
+import { PREPARED_CONTENT_CLASS_NAME, type PreparedUserGuide } from '@/utils/user-guide-content'
 import { UserGuideToc } from '@/components/user-guide/user-guide-toc'
 import { UserGuideTocCombobox } from '@/components/user-guide/user-guide-toc-combobox'
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp'
@@ -77,21 +77,8 @@ export function UserGuideContent({ guides }: UserGuideContentProps) {
                 <UserGuideTocCombobox headings={guide.headings} activeId={activeId} />
               </div>
             )}
-            {/* scroll-mt keeps anchored headings clear of the sticky header; markers match the TOC.
-                .heading-anchor is the "#" permalink injected after each heading: hidden until the
-                heading is hovered (or the link is focused via keyboard). */}
             <div
-              className={[
-                'prose max-w-none',
-                '[&_h1]:scroll-mt-24 [&_h2]:scroll-mt-24 [&_h3]:scroll-mt-24',
-                '[&_li]:marker:text-red-800',
-                '[&_.heading-anchor]:ml-2 [&_.heading-anchor]:no-underline [&_.heading-anchor]:font-normal',
-                '[&_.heading-anchor]:text-muted-foreground [&_.heading-anchor]:opacity-0',
-                '[&_.heading-anchor]:transition-opacity [&_.heading-anchor]:duration-150',
-                '[&_h1:hover_.heading-anchor]:opacity-100 [&_h2:hover_.heading-anchor]:opacity-100 [&_h3:hover_.heading-anchor]:opacity-100',
-                '[&_.heading-anchor:focus-visible]:opacity-100',
-                '[&_.heading-anchor:hover]:text-red-800',
-              ].join(' ')}
+              className={PREPARED_CONTENT_CLASS_NAME}
               dangerouslySetInnerHTML={{ __html: guide.html }}
             />
           </div>

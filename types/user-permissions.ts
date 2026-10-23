@@ -23,7 +23,7 @@ export interface CampaignPermissions extends UserPermissions {
   campaignRole: 'OWNER' | 'ARBITRATOR' | 'MEMBER' | null;
 }
 
-export type UserRole = 'admin' | 'user';
+export type UserRole = 'admin' | 'editor' | 'user';
 export type CampaignRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 export interface UserProfile {

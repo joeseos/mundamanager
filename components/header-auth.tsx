@@ -28,7 +28,7 @@ export default function HeaderAuth() {
       <ThemeToggleDropdown />
       <SettingsModal
         user={{ id: userId, email: email ?? undefined } as any}
-        isAdmin={profile?.user_role === 'admin'}
+        showAdminLink={profile?.user_role === 'admin' || profile?.user_role === 'editor'}
         username={profile?.username ?? undefined}
         patreonTierId={profile?.patreon_tier_id ?? undefined}
         patreonTierTitle={profile?.patreon_tier_title ?? undefined}

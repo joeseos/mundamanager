@@ -59,7 +59,8 @@ export interface UseRichTextImagesReturn {
   // Actions
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   removeHostedImage: (src: string, removeImageFromEditor: () => void) => Promise<void>;
-  finalizeAssets: (currentHtml: string) => Promise<string>;
+  /** keepHtml: other HTML whose images must survive, e.g. a published version still live. */
+  finalizeAssets: (currentHtml: string, keepHtml?: string) => Promise<string>;
   discardAssets: () => Promise<void>;
   resetImageInputState: () => void;
 }
@@ -271,7 +272,7 @@ export function useRichTextImages({
     toast.success('Image marked for removal', { description: 'It will be deleted when you save.' });
   }, [uploadsEnabled, bucket, getStoragePathFromUrl, isHostedImage, resetImageInputState]);
 
-  const finalizeAssets = useCallback(async (currentHtml: string): Promise<string> => {
+  const finalizeAssets = useCallback(async (currentHtml: string, keepHtml = ''): Promise<string> => {
     let html = currentHtml;
     if (!basePath || !draftBasePath) return html;
 
@@ -353,8 +354,9 @@ export function useRichTextImages({
       }
 
       // Execute pending deletions (images explicitly marked for removal)
-      if (pendingDeletes.length > 0) {
-        await supabase.storage.from(bucket).remove(pendingDeletes);
+      const deletablePaths = pendingDeletes.filter((path) => !keepHtml.includes(`${baseUrl}${path}`));
+      if (deletablePaths.length > 0) {
+        await supabase.storage.from(bucket).remove(deletablePaths);
       }
 
       // Clean up permanent images that are no longer referenced in the final HTML
@@ -376,7 +378,7 @@ export function useRichTextImages({
           const fileUrl = `${baseUrl}${filePath}`;
 
           // If this permanent image is not in the final HTML, mark for deletion
-          if (!html.includes(fileUrl)) {
+          if (!html.includes(fileUrl) && !keepHtml.includes(fileUrl)) {
             orphanedPermanentPaths.push(filePath);
           }
         }
