@@ -166,7 +166,10 @@ function ArticleEditorModal({ article, onChange, onClose }: ArticleEditorModalPr
   const [slugEdited, setSlugEdited] = useState(!article.isNew);
   const [isBusy, setIsBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
   const editorRef = useRef<RichTextEditorHandle | null>(null);
+  // The editor's latest HTML, read after an async save.
+  const contentRef = useRef(article.saved.content);
 
   const isPublished = article.publishedAt !== null;
   const hasChanges = (Object.keys(fields) as (keyof ArticleFields)[]).some(
@@ -178,6 +181,7 @@ function ArticleEditorModal({ article, onChange, onClose }: ArticleEditorModalPr
     !isBusy && isValid && (hasChanges || article.hasDraft || (!isPublished && !article.isNew));
 
   const updateField = (key: keyof ArticleFields, value: string) => {
+    if (key === 'content') contentRef.current = value;
     setFields((prev) => {
       const next = { ...prev, [key]: value };
       if (key === 'title' && !slugEdited) {
@@ -187,9 +191,17 @@ function ArticleEditorModal({ article, onChange, onClose }: ArticleEditorModalPr
     });
   };
 
-  const handleClose = () => {
+  const closeEditor = () => {
     void editorRef.current?.discardAssets();
     onClose();
+  };
+
+  const handleClose = () => {
+    if (hasChanges) {
+      setConfirmDiscard(true);
+      return;
+    }
+    closeEditor();
   };
 
   /** Save the draft. Returns the saved article state, or null when the save failed. */
@@ -200,17 +212,19 @@ function ArticleEditorModal({ article, onChange, onClose }: ArticleEditorModalPr
       const finalHtml =
         (await editorRef.current?.finalizeAssets(fields.content, article.publishedContent)) ?? fields.content;
 
-      const data = await requestJson('/api/admin/articles', {
+      const savedFields = { ...fields, content: finalHtml };
+      await requestJson('/api/admin/articles', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: article.id, ...fields, content: finalHtml }),
+        body: JSON.stringify({ id: article.id, ...savedFields }),
       });
 
-      const savedFields = { ...fields, content: data.content };
-      if (data.content !== fields.content) {
-        editorRef.current?.setContent(data.content);
+      // Promoted images have new URLs. Leave anything typed during the save alone.
+      if (finalHtml !== fields.content && contentRef.current === fields.content) {
+        contentRef.current = finalHtml;
+        editorRef.current?.setContent(finalHtml);
+        setFields((prev) => ({ ...prev, content: finalHtml }));
       }
-      setFields(savedFields);
       setSlugEdited(true);
       const saved = { ...article, isNew: false, saved: savedFields, hasDraft: true };
       onChange(saved);
@@ -368,6 +382,21 @@ function ArticleEditorModal({ article, onChange, onClose }: ArticleEditorModalPr
           />
         </div>
       </div>
+
+      {confirmDiscard && (
+        <Modal
+          title="Unsaved Changes"
+          content={
+            <p className="text-muted-foreground">
+              You have unsaved changes. Discard them and close?
+            </p>
+          }
+          onClose={() => setConfirmDiscard(false)}
+          onConfirm={closeEditor}
+          confirmText="Discard"
+          width="sm"
+        />
+      )}
 
       {confirmDelete && (
         <Modal

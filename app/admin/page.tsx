@@ -82,7 +82,7 @@ export default function AdminPage() {
   const [showUserGuides, setShowUserGuides] = useState(false);
   const [showArticles, setShowArticles] = useState(false);
   // Display only: every route behind these cards checks the role itself.
-  const { profile } = useClaims();
+  const { profile, loading } = useClaims();
   const isEditorOnly = profile?.user_role === 'editor';
 
   const coreSections = [
@@ -220,18 +220,23 @@ export default function AdminPage() {
           <div className="bg-card shadow-md rounded-lg p-4">
             <h1 className="text-xl md:text-2xl font-bold mb-4">Admin Dashboard</h1>
             
-            {!isEditorOnly && (
+            {/* Wait for the role so an editor never sees the admin-only cards */}
+            {!loading && (
               <>
-                <SectionGrid sections={coreSections} />
-                <hr className="my-6 border-t border-border" />
+                {!isEditorOnly && (
+                  <>
+                    <SectionGrid sections={coreSections} />
+                    <hr className="my-6 border-t border-border" />
+                  </>
+                )}
+
+                <SectionGrid
+                  sections={isEditorOnly
+                    ? [articlesSection]
+                    : [supportToolsSection, notificationsSection, userGuidesSection, articlesSection, statsSection]}
+                />
               </>
             )}
-
-            <SectionGrid
-              sections={isEditorOnly
-                ? [articlesSection]
-                : [supportToolsSection, notificationsSection, userGuidesSection, articlesSection, statsSection]}
-            />
           </div>
         </div>
 

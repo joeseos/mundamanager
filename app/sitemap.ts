@@ -3,7 +3,8 @@ import { getPublishedArticles } from '@/app/lib/articles'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://www.mundamanager.com'
-  const articles = await getPublishedArticles()
+  // A failed article query should not take the rest of the sitemap down with it
+  const articles = await getPublishedArticles().catch(() => [])
   
   return [
     {

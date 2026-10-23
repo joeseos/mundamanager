@@ -3,9 +3,8 @@ import { createClient } from '@/utils/supabase/server';
 import { checkEditor, getAuthenticatedUser } from '@/utils/auth';
 import { invalidateArticles } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
-import { sanitizeArticleHtml } from '@/utils/sanitize-article-html';
+import { ARTICLE_SLUG_RE } from '@/app/lib/articles';
 
-const SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const STORAGE_BUCKET = 'site-images';
 
 type ArticleRow = {
@@ -103,7 +102,7 @@ export async function PUT(request: Request) {
 
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
   if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
-  if (!SLUG_RE.test(slug)) {
+  if (!ARTICLE_SLUG_RE.test(slug)) {
     return NextResponse.json(
       { error: 'Slug must be lowercase letters and numbers separated by single hyphens' },
       { status: 400 }
@@ -112,7 +111,7 @@ export async function PUT(request: Request) {
   if (typeof body.content !== 'string') {
     return NextResponse.json({ error: 'content must be a string' }, { status: 400 });
   }
-  const content = isHtmlEffectivelyEmpty(body.content) ? '' : sanitizeArticleHtml(body.content);
+  const content = isHtmlEffectivelyEmpty(body.content) ? '' : body.content;
   const now = new Date().toISOString();
 
   try {
@@ -150,7 +149,7 @@ export async function PUT(request: Request) {
       .upsert({ article_id: id, title, summary, content, updated_at: now, updated_by: user.id });
     if (draftError) throw draftError;
 
-    return NextResponse.json({ success: true, content });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error saving article:', error);
     return NextResponse.json({ error: 'Failed to save article' }, { status: 500 });
@@ -180,13 +179,15 @@ export async function PATCH(request: Request) {
     } else {
       const { data, error: fetchError } = await supabase
         .from('articles')
-        .select('published_at, article_drafts (title, summary, content)')
+        .select('published_at, article_drafts (title, summary, content, updated_at)')
         .eq('id', id)
         .maybeSingle();
       if (fetchError) throw fetchError;
       if (!data) return NextResponse.json({ error: 'Article not found' }, { status: 404 });
 
-      const draft = (data as unknown as Pick<ArticleRow, 'article_drafts'>).article_drafts;
+      const draft = (data as unknown as {
+        article_drafts: (NonNullable<ArticleRow['article_drafts']> & { updated_at: string }) | null;
+      }).article_drafts;
       const { error } = await supabase
         .from('articles')
         .update({
@@ -197,11 +198,18 @@ export async function PATCH(request: Request) {
         })
         .eq('id', id);
       if (error) throw error;
+      invalidateArticles();
 
       if (draft) {
-        const { error: deleteError } = await supabase.from('article_drafts').delete().eq('article_id', id);
+        // Only the draft that was published: a newer save stays as unpublished changes.
+        const { error: deleteError } = await supabase
+          .from('article_drafts')
+          .delete()
+          .eq('article_id', id)
+          .eq('updated_at', draft.updated_at);
         if (deleteError) throw deleteError;
       }
+      return NextResponse.json({ success: true });
     }
 
     invalidateArticles();
@@ -227,7 +235,7 @@ export async function DELETE(request: NextRequest) {
 
     const folders = [`articles/${id}`, `articles/${id}/_draft`];
     const listings = await Promise.all(
-      folders.map((folder) => supabase.storage.from(STORAGE_BUCKET).list(folder))
+      folders.map((folder) => supabase.storage.from(STORAGE_BUCKET).list(folder, { limit: 1000 }))
     );
     const paths = listings.flatMap(({ data }, i) =>
       (data ?? []).filter((file) => file.id !== null).map((file) => `${folders[i]}/${file.name}`)
