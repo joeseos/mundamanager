@@ -139,34 +139,19 @@ const THREAD_SUMMARY_COLUMNS = {
   last_post_author: lastPostAuthor.username,
 };
 
-/**
- * One page of a category's threads (pinned first, then by latest post) and the
- * category's thread count, read together so the page count matches the list.
- */
-export function getForumThreads(
-  categoryId: string,
-  page: number
-): Promise<{ threads: ForumThreadSummary[]; threadCount: number }> {
+/** One page of a category's threads: pinned first, then by latest post. */
+export function getForumThreads(categoryId: string, page: number): Promise<ForumThreadSummary[]> {
   return unstable_cache(
-    async () => {
-      const db = getAppDb();
-      const [threads, [category]] = await Promise.all([
-        db
-          .select(THREAD_SUMMARY_COLUMNS)
-          .from(forumThreads)
-          .leftJoin(author, eq(author.id, forumThreads.author_id))
-          .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
-          .where(eq(forumThreads.category_id, categoryId))
-          .orderBy(desc(forumThreads.is_pinned), desc(forumThreads.last_post_at))
-          .limit(FORUM_THREADS_PER_PAGE)
-          .offset((page - 1) * FORUM_THREADS_PER_PAGE),
-        db
-          .select({ thread_count: forumCategories.thread_count })
-          .from(forumCategories)
-          .where(eq(forumCategories.id, categoryId)),
-      ]);
-      return { threads, threadCount: category?.thread_count ?? 0 };
-    },
+    async () =>
+      getAppDb()
+        .select(THREAD_SUMMARY_COLUMNS)
+        .from(forumThreads)
+        .leftJoin(author, eq(author.id, forumThreads.author_id))
+        .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
+        .where(eq(forumThreads.category_id, categoryId))
+        .orderBy(desc(forumThreads.is_pinned), desc(forumThreads.last_post_at))
+        .limit(FORUM_THREADS_PER_PAGE)
+        .offset((page - 1) * FORUM_THREADS_PER_PAGE),
     ['forum-threads', categoryId, String(page)],
     { tags: [TAGS.forumCategory(categoryId)], revalidate: false }
   )();

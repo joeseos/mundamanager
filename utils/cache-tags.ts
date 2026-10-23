@@ -44,10 +44,11 @@ import { revalidateTag } from 'next/cache';
  *                  joined onto gangs         | (invalidateGangPortraits) |
  * global-gang-rules gang rules and their   | admin gang rule and
  *                  effect types              | rule effect type writes
- * forum-index      forum categories with     | category edits; otherwise
- *                  counts and latest thread  | refreshes every 60 s
+ * forum-index      forum categories with     | category edits and thread
+ *                  counts and latest thread  | count changes (new, move,
+ *                  (category page counts)    | delete); else every 60 s
  * forum-category-{id} a category's thread    | any change to a thread in it
- *                  list pages and count      | (new, reply, rename, pin,
+ *                  list pages                | (new, reply, rename, pin,
  *                                            | lock, move, delete)
  * forum-thread-{number} a thread and its     | any change to the thread or
  *                  post pages                | its posts; post pages also

@@ -34,9 +34,11 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
   const page = parseForumPage(pageParam);
   if (!category || page === null) notFound();
 
-  const { threads, threadCount } = await getForumThreads(category.id, page);
-  const pageCount = forumPageCount(threadCount, FORUM_THREADS_PER_PAGE);
+  // Checked before the read so out-of-range pages add no cache entries
+  const pageCount = forumPageCount(category.thread_count, FORUM_THREADS_PER_PAGE);
   if (page > pageCount) notFound();
+
+  const threads = await getForumThreads(category.id, page);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
