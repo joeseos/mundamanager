@@ -133,7 +133,7 @@ export interface FamiliarServerData {
   fighter_gang_type_id?: string | null;
   fighter_custom_gang_type_id?: string | null;
   credits: number;
-  owner?: { fighter_name: string };
+  owner?: { fighter_name: string } | null;
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;

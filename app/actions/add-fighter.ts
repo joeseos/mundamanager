@@ -5,7 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
-import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { createExoticBeastsForEquipment, type CreatedFamiliar } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantSkillsForEffects } from './equipment';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -121,50 +121,7 @@ interface AddFighterResult {
       skill_name: string;
     }>;
     special_rules?: string[];
-    created_familiars?: Array<{
-      id: string;
-      fighter_name: string;
-      fighter_type: string;
-      fighter_subtypes: string[];
-      fighter_type_id: string;
-      fighter_gang_type_id: string | null;
-      fighter_custom_gang_type_id: string | null;
-      credits: number;
-      equipment_source: string;
-      created_at: string;
-      owner: {
-        id: string;
-        fighter_name: string;
-      };
-      movement: number;
-      weapon_skill: number;
-      ballistic_skill: number;
-      strength: number;
-      toughness: number;
-      wounds: number;
-      initiative: number;
-      attacks: number;
-      leadership: number;
-      cool: number;
-      willpower: number;
-      intelligence: number;
-      save?: number | null;
-      xp: number;
-      kills: number;
-      special_rules: string[];
-      equipment: Array<{
-        fighter_equipment_id: string;
-        equipment_id: string;
-        equipment_name: string;
-        equipment_type: string;
-        cost: number;
-        weapon_profiles?: any[];
-      }>;
-      skills: Array<{
-        skill_id: string;
-        skill_name: string;
-      }>;
-    }>;
+    created_familiars?: CreatedFamiliar[];
     applied_effects?: Array<{
       id: string;
       effect_name: string;
@@ -850,8 +807,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let gangUpdateError: any = null;
 
     // Collect exotic beast data for cache invalidation after main fighter processing
-    let allCreatedBeasts: any[] = [];
-    let totalBeastsRatingDelta = 0;
+    let allCreatedFamiliars: any[] = [];
+    let totalFamiliarsRatingDelta = 0;
 
     // Collect equipment effects data
     let allAppliedEffects: any[] = [];
@@ -992,13 +949,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               });
 
               // Create exotic beasts for equipment that grants them
-              let createdBeasts: any[] = [];
-              let createdBeastsRatingDelta = 0;
+              let createdFamiliarsRatingDelta = 0;
               
               if (exoticBeastEquipment.length > 0) {
                 for (const equipmentItem of exoticBeastEquipment) {
                   try {
-                    const beastResult = await createExoticBeastsForEquipment({
+                    const familiarResult = await createExoticBeastsForEquipment({
                       equipmentId: equipmentItem.equipment_id,
                       ownerFighterId: fighterId,
                       ownerFighterName: insertedFighter.fighter_name,
@@ -1007,17 +963,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       fighterEquipmentId: equipmentItem.id
                     });
 
-                    if (beastResult.success && beastResult.createdBeasts.length > 0) {
-                      createdBeasts.push(...beastResult.createdBeasts);
+                    if (familiarResult.success && familiarResult.createdFamiliars.length > 0) {
+                      allCreatedFamiliars.push(...familiarResult.createdFamiliars);
                       
-                      // Collect beast data for later processing
-                      allCreatedBeasts.push(...beastResult.createdBeasts);
-                      
-                      // Calculate rating delta for created beasts
-                      for (const beast of beastResult.createdBeasts) {
-                        createdBeastsRatingDelta += beast.credits || 0;
+                      // Calculate rating delta for created familiars
+                      for (const familiar of familiarResult.createdFamiliars) {
+                        createdFamiliarsRatingDelta += familiar.credits || 0;
                       }
-                      totalBeastsRatingDelta += createdBeastsRatingDelta;
+                      totalFamiliarsRatingDelta += createdFamiliarsRatingDelta;
                     }
                   } catch (beastError) {
                     console.error('Error creating exotic beast for equipment:', equipmentItem.equipment_id, beastError);
@@ -1220,7 +1173,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Update gang credits, rating and wealth using centralized helper
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
-      ratingDelta: ratingCost + totalBeastsRatingDelta,
+      ratingDelta: ratingCost + totalFamiliarsRatingDelta,
       creditsDelta: -fighterCost // Negative because credits were spent
     });
 
@@ -1351,7 +1304,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           skill_name: (skill.skills as any)?.name || ''
         })),
         special_rules: effectiveFighterData.special_rules,
-        created_familiars: allCreatedBeasts.length > 0 ? allCreatedBeasts : undefined,
+        created_familiars: allCreatedFamiliars.length > 0 ? allCreatedFamiliars : undefined,
         applied_effects: allAppliedEffects.length > 0 ? allAppliedEffects : undefined
       }
     };
