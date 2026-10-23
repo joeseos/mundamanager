@@ -15,6 +15,7 @@ import {
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import '@/components/ui/rich-text-editor.css';
 
 interface ForumThreadPageProps {
@@ -64,8 +65,18 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
 
         <ol className="divide-y mt-4">
           {posts.map((post) => (
-            <li key={post.id} id={`post-${post.post_number}`} className="py-4 first:pt-0 last:pb-0 scroll-mt-24">
-              <div className="flex items-baseline justify-between gap-2 text-sm mb-2">
+            <li
+              key={post.id}
+              id={`post-${post.post_number}`}
+              className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 sm:gap-x-3 py-4 first:pt-0 last:pb-0 scroll-mt-24"
+            >
+              {/* Beside the name on mobile, a column of its own from sm up */}
+              <UserAvatar
+                username={post.author}
+                avatarUrl={post.author_avatar_url}
+                className="size-8 text-xs self-center sm:size-12 sm:text-base sm:self-start sm:row-span-2"
+              />
+              <div className="flex items-baseline justify-between gap-2 text-sm self-center sm:self-start">
                 <span className="min-w-0 truncate">
                   {post.author_id && post.author ? (
                     <Link href={`/user/${post.author_id}`} prefetch={false} className="font-semibold hover:text-red-800 transition-colors">
@@ -83,17 +94,19 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
                   #{post.post_number}
                 </a>
               </div>
-              {post.is_removed ? (
-                <p className="text-muted-foreground italic">This post was removed.</p>
-              ) : (
-                <ForumPostContent post={post} threadTitle={thread.title} />
-              )}
-              {!post.is_removed && post.like_count > 0 && (
-                <p className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                  <LuHeart className="h-4 w-4" aria-label="Likes" />
-                  {post.like_count}
-                </p>
-              )}
+              <div className="col-span-2 sm:col-span-1 sm:col-start-2 min-w-0 mt-2">
+                {post.is_removed ? (
+                  <p className="text-muted-foreground italic">This post was removed.</p>
+                ) : (
+                  <ForumPostContent post={post} threadTitle={thread.title} />
+                )}
+                {!post.is_removed && post.like_count > 0 && (
+                  <p className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                    <LuHeart className="h-4 w-4" aria-label="Likes" />
+                    {post.like_count}
+                  </p>
+                )}
+              </div>
             </li>
           ))}
         </ol>

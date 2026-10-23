@@ -830,6 +830,7 @@ export const profiles = pgTable('profiles', {
   id: uuid('id').primaryKey(),
   username: text('username').notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
+  avatar_url: text('avatar_url'),
   user_role: text('user_role').default(sql`'user'::text`),
   patreon_user_id: text('patreon_user_id'),
   patron_status: text('patron_status'),
