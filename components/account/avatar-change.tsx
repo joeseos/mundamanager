@@ -31,7 +31,7 @@ export default function AvatarChange({ userId, username, currentAvatarUrl }: Ava
         aria-label="Change avatar"
         title="Change avatar"
       >
-        <UserAvatar username={username} avatarUrl={avatarUrl} className="size-16 text-2xl" />
+        <UserAvatar username={username} avatarUrl={avatarUrl} className="size-20 text-2xl" />
         <span className="absolute bottom-0 right-0 rounded-full bg-neutral-900 text-white p-1 shadow">
           <LuPencil className="h-3 w-3" />
         </span>

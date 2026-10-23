@@ -74,7 +74,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
               <UserAvatar
                 username={post.author}
                 avatarUrl={post.author_avatar_url}
-                className="size-6 text-xs self-center sm:size-10 sm:text-base sm:self-start sm:row-span-2"
+                className="size-8 text-xs self-center sm:size-12 sm:text-base sm:self-start sm:row-span-2"
               />
               <div className="flex items-baseline justify-between gap-2 text-sm self-center sm:self-start">
                 <span className="min-w-0 truncate">
