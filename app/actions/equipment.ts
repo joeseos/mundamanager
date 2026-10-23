@@ -11,7 +11,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
+import { grantedSkillFromEffect, isEditableEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -1163,7 +1163,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       await clearHardpointReference(supabase, params.fighter_equipment_id, equipmentBefore.vehicle_id);
     }
 
-    // Get associated fighter effects before deletion (they'll be cascade deleted)
+    // Get associated fighter effects before deletion (they'll be cascade deleted).
+    // Include effects targeting this equipment (e.g. upgrades from an attached accessory)
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')
       .select(`
@@ -1175,7 +1176,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           numeric_value
         )
       `)
-      .eq('fighter_equipment_id', params.fighter_equipment_id);
+      .or(`fighter_equipment_id.eq.${params.fighter_equipment_id},target_equipment_id.eq.${params.fighter_equipment_id}`);
 
     // Determine rating delta prior to deletion
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
@@ -1507,6 +1508,34 @@ export async function applySelfUpgradesToEquipment(params: {
       return { success: false, error: 'Ownership mismatch' };
     }
 
+    // A failed read must not fall through as "not attached": the upgrade would land on
+    // the accessory and skip the one-upgrade check below.
+    const { data: accessoryEffects, error: effectsErr } = await supabase
+      .from('fighter_effects')
+      .select('target_equipment_id, type_specific_data')
+      .eq('fighter_equipment_id', params.fighter_equipment_id);
+    if (effectsErr) {
+      return { success: false, error: `Failed to read the equipment's effects: ${effectsErr.message}` };
+    }
+
+    // Equipment attached to a weapon (e.g. Enhance weapon) is linked to it by the
+    // anchor effect written at purchase. Route the upgrades to that weapon, otherwise
+    // they land on the accessory, which has no profile to modify.
+    const targetEquipmentId: string | null =
+      accessoryEffects.find(e => e.target_equipment_id)?.target_equipment_id ?? null;
+
+    // Attached equipment takes one Edit with one pick: each Enhance weapon buys a single
+    // upgrade, and a weapon gets more by taking more of them. Spyrer weapons and bionics
+    // are not attached, so they keep stacking theirs across Edits.
+    if (targetEquipmentId) {
+      if (params.effect_type_ids.length > 1) {
+        return { success: false, error: 'Attached equipment takes a single upgrade' };
+      }
+      if (accessoryEffects.some(isEditableEffect)) {
+        return { success: false, error: 'This equipment already has an upgrade. Remove it to pick another.' };
+      }
+    }
+
     // Insert all effects
     const results: { effect_type_id: string; success: boolean; error?: string }[] = [];
 
@@ -1517,7 +1546,7 @@ export async function applySelfUpgradesToEquipment(params: {
           fighter_id: params.fighter_id,
           vehicle_id: null,
           fighter_equipment_id: params.fighter_equipment_id,
-          target_equipment_id: null,
+          target_equipment_id: targetEquipmentId,
           effect_type_id,
           user_id: user.id
         },
