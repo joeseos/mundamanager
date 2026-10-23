@@ -9,10 +9,11 @@
 -- (app/actions/user.ts). Patreon fields are written with the service role, and
 -- new profiles are created by the SECURITY DEFINER signup trigger, so neither
 -- needs these grants. Column grants leave the RLS policies as they are.
+-- supabase/bootstrap/grants.sql applies the same grants to local databases.
 
 BEGIN;
 
-REVOKE INSERT, UPDATE ON TABLE public.profiles FROM PUBLIC, anon, authenticated;
+REVOKE INSERT, UPDATE, TRUNCATE, REFERENCES, TRIGGER ON TABLE public.profiles FROM PUBLIC, anon, authenticated;
 
 GRANT UPDATE (username, updated_at) ON TABLE public.profiles TO authenticated;
 GRANT INSERT (id, username) ON TABLE public.profiles TO authenticated;
