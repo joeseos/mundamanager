@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { and, asc, between, desc, eq, sql } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
@@ -122,10 +123,11 @@ export const getForumCategories = unstable_cache(
   { tags: [TAGS.forumIndex()], revalidate: 60 }
 );
 
-export async function getForumCategory(slug: string): Promise<ForumCategory | null> {
+// cache(): a page, its metadata and its breadcrumb share one lookup per request
+export const getForumCategory = cache(async (slug: string): Promise<ForumCategory | null> => {
   const categories = await getForumCategories();
   return categories.find((category) => category.slug === slug) ?? null;
-}
+});
 
 const THREAD_SUMMARY_COLUMNS = {
   number: forumThreads.number,
@@ -157,8 +159,9 @@ export function getForumThreads(categoryId: string, page: number): Promise<Forum
   )();
 }
 
-export function getForumThread(number: number): Promise<ForumThread | null> {
-  return unstable_cache(
+// cache(): shared by the page, its metadata and its breadcrumb, as above
+export const getForumThread = cache((number: number): Promise<ForumThread | null> =>
+  unstable_cache(
     async () => {
       const [thread] = await getAppDb()
         .select({
@@ -179,8 +182,8 @@ export function getForumThread(number: number): Promise<ForumThread | null> {
     },
     ['forum-thread', String(number)],
     { tags: [TAGS.forumThread(number)], revalidate: false }
-  )();
-}
+  )()
+);
 
 /**
  * One page of a thread's posts, oldest first. Post numbers run 1, 2, 3... with
