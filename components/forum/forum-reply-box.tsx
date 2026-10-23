@@ -16,25 +16,26 @@ interface ForumReplyBoxProps {
 
 export function ForumReplyBox({ threadId, path }: ForumReplyBoxProps) {
   const { userId, loading } = useForumViewer();
-  // A new key after each reply empties the form and gives it a new image folder
-  const [formKey, setFormKey] = useState(0);
+  // The editor mounts only while replying: on mobile its toolbar is pinned to the top of the screen
+  const [replying, setReplying] = useState(false);
   if (loading) return null;
 
   return (
     <section className="mt-4 border-t pt-4">
-      <h2 className="text-lg font-semibold mb-2">Reply</h2>
-      {userId ? (
-        <ForumPostForm
-          key={formKey}
-          placeholder="Write a reply..."
-          submitText="Post reply"
-          onSubmit={({ content }) => replyToForumThread({ threadId, content })}
-          onSuccess={() => setFormKey((key) => key + 1)}
-        />
-      ) : (
+      {!userId ? (
         <Button asChild variant="outline">
           <Link href={signInPath(path)}>Sign in to reply</Link>
         </Button>
+      ) : replying ? (
+        <ForumPostForm
+          placeholder="Write a reply..."
+          submitText="Post reply"
+          onSubmit={({ content }) => replyToForumThread({ threadId, content })}
+          onSuccess={() => setReplying(false)}
+          onCancel={() => setReplying(false)}
+        />
+      ) : (
+        <Button onClick={() => setReplying(true)}>Reply</Button>
       )}
     </section>
   );
