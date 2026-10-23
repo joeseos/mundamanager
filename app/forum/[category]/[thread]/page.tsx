@@ -1,0 +1,109 @@
+import { Metadata } from 'next';
+import Link from 'next/link';
+import { notFound, permanentRedirect } from 'next/navigation';
+import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
+import {
+  FORUM_POSTS_PER_PAGE,
+  formatForumDate,
+  forumPageCount,
+  forumThreadPath,
+  getForumPosts,
+  getForumThread,
+  parseForumPage,
+  parseForumThreadNumber,
+} from '@/app/lib/forum';
+import { ForumPagination } from '@/components/forum/forum-pagination';
+import '@/components/ui/rich-text-editor.css';
+
+interface ForumThreadPageProps {
+  params: Promise<{ category: string; thread: string }>;
+  searchParams: Promise<{ page?: string | string[] }>;
+}
+
+async function findThread(segment: string) {
+  const number = parseForumThreadNumber(segment);
+  return number === null ? null : getForumThread(number);
+}
+
+export async function generateMetadata({ params }: ForumThreadPageProps): Promise<Metadata> {
+  const thread = await findThread((await params).thread);
+  if (!thread) return {};
+  return { title: `${thread.title} - ${thread.category.name} - Munda Manager` };
+}
+
+export default async function ForumThreadPage({ params, searchParams }: ForumThreadPageProps) {
+  const [{ category: categorySlug, thread: segment }, { page: pageParam }] = await Promise.all([params, searchParams]);
+  const thread = await findThread(segment);
+  const page = parseForumPage(pageParam);
+  if (!thread || page === null) notFound();
+
+  // A moved or renamed thread keeps its number, so old links land on the current URL.
+  const path = forumThreadPath(thread.category.slug, thread.number, thread.title);
+  if (path !== `/forum/${categorySlug}/${segment}`) {
+    permanentRedirect(page === 1 ? path : `${path}?page=${page}`);
+  }
+
+  const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
+  if (page > pageCount) notFound();
+
+  const posts = await getForumPosts(thread, page);
+
+  return (
+    <main className="flex min-h-screen flex-col items-center">
+      <div className="w-full bg-card shadow-md rounded-lg p-4">
+        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+          {thread.is_pinned && <LuPin className="h-5 w-5 shrink-0 text-red-800" aria-label="Pinned" />}
+          {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
+          <span className="min-w-0 break-words">{thread.title}</span>
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)}
+        </p>
+
+        <ol className="divide-y mt-4">
+          {posts.map((post) => (
+            <li key={post.id} id={`post-${post.post_number}`} className="py-4 first:pt-0 last:pb-0 scroll-mt-24">
+              <div className="flex items-baseline justify-between gap-2 text-sm mb-2">
+                <span className="min-w-0 truncate">
+                  {post.author_id && post.author ? (
+                    <Link href={`/user/${post.author_id}`} prefetch={false} className="font-semibold hover:text-red-800 transition-colors">
+                      {post.author}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold">Unknown User</span>
+                  )}
+                  <span className="text-muted-foreground">
+                    {' '}· {formatForumDate(post.created_at)}
+                    {post.updated_at && !post.is_removed && ' · edited'}
+                  </span>
+                </span>
+                <a href={`#post-${post.post_number}`} className="text-muted-foreground hover:text-red-800 shrink-0">
+                  #{post.post_number}
+                </a>
+              </div>
+              {post.is_removed ? (
+                <p className="text-muted-foreground italic">This post was removed.</p>
+              ) : (
+                <div className="prose max-w-none [&_li]:marker:text-red-800" dangerouslySetInnerHTML={{ __html: post.content }} />
+              )}
+              {!post.is_removed && post.like_count > 0 && (
+                <p className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                  <LuHeart className="h-4 w-4" aria-label="Likes" />
+                  {post.like_count}
+                </p>
+              )}
+            </li>
+          ))}
+        </ol>
+
+        {thread.is_locked && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
+            <LuLock className="h-4 w-4" /> This thread is locked.
+          </p>
+        )}
+
+        <ForumPagination path={path} page={page} pageCount={pageCount} />
+      </div>
+    </main>
+  );
+}

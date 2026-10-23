@@ -9,3 +9,42 @@ import { notificationHtmlSanitizeOptions } from '@/supabase/edge-functions/send-
 export function sanitizeNotificationHtml(html: string): string {
   return sanitizeHtml(html, notificationHtmlSanitizeOptions);
 }
+
+// Article and forum post HTML, rendered on public pages. Forum posts can be
+// written by any signed-in user. Same allowlist as notifications, plus what the
+// full editor can produce: images, headings 4–6, code, horizontal rules, and
+// only the editor's own classes on links and images (they keep links blue on the
+// dark theme), so a post can't restyle the page with other classes.
+
+const { a: notificationLink } = notificationHtmlSanitizeOptions.transformTags;
+
+const articleHtmlSanitizeOptions: sanitizeHtml.IOptions = {
+  ...notificationHtmlSanitizeOptions,
+  allowedTags: [
+    ...notificationHtmlSanitizeOptions.allowedTags,
+    'h4', 'h5', 'h6', 'code', 'pre', 'hr', 'img',
+  ],
+  allowedAttributes: {
+    ...notificationHtmlSanitizeOptions.allowedAttributes,
+    a: [...notificationHtmlSanitizeOptions.allowedAttributes.a, 'class'],
+    img: ['src', 'alt', 'title', 'width', 'class', 'data-align'],
+  },
+  // The classes RichTextEditor puts on links and images
+  allowedClasses: {
+    a: ['text-blue-600', 'underline', 'cursor-pointer'],
+    img: ['max-w-full', 'h-auto', 'rounded-md', 'my-2'],
+  },
+  transformTags: {
+    ...notificationHtmlSanitizeOptions.transformTags,
+    a: (tagName, attribs) => {
+      const result = notificationLink(tagName, attribs);
+      return result.tagName === 'a' && attribs.class
+        ? { ...result, attribs: { ...result.attribs, class: attribs.class } }
+        : result;
+    },
+  },
+};
+
+export function sanitizeArticleHtml(html: string): string {
+  return sanitizeHtml(html, articleHtmlSanitizeOptions);
+}
