@@ -2,26 +2,15 @@ import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 import { unstable_cache } from 'next/cache';
 
 import { TAGS } from '@/utils/cache-tags';
-
 import { getAppDb } from '@/utils/db/client';
 import { editions, gangSubtypeTypes, gangTypes } from '@/utils/db/schema';
 import { gangPortraitPublicUrl } from '@/types/gang';
-import { EDITION_N23, EDITION_N26, type EditionSlug } from '@/types/edition';
+import type { EditionSlug } from '@/types/edition';
 import { detailGangTypeLabel, joinedParentGangTypeName } from '@/utils/gang-type-label';
-import { isUuid } from '@/utils/uuid';
+import type { PublicGangFilters } from '@/utils/browse-gangs-filters';
 import { getGangSubtypesById, type Gang } from '@/app/lib/get-user-gangs';
 
 export const PUBLIC_GANGS_PAGE_SIZE = 50;
-
-export interface PublicGangFilters {
-  edition: EditionSlug;
-  userId: string | null;
-  gangTypeId: string | null;
-  subtypeId: string | null;
-  minRating: number | null;
-  maxRating: number | null;
-  page: number;
-}
 
 export type PublicGang = Pick<
   Gang,
@@ -31,35 +20,6 @@ export type PublicGang = Pick<
 export interface PublicGangFilterOption {
   value: string;
   label: string;
-}
-
-type SearchParams = Record<string, string | string[] | undefined>;
-
-const firstParam = (value: string | string[] | undefined): string | undefined =>
-  Array.isArray(value) ? value[0] : value;
-
-const ratingParam = (value: string | string[] | undefined): number | null => {
-  const rating = Number(firstParam(value));
-  return firstParam(value) && Number.isFinite(rating) ? rating : null;
-};
-
-/** Filters from the /gangs query string; anything malformed is dropped. */
-export function parsePublicGangFilters(searchParams: SearchParams): PublicGangFilters {
-  const edition = firstParam(searchParams.edition) === EDITION_N23 ? EDITION_N23 : EDITION_N26;
-  const userId = firstParam(searchParams.user);
-  const gangTypeId = firstParam(searchParams.type);
-  const subtypeId = firstParam(searchParams.subtype);
-  const page = Number(firstParam(searchParams.page));
-
-  return {
-    edition,
-    userId: isUuid(userId) ? userId : null,
-    gangTypeId: isUuid(gangTypeId) ? gangTypeId : null,
-    subtypeId: isUuid(subtypeId) ? subtypeId : null,
-    minRating: ratingParam(searchParams.minRating),
-    maxRating: ratingParam(searchParams.maxRating),
-    page: Number.isSafeInteger(page) && page > 1 ? page : 1,
-  };
 }
 
 /** Gang type and subtype choices for the edition's filters. */
@@ -130,8 +90,9 @@ export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
       filters.userId ? eq(gang.user_id, filters.userId) : undefined,
       filters.gangTypeId ? eq(gang.gang_type_id, filters.gangTypeId) : undefined,
       filters.subtypeId ? sql`${gang.gang_subtypes} @> ${JSON.stringify([filters.subtypeId])}::jsonb` : undefined,
-      filters.minRating !== null ? gte(gang.rating, filters.minRating) : undefined,
-      filters.maxRating !== null ? lte(gang.rating, filters.maxRating) : undefined,
+      // A gang with no rating yet shows as 0, so it is filtered as 0
+      filters.minRating !== null ? gte(sql`coalesce(${gang.rating}, 0)`, filters.minRating) : undefined,
+      filters.maxRating !== null ? lte(sql`coalesce(${gang.rating}, 0)`, filters.maxRating) : undefined,
     ),
     // id breaks ties, so paging doesn't repeat or skip gangs updated at the same time
     orderBy: (gang) => [sql`${gang.last_updated} desc nulls last`, desc(gang.id)],

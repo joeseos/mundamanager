@@ -3,11 +3,8 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { BrowseGangs } from "@/components/browse-gangs";
 import { getUserProfile } from "@/app/lib/shared/gang-data";
-import {
-  getPublicGangFilterOptions,
-  parsePublicGangFilters,
-  searchPublicGangs,
-} from "@/app/lib/search-public-gangs";
+import { getPublicGangFilterOptions, searchPublicGangs } from "@/app/lib/search-public-gangs";
+import { parsePublicGangFilters } from "@/utils/browse-gangs-filters";
 
 export default async function BrowseGangsPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;

@@ -11,7 +11,8 @@ import { LuX } from 'react-icons/lu'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { GangCardContent } from '@/components/home/gang-card'
 import type { EditionSlug } from '@/types/edition'
-import type { PublicGang, PublicGangFilterOption, PublicGangFilters } from '@/app/lib/search-public-gangs'
+import type { PublicGang, PublicGangFilterOption } from '@/app/lib/search-public-gangs'
+import { browseGangsHref, parseRating, type PublicGangFilters } from '@/utils/browse-gangs-filters'
 
 interface BrowseGangsProps {
   filters: PublicGangFilters;
@@ -22,22 +23,6 @@ interface BrowseGangsProps {
   gangs: PublicGang[];
   hasMore: boolean;
 }
-
-function browseGangsHref(filters: Omit<PublicGangFilters, 'page'>, page = 1): string {
-  const params = new URLSearchParams({ edition: filters.edition });
-  if (filters.userId) params.set('user', filters.userId);
-  if (filters.gangTypeId) params.set('type', filters.gangTypeId);
-  if (filters.subtypeId) params.set('subtype', filters.subtypeId);
-  if (filters.minRating !== null) params.set('minRating', String(filters.minRating));
-  if (filters.maxRating !== null) params.set('maxRating', String(filters.maxRating));
-  if (page > 1) params.set('page', String(page));
-  return `/gangs?${params}`;
-}
-
-const ratingInput = (value: string): number | null => {
-  const rating = Number(value);
-  return value.trim() !== '' && Number.isFinite(rating) ? rating : null;
-};
 
 export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, hasMore }: BrowseGangsProps) {
   const router = useRouter();
@@ -59,14 +44,14 @@ export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, has
       userId: user?.id ?? null,
       gangTypeId: gangTypeId || null,
       subtypeId: subtypeId || null,
-      minRating: ratingInput(minRating),
-      maxRating: ratingInput(maxRating),
+      minRating: parseRating(minRating),
+      maxRating: parseRating(maxRating),
     }));
   };
 
   // Gang types and subtypes belong to an edition, so switching it clears them
   const handleEditionChange = (edition: EditionSlug) => {
-    search(browseGangsHref({ edition, userId: user?.id ?? null, gangTypeId: null, subtypeId: null, minRating: null, maxRating: null }));
+    search(browseGangsHref({ ...filters, edition, gangTypeId: null, subtypeId: null }));
   };
 
   return (
