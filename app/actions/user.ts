@@ -1,7 +1,7 @@
 "use server";
 
 import { invalidateUser } from '@/utils/cache-tags';
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import {
   notificationEmailConfig,
   MASTER_PREF_KEY,
@@ -104,4 +104,41 @@ export const updateUsernameAction = async (userId: string, newUsername: string) 
     console.error('Unexpected error during username update:', error);
     return { error: "An unexpected error occurred" };
   }
+};
+
+/** Saves an uploaded avatar's URL, or null to remove it. */
+export const updateAvatarAction = async (imageUrl: string | null) => {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  // Users can't write avatar_url themselves: only images in their own avatar
+  // folder are saved, so an avatar can't load from another site. URL.parse resolves
+  // any ../ before the check.
+  const avatarFolderUrl = supabase.storage.from('users-images').getPublicUrl(`avatars/${user.id}/`).data.publicUrl;
+  if (imageUrl !== null) {
+    const url = URL.parse(imageUrl);
+    if (!url || !`${url.origin}${url.pathname}`.startsWith(avatarFolderUrl)) {
+      return { success: false, error: "Invalid avatar image" };
+    }
+  }
+
+  const { error } = await createServiceRoleClient()
+    .from('profiles')
+    .update({ avatar_url: imageUrl, updated_at: new Date().toISOString() })
+    .eq('id', user.id);
+
+  if (error) {
+    console.error('Avatar update error:', error);
+    return { success: false, error: "Failed to update avatar" };
+  }
+
+  invalidateUser(user.id);
+
+  return { success: true };
 };
