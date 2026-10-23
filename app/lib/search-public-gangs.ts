@@ -1,4 +1,7 @@
-import { and, asc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { unstable_cache } from 'next/cache';
+
+import { TAGS } from '@/utils/cache-tags';
 
 import { getAppDb } from '@/utils/db/client';
 import { editions, gangSubtypeTypes, gangTypes } from '@/utils/db/schema';
@@ -44,7 +47,7 @@ export function parsePublicGangFilters(searchParams: SearchParams): PublicGangFi
   const edition = firstParam(searchParams.edition) === EDITION_N23 ? EDITION_N23 : EDITION_N26;
   const gangTypeId = firstParam(searchParams.type);
   const subtypeId = firstParam(searchParams.subtype);
-  const page = Math.floor(Number(firstParam(searchParams.page)));
+  const page = Number(firstParam(searchParams.page));
 
   return {
     edition,
@@ -52,37 +55,44 @@ export function parsePublicGangFilters(searchParams: SearchParams): PublicGangFi
     subtypeId: isUuid(subtypeId) ? subtypeId : null,
     minRating: ratingParam(searchParams.minRating),
     maxRating: ratingParam(searchParams.maxRating),
-    page: page > 1 ? page : 1,
+    page: Number.isSafeInteger(page) && page > 1 ? page : 1,
   };
 }
 
 /** Gang type and subtype choices for the edition's filters. */
-export async function getPublicGangFilterOptions(edition: EditionSlug): Promise<{
+export const getPublicGangFilterOptions = (edition: EditionSlug): Promise<{
   gangTypes: PublicGangFilterOption[];
   subtypes: PublicGangFilterOption[];
-}> {
-  const db = getAppDb();
-  const [types, subtypes] = await Promise.all([
-    db
-      .select({ id: gangTypes.id, gang_type: gangTypes.gang_type, parent_gang_type_name: gangTypes.parent_gang_type_name })
-      .from(gangTypes)
-      .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
-      .where(and(eq(editions.slug, edition), eq(gangTypes.is_hidden, false))),
-    db
-      .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
-      .from(gangSubtypeTypes)
-      .innerJoin(editions, eq(editions.id, gangSubtypeTypes.edition_id))
-      .where(eq(editions.slug, edition))
-      .orderBy(asc(gangSubtypeTypes.subtype)),
-  ]);
+}> => unstable_cache(
+  async () => {
+    const db = getAppDb();
+    const [types, subtypes] = await Promise.all([
+      db
+        .select({ id: gangTypes.id, gang_type: gangTypes.gang_type, parent_gang_type_name: gangTypes.parent_gang_type_name })
+        .from(gangTypes)
+        .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
+        .where(and(eq(editions.slug, edition), eq(gangTypes.is_hidden, false))),
+      db
+        .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
+        .from(gangSubtypeTypes)
+        .innerJoin(editions, eq(editions.id, gangSubtypeTypes.edition_id))
+        .where(eq(editions.slug, edition))
+        .orderBy(asc(gangSubtypeTypes.subtype)),
+    ]);
 
-  return {
-    gangTypes: types
-      .map((type) => ({ value: type.id, label: detailGangTypeLabel(type.gang_type, type.parent_gang_type_name) }))
-      .sort((a, b) => a.label.localeCompare(b.label)),
-    subtypes: subtypes.map((subtype) => ({ value: subtype.id, label: subtype.subtype ?? '' })),
-  };
-}
+    return {
+      gangTypes: types
+        .map((type) => ({ value: type.id, label: detailGangTypeLabel(type.gang_type, type.parent_gang_type_name) }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+      subtypes: subtypes.map((subtype) => ({ value: subtype.id, label: subtype.subtype ?? '' })),
+    };
+  },
+  [`public-gang-filter-options-${edition}`],
+  {
+    tags: [TAGS.globalGangTypes()],
+    revalidate: 3600 // Subtypes have no tag of their own and rarely change
+  }
+)();
 
 /**
  * One page of gangs that aren't hidden, most recently updated first. Custom
@@ -119,7 +129,8 @@ export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
       filters.minRating !== null ? gte(gang.rating, filters.minRating) : undefined,
       filters.maxRating !== null ? lte(gang.rating, filters.maxRating) : undefined,
     ),
-    orderBy: (gang) => sql`${gang.last_updated} desc nulls last`,
+    // id breaks ties, so paging doesn't repeat or skip gangs updated at the same time
+    orderBy: (gang) => [sql`${gang.last_updated} desc nulls last`, desc(gang.id)],
     // One extra row tells whether there is a next page
     limit: PUBLIC_GANGS_PAGE_SIZE + 1,
     offset: (filters.page - 1) * PUBLIC_GANGS_PAGE_SIZE,
