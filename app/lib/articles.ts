@@ -1,7 +1,7 @@
 import { unstable_cache } from 'next/cache';
 import { createClient } from '@supabase/supabase-js';
 import { TAGS } from '@/utils/cache-tags';
-import { sanitizeArticleHtml } from '@/utils/sanitize-article-html';
+import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 
 /** Same rule as the articles_slug_format check constraint. */
 export const ARTICLE_SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
