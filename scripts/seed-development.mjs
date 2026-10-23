@@ -228,9 +228,9 @@ export async function populateDataset(sql, config) {
   if (leftovers.length) throw new Error('Partial dataset exists: the campaign is missing but generated accounts remain. Use a new --seed; existing accounts will not be overwritten.');
   const catalog = await catalogs(sql, config.edition);
   const restoreNotifications = await pauseNotifications(sql);
-  const log = (gang, action, description, fighterId = null, days = 0) => insert('gang_logs', {
+  const log = (gang, action, description, fighterId = null, createdAt = ago(0)) => insert('gang_logs', {
     id: id(`log:${gang.id}:${report.inserted.gang_logs ?? 0}`), gang_id: gang.id,
-    user_id: gang.user.id, fighter_id: fighterId, action_type: action, description, created_at: ago(days),
+    user_id: gang.user.id, fighter_id: fighterId, action_type: action, description, created_at: createdAt,
   });
 
   // Direct auth fixtures allow one atomic transaction. Keep the profile-creation
@@ -258,7 +258,8 @@ export async function populateDataset(sql, config) {
   report.inserted.profiles = users.length;
 
   const campaignType = random.pick(catalog.campaignTypes);
-  await insert('campaigns', { id: campaignId, campaign_name: `Dev ${random.pick(ADJECTIVES)} Sector [${tag}]`,
+  const campaignName = `Dev ${random.pick(ADJECTIVES)} Sector [${tag}]`;
+  await insert('campaigns', { id: campaignId, campaign_name: campaignName,
     campaign_type_id: campaignType.id, status: 'Active', created_by: users[0].id,
     description: 'A synthetic development campaign with rival gangs, territories, and battles.',
     note: '<p>Generated local campaign: explore rosters, challenges, territories, and live sessions.</p>',
@@ -397,6 +398,7 @@ export async function populateDataset(sql, config) {
         created_at: ago(random.int(15, 50)), updated_at: ago(0),
         note: '<p>Generated development fighter.</p>' };
       // special_rules is jsonb[] on fighters, unlike the JSON arrays on custom types.
+      fighter.createdAt = row.created_at;
       await insert('fighters', row);
       if (!custom) await sql`UPDATE public.fighters SET special_rules=ft.special_rules
         FROM public.fighter_types ft WHERE fighters.id=${fighter.id} AND ft.id=${source.id}`;
@@ -442,7 +444,7 @@ export async function populateDataset(sql, config) {
         loadout_id: loadoutId, fighter_equipment_id: equipmentId });
       await sql`UPDATE public.fighters SET active_loadout_id=${loadoutId} WHERE id=${fighter.id}`;
       fighter.loadoutId = loadoutId;
-      await log(gang, 'fighter_added', `Added fighter "${fighter.name}" (${row.credits} credits).`, fighter.id, 14);
+      await log(gang, 'fighter_added', `Added fighter "${fighter.name}" (${row.credits} credits).`, fighter.id, row.created_at);
     }
     const stashCount = random.int(3, 6);
     for (let j = 0; j < stashCount; j++) {
@@ -476,7 +478,7 @@ export async function populateDataset(sql, config) {
         gang_id: gang.id, credits: random.int(1, 5) * 5, ruined: i % 5 === 0 && j === 1,
         description: 'Generated custom campaign territory.', map_object_id: mapObjectId });
     }
-    await log(gang, 'gang_joined_campaign', 'Joined the development campaign.', null, 55);
+    await log(gang, 'campaign_joined', `Gang joined campaign "${campaignName}" (added by ${users[0].username})`, null, ago(55));
   }
 
   // Finalize states before costing or selecting any session crews. Never capture
@@ -516,7 +518,17 @@ export async function populateDataset(sql, config) {
     if (status === 'challenge_pending') battle.participants = sql.json([participants[0]]);
     await insert('campaign_battles', battle);
     if (played) {
-      for (const gang of pair) await log(gang, 'battle_result', `${gang === winner ? 'Won' : winner ? 'Lost' : 'Drew'} a battle against ${pair.find(g => g !== gang).name}.`, null, days);
+      for (const [index, gang] of pair.entries()) {
+        // Match logBattleResult in app/actions/logs/gang-campaign-logs.ts,
+        // including the attacker/defender wording and filterable action type.
+        const result = gang === winner ? 'won' : winner ? 'lost' : 'draw';
+        const resultText = { won: 'Victory!', lost: 'Defeat', draw: 'Draw' }[result];
+        const roleText = index === 0 ? 'attacked' : 'defended against';
+        const opponent = pair.find(g => g !== gang);
+        await log(gang, `battle_${result}`,
+          `Gang "${gang.name}" ${roleText} "${opponent.name}" in "${battle.scenario}" (Campaign: ${campaignName}). Result: ${resultText}`,
+          null, battle.created_at);
+      }
       const attacker = pair[0].fighters[0];
       const injured = pair[1].fighters[2];
       await insert('fighter_ooa_records', { id: id(`${label}:ooa`), campaign_id: campaignId,
@@ -532,7 +544,12 @@ export async function populateDataset(sql, config) {
   };
   for (let i = 0; i < config.battles; i++) {
     const pair = random.shuffle(gangs).slice(0, 2);
-    pairs.push(await createBattle(`battle:${i}`, pair, 'played', random.int(5, 45)));
+    // All recruits in both rosters must predate the battle, including the
+    // fighters referenced by its out-of-action record. Leave at least one day.
+    const newestRecruitment = Math.max(...pair.flatMap(gang =>
+      gang.fighters.map(fighter => Date.parse(fighter.createdAt))));
+    const oldestBattleDays = Math.min(45, Math.floor((anchor - newestRecruitment) / DAY) - 1);
+    pairs.push(await createBattle(`battle:${i}`, pair, 'played', random.int(5, oldestBattleDays)));
   }
   for (let i = 0; i < gangs.length; i++) {
     await createBattle(`challenge:${i}`, [gangs[i], gangs[(i + 1) % gangs.length]],
@@ -579,13 +596,16 @@ export async function populateDataset(sql, config) {
   await insert('notification_sends', { id: sendId, sender_id: users[0].id,
     type: 'campaign_message', campaign_id: campaignId, text: '<p>Welcome to the development sector.</p>',
     recipient_count: users.length, sample_receiver_ids: sql.array(users.slice(0, 3).map(u => u.id), 2950), created_at: ago(0) });
+  // Keep historical creation times, but make fresh fixtures visible regardless
+  // of --date: the notification UI filters expires_at against the real clock.
+  const notificationExpiresAt = new Date(Date.now() + 30 * DAY).toISOString();
   for (const [i, user] of users.entries()) {
     for (let j = 0; j < 5; j++) await insert('notifications', { id: id(`notification:${i}:${j}`),
       receiver_id: user.id, sender_id: users[0].id,
       type: j === 0 ? 'campaign_message' : 'info', send_id: j === 0 ? sendId : null,
       text: j === 0 ? '<p>Welcome to the development sector.</p>' : `Development update ${j}: your gang has new activity.`,
       is_html: j === 0, dismissed: j > 2, link: `/campaigns/${campaignId}`,
-      created_at: new Date(anchor - j * 3_600_000).toISOString(), expires_at: ago(-30) });
+      created_at: new Date(anchor - j * 3_600_000).toISOString(), expires_at: notificationExpiresAt });
   }
   report.includedExistingUsers = await includeLocalAccounts();
   await restoreNotifications();

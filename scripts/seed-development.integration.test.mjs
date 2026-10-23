@@ -45,7 +45,7 @@ test('both editions generate coherent data, rerun safely, and leave the database
         { edition: 'n23', minimum: true }, { edition: 'n26', minimum: true },
       ]) {
         const config = optionsFromArgs(['--apply', '--seed', `test-${randomUUID()}`,
-          '--edition', edition, '--date', '2026-10-23',
+          '--edition', edition, '--date', minimum ? '2020-01-01' : '2026-10-23',
           ...(minimum ? ['--fighters-min', '6', '--fighters-max', '6'] : [])]);
         await assert.rejects(sql.begin(async tx => {
           await tx`SET LOCAL lock_timeout='5s'`;
@@ -56,7 +56,9 @@ test('both editions generate coherent data, rerun safely, and leave the database
           const [existingBefore] = await tx`SELECT to_jsonb(u) AS account,to_jsonb(p) AS profile
             FROM auth.users u JOIN profiles p ON p.id=u.id WHERE u.id=${existingId}`;
           const start = queries.length;
+          const generationStarted = Date.now();
           const result = await populateDataset(tx, config);
+          const generationEnded = Date.now();
           const generationQueries = queries.slice(start);
           assert.equal(generationQueries.filter(q => q.includes('SELECT fd.* FROM public.fighter_defaults')).length, 1);
           assert.equal(generationQueries.filter(q => q.includes('SELECT m.* FROM public.fighter_effect_type_modifiers')).length, 1);
@@ -68,6 +70,51 @@ test('both editions generate coherent data, rerun safely, and leave the database
           assert.equal(result.validation.members, 10 + result.includedExistingUsers.length);
           assert.equal(result.includedExistingUsers.find(u => u.id === existingId).role, 'MEMBER');
           assert.equal(result.includedExistingUsers.find(u => u.id === missingProfileId).profileCreated, true);
+          const notifications = await tx`SELECT created_at,expires_at FROM notifications
+            WHERE receiver_id=ANY(${tx.array(result.users.map(user => user.id), 2950)})`;
+          assert.equal(notifications.length, 50);
+          const lifetime = 30 * 86_400_000;
+          for (const notification of notifications) {
+            assert.ok(new Date(notification.created_at).getTime() <= Date.parse(`${config.date}T00:00:00Z`));
+            assert.ok(new Date(notification.expires_at).getTime() >= generationStarted + lifetime);
+            assert.ok(new Date(notification.expires_at).getTime() <= generationEnded + lifetime);
+          }
+          const [campaign] = await tx`SELECT campaign_name FROM campaigns WHERE id=${result.campaignId}`;
+          const logRows = await tx`SELECT action_type,description FROM gang_logs WHERE gang_id IN
+            (SELECT gang_id FROM campaign_gangs WHERE campaign_id=${result.campaignId})`;
+          assert.ok(!logRows.some(row => ['battle_result', 'gang_joined_campaign'].includes(row.action_type)));
+          const membershipLogs = logRows.filter(row => row.action_type === 'campaign_joined');
+          assert.equal(membershipLogs.length, 10);
+          assert.ok(membershipLogs.every(row => row.description ===
+            `Gang joined campaign "${campaign.campaign_name}" (added by ${result.users[0].username})`));
+          const played = await tx`SELECT scenario,winner_id,participants FROM campaign_battles
+            WHERE campaign_id=${result.campaignId} AND status='played'`;
+          const gangNames = new Map(result.gangs.map(gang => [gang.id, gang.name]));
+          const expectedBattleLogs = played.flatMap(battle => battle.participants.map(participant => {
+            const outcome = participant.gang_id === battle.winner_id ? 'won' : battle.winner_id ? 'lost' : 'draw';
+            const resultText = { won: 'Victory!', lost: 'Defeat', draw: 'Draw' }[outcome];
+            const opponent = battle.participants.find(p => p.gang_id !== participant.gang_id);
+            const role = participant.role === 'attacker' ? 'attacked' : 'defended against';
+            return JSON.stringify({ action_type: `battle_${outcome}`,
+              description: `Gang "${gangNames.get(participant.gang_id)}" ${role} "${gangNames.get(opponent.gang_id)}" in "${battle.scenario}" (Campaign: ${campaign.campaign_name}). Result: ${resultText}` });
+          })).sort();
+          const battleLogs = logRows.filter(row => ['battle_won', 'battle_lost', 'battle_draw'].includes(row.action_type));
+          assert.equal(battleLogs.length, config.battles * 2);
+          assert.deepEqual(battleLogs.map(row => JSON.stringify({ action_type: row.action_type, description: row.description })).sort(), expectedBattleLogs);
+          const [chronology] = await tx`SELECT
+            (SELECT count(*) FROM gang_logs l JOIN fighters f ON f.id=l.fighter_id
+              JOIN campaign_gangs cg ON cg.gang_id=f.gang_id WHERE cg.campaign_id=${result.campaignId}
+              AND l.action_type='fighter_added' AND l.created_at IS DISTINCT FROM f.created_at)::int AS mismatched_recruitment_logs,
+            (SELECT count(*) FROM campaign_battles b CROSS JOIN LATERAL jsonb_array_elements(b.participants) p
+              JOIN fighters f ON f.gang_id=(p->>'gang_id')::uuid WHERE b.campaign_id=${result.campaignId}
+              AND b.status='played' AND f.created_at>=b.created_at)::int AS battles_before_recruitment,
+            (SELECT count(*) FROM fighter_ooa_records r
+              JOIN fighters causing ON causing.id=r.causing_fighter_id JOIN fighters injured ON injured.id=r.injured_fighter_id
+              WHERE r.campaign_id=${result.campaignId}
+              AND (r.created_at<=causing.created_at OR r.created_at<=injured.created_at))::int AS premature_ooa_records`;
+          assert.equal(chronology.mismatched_recruitment_logs, 0);
+          assert.equal(chronology.battles_before_recruitment, 0);
+          assert.equal(chronology.premature_ooa_records, 0);
           const [existingAfter] = await tx`SELECT to_jsonb(u) AS account,to_jsonb(p) AS profile
             FROM auth.users u JOIN profiles p ON p.id=u.id WHERE u.id=${existingId}`;
           assert.deepEqual(existingAfter, existingBefore);
@@ -84,7 +131,7 @@ test('both editions generate coherent data, rerun safely, and leave the database
             (SELECT count(*) FROM battle_session_fighters sf JOIN battle_sessions bs ON bs.id=sf.battle_session_id
               WHERE bs.campaign_id=${result.campaignId} AND sf.session_record->'conditions' @> '[{"key":"blaze"}]'::jsonb)::int AS blaze,
             (SELECT count(*) FROM campaign_members WHERE campaign_id=${result.campaignId}
-              AND user_id IN (${existingId},${missingProfileId}) AND joined_at<>'2026-10-23T00:00:00Z'::timestamptz)::int AS wrong_member_time`;
+              AND user_id IN (${existingId},${missingProfileId}) AND joined_at<>${`${config.date}T00:00:00Z`}::timestamptz)::int AS wrong_member_time`;
           assert.equal(states.invalid_crew, 0);
           assert.equal(states.invalid_vehicle, 0);
           assert.equal(states.blaze, edition === 'n23' ? 2 : 0);

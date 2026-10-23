@@ -1,4 +1,4 @@
-/** Pure costing shared by server reads, roster assembly, and local fixtures. */
+/** Pure costing shared by server reads and local fixtures. */
 export interface FighterCostParts {
   base: number;
   equipment: number;
