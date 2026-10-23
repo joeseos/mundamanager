@@ -3,7 +3,7 @@
 --
 -- Design notes:
 -- - A thread's opening post is its first row in forum_posts (post_number 1), so
---   editing, liking and reporting work the same for every post.
+--   editing and liking work the same for every post.
 -- - post_number numbers a thread's posts 1, 2, 3... in the order they were made,
 --   so a thread page is a range of post numbers. Posts are never deleted on
 --   their own: a moderator removes one by setting deleted_at, which empties
@@ -126,45 +126,6 @@ CREATE TABLE public.forum_post_likes (
   PRIMARY KEY (post_id, user_id)
 );
 
-CREATE TABLE public.forum_reports (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id uuid NOT NULL REFERENCES public.forum_posts(id) ON DELETE CASCADE,
-  reporter_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  reason text NOT NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  resolved_at timestamp with time zone,
-  resolved_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  CONSTRAINT forum_reports_reason_length CHECK (char_length(btrim(reason)) BETWEEN 1 AND 1000)
-);
-
-CREATE TABLE public.forum_bans (
-  user_id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  until timestamp with time zone,
-  reason text,
-  banned_by uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  updated_at timestamp with time zone
-);
-
-COMMENT ON TABLE public.forum_bans IS
-  'Users who can''t post. until NULL = permanent. Banned users can still read.';
-
--- Also defined in supabase/functions/is_forum_banned.sql (deployed on merge).
-CREATE OR REPLACE FUNCTION private.is_forum_banned()
-RETURNS boolean
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public, private
-STABLE
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM forum_bans b
-    WHERE b.user_id = auth.uid()
-    AND (b.until IS NULL OR b.until > now())
-  );
-$$;
-
 CREATE INDEX forum_threads_category_list_idx
   ON public.forum_threads (category_id, is_pinned DESC, last_post_at DESC);
 CREATE INDEX forum_threads_author_created_idx
@@ -175,11 +136,6 @@ CREATE INDEX forum_post_revisions_post_idx
   ON public.forum_post_revisions (post_id, created_at);
 CREATE INDEX forum_post_likes_user_idx
   ON public.forum_post_likes (user_id);
-CREATE INDEX forum_reports_post_idx
-  ON public.forum_reports (post_id);
-CREATE INDEX forum_reports_open_idx
-  ON public.forum_reports (created_at)
-  WHERE resolved_at IS NULL;
 
 -- Threads: counters start at zero, only moderators pin, lock or move, and new
 -- accounts are limited to 3 threads a day.
@@ -432,8 +388,6 @@ ALTER TABLE public.forum_threads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.forum_posts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.forum_post_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.forum_post_likes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.forum_reports ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.forum_bans ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Forum categories are viewable by everyone"
   ON public.forum_categories FOR SELECT
@@ -464,7 +418,6 @@ CREATE POLICY "Users can start threads"
   TO authenticated
   WITH CHECK (
     author_id = (SELECT auth.uid())
-    AND NOT (SELECT private.is_forum_banned())
     AND (
       (SELECT private.is_forum_moderator())
       OR NOT EXISTS (
@@ -477,14 +430,8 @@ CREATE POLICY "Users can start threads"
 CREATE POLICY "Authors and moderators can update threads"
   ON public.forum_threads FOR UPDATE
   TO authenticated
-  USING (
-    (author_id = (SELECT auth.uid()) AND NOT (SELECT private.is_forum_banned()))
-    OR (SELECT private.is_forum_moderator())
-  )
-  WITH CHECK (
-    (author_id = (SELECT auth.uid()) AND NOT (SELECT private.is_forum_banned()))
-    OR (SELECT private.is_forum_moderator())
-  );
+  USING (author_id = (SELECT auth.uid()) OR (SELECT private.is_forum_moderator()))
+  WITH CHECK (author_id = (SELECT auth.uid()) OR (SELECT private.is_forum_moderator()));
 
 CREATE POLICY "Moderators can delete threads"
   ON public.forum_threads FOR DELETE
@@ -498,16 +445,13 @@ CREATE POLICY "Forum posts are viewable by everyone"
 CREATE POLICY "Users can post"
   ON public.forum_posts FOR INSERT
   TO authenticated
-  WITH CHECK (
-    author_id = (SELECT auth.uid())
-    AND NOT (SELECT private.is_forum_banned())
-  );
+  WITH CHECK (author_id = (SELECT auth.uid()));
 
 -- Authors edit their own posts but can't remove them: deleted_at stays NULL.
 CREATE POLICY "Authors can edit their posts"
   ON public.forum_posts FOR UPDATE
   TO authenticated
-  USING (author_id = (SELECT auth.uid()) AND NOT (SELECT private.is_forum_banned()))
+  USING (author_id = (SELECT auth.uid()))
   WITH CHECK (author_id = (SELECT auth.uid()) AND deleted_at IS NULL);
 
 CREATE POLICY "Moderators can edit and remove posts"
@@ -529,54 +473,17 @@ CREATE POLICY "Users can view their own likes"
 CREATE POLICY "Users can like posts"
   ON public.forum_post_likes FOR INSERT
   TO authenticated
-  WITH CHECK (user_id = (SELECT auth.uid()) AND NOT (SELECT private.is_forum_banned()));
+  WITH CHECK (user_id = (SELECT auth.uid()));
 
 CREATE POLICY "Users can remove their likes"
   ON public.forum_post_likes FOR DELETE
   TO authenticated
   USING (user_id = (SELECT auth.uid()));
 
-CREATE POLICY "Users can report posts"
-  ON public.forum_reports FOR INSERT
-  TO authenticated
-  WITH CHECK (reporter_id = (SELECT auth.uid()) AND NOT (SELECT private.is_forum_banned()));
-
-CREATE POLICY "Moderators can view reports"
-  ON public.forum_reports FOR SELECT
-  TO authenticated
-  USING ((SELECT private.is_forum_moderator()));
-
-CREATE POLICY "Moderators can resolve reports"
-  ON public.forum_reports FOR UPDATE
-  TO authenticated
-  USING ((SELECT private.is_forum_moderator()))
-  WITH CHECK ((SELECT private.is_forum_moderator()));
-
-CREATE POLICY "Users can see their own ban and moderators all bans"
-  ON public.forum_bans FOR SELECT
-  TO authenticated
-  USING (user_id = (SELECT auth.uid()) OR (SELECT private.is_forum_moderator()));
-
-CREATE POLICY "Moderators can ban"
-  ON public.forum_bans FOR INSERT
-  TO authenticated
-  WITH CHECK ((SELECT private.is_forum_moderator()));
-
-CREATE POLICY "Moderators can update bans"
-  ON public.forum_bans FOR UPDATE
-  TO authenticated
-  USING ((SELECT private.is_forum_moderator()))
-  WITH CHECK ((SELECT private.is_forum_moderator()));
-
-CREATE POLICY "Moderators can lift bans"
-  ON public.forum_bans FOR DELETE
-  TO authenticated
-  USING ((SELECT private.is_forum_moderator()));
-
 -- Grants. Default privileges may already grant whole tables, so revoke first.
 -- Column grants keep counters, numbers and timestamps for the triggers to set.
 REVOKE ALL ON public.forum_categories, public.forum_threads, public.forum_posts,
-  public.forum_post_revisions, public.forum_post_likes, public.forum_reports, public.forum_bans
+  public.forum_post_revisions, public.forum_post_likes
   FROM PUBLIC, anon, authenticated;
 
 GRANT SELECT ON public.forum_categories, public.forum_threads, public.forum_posts
@@ -589,11 +496,8 @@ GRANT INSERT (thread_id, author_id, content) ON public.forum_posts TO authentica
 GRANT UPDATE (content, deleted_at) ON public.forum_posts TO authenticated;
 GRANT SELECT ON public.forum_post_revisions TO authenticated;
 GRANT SELECT, INSERT, DELETE ON public.forum_post_likes TO authenticated;
-GRANT SELECT, INSERT (post_id, reporter_id, reason), UPDATE (resolved_at, resolved_by)
-  ON public.forum_reports TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.forum_bans TO authenticated;
 GRANT ALL ON public.forum_categories, public.forum_threads, public.forum_posts,
-  public.forum_post_revisions, public.forum_post_likes, public.forum_reports, public.forum_bans
+  public.forum_post_revisions, public.forum_post_likes
   TO service_role;
 
 -- Reply notifications
@@ -638,7 +542,6 @@ CREATE POLICY "Forum images can be uploaded by their owner"
         bucket_id = 'users-images'
         AND SPLIT_PART(name, '/', 1) = 'forum'
         AND SPLIT_PART(name, '/', 2) = (SELECT auth.uid())::text
-        AND NOT (SELECT private.is_forum_banned())
     );
 
 CREATE POLICY "Forum images can be updated by their owner"
