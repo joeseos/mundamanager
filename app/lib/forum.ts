@@ -49,6 +49,8 @@ export interface ForumPost {
   author_id: string | null;
   author: string | null;
   author_avatar_url: string | null;
+  author_patreon_tier_id: string | null;
+  author_patreon_tier_title: string | null;
   /** Sanitized HTML; empty once a moderator has removed the post. */
   content: string;
   is_removed: boolean;
@@ -199,6 +201,8 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
           author_id: forumPosts.author_id,
           author: author.username,
           author_avatar_url: author.avatar_url,
+          author_patreon_tier_id: author.patreon_tier_id,
+          author_patreon_tier_title: author.patreon_tier_title,
           content: forumPosts.content,
           deleted_at: forumPosts.deleted_at,
           like_count: forumPosts.like_count,
