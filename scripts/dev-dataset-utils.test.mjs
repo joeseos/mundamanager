@@ -4,6 +4,7 @@ import { assertLocalDatabase, eligibleVehicleFighters, fixtureAnchor, fixtureId,
   LOCAL_DATABASE_URL, optionsFromArgs, ordinaryEquipment, randomSource } from './dev-dataset-utils.mjs';
 import { calculateFighterCost, calculateVehicleCost } from '../utils/fighter-cost.ts';
 import { countsTowardRating } from '../utils/fighter-status.ts';
+import { createSeedWriter, insertBatches, SEED_BATCH_SIZE } from './dev-dataset-writer.mjs';
 
 test('only the explicit local Supabase database is accepted', () => {
   assertLocalDatabase(LOCAL_DATABASE_URL, 'development');
@@ -97,4 +98,25 @@ test('shared costing includes adjustments, effects, skills and vehicles; capture
   ] }), 245);
   assert.equal(countsTowardRating({ captured: true }), false);
   assert.equal(countsTowardRating({ recovery: true }), true);
+});
+
+test('insert batches preserve column shapes and bound row/parameter counts', () => {
+  const rows = Array.from({ length: 501 }, (_, id) => ({ id, skill_id: `skill-${id}` }));
+  rows.push({ id: 502, custom_skill_id: 'custom' });
+  const batches = insertBatches(rows);
+  assert.equal(SEED_BATCH_SIZE, 250);
+  assert.deepEqual(batches.map(batch => batch.rows.length), [250, 250, 1, 1]);
+  assert.deepEqual(batches[0].columns, ['id', 'skill_id']);
+  assert.deepEqual(batches[3].columns, ['custom_skill_id', 'id']);
+  assert.ok(!('skill_id' in batches[3].rows[0]));
+  const wideRows = Array.from({ length: 201 }, () => Object.fromEntries(
+    Array.from({ length: 300 }, (_, column) => [`column_${column}`, column])));
+  assert.deepEqual(insertBatches(wideRows).map(batch => batch.rows.length), [200, 1]);
+  assert.deepEqual(insertBatches([]), []);
+});
+
+test('empty writer flushes do not query the database and unknown tables fail closed', async () => {
+  const writer = createSeedWriter(() => { throw new Error('Unexpected database query'); }, '2020-01-01T00:00:00Z', {});
+  await writer.flush();
+  assert.throws(() => writer.insert('unreviewed_table', { id: 'example' }), /dependency order/);
 });
