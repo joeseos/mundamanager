@@ -11,7 +11,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
+import { grantedSkillFromEffect, isEditableEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -1531,7 +1531,7 @@ export async function applySelfUpgradesToEquipment(params: {
       if (params.effect_type_ids.length > 1) {
         return { success: false, error: 'Attached equipment takes a single upgrade' };
       }
-      if (accessoryEffects.some(e => (e.type_specific_data as any)?.is_editable === true)) {
+      if (accessoryEffects.some(isEditableEffect)) {
         return { success: false, error: 'This equipment already has an upgrade. Remove it to pick another.' };
       }
     }

@@ -21,7 +21,7 @@ import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
-import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { applyWeaponModifiers, isEditableEffect } from '@/utils/effect-modifiers';
 import { FighterLoadout } from '@/types/equipment';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
@@ -667,10 +667,6 @@ export function WeaponList({
   };
 
   const allEffects = Object.values(fighterEffects).flat();
-  // Effects picked through Edit (Spyrer tiers, Enhance weapon upgrades), as opposed to
-  // the fixed effects that come with the equipment
-  const isEditableEffect = (e: FighterEffect) =>
-    typeof e.type_specific_data === 'object' && e.type_specific_data?.is_editable === true;
 
   const renderRow = (item: Equipment, isChild: boolean = false) => {
     // Check if this equipment is in the active loadout (or if no loadout is active)
