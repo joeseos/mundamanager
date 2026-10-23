@@ -34,8 +34,10 @@ function browseGangsHref(filters: Omit<PublicGangFilters, 'page'>, page = 1): st
   return `/gangs?${params}`;
 }
 
-const ratingInput = (value: string): number | null =>
-  value.trim() === '' ? null : Number(value);
+const ratingInput = (value: string): number | null => {
+  const rating = Number(value);
+  return value.trim() !== '' && Number.isFinite(rating) ? rating : null;
+};
 
 export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, hasMore }: BrowseGangsProps) {
   const router = useRouter();
