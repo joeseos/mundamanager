@@ -222,7 +222,7 @@ export function latestLoggedInSince(now = new Date()): string {
 }
 
 /** True when the date is real and not after today's local calendar date. */
-export function loggedInSinceIsCurrentOrPast(value: string, now = new Date()): boolean {
+function loggedInSinceIsCurrentOrPast(value: string, now = new Date()): boolean {
   const date = calendarDate(value);
   if (!date) return false;
   return date <= formatLocalDate(now);

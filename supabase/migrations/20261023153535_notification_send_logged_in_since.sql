@@ -17,9 +17,9 @@
 -- service_role only. The Next.js routes check the caller is an admin, or a campaign
 -- owner, arbitrator, or app admin, before calling this.
 --
--- Apply supabase/migrations/20261021234309_notification_sends.sql before this file
--- is deployed: the function inserts into notification_sends. The replacement
--- signature is also in supabase/migrations/20261023153535_notification_send_logged_in_since.sql.
+-- Apply supabase/migrations/20261021234309_notification_sends.sql before this
+-- file: the function inserts into notification_sends. The same definition lives
+-- in supabase/functions/create_notification_send.sql.
 
 DROP FUNCTION IF EXISTS public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]);
 

@@ -138,6 +138,7 @@ export function NotificationComposerModal({
       return
     }
     setSelected([])
+    setSignedInSince(null)
     setAudienceAll(true)
   }
 
