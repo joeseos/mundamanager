@@ -17,7 +17,7 @@ import { useNotificationToasts, useNotificationsRealtime, useUnreadNotificationC
 import dynamic from 'next/dynamic';
 
 // Icons
-import { LuSettings, LuLogOut, LuUser, LuMenu } from "react-icons/lu";
+import { LuSettings, LuLogOut, LuUser, LuMenu, LuSearch } from "react-icons/lu";
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { MdOutlineColorLens } from "react-icons/md";
@@ -169,6 +169,13 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             <Link href="/?tab=customassets" prefetch={false} onClick={createHomeTabHandler('customassets')} className="w-full cursor-pointer">
               <MdOutlineColorLens className="mr-2 h-4 w-4" />
               Custom Assets
+            </Link>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem asChild onClick={handleLinkClick}>
+            <Link href="/gangs" prefetch={false} className="w-full cursor-pointer">
+              <LuSearch className="mr-2 h-4 w-4" />
+              Browse Gangs
             </Link>
           </DropdownMenuItem>
 

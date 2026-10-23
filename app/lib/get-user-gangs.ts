@@ -2,7 +2,7 @@ import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 import { eq, inArray } from 'drizzle-orm';
 
-import { getAppDb } from '@/utils/db/client';
+import { getAppDb, type AppDb } from '@/utils/db/client';
 import { gangs, gangSubtypeTypes } from '@/utils/db/schema';
 import { gangPortraitPublicUrl } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
@@ -29,6 +29,21 @@ export type Gang = {
   /** House of an alternate gang list. Null for root and custom gangs. */
   parent_gang_type_name?: string | null;
 };
+
+/** Subtype names for the ids stored on the gangs' gang_subtypes, keyed by id. */
+export async function getGangSubtypesById(
+  db: AppDb,
+  rows: { gang_subtypes: string[] | null }[]
+): Promise<Map<string, { id: string; subtype: string | null }>> {
+  const subtypeIds = [...new Set(rows.flatMap((gang) => gang.gang_subtypes ?? []))];
+  const subtypes = subtypeIds.length > 0
+    ? await db
+        .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
+        .from(gangSubtypeTypes)
+        .where(inArray(gangSubtypeTypes.id, subtypeIds))
+    : [];
+  return new Map(subtypes.map((subtype) => [subtype.id, subtype]));
+}
 
 /**
  * Cached list of the user's gang ids, so the list entry below can carry
@@ -92,14 +107,7 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
         },
       });
 
-      const subtypeIds = [...new Set(rows.flatMap((gang) => gang.gang_subtypes ?? []))];
-      const subtypes = subtypeIds.length > 0
-        ? await db
-            .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
-            .from(gangSubtypeTypes)
-            .where(inArray(gangSubtypeTypes.id, subtypeIds))
-        : [];
-      const subtypeById = new Map(subtypes.map((subtype) => [subtype.id, subtype]));
+      const subtypeById = await getGangSubtypesById(db, rows);
 
       return rows.map((gang) => ({
         id: gang.id,
