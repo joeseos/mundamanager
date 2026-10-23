@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import type { Gang } from '@/app/lib/get-user-gangs'
-import type { PublicGang } from '@/app/lib/search-public-gangs'
+import type { Gang, GangCard } from '@/app/lib/get-user-gangs'
 import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -14,7 +13,7 @@ import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
 import { detailGangTypeLabel } from '@/utils/gang-type-label'
 
 export interface GangCardProps {
-  gang: PublicGang & Partial<Pick<Gang, 'campaigns' | 'is_favourite'>>;
+  gang: GangCard & Partial<Pick<Gang, 'campaigns' | 'is_favourite'>>;
   /** Shows the favourite star; left out for other users' gangs. */
   onToggleFavourite?: (gangId: string, isFavourite: boolean) => void;
   dragListeners?: Record<string, unknown>;

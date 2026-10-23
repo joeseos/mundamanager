@@ -4,16 +4,10 @@ import { unstable_cache } from 'next/cache';
 import { TAGS } from '@/utils/cache-tags';
 import { getAppDb } from '@/utils/db/client';
 import { editions, gangs, gangSubtypeTypes, gangTypes } from '@/utils/db/schema';
-import { gangPortraitPublicUrl } from '@/types/gang';
 import type { EditionSlug } from '@/types/edition';
-import { detailGangTypeLabel, joinedParentGangTypeName } from '@/utils/gang-type-label';
+import { detailGangTypeLabel } from '@/utils/gang-type-label';
 import { PUBLIC_GANGS_PAGE_SIZE, type PublicGangFilters } from '@/utils/browse-gangs-filters';
-import { getGangSubtypesById, type Gang } from '@/app/lib/get-user-gangs';
-
-export type PublicGang = Pick<
-  Gang,
-  'id' | 'name' | 'gang_type' | 'parent_gang_type_name' | 'gang_subtypes' | 'rating' | 'image_url' | 'gang_portrait_url'
->;
+import { getGangSubtypesById, toGangCard, type GangCard } from '@/app/lib/get-user-gangs';
 
 export interface PublicGangFilterOption {
   value: string;
@@ -61,7 +55,7 @@ export const getPublicGangFilterOptions = (edition: EditionSlug): Promise<{
  * authenticates the request before calling this.
  */
 export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
-  gangs: PublicGang[];
+  gangs: GangCard[];
   total: number;
 }> {
   const db = getAppDb();
@@ -110,16 +104,7 @@ export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
   const subtypeById = await getGangSubtypesById(db, pageRows);
 
   return {
-    gangs: pageRows.map((gang) => ({
-      id: gang.id,
-      name: gang.name,
-      gang_type: gang.gang_type,
-      parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
-      gang_subtypes: (gang.gang_subtypes ?? []).flatMap((id) => subtypeById.get(id) ?? []),
-      rating: gang.rating || 0,
-      image_url: gang.image_url || '',
-      gang_portrait_url: gangPortraitPublicUrl(gang.gang_portrait?.storage_path) ?? null,
-    })),
+    gangs: pageRows.map((gang) => toGangCard(gang, subtypeById)),
     total,
   };
 }

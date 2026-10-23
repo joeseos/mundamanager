@@ -11,7 +11,8 @@ import { LuX } from 'react-icons/lu'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { GangCardContent } from '@/components/home/gang-card'
 import type { EditionSlug } from '@/types/edition'
-import type { PublicGang, PublicGangFilterOption } from '@/app/lib/search-public-gangs'
+import type { GangCard } from '@/app/lib/get-user-gangs'
+import type { PublicGangFilterOption } from '@/app/lib/search-public-gangs'
 import { PUBLIC_GANGS_PAGE_SIZE, browseGangsHref, parseRating, type PublicGangFilters } from '@/utils/browse-gangs-filters'
 
 interface BrowseGangsProps {
@@ -20,7 +21,7 @@ interface BrowseGangsProps {
   username: string | null;
   gangTypes: PublicGangFilterOption[];
   subtypes: PublicGangFilterOption[];
-  gangs: PublicGang[];
+  gangs: GangCard[];
   total: number;
 }
 
@@ -91,19 +92,17 @@ export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, tot
             clearable
           />
         </div>
-        {subtypes.length > 0 && (
-          <div className="col-span-2">
-            <label htmlFor="browse-gang-subtype" className="text-sm font-medium">Subtype</label>
-            <Combobox
-              id="browse-gang-subtype"
-              options={subtypes}
-              value={subtypeId}
-              onValueChange={setSubtypeId}
-              placeholder="Any"
-              clearable
-            />
-          </div>
-        )}
+        <div className="col-span-2">
+          <label htmlFor="browse-gang-subtype" className="text-sm font-medium">Subtype</label>
+          <Combobox
+            id="browse-gang-subtype"
+            options={subtypes}
+            value={subtypeId}
+            onValueChange={setSubtypeId}
+            placeholder="Any"
+            clearable
+          />
+        </div>
         <div className="md:col-span-3">
           <label htmlFor="browse-min-rating" className="text-sm font-medium">Min Rating</label>
           <Input

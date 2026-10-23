@@ -30,6 +30,40 @@ export type Gang = {
   parent_gang_type_name?: string | null;
 };
 
+/** What a gang card shows; shared by the home Gangs tab and Browse Gangs. */
+export type GangCard = Pick<
+  Gang,
+  'id' | 'name' | 'gang_type' | 'parent_gang_type_name' | 'gang_subtypes' | 'rating' | 'image_url' | 'gang_portrait_url'
+>;
+
+type GangCardRow = {
+  id: string;
+  name: string | null;
+  gang_type: string | null;
+  image_url: string | null;
+  rating: number | null;
+  gang_subtypes: string[] | null;
+  gang_portrait: { storage_path: string } | null;
+  gang_types: { parent_gang_type_name: string | null } | null;
+};
+
+/** A gang row as a card, with its subtype ids resolved to names. */
+export function toGangCard(
+  gang: GangCardRow,
+  subtypeById: Map<string, { id: string; subtype: string | null }>
+): GangCard {
+  return {
+    id: gang.id,
+    name: gang.name,
+    gang_type: gang.gang_type,
+    parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
+    gang_subtypes: (gang.gang_subtypes ?? []).flatMap((id) => subtypeById.get(id) ?? []),
+    rating: gang.rating || 0,
+    image_url: gang.image_url || '',
+    gang_portrait_url: gangPortraitPublicUrl(gang.gang_portrait?.storage_path) ?? null,
+  };
+}
+
 /** Subtype names for the ids stored on the gangs' gang_subtypes, keyed by id. */
 export async function getGangSubtypesById(
   db: AppDb,
@@ -110,18 +144,12 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
       const subtypeById = await getGangSubtypesById(db, rows);
 
       return rows.map((gang) => ({
-        id: gang.id,
-        name: gang.name,
-        gang_type: gang.gang_type,
+        ...toGangCard(gang, subtypeById),
         gang_type_id: gang.gang_type_id,
-        image_url: gang.image_url || '',
-        gang_portrait_url: gangPortraitPublicUrl(gang.gang_portrait?.storage_path) ?? null,
         credits: gang.credits,
         reputation: gang.reputation,
-        rating: gang.rating || 0,
         created_at: gang.created_at,
         last_updated: gang.last_updated,
-        gang_subtypes: (gang.gang_subtypes ?? []).flatMap((id) => subtypeById.get(id) ?? []),
         campaigns: gang.campaign_gangs.map(({ campaign_id, campaign }) => ({
           campaign_id,
           campaign_name: campaign?.campaign_name || 'Unknown Campaign'
@@ -129,7 +157,6 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
         is_favourite: gang.is_favourite,
         favourite_order: gang.favourite_order,
         edition_slug: gangEditionSlug(gang),
-        parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
       }));
     },
     [`user-gangs-v9-${userId}`],
