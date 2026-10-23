@@ -2,6 +2,10 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { formatArticleDate, getPublishedArticles } from '@/app/lib/articles';
 
+// Rendered per request: DATABASE_URL only exists at runtime, so the build can't
+// read articles. getPublishedArticles() is cached, so a request doesn't hit the database.
+export const dynamic = 'force-dynamic';
+
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"
   : "https://www.mundamanager.com";

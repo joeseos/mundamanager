@@ -628,6 +628,9 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
   and collections in `app/lib/customise`
 - the account page's friends and friend requests (`getFriendsAndRequests` in
   `app/lib/friends.ts`)
+- the published articles on `/articles`, `/articles/<slug>` and the sitemap
+  (`app/lib/articles.ts`). `DATABASE_URL` is runtime only, so these pages render
+  per request (or, for an article, on its first visit), not at build
 
 The files:
 
