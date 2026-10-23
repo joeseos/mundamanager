@@ -15,6 +15,7 @@ import {
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';
+import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import '@/components/ui/rich-text-editor.css';
 
@@ -84,6 +85,14 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
                     </Link>
                   ) : (
                     <span className="font-semibold">Unknown User</span>
+                  )}
+                  {post.author_patreon_tier_id && (
+                    <span className="inline-block align-[-2px] ml-1">
+                      <PatreonSupporterIcon
+                        patreonTierId={post.author_patreon_tier_id}
+                        patreonTierTitle={post.author_patreon_tier_title}
+                      />
+                    </span>
                   )}
                   <span className="text-muted-foreground">
                     {' '}· {formatForumDate(post.created_at)}
