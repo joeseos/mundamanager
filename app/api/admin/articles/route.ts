@@ -198,18 +198,17 @@ export async function PATCH(request: Request) {
         })
         .eq('id', id);
       if (error) throw error;
-      invalidateArticles();
 
       if (draft) {
         // Only the draft that was published: a newer save stays as unpublished changes.
+        // The article is live either way, so a failed delete only leaves a stale draft.
         const { error: deleteError } = await supabase
           .from('article_drafts')
           .delete()
           .eq('article_id', id)
           .eq('updated_at', draft.updated_at);
-        if (deleteError) throw deleteError;
+        if (deleteError) console.error('Error deleting published article draft:', deleteError);
       }
-      return NextResponse.json({ success: true });
     }
 
     invalidateArticles();
