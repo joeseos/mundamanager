@@ -95,13 +95,10 @@ export function NotificationComposerModal({
   const [text, setText] = useState('')
   const [expiresInDays, setExpiresInDays] = useState(30)
   const [audienceAll, setAudienceAll] = useState(false)
-  const [signedInSince, setSignedInSince] = useState('')
+  const [signedInSince, setSignedInSince] = useState<string | null>(null)
   const [selected, setSelected] = useState<ComposerRecipient[]>([])
-
-  useEffect(() => {
-    if (!loggedInSince) return
-    setSignedInSince(defaultLoggedInSince())
-  }, [loggedInSince])
+  const signedInSinceValue =
+    signedInSince ?? (loggedInSince && audienceAll ? defaultLoggedInSince() : '')
 
   const history = useQuery({
     queryKey: ['sent-notifications', historyUrl],
@@ -118,7 +115,7 @@ export function NotificationComposerModal({
   const expiresValid =
     expiresInDays >= NOTIFICATION_EXPIRES_MIN_DAYS && expiresInDays <= NOTIFICATION_EXPIRES_MAX_DAYS
   const signedInSinceInstant =
-    loggedInSince && audienceAll ? loggedInSinceInstant(signedInSince) : null
+    loggedInSince && audienceAll ? loggedInSinceInstant(signedInSinceValue) : null
   const signedInSinceValid = !loggedInSince || !audienceAll || signedInSinceInstant != null
   const canSend =
     !isHtmlEffectivelyEmpty(text) &&
@@ -263,7 +260,7 @@ export function NotificationComposerModal({
                     id="notification-logged-in-since"
                     type="date"
                     max={latestLoggedInSince()}
-                    value={signedInSince}
+                    value={signedInSinceValue}
                     onChange={(event) => setSignedInSince(event.target.value)}
                   />
                 </div>
@@ -271,7 +268,7 @@ export function NotificationComposerModal({
               {audienceAll && (loggedInSince || allWarning) && (
                 <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
                   {loggedInSince
-                    ? `This will send the notification to every user who logged in on or after ${signedInSince || 'the date below'}. Double-check the message before sending.`
+                    ? `This will send the notification to every user who logged in on or after ${signedInSinceValue || 'the date below'}. Double-check the message before sending.`
                     : allWarning}
                 </p>
               )}
