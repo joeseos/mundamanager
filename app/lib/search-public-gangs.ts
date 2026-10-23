@@ -14,6 +14,14 @@ export interface PublicGangFilterOption {
   label: string;
 }
 
+/** Ids of the edition's gang types that Browse Gangs lists; hidden types are left out. */
+const browsableGangTypeIds = (edition: EditionSlug) =>
+  getAppDb()
+    .select({ id: gangTypes.id })
+    .from(gangTypes)
+    .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
+    .where(and(eq(editions.slug, edition), eq(gangTypes.is_hidden, false)));
+
 /** Gang type and subtype choices for the edition's filters. */
 export const getPublicGangFilterOptions = (edition: EditionSlug): Promise<{
   gangTypes: PublicGangFilterOption[];
@@ -25,8 +33,7 @@ export const getPublicGangFilterOptions = (edition: EditionSlug): Promise<{
       db
         .select({ id: gangTypes.id, gang_type: gangTypes.gang_type, parent_gang_type_name: gangTypes.parent_gang_type_name })
         .from(gangTypes)
-        .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
-        .where(and(eq(editions.slug, edition), eq(gangTypes.is_hidden, false))),
+        .where(inArray(gangTypes.id, browsableGangTypeIds(edition))),
       db
         .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
         .from(gangSubtypeTypes)
@@ -62,14 +69,8 @@ export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
   const where = and(
     eq(gangs.hidden, false),
     isNull(gangs.custom_gang_type_id),
-    // A gang's edition is its gang type's; hidden gang types are left out, as in the filter options
-    inArray(
-      gangs.gang_type_id,
-      db.select({ id: gangTypes.id })
-        .from(gangTypes)
-        .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
-        .where(and(eq(editions.slug, filters.edition), eq(gangTypes.is_hidden, false)))
-    ),
+    // A gang's edition is its gang type's
+    inArray(gangs.gang_type_id, browsableGangTypeIds(filters.edition)),
     filters.userId ? eq(gangs.user_id, filters.userId) : undefined,
     filters.gangTypeId ? eq(gangs.gang_type_id, filters.gangTypeId) : undefined,
     filters.subtypeId ? sql`${gangs.gang_subtypes} @> ${JSON.stringify([filters.subtypeId])}::jsonb` : undefined,
