@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "db:seed:dev": "node scripts/seed-development.mjs",
     "clean": "next clean"
   },
   "dependencies": {
