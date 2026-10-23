@@ -13,6 +13,7 @@ import {
   parseForumPage,
 } from '@/app/lib/forum';
 import { ForumPagination } from '@/components/forum/forum-pagination';
+import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 
 interface ForumCategoryPageProps {
   params: Promise<{ category: string }>;
@@ -43,8 +44,13 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full bg-card shadow-md rounded-lg p-4">
-        <h1 className="text-2xl font-bold">{category.name}</h1>
-        {category.description && <p className="text-muted-foreground">{category.description}</p>}
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold">{category.name}</h1>
+            {category.description && <p className="text-muted-foreground">{category.description}</p>}
+          </div>
+          <ForumNewThreadButton category={category} categoryPath={forumCategoryPath(category.slug)} />
+        </div>
 
         {threads.length === 0 ? (
           <p className="text-muted-foreground italic text-center mt-4">No threads yet.</p>
