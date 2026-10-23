@@ -99,7 +99,7 @@ export const getPublicGangFilterOptions = (edition: EditionSlug): Promise<{
 
 /**
  * One page of gangs that aren't hidden, most recently updated first. Custom
- * gang types are left out. Read over the direct connection, so the page
+ * and hidden gang types are left out. Read over the direct connection, so the page
  * authenticates the request before calling this.
  */
 export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
@@ -119,13 +119,13 @@ export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
     where: (gang) => and(
       eq(gang.hidden, false),
       isNull(gang.custom_gang_type_id),
-      // A gang's edition is its gang type's
+      // A gang's edition is its gang type's; hidden gang types are left out, as in the filter options
       inArray(
         gang.gang_type_id,
         db.select({ id: gangTypes.id })
           .from(gangTypes)
           .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
-          .where(eq(editions.slug, filters.edition))
+          .where(and(eq(editions.slug, filters.edition), eq(gangTypes.is_hidden, false)))
       ),
       filters.userId ? eq(gang.user_id, filters.userId) : undefined,
       filters.gangTypeId ? eq(gang.gang_type_id, filters.gangTypeId) : undefined,
