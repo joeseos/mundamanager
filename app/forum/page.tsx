@@ -28,13 +28,14 @@ export default async function ForumPage() {
           {categories.map((category) => (
             <li
               key={category.id}
-              className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
+              className="group relative py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
             >
               <div className="flex-1 min-w-0">
+                {/* Stretched over the whole row, so the row opens the category */}
                 <Link
                   href={forumCategoryPath(category.slug)}
                   prefetch={false}
-                  className="text-lg font-semibold hover:text-red-800 transition-colors"
+                  className="text-lg font-semibold group-hover:text-red-800 transition-colors after:absolute after:inset-0"
                 >
                   {category.name}
                 </Link>
@@ -44,9 +45,6 @@ export default async function ForumPage() {
               </div>
               <div className="text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0">
                 {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
-                <span className="sm:hidden"> · </span>
-                <br className="hidden sm:block" />
-                {category.post_count} {category.post_count === 1 ? 'post' : 'posts'}
               </div>
               <div className="text-sm sm:w-64 min-w-0 shrink-0">
                 {category.latest_thread ? (
@@ -54,7 +52,7 @@ export default async function ForumPage() {
                     <Link
                       href={forumThreadPath(category.slug, category.latest_thread.number, category.latest_thread.title)}
                       prefetch={false}
-                      className="block truncate hover:text-red-800 transition-colors"
+                      className="relative block truncate hover:text-red-800 transition-colors"
                     >
                       {category.latest_thread.title}
                     </Link>

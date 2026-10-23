@@ -18,7 +18,6 @@ export interface ForumCategory {
   description: string | null;
   moderators_only: boolean;
   thread_count: number;
-  post_count: number;
   latest_thread: {
     number: number;
     title: string;
@@ -95,7 +94,6 @@ export const getForumCategories = unstable_cache(
         description: forumCategories.description,
         moderators_only: forumCategories.moderators_only,
         thread_count: forumCategories.thread_count,
-        post_count: forumCategories.post_count,
         latest_number: latest.number,
         latest_title: latest.title,
         latest_last_post_at: latest.latest_post_at,

@@ -55,7 +55,7 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
               return (
                 <li
                   key={thread.number}
-                  className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
+                  className="group relative py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -64,7 +64,7 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
                       <Link
                         href={forumThreadPath(category.slug, thread.number, thread.title)}
                         prefetch={false}
-                        className="font-semibold truncate hover:text-red-800 transition-colors"
+                        className="font-semibold truncate group-hover:text-red-800 transition-colors after:absolute after:inset-0"
                       >
                         {thread.title}
                       </Link>
