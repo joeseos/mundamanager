@@ -53,7 +53,7 @@ CREATE TABLE public.articles (
 COMMENT ON TABLE public.articles IS
   'Published version of each article. Rendered on /articles and /articles/<slug>.';
 COMMENT ON COLUMN public.articles.content IS
-  'Article body as sanitized rich-text HTML (TipTap output).';
+  'Article body as rich-text HTML (TipTap output). Sanitized when the public pages read it.';
 COMMENT ON COLUMN public.articles.published_at IS
   'When the article was published. NULL = not published.';
 
