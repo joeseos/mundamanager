@@ -19,7 +19,7 @@ export default async function BrowseGangsPage(props: {
   }
 
   const filters = parsePublicGangFilters(await props.searchParams);
-  const [{ gangTypes, subtypes }, { gangs, hasMore }, profile] = await Promise.all([
+  const [{ gangTypes, subtypes }, { gangs, total }, profile] = await Promise.all([
     getPublicGangFilterOptions(filters.edition),
     searchPublicGangs(filters),
     filters.userId ? getUserProfile(filters.userId) : null,
@@ -36,7 +36,7 @@ export default async function BrowseGangsPage(props: {
           gangTypes={gangTypes}
           subtypes={subtypes}
           gangs={gangs}
-          hasMore={hasMore}
+          total={total}
         />
       </div>
     </main>

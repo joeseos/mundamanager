@@ -8,6 +8,7 @@ import { getLogTypeLabel } from '@/utils/log-types';
 import { Combobox } from '@/components/ui/combobox';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { Pagination } from '@/components/ui/pagination';
 import { HiX } from 'react-icons/hi';
 
 interface GangLog {
@@ -118,14 +119,8 @@ export default function LogModal({
     setCurrentPage(1);
   };
 
-  const totalPages = Math.ceil(filteredLogs.length / logsPerPage);
   const startIndex = (currentPage - 1) * logsPerPage;
-  const endIndex = startIndex + logsPerPage;
-  const currentLogs = filteredLogs.slice(startIndex, endIndex);
-
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-  };
+  const currentLogs = filteredLogs.slice(startIndex, startIndex + logsPerPage);
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
@@ -318,62 +313,13 @@ export default function LogModal({
         </table>
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 border-t border-border bg-muted mt-4">
-          <div className="text-sm text-muted-foreground text-center sm:text-left">
-            Logs {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length}
-          </div>
-          <div className="flex items-center justify-center sm:justify-end space-x-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Prev
-            </button>
-
-            <div className="flex items-center space-x-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                const showPage = page === 1 ||
-                               page === totalPages ||
-                               Math.abs(page - currentPage) <= 1;
-
-                if (!showPage) {
-                  if (page === 2 && currentPage > 4) {
-                    return <span key={page} className="px-2 text-muted-foreground">...</span>;
-                  }
-                  if (page === totalPages - 1 && currentPage < totalPages - 3) {
-                    return <span key={page} className="px-2 text-muted-foreground">...</span>;
-                  }
-                  return null;
-                }
-
-                return (
-                  <button
-                    key={page}
-                    onClick={() => goToPage(page)}
-                    className={`px-3 py-1 text-sm border rounded-md ${
-                      currentPage === page
-                        ? 'bg-black text-white border-black'
-                        : 'hover:bg-muted'
-                    }`}
-                  >
-                    {page}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+      <Pagination
+        itemLabel="Logs"
+        currentPage={currentPage}
+        pageSize={logsPerPage}
+        totalItems={filteredLogs.length}
+        onPageChange={setCurrentPage}
+      />
     </Modal>
   );
 }

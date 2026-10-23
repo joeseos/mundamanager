@@ -1,18 +1,18 @@
 "use client"
 
 import { useState, useTransition, type FormEvent } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Combobox } from '@/components/ui/combobox'
+import { Pagination } from '@/components/ui/pagination'
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
 import { LuX } from 'react-icons/lu'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { GangCardContent } from '@/components/home/gang-card'
 import type { EditionSlug } from '@/types/edition'
 import type { PublicGang, PublicGangFilterOption } from '@/app/lib/search-public-gangs'
-import { browseGangsHref, parseRating, type PublicGangFilters } from '@/utils/browse-gangs-filters'
+import { PUBLIC_GANGS_PAGE_SIZE, browseGangsHref, parseRating, type PublicGangFilters } from '@/utils/browse-gangs-filters'
 
 interface BrowseGangsProps {
   filters: PublicGangFilters;
@@ -21,10 +21,10 @@ interface BrowseGangsProps {
   gangTypes: PublicGangFilterOption[];
   subtypes: PublicGangFilterOption[];
   gangs: PublicGang[];
-  hasMore: boolean;
+  total: number;
 }
 
-export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, hasMore }: BrowseGangsProps) {
+export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, total }: BrowseGangsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [user, setUser] = useState<UserSearchResult | null>(
@@ -141,20 +141,13 @@ export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, has
         </ul>
       )}
 
-      {(filters.page > 1 || hasMore) && (
-        <div className="flex justify-between">
-          {filters.page > 1 ? (
-            <Button variant="outline" asChild>
-              <Link href={browseGangsHref(filters, filters.page - 1)} prefetch={false}>Previous</Link>
-            </Button>
-          ) : <span />}
-          {hasMore && (
-            <Button variant="outline" asChild>
-              <Link href={browseGangsHref(filters, filters.page + 1)} prefetch={false}>Next</Link>
-            </Button>
-          )}
-        </div>
-      )}
+      <Pagination
+        itemLabel="Gangs"
+        currentPage={filters.page}
+        pageSize={PUBLIC_GANGS_PAGE_SIZE}
+        totalItems={total}
+        onPageChange={(page) => search(browseGangsHref(filters, page))}
+      />
     </div>
   );
 }

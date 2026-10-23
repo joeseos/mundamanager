@@ -5,6 +5,7 @@ import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createFighterOoaRecord,
@@ -174,14 +175,8 @@ export function FighterOoaHistoryModal({
     },
   });
 
-  const totalPages = Math.ceil(records.length / RECORDS_PER_PAGE);
   const startIndex = (currentPage - 1) * RECORDS_PER_PAGE;
-  const endIndex = startIndex + RECORDS_PER_PAGE;
-  const currentRecords = records.slice(startIndex, endIndex);
-
-  const goToPage = (page: number) => {
-    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
-  };
+  const currentRecords = records.slice(startIndex, startIndex + RECORDS_PER_PAGE);
 
   const { getFighterOptions: baseGetFighterOptions } =
     useCampaignGangFighterOptions(campaignGangs, editionSlug);
@@ -672,63 +667,13 @@ export function FighterOoaHistoryModal({
                 })}
               </ul>
 
-              {totalPages > 1 && (
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 border-t border-border bg-muted mt-4">
-                  <div className="text-sm text-muted-foreground text-center sm:text-left">
-                    Records {startIndex + 1} to {Math.min(endIndex, records.length)} of {records.length}
-                  </div>
-                  <div className="flex items-center justify-center sm:justify-end space-x-2">
-                    <button
-                      onClick={() => goToPage(currentPage - 1)}
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Prev
-                    </button>
-
-                    <div className="flex items-center space-x-1">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                        const showPage =
-                          page === 1 ||
-                          page === totalPages ||
-                          Math.abs(page - currentPage) <= 1;
-
-                        if (!showPage) {
-                          if (page === 2 && currentPage > 4) {
-                            return <span key={page} className="px-2 text-muted-foreground">...</span>;
-                          }
-                          if (page === totalPages - 1 && currentPage < totalPages - 3) {
-                            return <span key={page} className="px-2 text-muted-foreground">...</span>;
-                          }
-                          return null;
-                        }
-
-                        return (
-                          <button
-                            key={page}
-                            onClick={() => goToPage(page)}
-                            className={`px-3 py-1 text-sm border rounded-md ${
-                              currentPage === page
-                                ? 'bg-black text-white border-black'
-                                : 'hover:bg-muted'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <button
-                      onClick={() => goToPage(currentPage + 1)}
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
+              <Pagination
+                itemLabel="Records"
+                currentPage={currentPage}
+                pageSize={RECORDS_PER_PAGE}
+                totalItems={records.length}
+                onPageChange={setCurrentPage}
+              />
             </>
           )}
         </div>

@@ -14,6 +14,11 @@ export interface PublicGangFilters {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+export const PUBLIC_GANGS_PAGE_SIZE = 50;
+
+// Rating with no param in the URL; a field the user cleared stays in the URL as empty
+const DEFAULT_RATING = 1000;
+
 const firstParam = (value: string | string[] | undefined): string | undefined =>
   Array.isArray(value) ? value[0] : value;
 
@@ -38,8 +43,8 @@ export function parsePublicGangFilters(searchParams: SearchParams): PublicGangFi
     userId: uuidParam(searchParams.user),
     gangTypeId: uuidParam(searchParams.type),
     subtypeId: uuidParam(searchParams.subtype),
-    minRating: parseRating(firstParam(searchParams.minRating)),
-    maxRating: parseRating(firstParam(searchParams.maxRating)),
+    minRating: searchParams.minRating === undefined ? DEFAULT_RATING : parseRating(firstParam(searchParams.minRating)),
+    maxRating: searchParams.maxRating === undefined ? DEFAULT_RATING : parseRating(firstParam(searchParams.maxRating)),
     page: Number.isSafeInteger(page) && page > 1 ? page : 1,
   };
 }
@@ -50,8 +55,8 @@ export function browseGangsHref(filters: Omit<PublicGangFilters, 'page'>, page =
   if (filters.userId) params.set('user', filters.userId);
   if (filters.gangTypeId) params.set('type', filters.gangTypeId);
   if (filters.subtypeId) params.set('subtype', filters.subtypeId);
-  if (filters.minRating !== null) params.set('minRating', String(filters.minRating));
-  if (filters.maxRating !== null) params.set('maxRating', String(filters.maxRating));
+  params.set('minRating', filters.minRating?.toString() ?? '');
+  params.set('maxRating', filters.maxRating?.toString() ?? '');
   if (page > 1) params.set('page', String(page));
   return `/gangs?${params}`;
 }

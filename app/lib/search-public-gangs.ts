@@ -3,14 +3,12 @@ import { unstable_cache } from 'next/cache';
 
 import { TAGS } from '@/utils/cache-tags';
 import { getAppDb } from '@/utils/db/client';
-import { editions, gangSubtypeTypes, gangTypes } from '@/utils/db/schema';
+import { editions, gangs, gangSubtypeTypes, gangTypes } from '@/utils/db/schema';
 import { gangPortraitPublicUrl } from '@/types/gang';
 import type { EditionSlug } from '@/types/edition';
 import { detailGangTypeLabel, joinedParentGangTypeName } from '@/utils/gang-type-label';
-import type { PublicGangFilters } from '@/utils/browse-gangs-filters';
+import { PUBLIC_GANGS_PAGE_SIZE, type PublicGangFilters } from '@/utils/browse-gangs-filters';
 import { getGangSubtypesById, type Gang } from '@/app/lib/get-user-gangs';
-
-export const PUBLIC_GANGS_PAGE_SIZE = 50;
 
 export type PublicGang = Pick<
   Gang,
@@ -64,48 +62,51 @@ export const getPublicGangFilterOptions = (edition: EditionSlug): Promise<{
  */
 export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
   gangs: PublicGang[];
-  hasMore: boolean;
+  total: number;
 }> {
   const db = getAppDb();
-  const rows = await db.query.gangs.findMany({
-    columns: {
-      id: true,
-      name: true,
-      gang_type: true,
-      image_url: true,
-      rating: true,
-      gang_subtypes: true,
-    },
-    where: (gang) => and(
-      eq(gang.hidden, false),
-      isNull(gang.custom_gang_type_id),
-      // A gang's edition is its gang type's; hidden gang types are left out, as in the filter options
-      inArray(
-        gang.gang_type_id,
-        db.select({ id: gangTypes.id })
-          .from(gangTypes)
-          .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
-          .where(and(eq(editions.slug, filters.edition), eq(gangTypes.is_hidden, false)))
-      ),
-      filters.userId ? eq(gang.user_id, filters.userId) : undefined,
-      filters.gangTypeId ? eq(gang.gang_type_id, filters.gangTypeId) : undefined,
-      filters.subtypeId ? sql`${gang.gang_subtypes} @> ${JSON.stringify([filters.subtypeId])}::jsonb` : undefined,
-      // A gang with no rating yet shows as 0, so it is filtered as 0
-      filters.minRating !== null ? gte(sql`coalesce(${gang.rating}, 0)`, filters.minRating) : undefined,
-      filters.maxRating !== null ? lte(sql`coalesce(${gang.rating}, 0)`, filters.maxRating) : undefined,
+  const where = and(
+    eq(gangs.hidden, false),
+    isNull(gangs.custom_gang_type_id),
+    // A gang's edition is its gang type's; hidden gang types are left out, as in the filter options
+    inArray(
+      gangs.gang_type_id,
+      db.select({ id: gangTypes.id })
+        .from(gangTypes)
+        .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
+        .where(and(eq(editions.slug, filters.edition), eq(gangTypes.is_hidden, false)))
     ),
-    // id breaks ties, so paging doesn't repeat or skip gangs updated at the same time
-    orderBy: (gang) => [sql`${gang.last_updated} desc nulls last`, desc(gang.id)],
-    // One extra row tells whether there is a next page
-    limit: PUBLIC_GANGS_PAGE_SIZE + 1,
-    offset: (filters.page - 1) * PUBLIC_GANGS_PAGE_SIZE,
-    with: {
-      gang_portrait: { columns: { storage_path: true } },
-      gang_types: { columns: { parent_gang_type_name: true } },
-    },
-  });
+    filters.userId ? eq(gangs.user_id, filters.userId) : undefined,
+    filters.gangTypeId ? eq(gangs.gang_type_id, filters.gangTypeId) : undefined,
+    filters.subtypeId ? sql`${gangs.gang_subtypes} @> ${JSON.stringify([filters.subtypeId])}::jsonb` : undefined,
+    // A gang with no rating yet shows as 0, so it is filtered as 0
+    filters.minRating !== null ? gte(sql`coalesce(${gangs.rating}, 0)`, filters.minRating) : undefined,
+    filters.maxRating !== null ? lte(sql`coalesce(${gangs.rating}, 0)`, filters.maxRating) : undefined,
+  );
 
-  const pageRows = rows.slice(0, PUBLIC_GANGS_PAGE_SIZE);
+  const [pageRows, total] = await Promise.all([
+    db.query.gangs.findMany({
+      columns: {
+        id: true,
+        name: true,
+        gang_type: true,
+        image_url: true,
+        rating: true,
+        gang_subtypes: true,
+      },
+      where,
+      // id breaks ties, so paging doesn't repeat or skip gangs updated at the same time
+      orderBy: (gang) => [sql`${gang.last_updated} desc nulls last`, desc(gang.id)],
+      limit: PUBLIC_GANGS_PAGE_SIZE,
+      offset: (filters.page - 1) * PUBLIC_GANGS_PAGE_SIZE,
+      with: {
+        gang_portrait: { columns: { storage_path: true } },
+        gang_types: { columns: { parent_gang_type_name: true } },
+      },
+    }),
+    db.$count(gangs, where),
+  ]);
+
   const subtypeById = await getGangSubtypesById(db, pageRows);
 
   return {
@@ -119,6 +120,6 @@ export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
       image_url: gang.image_url || '',
       gang_portrait_url: gangPortraitPublicUrl(gang.gang_portrait?.storage_path) ?? null,
     })),
-    hasMore: rows.length > PUBLIC_GANGS_PAGE_SIZE,
+    total,
   };
 }
