@@ -13,6 +13,7 @@ import { groupBy } from '@/utils/gang-assembly';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
 import type { CampaignMapBundle } from '@/types/campaign';
+import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -604,6 +605,96 @@ async function _getCampaignOoaCounts(gangIds: string[]) {
   return Object.entries(groupBy(fighters, 'gang_id'))
     .map(([gang_id, list]) => ({ gang_id, ooa_count: sumFighterKills(list) }));
 }
+
+/** A gang's basic roster rows in its saved display order. */
+async function _getGangExportFighters(gangId: string) {
+  const gang = await getAppDb().query.gangs.findFirst({
+    columns: { positioning: true },
+    where: (gang, { eq }) => eq(gang.id, gangId),
+    with: {
+      fighters: {
+        columns: {
+          id: true,
+          fighter_name: true,
+          fighter_type: true,
+          fighter_subtypes: true,
+          xp: true,
+          is_vehicle: true,
+          killed: true,
+          retired: true,
+          enslaved: true,
+          recovery: true,
+          captured: true,
+          starved: true,
+        },
+        // Stable, rename-independent fallback for fighters not yet positioned.
+        orderBy: (fighter, { asc }) => [asc(fighter.created_at), asc(fighter.id)],
+        with: {
+          fighter_types: { columns: { fighter_type: true } },
+          custom_fighter_type: { columns: { fighter_type: true } },
+        },
+      },
+    },
+  });
+
+  if (!gang) return [];
+
+  const hasPositioning = gang.positioning && Object.keys(gang.positioning).length > 0;
+  // Match initializePositioningIfNeeded without writing during a public read.
+  return hasPositioning
+    ? sortFightersByPositioning(gang.fighters, gang.positioning)
+    : [...gang.fighters].sort((a, b) =>
+      (a.fighter_name ?? '').localeCompare(b.fighter_name ?? '')
+    );
+}
+
+/**
+ * One entry per gang, so each carries two tags whatever the campaign's size
+ * (unstable_cache keeps at most 128 tags per entry), and a fighter edit
+ * rebuilds only that gang's rows.
+ */
+const getGangExportFighters = async (gangId: string) => {
+  return unstable_cache(
+    async () => _getGangExportFighters(gangId),
+    [`gang-export-fighters-v1-${gangId}`],
+    {
+      tags: [TAGS.gangRoster(gangId), TAGS.gangPositioning(gangId)],
+      revalidate: false
+    }
+  )();
+};
+
+/** IDs of the campaign's ACCEPTED gangs; accepting an invitation busts campaign-members. */
+const getAcceptedCampaignGangIds = async (campaignId: string) => {
+  return unstable_cache(
+    async () => {
+      const rows = await getAppDb().query.campaignGangs.findMany({
+        columns: { gang_id: true },
+        where: (cg, { and, eq }) => and(eq(cg.campaign_id, campaignId), eq(cg.status, 'ACCEPTED')),
+      });
+      return [...new Set(rows.flatMap((cg) => cg.gang_id ?? []))];
+    },
+    [`campaign-accepted-gang-ids-v1-${campaignId}`],
+    {
+      tags: [TAGS.campaignMembers(campaignId)],
+      revalidate: false
+    }
+  )();
+};
+
+/**
+ * Public export roster data is separate from campaign members/standings so
+ * fighter edits refresh the export without rebuilding the campaign page.
+ * Only ACCEPTED gangs are read, since an invitation alone must never make a
+ * roster available to a caller; results stay keyed by gang ID.
+ */
+export const getCampaignFighters = async (campaignId: string) => {
+  const gangIds = await getAcceptedCampaignGangIds(campaignId);
+  const rosters = await Promise.all(
+    gangIds.map(async gangId => [gangId, await getGangExportFighters(gangId)] as const)
+  );
+  return Object.fromEntries(rosters);
+};
 
 /**
  * Get each gang's "OOA caused" for a campaign (Slaughterer triumph): the sum
