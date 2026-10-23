@@ -13,6 +13,8 @@ import {
   parseForumThreadNumber,
 } from '@/app/lib/forum';
 import { ForumPagination } from '@/components/forum/forum-pagination';
+import { ForumPostContent } from '@/components/forum/forum-post-content';
+import { ForumReplyBox } from '@/components/forum/forum-reply-box';
 import '@/components/ui/rich-text-editor.css';
 
 interface ForumThreadPageProps {
@@ -84,7 +86,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
               {post.is_removed ? (
                 <p className="text-muted-foreground italic">This post was removed.</p>
               ) : (
-                <div className="prose max-w-none [&_li]:marker:text-red-800" dangerouslySetInnerHTML={{ __html: post.content }} />
+                <ForumPostContent post={post} threadTitle={thread.title} />
               )}
               {!post.is_removed && post.like_count > 0 && (
                 <p className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
@@ -96,13 +98,15 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
           ))}
         </ol>
 
-        {thread.is_locked && (
+        <ForumPagination path={path} page={page} pageCount={pageCount} />
+
+        {thread.is_locked ? (
           <p className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
             <LuLock className="h-4 w-4" /> This thread is locked.
           </p>
+        ) : (
+          <ForumReplyBox threadId={thread.id} path={page === 1 ? path : `${path}?page=${page}`} />
         )}
-
-        <ForumPagination path={path} page={page} pageCount={pageCount} />
       </div>
     </main>
   );

@@ -317,3 +317,16 @@ export const invalidateGangCount = () => bust(TAGS.globalGangCount());
 export const invalidateCampaignCount = () => bust(TAGS.globalCampaignCount());
 /** An admin saved a user guide (any edition). */
 export const invalidateUserGuides = () => bust(TAGS.userGuides());
+
+/** A forum thread was started or renamed: the forum index shows it too. */
+export function invalidateForumThreadList(categoryId: string, threadNumber: number) {
+  bust(TAGS.forumIndex());
+  bust(TAGS.forumCategory(categoryId));
+  bust(TAGS.forumThread(threadNumber));
+}
+
+/** A forum thread or one of its posts changed. */
+export function invalidateForumThread(categoryId: string, threadNumber: number) {
+  bust(TAGS.forumCategory(categoryId));
+  bust(TAGS.forumThread(threadNumber));
+}
