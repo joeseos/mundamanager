@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import type { Gang } from '@/app/lib/get-user-gangs'
+import type { Gang, GangCard } from '@/app/lib/get-user-gangs'
 import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -13,8 +13,9 @@ import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
 import { detailGangTypeLabel } from '@/utils/gang-type-label'
 
 export interface GangCardProps {
-  gang: Gang;
-  onToggleFavourite: (gangId: string, isFavourite: boolean) => void;
+  gang: GangCard & Partial<Pick<Gang, 'campaigns' | 'is_favourite'>>;
+  /** Shows the favourite star; left out for other users' gangs. */
+  onToggleFavourite?: (gangId: string, isFavourite: boolean) => void;
   dragListeners?: Record<string, unknown>;
   dragAttributes?: Record<string, unknown>;
   isDragging?: boolean;
@@ -80,7 +81,7 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
   return (
     <div
-      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
+      className={`isolate flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
       {...(dragListeners || {})}
       {...(dragAttributes || {})}
       {...dragSurfaceProps(isDraggable)}
@@ -98,18 +99,20 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
       >
         {innerContent}
       </Link>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onToggleFavourite(gang.id, !gang.is_favourite);
-        }}
-        className="mr-2 shrink-0 hover:scale-110 transition-transform"
-        aria-label={gang.is_favourite ? 'Remove from favourites' : 'Add to favourites'}
-      >
-        {gang.is_favourite ? <AiFillStar className="text-yellow-500" size={22} /> : <FiStar className="text-neutral-300 dark:text-neutral-700" size={22} />}
-      </button>
+      {onToggleFavourite && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFavourite(gang.id, !gang.is_favourite);
+          }}
+          className="mr-2 shrink-0 hover:scale-110 transition-transform"
+          aria-label={gang.is_favourite ? 'Remove from favourites' : 'Add to favourites'}
+        >
+          {gang.is_favourite ? <AiFillStar className="text-yellow-500" size={22} /> : <FiStar className="text-neutral-300 dark:text-neutral-700" size={22} />}
+        </button>
+      )}
     </div>
   );
 }
