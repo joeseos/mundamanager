@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Image from 'next/image';
 import { cn } from '@/app/lib/utils';
 
 const COGWHEEL_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp';
+const AVATAR_CIRCLE = 'size-[76%] rounded-full bg-muted';
 
 interface UserAvatarProps {
   username: string | null;
@@ -18,6 +19,13 @@ interface UserAvatarProps {
 export function UserAvatar({ username, avatarUrl, className }: UserAvatarProps) {
   // Cached pages can still point at an avatar its owner just replaced, and the old file is deleted on upload
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
+  // An image that failed before hydration fired its error event too early for onError
+  const checkLoaded = useCallback(
+    (img: HTMLImageElement | null) => {
+      if (img?.complete && img.naturalWidth === 0) setFailedUrl(avatarUrl);
+    },
+    [avatarUrl]
+  );
 
   return (
     <span className={cn('relative size-12 shrink-0 flex items-center justify-center', className)}>
@@ -28,16 +36,13 @@ export function UserAvatar({ username, avatarUrl, className }: UserAvatarProps) 
           alt=""
           loading="lazy"
           onError={() => setFailedUrl(avatarUrl)}
-          // An image that failed before hydration fired its error event too early for onError
-          ref={(img) => {
-            if (img?.complete && img.naturalWidth === 0) setFailedUrl(avatarUrl);
-          }}
-          className="size-[76%] rounded-full object-cover bg-muted"
+          ref={checkLoaded}
+          className={cn(AVATAR_CIRCLE, 'object-cover')}
         />
       ) : (
         <span
           aria-hidden
-          className="size-[76%] rounded-full bg-muted text-muted-foreground font-semibold uppercase flex items-center justify-center select-none"
+          className={cn(AVATAR_CIRCLE, 'text-muted-foreground font-semibold uppercase flex items-center justify-center select-none')}
         >
           {username?.charAt(0) || '?'}
         </span>
