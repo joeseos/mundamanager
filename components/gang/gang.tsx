@@ -415,6 +415,8 @@ export default function Gang({
   // N26: Champions, Brutes and Hangers-on must not outnumber everyone else.
   // N23: fighters with Gang Fighter (X) must be at least as many as the other
   // models of this gang's own type. Hired guns from another gang type are left out.
+  // Catalog fighter types always have a gang type. A fighter with neither id is an
+  // unlinked row and is left out too.
   // Exotic Beasts and Pets are left out of both "other" counts.
   const compositionRules = useMemo(() => {
     const hasSubtype = (fighter: FighterProps, names: Set<string>) =>
