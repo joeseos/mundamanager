@@ -27,10 +27,12 @@ import { Tooltip } from 'react-tooltip';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
+import { EDITION_N23, EDITION_N26, beastSubtypeName, hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
+import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { detailGangTypeLabel } from '@/utils/gang-type-label';
+import { N23_UNDERHIVE_OUTCASTS_GANG_TYPE_ID } from '@/utils/archetypeEligibility';
 import { withVariantGroups } from '@/utils/variantFamily';
 
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
@@ -404,8 +406,78 @@ export default function Gang({
   }, [activeFighters, edition_slug]);
 
   const fighterTypeSubtypeTotal = useMemo(() => {
-    return fighterTypeSubtypeCounts.reduce((sum, item) => sum + item.count, 0);
+    return fighterTypeSubtypeCounts.reduce((sum, item) => (
+      isCompanionSubtype(item.subtypes) ? sum : sum + item.count
+    ), 0);
   }, [fighterTypeSubtypeCounts]);
+
+  // Under the total: exactly one Leader, then the edition's balance.
+  // N26: Champions, Brutes and Hangers-on must not outnumber everyone else.
+  // N23: fighters with Gang Fighter (X) must be at least as many as the other
+  // models of this gang's own type. Hired guns from another gang type are left out.
+  // Exotic Beasts and Pets are left out of both "other" counts.
+  const compositionRules = useMemo(() => {
+    const hasSubtype = (fighter: FighterProps, names: Set<string>) =>
+      (fighter.fighter_subtypes ?? []).some((subtype) => names.has(subtype.toLowerCase()));
+    const leaderCount = activeFighters.filter((fighter) => hasSubtype(fighter, new Set(['leader']))).length;
+    const excludedLabel = `(Excl. ${beastSubtypeName(edition_slug)}s)`;
+
+    const balance = (() => {
+      if (edition_slug === EDITION_N26) {
+        const restricted = new Set(['champion', 'brute', 'hanger-on']);
+        let withCount = 0;
+        let withoutCount = 0;
+        for (const fighter of activeFighters) {
+          if (hasSubtype(fighter, restricted)) withCount += 1;
+          else if (!isCompanionSubtype(fighter.fighter_subtypes ?? [])) withoutCount += 1;
+        }
+        const broken = withCount > withoutCount;
+        return [
+          { label: 'Champions, Brutes & Hangers-on', text: String(withCount), broken },
+          { label: `Other Models ${excludedLabel}`, text: String(withoutCount), broken },
+        ];
+      }
+      if (edition_slug === EDITION_N23) {
+        const specialRules = (fighter: FighterProps) => {
+          const effects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+          return applySpecialRulesModifiers(fighter.special_rules ?? [], effects).map((rule) =>
+            String(rule).trim().replace(/^"|"$/g, '')
+          );
+        };
+        const sameGang = activeFighters.filter((fighter) =>
+          (custom_gang_type_id != null && fighter.fighter_custom_gang_type_id === custom_gang_type_id) ||
+          (gang_type_id != null && fighter.fighter_gang_type_id === gang_type_id)
+        );
+        let withCount = 0;
+        let withoutCount = 0;
+        let hierarchyCount = 0;
+        for (const fighter of sameGang) {
+          const rules = specialRules(fighter);
+          const gangFighter = rules.some((rule) => /^gang fighter\s*\(/i.test(rule));
+          if (gangFighter) withCount += 1;
+          else if (!isCompanionSubtype(fighter.fighter_subtypes ?? [])) withoutCount += 1;
+          if (rules.some((rule) => /^gang hierarchy\s*\(\s*champion\s*\)/i.test(rule))) hierarchyCount += 1;
+        }
+        const broken = withCount < withoutCount;
+        const rows = [
+          { label: 'Fighters with Gang Fighter (X) rule', text: String(withCount), broken },
+          { label: `Other Gang fighters ${excludedLabel}`, text: String(withoutCount), broken },
+        ];
+        // Outcasts: one Gang Hierarchy (Champion) for every three Gang Fighters.
+        if (gang_type_id === N23_UNDERHIVE_OUTCASTS_GANG_TYPE_ID) {
+          rows.push({
+            label: 'Champions/Gang Fighters (X)',
+            text: `${hierarchyCount}/${withCount}`,
+            broken: hierarchyCount > Math.floor(withCount / 3),
+          });
+        }
+        return rows;
+      }
+      return null;
+    })();
+
+    return { leaderCount, balance, broken: leaderCount !== 1 || (balance?.some((row) => row.broken) ?? false) };
+  }, [activeFighters, edition_slug, gang_type_id, custom_gang_type_id]);
 
   const wealthBreakdownRows = useMemo(() => {
     return [
@@ -1301,7 +1373,7 @@ export default function Gang({
                     data-tooltip-id="gang-composition-tooltip"
                   >
                     <span className="text-muted-foreground">Gang Size:</span>
-                    <span className="font-semibold">{activeFighters.length}</span>
+                    <span className={`font-semibold ${compositionRules.broken ? 'text-red-500' : ''}`}>{fighterTypeSubtypeTotal}</span>
                   </div>
                 </div>
 
@@ -1487,7 +1559,9 @@ export default function Gang({
             clickable={true}
             style={{
               padding: '6px',
-              maxWidth: '24rem'
+              maxWidth: 'min(24rem, calc(100vw - 1.5rem))',
+              maxHeight: '70dvh',
+              overflowY: 'auto',
             }}
           >
             <div>
@@ -1500,15 +1574,16 @@ export default function Gang({
                     const isCompanion = isCompanionSubtype(subtypes);
                     const limit = fighterCountLimitDisplay({ min_count, max_count, current: familyCount });
                     const limitText = isCompanion ? '\u2014' : limit.text;
+                    const overMax = !isCompanion && max_count != null && max_count > 0 && familyCount > max_count;
                     return (
-                      <div key={label} className="flex justify-between gap-3">
-                        <span>
-                          <span className={`inline-block w-11 text-center mr-1 ${!isCompanion && limit.over ? 'text-red-500' : 'text-gray-400'}`}>
+                      <div key={label} className={`flex justify-between gap-3 ${isCompanion ? 'text-gray-400' : ''}`}>
+                        <span className="flex min-w-0">
+                          <span className={`w-[5ch] shrink-0 text-left tabular-nums ${overMax ? 'text-red-500' : 'text-gray-400'}`}>
                             {limitText}
                           </span>
-                          {label}
+                          <span className="min-w-0 break-words">{label}</span>
                         </span>
-                        <span>{count}</span>
+                        <span className="shrink-0">{isCompanion ? `(${count})` : count}</span>
                       </div>
                     );
                   })}
@@ -1518,6 +1593,20 @@ export default function Gang({
                 <span>Total :</span>
                 <span>{fighterTypeSubtypeTotal}</span>
               </div>
+              <div className="mt-3 flex justify-between gap-3">
+                <span className="min-w-0 break-words">Leader</span>
+                <span className={`shrink-0 ${compositionRules.leaderCount === 1 ? '' : 'text-red-500'}`}>
+                  {compositionRules.leaderCount}
+                </span>
+              </div>
+              {compositionRules.balance?.map((row) => (
+                <div key={row.label} className="flex justify-between gap-3">
+                  <span className="min-w-0 break-words">{row.label}</span>
+                  <span className={`shrink-0 ${row.broken ? 'text-red-500' : ''}`}>
+                    {row.text}
+                  </span>
+                </div>
+              ))}
             </div>
           </Tooltip>
           <Tooltip
@@ -1528,7 +1617,9 @@ export default function Gang({
             clickable={true}
             style={{
               padding: '6px',
-              maxWidth: '24rem'
+              maxWidth: 'min(24rem, calc(100vw - 1.5rem))',
+              maxHeight: '70dvh',
+              overflowY: 'auto',
             }}
           >
             <div>

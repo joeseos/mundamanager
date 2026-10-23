@@ -141,7 +141,8 @@ export async function createExoticBeastsForEquipment(
           intelligence,
           save,
           special_rules,
-          starting_xp
+          starting_xp,
+          gang_type_id
         )
       `)
       .eq('equipment_id', params.equipmentId);

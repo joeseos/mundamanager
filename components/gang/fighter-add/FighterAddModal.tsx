@@ -29,11 +29,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { getArchetypeCatalogSubtype, isArchetypeEligible } from '@/utils/archetypeEligibility';
 import {
   buildFighterFromServerData,
-  buildBeastFromServerData,
+  buildFamiliarFromServerData,
   createEmptyEffects,
   createStats,
   type AddFighterServerData,
-  type ExoticBeastServerData,
+  type FamiliarServerData,
 } from '@/utils/fighter-builder';
 import {
   SelectedEquipmentItem,
@@ -437,6 +437,8 @@ export default function FighterAddModal({
       weapons: optimisticWeapons,
       wargear: optimisticWargear,
       special_rules: selectedType?.special_rules || [],
+      fighter_gang_type_id: selectedType?.gang_type_id ?? null,
+      fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
       skills: {},
       advancements: { characteristics: {}, skills: {} },
       free_skill: selectedType?.free_skill || false,
@@ -506,6 +508,8 @@ export default function FighterAddModal({
         edition_slug: selectedType?.edition_slug ?? null,
         is_vehicle: selectedType?.is_vehicle ?? false,
         ...countLimitsFromType(selectedType),
+        fighter_gang_type_id: selectedType?.gang_type_id ?? null,
+        fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
       };
 
       if (context.tempFighterId && onFighterReconcile) {
@@ -514,10 +518,9 @@ export default function FighterAddModal({
         onFighterAdded(realFighter, variables.cost);
       }
 
-      if (data.created_beasts && data.created_beasts.length > 0) {
-        data.created_beasts.forEach((beast: ExoticBeastServerData) => {
-          const beastFighter = buildBeastFromServerData(beast);
-          onFighterAdded(beastFighter, 0);
+      if (data.created_familiars && data.created_familiars.length > 0) {
+        data.created_familiars.forEach((familiar: FamiliarServerData) => {
+          onFighterAdded(buildFamiliarFromServerData(familiar), 0);
         });
       }
 
@@ -526,7 +529,7 @@ export default function FighterAddModal({
         return;
       }
 
-      toast.success(`${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} ${beastSubtypeName(editionSlug).toLowerCase()}(s)` : ''}`);
+      toast.success(`${data.fighter_name} added successfully${data.created_familiars?.length ? ` with ${data.created_familiars.length} ${beastSubtypeName(editionSlug).toLowerCase()}(s)` : ''}`);
     },
   });
 

@@ -122,14 +122,16 @@ export interface AddFighterServerData {
 }
 
 /**
- * Server response data for created exotic beasts
+ * Server response data for a created Exotic Beast (N23) or Pet (N26).
  */
-export interface ExoticBeastServerData {
+export interface FamiliarServerData {
   id: string;
   fighter_name: string;
   fighter_type: string;
   fighter_subtypes?: string[];
   fighter_type_id: string;
+  fighter_gang_type_id?: string | null;
+  fighter_custom_gang_type_id?: string | null;
   credits: number;
   owner?: { fighter_name: string };
   movement: number;
@@ -146,7 +148,7 @@ export interface ExoticBeastServerData {
   intelligence: number;
   save?: number | null;
   xp: number;
-  /** null means N/A: this beast's type cannot gain XP. */
+  /** null means N/A: this familiar's type cannot gain XP. */
   starting_xp?: number | null;
   kills: number;
   equipment: Array<{
@@ -300,33 +302,35 @@ export function buildFighterFromServerData(
 }
 
 /**
- * Builds a FighterProps object from exotic beast server data
+ * Builds a FighterProps object from Exotic Beast or Pet server data.
  */
-export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterProps {
+export function buildFamiliarFromServerData(familiar: FamiliarServerData): FighterProps {
   const stats: FighterStats = {
-    movement: beast.movement,
-    weapon_skill: beast.weapon_skill,
-    ballistic_skill: beast.ballistic_skill,
-    strength: beast.strength,
-    toughness: beast.toughness,
-    wounds: beast.wounds,
-    initiative: beast.initiative,
-    attacks: beast.attacks,
-    leadership: beast.leadership,
-    cool: beast.cool,
-    willpower: beast.willpower,
-    intelligence: beast.intelligence,
-    save: beast.save ?? null
+    movement: familiar.movement,
+    weapon_skill: familiar.weapon_skill,
+    ballistic_skill: familiar.ballistic_skill,
+    strength: familiar.strength,
+    toughness: familiar.toughness,
+    wounds: familiar.wounds,
+    initiative: familiar.initiative,
+    attacks: familiar.attacks,
+    leadership: familiar.leadership,
+    cool: familiar.cool,
+    willpower: familiar.willpower,
+    intelligence: familiar.intelligence,
+    save: familiar.save ?? null
   };
 
   return {
-    id: beast.id,
-    fighter_name: beast.fighter_name,
-    fighter_type: beast.fighter_type,
-    fighter_subtypes: beast.fighter_subtypes ?? [],
-    fighter_type_id: beast.fighter_type_id,
-    credits: beast.credits,
-    owner_name: beast.owner?.fighter_name,
+    id: familiar.id,
+    fighter_name: familiar.fighter_name,
+    fighter_type: familiar.fighter_type,
+    fighter_subtypes: familiar.fighter_subtypes ?? [],
+    fighter_type_id: familiar.fighter_type_id,
+    fighter_gang_type_id: familiar.fighter_gang_type_id ?? null,
+    fighter_custom_gang_type_id: familiar.fighter_custom_gang_type_id ?? null,
+    credits: familiar.credits,
+    owner_name: familiar.owner?.fighter_name,
     movement: stats.movement,
     weapon_skill: stats.weapon_skill,
     ballistic_skill: stats.ballistic_skill,
@@ -340,13 +344,13 @@ export function buildBeastFromServerData(beast: ExoticBeastServerData): FighterP
     willpower: stats.willpower,
     intelligence: stats.intelligence,
     save: stats.save ?? null,
-    xp: beast.xp,
-    starting_xp: beast.starting_xp ?? null,
-    kills: beast.kills,
-    weapons: buildWeaponsFromEquipment(beast.equipment),
-    wargear: buildWargearFromEquipment(beast.equipment),
-    special_rules: beast.special_rules || [],
-    skills: buildSkillsFromServerData(beast.skills),
+    xp: familiar.xp,
+    starting_xp: familiar.starting_xp ?? null,
+    kills: familiar.kills,
+    weapons: buildWeaponsFromEquipment(familiar.equipment),
+    wargear: buildWargearFromEquipment(familiar.equipment),
+    special_rules: familiar.special_rules || [],
+    skills: buildSkillsFromServerData(familiar.skills),
     advancements: {
       characteristics: {},
       skills: {}

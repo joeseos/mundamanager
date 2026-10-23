@@ -121,12 +121,14 @@ interface AddFighterResult {
       skill_name: string;
     }>;
     special_rules?: string[];
-    created_beasts?: Array<{
+    created_familiars?: Array<{
       id: string;
       fighter_name: string;
       fighter_type: string;
       fighter_subtypes: string[];
       fighter_type_id: string;
+      fighter_gang_type_id: string | null;
+      fighter_custom_gang_type_id: string | null;
       credits: number;
       equipment_source: string;
       created_at: string;
@@ -1349,7 +1351,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           skill_name: (skill.skills as any)?.name || ''
         })),
         special_rules: effectiveFighterData.special_rules,
-        created_beasts: allCreatedBeasts.length > 0 ? allCreatedBeasts : undefined,
+        created_familiars: allCreatedBeasts.length > 0 ? allCreatedBeasts : undefined,
         applied_effects: allAppliedEffects.length > 0 ? allAppliedEffects : undefined
       }
     };
