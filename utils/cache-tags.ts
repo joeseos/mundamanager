@@ -8,42 +8,42 @@ import { revalidateTag } from 'next/cache';
  * additional displayed copy carries a tag its write path provably fires —
  * from a choke point, not hand-written per call site.
  *
- * Read side                                  | Busted by
- * -------------------------------------------|------------------------------
- * gang-{id}        gang core, campaign        | any gang/fighter mutation
- *                  captives                  |
- * gang-roster-{id} fighters AND all gang     | any fighter OR vehicle
- *                  vehicles, their equipment,| mutation — NOT
- *                  effects, loadouts, stats  | updateGangFinancials
- *                  (45 KB - 1 MB); campaign  |
- *                  OOA counts (Triumphs)     |
- * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
- *                  credits copies on other   | point) + gang name/reputation
- *                  pages (campaign, home)    | edits — NOT xp/image/loadouts
- * gang-campaigns-{id} gang's campaigns bundle| join/leave/allegiance changes
- * gang-positioning-{id} card positioning     | drag/reorder only
- * gang-stash-{id}  stash equipment           | stash mutations
- * fighter-{id}     id→gang resolver +        | fighter mutations (always
- *                  advancement caches        | alongside gang-{id})
- * campaign-core-{id}  the campaigns row itself  | campaign settings/image/discord
- * campaign-members-{id} members, gangs, standings| member + campaign-gang mutations
- * campaign-territories-{id} rows and ownership   | territory mutations
- * campaign-battles-{id} battle logs              | battle log + challenge mutations
- * campaign-allegiances-{id} allegiance catalog   | allegiance mutations
- * campaign-resources-{id} resource catalog +     | resource mutations + gang resource
- *                  per-gang resource rows        | edits
- * campaign-map-{id} map and its objects          | map editor mutations
- * campaign-captives-{id} captives held by gangs  | fighter capture/rescue
- * campaign-trading-posts-{id} shared custom TPs  | custom-share mutations
- * user-{id}        profile/gang list/        | profile, list, social
- *                  campaign list/friends     | mutations
- * custom-{id}      custom content            | customise mutations
- * global-gang-types gang type catalog +      | any admin gang-type write
- *                  home-card portraits/names |
- * global-gang-portraits catalogue file paths | catalogue row rename/delete
- *                  joined onto gangs         | (invalidateGangPortraits) |
- * global-gang-rules gang rules and their   | admin gang rule and
- *                  effect types              | rule effect type writes
+ * Tag                         | Read side                             | Busted by
+ * ----------------------------|---------------------------------------|-----------------------------------
+ * gang-{id}                   | gang core, campaign captives          | any gang/fighter mutation
+ * gang-roster-{id}            | fighters AND all gang vehicles,       | any fighter OR vehicle mutation —
+ *                             | their equipment, effects, loadouts,   | NOT updateGangFinancials
+ *                             | stats (45 KB - 1 MB); campaign OOA    |
+ *                             | counts (Triumphs), public campaign    |
+ *                             | fighters                              |
+ * gang-overview-{id}          | name/rating/wealth/credits copies on  | updateGangFinancials (choke point)
+ *                             | other pages (campaign, home)          | + gang name/reputation edits —
+ *                             |                                       | NOT xp/image/loadouts
+ * gang-campaigns-{id}         | gang's campaigns bundle               | join/leave/allegiance changes
+ * gang-positioning-{id}       | card positioning, public campaign     | drag/reorder only
+ *                             | fighters                              |
+ * gang-stash-{id}             | stash equipment                       | stash mutations
+ * fighter-{id}                | id→gang resolver + advancement caches | fighter mutations (always
+ *                             |                                       | alongside gang-{id})
+ * campaign-core-{id}          | the campaigns row itself              | campaign settings/image/discord
+ * campaign-members-{id}       | members, gangs, standings             | member + campaign-gang mutations
+ * campaign-territories-{id}   | rows and ownership                    | territory mutations
+ * campaign-battles-{id}       | battle logs                           | battle log + challenge mutations
+ * campaign-allegiances-{id}   | allegiance catalog                    | allegiance mutations
+ * campaign-resources-{id}     | resource catalog + per-gang resource  | resource mutations + gang resource
+ *                             | rows                                  | edits
+ * campaign-map-{id}           | map and its objects                   | map editor mutations
+ * campaign-captives-{id}      | captives held by gangs                | fighter capture/rescue
+ * campaign-trading-posts-{id} | shared custom TPs                     | custom-share mutations
+ * user-{id}                   | profile/gang list/campaign            | profile, list, social mutations
+ *                             | list/friends                          |
+ * custom-{id}                 | custom content                        | customise mutations
+ * global-gang-types           | gang type catalog + home-card         | any admin gang-type write
+ *                             | portraits/names                       |
+ * global-gang-portraits       | catalogue file paths joined onto      | catalogue row rename/delete
+ *                             | gangs                                 | (invalidateGangPortraits)
+ * global-gang-rules           | gang rules and their effect types     | admin gang rule and
+ *                             |                                       | rule effect type writes
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,

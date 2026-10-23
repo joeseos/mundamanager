@@ -4,8 +4,10 @@ import {
   getCampaignMembers,
   getCampaignTerritories,
   getCampaignBattles,
-  getCampaignResources
+  getCampaignResources,
+  getCampaignFighters
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { isUuid } from "@/utils/uuid";
 
 // IP-based rate limiting storage
 interface RateLimitEntry {
@@ -190,6 +192,21 @@ interface DataTerritory {
   owning_gangs: DataGangReference[];
 }
 
+interface DataFighter {
+  id: string;
+  name: string;
+  type: string;
+  subtypes: string[];
+  xp: number;
+  is_vehicle: boolean;
+  killed: boolean;
+  retired: boolean;
+  enslaved: boolean;
+  recovery: boolean;
+  captured: boolean;
+  starved: boolean;
+}
+
 interface DataGang {
   id: string;
   name: string;
@@ -203,6 +220,7 @@ interface DataGang {
   territory_count: number;
   territories: DataTerritory[];
   resources: Array<{ resource_id: string; resource_name: string; quantity: number; is_custom: boolean }>;
+  fighters: DataFighter[];
 }
 
 interface DataBattle {
@@ -257,7 +275,8 @@ function transformGangForData(gang: any): DataGang {
     reputation: gang.reputation,
     territory_count: gang.territory_count,
     territories: (gang.territories ?? []).map((t: any) => transformTerritoryForData(t, true)),
-    resources: gang.resources ?? []
+    resources: gang.resources ?? [],
+    fighters: gang.fighters ?? []
   };
 }
 
@@ -415,22 +434,36 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     // SECURITY NOTE: This endpoint is intentionally public - any campaign ID can be viewed
     // Rate limiting (10 req/min per IP) provides abuse protection
 
-    // Fetch all campaign data using existing cached functions
+    // Reject malformed UUIDs before starting any database-backed reads.
+    if (!isUuid(campaignId)) {
+      return format === 'xml'
+        ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
+            status: 404,
+            headers: { 'Content-Type': 'application/xml', ...rateLimitHeaders, ...corsHeaders }
+          })
+        : NextResponse.json(
+            { error: 'Campaign not found' },
+            { status: 404, headers: { ...rateLimitHeaders, ...corsHeaders } }
+          );
+    }
+
+    // Fetch all campaign data in parallel using existing cached functions
     const [
       campaignBasic,
       campaignMembers,
       campaignTerritories,
       campaignBattles,
-      campaignResources
+      campaignResources,
+      campaignFighters
     ] = await Promise.all([
       getCampaignBasic(campaignId),
       getCampaignMembers(campaignId),
       getCampaignTerritories(campaignId),
       getCampaignBattles(campaignId, 100),
-      getCampaignResources(campaignId)
+      getCampaignResources(campaignId),
+      getCampaignFighters(campaignId)
     ]);
 
-    // Return 404 if campaign not found
     if (!campaignBasic) {
       return format === 'xml'
         ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
@@ -443,7 +476,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
           );
     }
 
-    // Transform members data to include territories under their gangs
+    // Transform members data to include territories and fighters under their gangs
     // Note: We exclude auth user IDs for privacy, only include campaign-scoped IDs
     const membersWithTerritories = campaignMembers.map(member => {
       const gangsWithTerritories = member.gangs.map(gang => {
@@ -454,7 +487,22 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
 
         return transformGangForData({
           ...gang,
-          territories: gangTerritories
+          territories: gangTerritories,
+          // An invitation alone must not publish the gang's roster.
+          fighters: (gang.status === 'ACCEPTED' && gang.id ? campaignFighters[gang.id] ?? [] : []).map((fighter): DataFighter => ({
+            id: fighter.id,
+            name: fighter.fighter_name ?? '',
+            type: fighter.fighter_type || fighter.fighter_types?.fighter_type || fighter.custom_fighter_type?.fighter_type || 'Unknown',
+            subtypes: fighter.fighter_subtypes ?? [],
+            xp: fighter.xp ?? 0,
+            is_vehicle: fighter.is_vehicle,
+            killed: fighter.killed,
+            retired: fighter.retired,
+            enslaved: fighter.enslaved,
+            recovery: fighter.recovery ?? false,
+            captured: fighter.captured ?? false,
+            starved: fighter.starved,
+          }))
         });
       });
 
@@ -519,4 +567,3 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         );
   }
 }
-

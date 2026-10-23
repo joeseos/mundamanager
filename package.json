@@ -1,4 +1,5 @@
 {
+  "name": "mundamanager",
   "private": true,
   "type": "module",
   "scripts": {
