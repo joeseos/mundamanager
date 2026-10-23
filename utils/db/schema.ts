@@ -1013,6 +1013,50 @@ export const customCollections = pgTable('custom_collections', {
   edition_id: uuid('edition_id'),
 });
 
+export const forumCategories = pgTable('forum_categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  slug: text('slug').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  position: integer('position').default(0).notNull(),
+  moderators_only: boolean('moderators_only').default(false).notNull(),
+  thread_count: integer('thread_count').default(0).notNull(),
+  post_count: integer('post_count').default(0).notNull(),
+  last_post_at: timestamp('last_post_at', { withTimezone: true, mode: 'string' }),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  updated_by: uuid('updated_by'),
+});
+
+export const forumThreads = pgTable('forum_threads', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  number: bigint('number', { mode: 'number' }).notNull(),
+  category_id: uuid('category_id').notNull(),
+  title: text('title').notNull(),
+  author_id: uuid('author_id'),
+  is_pinned: boolean('is_pinned').default(false).notNull(),
+  is_locked: boolean('is_locked').default(false).notNull(),
+  post_count: integer('post_count').default(0).notNull(),
+  last_post_at: timestamp('last_post_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  last_post_author_id: uuid('last_post_author_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  updated_by: uuid('updated_by'),
+});
+
+export const forumPosts = pgTable('forum_posts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  thread_id: uuid('thread_id').notNull(),
+  post_number: integer('post_number').notNull(),
+  author_id: uuid('author_id'),
+  content: text('content').notNull(),
+  like_count: integer('like_count').default(0).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),
+  deleted_by: uuid('deleted_by'),
+});
+
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
 // one()s point at the same table, each pair gets a relationName:

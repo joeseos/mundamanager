@@ -17,6 +17,8 @@ sql_paths = [
   "./bootstrap/private_schema.sql",
   "./functions/is_admin.sql",
   "./functions/is_arb.sql",
+  "./functions/is_forum_moderator.sql",
+  "./functions/is_forum_banned.sql",
   "./schema/schema.public.sql",
   "./bootstrap/grants.sql",
   "./bootstrap/auth_trigger.sql",
