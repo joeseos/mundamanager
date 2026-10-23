@@ -1163,7 +1163,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       await clearHardpointReference(supabase, params.fighter_equipment_id, equipmentBefore.vehicle_id);
     }
 
-    // Get associated fighter effects before deletion (they'll be cascade deleted)
+    // Get associated fighter effects before deletion (they'll be cascade deleted).
+    // Include effects targeting this equipment (e.g. upgrades from an attached accessory)
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')
       .select(`
@@ -1175,7 +1176,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           numeric_value
         )
       `)
-      .eq('fighter_equipment_id', params.fighter_equipment_id);
+      .or(`fighter_equipment_id.eq.${params.fighter_equipment_id},target_equipment_id.eq.${params.fighter_equipment_id}`);
 
     // Determine rating delta prior to deletion
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
