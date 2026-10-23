@@ -293,19 +293,34 @@ function splitTraits(traits: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-function requiredTraitsOf(effect: { type_specific_data?: TraitModificationData | string | null }): string[] {
+function traitListOf(
+  effect: { type_specific_data?: TraitModificationData | string | null },
+  key: 'requires_traits' | 'excludes_traits'
+): string[] {
   const tsd = typeof effect.type_specific_data === 'object' ? effect.type_specific_data : null;
-  return Array.isArray(tsd?.requires_traits)
-    ? tsd.requires_traits.map(t => t.trim().toLowerCase()).filter(Boolean)
+  const traits = tsd?.[key];
+  return Array.isArray(traits)
+    ? traits.map(t => t.trim().toLowerCase()).filter(Boolean)
     : [];
+}
+
+/** Lowercased traits, each also by its name alone so "Toxin" matches "Toxin (4+)" */
+function traitMatchKeys(traits: string | null | undefined): Set<string> {
+  return new Set(splitTraits(traits).flatMap(t => {
+    const lower = t.toLowerCase();
+    return [lower, lower.replace(/\s*\(.*\)$/, '')];
+  }));
 }
 
 /** The fighter's requires_traits effects (e.g. multi-harness). Trait changes only: their stat modifiers are the fighter's */
 export function fighterWideWeaponEffects<T extends { type_specific_data?: TraitModificationData | string | null }>(effects: T[]): T[] {
   return effects
-    .filter(e => e && requiredTraitsOf(e).length > 0)
+    .filter(e => e && traitListOf(e, 'requires_traits').length > 0)
     .map(e => ({ ...e, fighter_effect_modifiers: [] }));
 }
+
+/** The weapon profile fields an effect modifier can change */
+export const WEAPON_NUMERIC_FIELDS = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
 
 /**
  * Apply equipment→equipment effect modifiers to weapon profiles
@@ -329,16 +344,15 @@ export function applyWeaponModifiers(
     // Work on a copy
     const modified = { ...profile };
 
-    const baseTraits = splitTraits(profile.traits).map(t => t.toLowerCase());
+    const baseTraits = traitMatchKeys(profile.traits);
     const profileEffects = validEffects.filter(eff => {
-      const required = requiredTraitsOf(eff);
-      return required.length === 0 || required.some(t => baseTraits.includes(t));
+      const required = traitListOf(eff, 'requires_traits');
+      return (required.length === 0 || required.some(t => baseTraits.has(t)))
+        && !traitListOf(eff, 'excludes_traits').some(t => baseTraits.has(t));
     });
 
     // Apply numeric fields with add/set operations
-    const numericFields = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
-
-    numericFields.forEach((fieldName) => {
+    WEAPON_NUMERIC_FIELDS.forEach((fieldName) => {
       const baseValue = (modified as any)[fieldName];
       if (baseValue === null || baseValue === undefined) return;
 

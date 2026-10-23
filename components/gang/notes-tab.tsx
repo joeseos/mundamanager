@@ -1,17 +1,12 @@
 'use client';
 
-import { lazy, Suspense, useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
+import { LazyRichTextEditor } from '../ui/lazy-rich-text-editor';
 import { toast } from 'sonner';
 import '../ui/rich-text-editor.css'; // Styles the read-only notes and the editor placeholder
 import { UserPermissions } from '@/types/user-permissions';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
-
-// The editor (Tiptap and ProseMirror, about 130 KB gzipped) only shows after
-// Edit is clicked, so its code loads then instead of with the page.
-const RichTextEditor = lazy(() =>
-  import('../ui/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor }))
-);
 
 interface GangNotesProps {
   gangId: string;
@@ -111,85 +106,75 @@ function NoteEditor({
   };
 
   return (
-    <div className="bg-card rounded-lg shadow-md p-4 mb-6">
-      <div className="space-y-2">
-        <div className="flex justify-between items-start mb-2">
-          <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-2">
-              {isEditing ? (
-                <>
-                  <Button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setError(null);
-                    }}
-                    variant="outline"
-                    disabled={isSaving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSave}
-                    disabled={getCharCount(content) > charLimit || isSaving}
-                  >
-                    {isSaving ? "Saving..." : "Save"}
-                  </Button>
-                </>
-              ) : (
-                <Button 
-                  onClick={() => setIsEditing(true)}
-                  disabled={!userPermissions?.canEdit || isRefreshing}
+    <div className="space-y-2">
+      <div className="flex justify-between items-start mb-2">
+        <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setError(null);
+                  }}
+                  variant="outline"
+                  disabled={isSaving}
                 >
-                  {isRefreshing ? "Updating..." : "Edit"}
+                  Cancel
                 </Button>
-              )}
-            </div>
+                <Button
+                  onClick={handleSave}
+                  disabled={getCharCount(content) > charLimit || isSaving}
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </Button>
+              </>
+            ) : (
+              <Button 
+                onClick={() => setIsEditing(true)}
+                disabled={!userPermissions?.canEdit || isRefreshing}
+              >
+                {isRefreshing ? "Updating..." : "Edit"}
+              </Button>
+            )}
           </div>
         </div>
-
-        {error && (
-          <p className="text-red-500 text-sm">{error}</p>
-        )}
-
-        {isEditing ? (
-          <div className="bg-white rounded-md">
-            {/* Until the editor's code arrives, show the note in the editor's frame so nothing
-                moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
-            <Suspense
-              fallback={
-                <div className="border rounded-md min-h-[200px]">
-                  <div className="hidden min-[769px]:block border-b rounded-t-md p-1 bg-card shadow-xs"><div className="h-8" /></div>
-                  <div className="ProseMirror" dangerouslySetInnerHTML={{ __html: content }} />
-                </div>
-              }
-            >
-              <RichTextEditor
-                content={content}
-                onChange={onContentChange}
-                placeholder={placeholder}
-                className="min-h-[200px]"
-                charLimit={charLimit}
-                enableImages={false}
-              />
-            </Suspense>
-          </div>
-        ) : isHtmlEffectivelyEmpty(content) ? (
-          <p className="text-muted-foreground italic text-center">
-            No {title.toLowerCase()} added.{description && ` ${description}`}
-          </p>
-        ) : (
-          <div
-            className="prose prose-sm max-w-none break-words"
-            dangerouslySetInnerHTML={{ __html: content }}
-          />
-        )}
-        {updatedAt && !isEditing && (
-          <p className="text-xs text-muted-foreground text-right mt-2">
-            {formatUpdatedAt(updatedAt)}
-          </p>
-        )}
       </div>
+
+      {error && (
+        <p className="text-red-500 text-sm">{error}</p>
+      )}
+
+      {isEditing ? (
+        <div className="bg-white rounded-md">
+          {/* Until the editor's code arrives, show the note in the editor's frame so nothing
+              moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
+          <LazyRichTextEditor
+            fallbackHtml={content}
+            content={content}
+            onChange={onContentChange}
+            placeholder={placeholder}
+            className="min-h-[200px]"
+            charLimit={charLimit}
+            enableImages={false}
+          />
+        </div>
+      ) : isHtmlEffectivelyEmpty(content) ? (
+        <p className="text-muted-foreground italic text-center">
+          No {title.toLowerCase()} added.{description && ` ${description}`}
+        </p>
+      ) : (
+        <div
+          className="prose prose-sm max-w-none break-words"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      )}
+      {updatedAt && !isEditing && (
+        <p className="text-xs text-muted-foreground text-right mt-2">
+          {formatUpdatedAt(updatedAt)}
+        </p>
+      )}
     </div>
   );
 }
@@ -297,7 +282,7 @@ export function GangNotes({
   };
 
   return (
-    <div className="container max-w-5xl w-full space-y-4 mx-auto">
+    <div className="container max-w-5xl w-full mx-auto bg-card rounded-lg shadow-md p-4 space-y-8">
       <NoteEditor
         title="Gang Notes"
         description="They'll appear on the Gang card when printed."

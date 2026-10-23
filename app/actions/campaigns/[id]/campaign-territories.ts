@@ -1,7 +1,7 @@
 'use server';
 
 import { invalidateCampaignTerritories, invalidateGangCampaignMembership } from '@/utils/cache-tags';
-import { CAMPAIGN_TERRITORY_COLUMNS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
+import { CAMPAIGN_TERRITORY_COLUMNS, parseCredits, shapeCampaignTerritory } from '@/utils/campaigns/territories';
 import { createClient } from "@/utils/supabase/server";
 import { logTerritoryLost, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -47,6 +47,8 @@ export interface UpdateTerritoryStatusParams {
   description: string | null;
   /** When provided, renames the campaign territory instance (owners/arbitrators only) */
   territory_name?: string;
+  /** When provided, sets the credits the territory gives; null clears them (owners/arbitrators only) */
+  credits?: number | null;
 }
 
 /**
@@ -272,7 +274,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
           .single(),
         supabase
           .from('territories')
-          .select('territory_name, playing_card, editions:edition_id(slug)')
+          .select('territory_name, playing_card, credits, editions:edition_id(slug)')
           .eq('id', territoryId)
           .maybeSingle(),
       ]);
@@ -301,7 +303,8 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
     const insertData: Record<string, unknown> = {
       campaign_id: campaignId,
       territory_id: territoryId,
-      territory_name: templateTerritory.territory_name
+      territory_name: templateTerritory.territory_name,
+      credits: templateTerritory.credits
     };
 
     const rawCard = templateTerritory.playing_card;
@@ -473,13 +476,14 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
       default_gang_territory,
       playing_card,
       description,
-      territory_name
+      territory_name,
+      credits
     } = params;
 
     // Get current territory so we can invalidate gang cache and detect renames
     const { data: territoryData, error: selectError } = await supabase
       .from('campaign_territories')
-      .select('gang_id, territory_name')
+      .select('gang_id, territory_name, credits')
       .eq('id', territoryId)
       .eq('campaign_id', campaignId)
       .single();
@@ -496,28 +500,40 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
       description: description
     };
 
-    // Only authorize/validate rename when a new name is provided and it differs
-    if (territory_name !== undefined) {
-      const normalisedName = normaliseTerritoryName(territory_name);
-      const currentName = normaliseTerritoryName(territoryData.territory_name);
+    // Only authorize/validate a rename or credits change when the value differs
+    const normalisedName = territory_name === undefined ? undefined : normaliseTerritoryName(territory_name);
+    const renamed =
+      normalisedName !== undefined &&
+      normalisedName !== normaliseTerritoryName(territoryData.territory_name);
+    const creditsChanged = credits !== undefined && credits !== territoryData.credits;
 
-      if (normalisedName !== currentName) {
-        const user = await getAuthenticatedUser(supabase);
-        const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
-        if (!hasPermission) {
-          return {
-            success: false,
-            error: 'Only campaign owners and arbitrators can rename territories'
-          };
-        }
-
-        const nameError = validateTerritoryName(normalisedName);
-        if (nameError) {
-          return { success: false, error: nameError };
-        }
-
-        updatePayload.territory_name = normalisedName;
+    if (renamed || creditsChanged) {
+      const user = await getAuthenticatedUser(supabase);
+      const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
+      if (!hasPermission) {
+        return {
+          success: false,
+          error: 'Only campaign owners and arbitrators can rename territories or change their credits'
+        };
       }
+    }
+
+    if (renamed) {
+      const nameError = validateTerritoryName(normalisedName);
+      if (nameError) {
+        return { success: false, error: nameError };
+      }
+
+      updatePayload.territory_name = normalisedName;
+    }
+
+    if (creditsChanged) {
+      const normalisedCredits = parseCredits(credits);
+      if (normalisedCredits === undefined) {
+        return { success: false, error: 'Credits must be a number' };
+      }
+
+      updatePayload.credits = normalisedCredits;
     }
 
     const { error } = await supabase

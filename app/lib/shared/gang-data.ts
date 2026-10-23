@@ -1,17 +1,19 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
-import { assembleGangFighters, groupBy } from '@/utils/gang-assembly';
+import { assembleGangFighters } from '@/utils/gang-assembly';
+import { getAppDb, type AppDb } from '@/utils/db/client';
 import {
   gangPortraitPublicUrl,
-  joinedPortraitStoragePath,
   type GangFighter,
   type GangFightersBundle,
   type GetGangFightersListOptions,
 } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
-import { GangTacticsCard, GANG_TACTICS_CARD_SELECT, toGangTacticsCard } from '@/types/tactics-card';
+import { isUuid } from '@/utils/uuid';
+import { GangTacticsCard, toGangTacticsCard } from '@/types/tactics-card';
+import { resolveGangRules, type GangRuleRow } from '@/utils/gang-rules';
 
 // =============================================================================
 // TYPES - Shared interfaces for gang data
@@ -52,6 +54,7 @@ export interface GangBasic {
   gang_types?: {
     affiliation: boolean;
     gang_origin_category_id?: string;
+    parent_gang_type_name?: string | null;
     gang_origin_categories?: {
       category_name: string;
     } | null;
@@ -73,12 +76,6 @@ export interface GangBasic {
   venator_ranks_incomplete?: boolean;
 }
 
-export interface GangType {
-  id: string;
-  gang_type: string;
-  parent_gang_type_name?: string | null;
-}
-
 export interface Alliance {
   id: string;
   alliance_name: string;
@@ -87,9 +84,9 @@ export interface Alliance {
 
 export interface GangStashItem {
   id: string;
-  created_at: string;
-  equipment_id?: string;
-  custom_equipment_id?: string;
+  created_at: string | null;
+  equipment_id?: string | null;
+  custom_equipment_id?: string | null;
   equipment_name: string;
   equipment_type: string;
   equipment_category: string;
@@ -110,8 +107,6 @@ export interface GangCampaign {
   campaign_gang_id: string;
   campaign_name: string;
   role: string;
-  invited_at?: string;
-  invited_by?: string;
   trading_posts?: string[] | null;
   trading_post_names?: string[];
   custom_trading_posts?: string[] | null;
@@ -143,6 +138,63 @@ export interface GangCore extends GangBasic {
   alliance: Alliance | null;
 }
 
+/** The gang row with its alliance, affiliation, origin, type, portrait and skill set ranks. */
+function gangCoreQuery(db: AppDb, gangId: string) {
+  return db.query.gangs.findFirst({
+    columns: {
+      id: true,
+      name: true,
+      gang_type: true,
+      gang_type_id: true,
+      gang_colour: true,
+      reputation: true,
+      alignment: true,
+      note: true,
+      note_backstory: true,
+      note_private: true,
+      credits: true,
+      trade_points: true,
+      rating: true,
+      wealth: true,
+      alliance_id: true,
+      gang_subtypes: true,
+      user_id: true,
+      gang_affiliation_id: true,
+      gang_origin_id: true,
+      custom_gang_type_id: true,
+      image_url: true,
+      gang_portrait_id: true,
+      hidden: true,
+    },
+    // The row's own timestamps would arrive in Postgres's text form; select them
+    // as JSON for the ISO form the Data API returned (nested ones already are)
+    extras: (gang, { sql }) => ({
+      note_private_updated_at: sql<string | null>`to_json(${gang.note_private_updated_at})`.as('note_private_updated_at'),
+      created_at: sql<string>`to_json(${gang.created_at})`.as('created_at'),
+      last_updated: sql<string | null>`to_json(${gang.last_updated})`.as('last_updated'),
+    }),
+    where: (gang, { eq }) => eq(gang.id, gangId),
+    with: {
+      alliance: { columns: { id: true, alliance_name: true, alliance_type: true } },
+      gang_affiliation: { columns: { id: true, name: true } },
+      gang_origin: {
+        columns: { id: true, origin_name: true },
+        with: { gang_origin_categories: { columns: { category_name: true } } },
+      },
+      gang_types: {
+        columns: { affiliation: true, gang_origin_category_id: true, parent_gang_type_name: true },
+        with: {
+          gang_origin_categories: { columns: { category_name: true } },
+          editions: { columns: { slug: true } },
+        },
+      },
+      custom_gang_type: { columns: {}, with: { editions: { columns: { slug: true } } } },
+      gang_portrait: { columns: { storage_path: true } },
+      gang_skill_set_ranks: { columns: { rank: true } },
+    },
+  });
+}
+
 /**
  * Get the full gang row (basic info + credits + rating + wealth + alliance).
  * One cache entry and one query replace the previous four parallel gangs-row
@@ -150,103 +202,32 @@ export interface GangCore extends GangBasic {
  * is deliberately excluded — it changes on every drag and has its own entry.
  * Cache: gang-{id}
  */
-export const getGangCore = async (gangId: string, supabase: any): Promise<GangCore | null> => {
+export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
+  // The id comes from the URL; Postgres would reject a malformed one
+  if (!isUuid(gangId)) return null;
+
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('gangs')
-        .select(`
-          id,
-          name,
-          gang_type,
-          gang_type_id,
-          gang_colour,
-          reputation,
-          alignment,
-          note,
-          note_backstory,
-          note_private,
-          note_private_updated_at,
-          created_at,
-          last_updated,
-          credits,
-          trade_points,
-          rating,
-          wealth,
-          alliance_id,
-          alliance:alliance_id (
-            id,
-            alliance_name,
-            alliance_type
-          ),
-          gang_subtypes,
-          user_id,
-          gang_affiliation_id,
-          gang_affiliation:gang_affiliation_id (
-            id,
-            name
-          ),
-          gang_origin_id,
-          gang_origin:gang_origin_id (
-            id,
-            origin_name,
-            gang_origin_categories!gang_origin_category_id (
-              category_name
-            )
-          ),
-          gang_types!gang_type_id(
-            affiliation,
-            gang_origin_category_id,
-            gang_origin_categories!gang_origin_category_id (
-              category_name
-            ),
-            editions:edition_id (
-              slug
-            )
-          ),
-          custom_gang_type_id,
-          custom_gang_type_edition:custom_gang_types!custom_gang_type_id (
-            editions:edition_id (
-              slug
-            )
-          ),
-          image_url,
-          gang_portrait_id,
-          gang_portraits!gangs_gang_portrait_id_fkey (
-            storage_path
-          ),
-          hidden
-        `)
-        .eq('id', gangId)
-        .maybeSingle();
-
-      if (error) {
-        // Return null for invalid UUID format; maybeSingle returns null for no rows.
-        if (error.code === '22P02') return null;
-        throw error;
-      }
-      if (!data) return null;
-      const { gang_portraits, ...gangRow } = data;
+      const row = await gangCoreQuery(getAppDb(), gangId);
+      if (!row) return null;
+      const { gang_portrait, custom_gang_type, gang_skill_set_ranks, ...gang } = row;
+      const gangRow = { ...gang, custom_gang_type_edition: custom_gang_type };
       const editionSlug = gangEditionSlug(gangRow);
-      let venatorRanksIncomplete: boolean | undefined;
-      if (isVenatorGang(editionSlug, gangRow.gang_type, Boolean(gangRow.custom_gang_type_id))) {
-        const { data: ranksProbe } = await supabase
-          .from('gang_skill_set_ranks')
-          .select('rank')
-          .eq('gang_id', gangId);
-        venatorRanksIncomplete = (ranksProbe ?? []).length < 4;
-      }
+      const venatorRanksIncomplete = isVenatorGang(editionSlug, gangRow.gang_type, Boolean(gangRow.custom_gang_type_id))
+        ? gang_skill_set_ranks.length < 4
+        : undefined;
+      // GangCore describes what the app stores: JSON columns typed, and columns
+      // the database allows to be NULL (credits, gang_type_id) as always set
       return {
         ...gangRow,
         edition_slug: editionSlug,
-        rating: (gangRow.rating ?? 0) as number,
-        wealth: (gangRow.wealth ?? 0) as number,
-        alliance: gangRow.alliance ?? null,
-        gang_portrait_url: gangPortraitPublicUrl(joinedPortraitStoragePath(gang_portraits)) ?? null,
+        rating: gangRow.rating ?? 0,
+        wealth: gangRow.wealth ?? 0,
+        gang_portrait_url: gangPortraitPublicUrl(gang_portrait?.storage_path) ?? null,
         venator_ranks_incomplete: venatorRanksIncomplete,
-      };
+      } as GangCore;
     },
-    [`gang-core-v10-${gangId}`],
+    [`gang-core-v11-${gangId}`],
     {
       tags: [TAGS.gang(gangId), TAGS.globalGangTypes(), TAGS.globalGangPortraits()],
       revalidate: false
@@ -259,17 +240,15 @@ export const getGangCore = async (gangId: string, supabase: any): Promise<GangCo
  * and D66 range. Callers gate on hasGangTacticsCards(), not this.
  * Cache: gang-tactics-cards-{id}
  */
-export const getGangTacticsCards = async (gangId: string, supabase: any): Promise<GangTacticsCard[]> => {
+export const getGangTacticsCards = async (gangId: string): Promise<GangTacticsCard[]> => {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('gang_tactics_cards')
-        .select(GANG_TACTICS_CARD_SELECT)
-        .eq('gang_id', gangId);
-
-      if (error) throw error;
-
-      return (data ?? []).map(toGangTacticsCard);
+      const cards = await getAppDb().query.gangTacticsCards.findMany({
+        columns: { id: true, description: true, tactics_cards_id: true },
+        where: (card, { eq }) => eq(card.gang_id, gangId),
+        with: { tactics_cards: { columns: { name: true, d66_min: true, d66_max: true } } },
+      });
+      return cards.map(toGangTacticsCard);
     },
     [`gang-tactics-cards-${gangId}`],
     {
@@ -283,18 +262,15 @@ export const getGangTacticsCards = async (gangId: string, supabase: any): Promis
  * Get gang positioning data only
  * Cache: BASE_GANG_POSITIONING
  */
-export const getGangPositioning = async (gangId: string, supabase: any): Promise<Record<string, any> | null> => {
+export const getGangPositioning = async (gangId: string): Promise<Record<string, any> | null> => {
   return unstable_cache(
     async () => {
-      // maybeSingle: a just-deleted gang re-renders from a stale gang-core entry
-      const { data, error } = await supabase
-        .from('gangs')
-        .select('positioning')
-        .eq('id', gangId)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data?.positioning || null;
+      // A just-deleted gang re-renders from a stale gang-core entry, so no row is fine
+      const gang = await getAppDb().query.gangs.findFirst({
+        columns: { positioning: true },
+        where: (gang, { eq }) => eq(gang.id, gangId),
+      });
+      return gang?.positioning ?? null;
     },
     [`gang-positioning-v2-${gangId}`],
     {
@@ -308,43 +284,31 @@ export const getGangPositioning = async (gangId: string, supabase: any): Promise
  * Get gang stash equipment
  * Cache: BASE_GANG_STASH
  */
-export const getGangStash = async (gangId: string, supabase: any): Promise<GangStashItem[]> => {
+export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('fighter_equipment')
-        .select(`
-          id,
-          created_at,
-          equipment_id,
-          custom_equipment_id,
-          purchase_cost,
-          cost_resource,
-          equipment:equipment_id (
-            equipment_name,
-            equipment_type,
-            equipment_category
-          ),
-          custom_equipment:custom_equipment_id (
-            equipment_name,
-            equipment_type,
-            equipment_category
-          )
-        `)
-        .eq('gang_id', gangId)
-        .eq('gang_stash', true);
+      const equipmentColumns = { equipment_name: true, equipment_type: true, equipment_category: true } as const;
+      const items = await getAppDb().query.fighterEquipment.findMany({
+        columns: { id: true, equipment_id: true, custom_equipment_id: true, purchase_cost: true, cost_resource: true },
+        extras: (item, { sql }) => ({
+          created_at: sql<string | null>`to_json(${item.created_at})`.as('created_at'),
+        }),
+        where: (item, { and, eq }) => and(eq(item.gang_id, gangId), eq(item.gang_stash, true)),
+        with: {
+          equipment: { columns: equipmentColumns },
+          custom_equipment: { columns: equipmentColumns },
+        },
+      });
 
-      if (error) throw error;
-
-      return (data || []).map((item: any) => ({
+      return items.map((item) => ({
         id: item.id,
         created_at: item.created_at,
         equipment_id: item.equipment_id,
         custom_equipment_id: item.custom_equipment_id,
-        equipment_name: (item.equipment as any)?.equipment_name || (item.custom_equipment as any)?.equipment_name || 'Unknown',
-        equipment_type: (item.equipment as any)?.equipment_type || (item.custom_equipment as any)?.equipment_type || 'unknown',
-        equipment_category: (item.equipment as any)?.equipment_category || (item.custom_equipment as any)?.equipment_category || 'unknown',
-        cost: item.purchase_cost,
+        equipment_name: item.equipment?.equipment_name || item.custom_equipment?.equipment_name || 'Unknown',
+        equipment_type: item.equipment?.equipment_type || item.custom_equipment?.equipment_type || 'unknown',
+        equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
+        cost: item.purchase_cost ?? 0,
         type: 'equipment' as const,
         cost_resource: item.cost_resource ?? null
       }));
@@ -353,58 +317,6 @@ export const getGangStash = async (gangId: string, supabase: any): Promise<GangS
     {
       tags: [TAGS.gangStash(gangId)],
       revalidate: false
-    }
-  )();
-};
-
-/**
- * Get gang type information, resolving between system and custom gang types
- * Cache: GLOBAL_GANG_TYPES (shared, 1 hour revalidation)
- */
-export const getGangType = async (gangBasic: GangBasic, supabase: any): Promise<GangType> => {
-  if (gangBasic.custom_gang_type_id) {
-    return unstable_cache(
-      async () => {
-        const { data, error } = await supabase
-          .from('custom_gang_types')
-          .select('id, gang_type')
-          .eq('id', gangBasic.custom_gang_type_id)
-          .single();
-
-        if (error) throw error;
-        return {
-          id: data.id,
-          gang_type: data.gang_type,
-        };
-      },
-      [`custom-gang-type-v2-${gangBasic.custom_gang_type_id}`],
-      {
-        tags: [TAGS.globalGangTypes()],
-        revalidate: 3600
-      }
-    )();
-  }
-
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('gang_types')
-        .select('id, gang_type, parent_gang_type_name')
-        .eq('id', gangBasic.gang_type_id)
-        .single();
-
-      if (error) throw error;
-
-      return {
-        id: data.id,
-        gang_type: data.gang_type,
-        parent_gang_type_name: data.parent_gang_type_name ?? null,
-      };
-    },
-    [`gang-type-v5-${gangBasic.gang_type_id}`],
-    {
-      tags: [TAGS.globalGangTypes()],
-      revalidate: 3600
     }
   )();
 };
@@ -419,18 +331,16 @@ export const getGangTypeConfig = (gangBasic: GangBasic) =>
  * Get gang subtypes
  * Cache: GLOBAL_GANG_TYPES (shared since subtypes rarely change)
  */
-export const getGangSubtypes = async (gangSubtypeIds: string[], supabase: any): Promise<GangSubtype[]> => {
+export const getGangSubtypes = async (gangSubtypeIds: string[]): Promise<GangSubtype[]> => {
   if (!gangSubtypeIds || gangSubtypeIds.length === 0) return [];
   
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('gang_subtype_types')
-        .select('id, subtype')
-        .in('id', gangSubtypeIds);
-
-      if (error) return [];
-      return data || [];
+      const subtypes = await getAppDb().query.gangSubtypeTypes.findMany({
+        columns: { id: true, subtype: true },
+        where: (type, { inArray }) => inArray(type.id, gangSubtypeIds),
+      });
+      return subtypes.filter((type): type is GangSubtype => type.subtype !== null);
     },
     [`gang-subtypes-${gangSubtypeIds.join('-')}`],
     {
@@ -445,14 +355,14 @@ export const getGangSubtypes = async (gangSubtypeIds: string[], supabase: any): 
  * can tag its entry with campaign-{id} per campaign (dynamic tags must be
  * known before the cached call). Busted on join/leave via gang-campaigns-{id}.
  */
-const getGangCampaignIdsCached = async (gangId: string, supabase: any): Promise<string[]> => {
+const getGangCampaignIdsCached = async (gangId: string): Promise<string[]> => {
   return unstable_cache(
     async () => {
-      const { data } = await supabase
-        .from('campaign_gangs')
-        .select('campaign_id')
-        .eq('gang_id', gangId);
-      return (data || []).map((cg: any) => cg.campaign_id).filter(Boolean);
+      const rows = await getAppDb().query.campaignGangs.findMany({
+        columns: { campaign_id: true },
+        where: (cg, { eq }) => eq(cg.gang_id, gangId),
+      });
+      return rows.map((cg) => cg.campaign_id).filter((id): id is string => Boolean(id));
     },
     [`gang-campaign-ids-v2-${gangId}`],
     {
@@ -462,6 +372,67 @@ const getGangCampaignIdsCached = async (gangId: string, supabase: any): Promise<
   )();
 };
 
+/** The gang's campaign memberships with their campaign, member role, territories, resources and allegiance. */
+function gangCampaignsQuery(db: AppDb, gangId: string) {
+  return db.query.campaignGangs.findMany({
+    columns: { id: true, campaign_allegiance_id: true, campaign_type_allegiance_id: true },
+    where: (cg, { eq }) => eq(cg.gang_id, gangId),
+    with: {
+      campaign_member: { columns: { role: true } },
+      campaign: {
+        columns: { id: true, campaign_name: true, trading_posts: true, custom_trading_posts: true },
+        with: {
+          // This gang's territories only
+          campaign_territories: {
+            columns: {
+              id: true,
+              campaign_id: true,
+              created_at: true,
+              territory_id: true,
+              territory_name: true,
+              playing_card: true,
+              description: true,
+              ruined: true,
+              default_gang_territory: true,
+              credits: true,
+            },
+            where: (territory, { eq }) => eq(territory.gang_id, gangId),
+          },
+          campaign_type: { columns: {}, with: { campaign_type_resources: { columns: { id: true, resource_name: true } } } },
+          campaign_resources: { columns: { id: true, resource_name: true } },
+        },
+      },
+      campaign_allegiance: { columns: { id: true, allegiance_name: true } },
+      campaign_type_allegiance: { columns: { id: true, allegiance_name: true } },
+      campaign_gang_resources: {
+        columns: { campaign_type_resource_id: true, campaign_resource_id: true, quantity: true },
+      },
+    },
+  });
+}
+
+/** Trading post ids (stored as JSON arrays on campaigns) mapped to their names. */
+async function tradingPostNames(db: AppDb, tradingPostIds: string[], customTradingPostIds: string[]) {
+  const [tradingPosts, customTradingPosts] = await Promise.all([
+    tradingPostIds.length > 0
+      ? db.query.tradingPostTypes.findMany({
+          columns: { id: true, trading_post_name: true },
+          where: (tp, { inArray }) => inArray(tp.id, tradingPostIds),
+        })
+      : [],
+    customTradingPostIds.length > 0
+      ? db.query.customTradingPosts.findMany({
+          columns: { id: true, custom_trading_post_name: true },
+          where: (tp, { inArray }) => inArray(tp.id, customTradingPostIds),
+        })
+      : [],
+  ]);
+  return {
+    tradingPostNames: new Map(tradingPosts.map((tp) => [tp.id, tp.trading_post_name])),
+    customTradingPostNames: new Map(customTradingPosts.map((tp) => [tp.id, tp.custom_trading_post_name])),
+  };
+}
+
 /**
  * Get gang campaigns (the gang page campaign tab bundle).
  * Tags: gang-campaigns-{id} (join/leave/allegiance) + campaign-{cid} per
@@ -469,303 +440,57 @@ const getGangCampaignIdsCached = async (gangId: string, supabase: any): Promise<
  * Deliberately NOT gang-{id}: nothing here is fighter-dependent, so fighter
  * edits never rebuild it.
  */
-export const getGangCampaigns = async (gangId: string, supabase: any): Promise<GangCampaign[]> => {
-  const campaignIdsForTags = await getGangCampaignIdsCached(gangId, supabase);
+export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> => {
+  const campaignIdsForTags = await getGangCampaignIdsCached(gangId);
 
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('campaign_gangs')
-        .select(`
-          id,
-          user_id,
-          campaign_type_allegiance_id,
-          campaign_allegiance_id,
-          campaign_members!campaign_member_id (
-            role,
-            invited_at,
-            invited_by
-          ),
-          campaigns!campaign_id (
-            id,
-            campaign_name,
-            campaign_type_id,
-            trading_posts,
-            custom_trading_posts
-          )
-        `)
-        .eq('gang_id', gangId);
+      const db = getAppDb();
+      const rows = await gangCampaignsQuery(db, gangId);
 
-      if (error) {
-        console.error('Error fetching gang campaigns:', error);
-        return [];
-      }
+      const allIds = (key: 'trading_posts' | 'custom_trading_posts') =>
+        [...new Set(rows.flatMap((cg) => cg.campaign?.[key] ?? []))];
+      const names = await tradingPostNames(db, allIds('trading_posts'), allIds('custom_trading_posts'));
 
-      // Collect ids for the batched lookups
-      const campaignIds = (data || [])
-        .map((cg: any) => (cg.campaigns as any)?.id)
-        .filter(Boolean);
+      return rows.flatMap((cg): GangCampaign[] => {
+        const { campaign } = cg;
+        if (!campaign) return [];
 
-      const campaignGangIds = (data || [])
-        .map((cg: any) => cg.id)
-        .filter(Boolean);
+        const tradingPosts = campaign.trading_posts ?? [];
+        const customTradingPosts = campaign.custom_trading_posts ?? [];
 
-      const campaignTypeIds = (data || [])
-        .map((cg: any) => (cg.campaigns as any)?.campaign_type_id)
-        .filter(Boolean);
+        // A campaign's own allegiance takes precedence over its type's
+        const allegiance = cg.campaign_allegiance_id ? cg.campaign_allegiance : cg.campaign_type_allegiance;
 
-      const allTradingPostIds = Array.from(new Set((data || [])
-        .map((cg: any) => (cg.campaigns as any)?.trading_posts)
-        .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-        .flat()));
+        const quantities = new Map(
+          cg.campaign_gang_resources.map((gr) => [gr.campaign_type_resource_id || gr.campaign_resource_id, gr.quantity])
+        );
+        const resource = (is_custom: boolean) => (r: { id: string; resource_name: string }): GangCampaignResource => ({
+          resource_id: r.id,
+          resource_name: r.resource_name,
+          quantity: quantities.get(r.id) || 0,
+          is_custom,
+        });
 
-      const allCustomTradingPostIds = Array.from(new Set((data || [])
-        .map((cg: any) => (cg.campaigns as any)?.custom_trading_posts)
-        .filter((tp: any) => tp && Array.isArray(tp) && tp.length > 0)
-        .flat()));
-
-      const customAllegianceIds = (data || [])
-        .map((cg: any) => cg.campaign_allegiance_id)
-        .filter(Boolean);
-      const typeAllegianceIds = (data || [])
-        .map((cg: any) => cg.campaign_type_allegiance_id)
-        .filter(Boolean);
-
-      // Rows whose embedded campaign_members join returned no role need a
-      // fallback lookup considering ALL of the user's member entries.
-      type MemberEntry = { campaign_id?: string; user_id?: string; role: string; invited_at: string; invited_by: string };
-      const fallbackRows = (data || []).filter(
-        (cg: any) => cg.campaigns && (!cg.campaign_members || !(cg.campaign_members as any)?.role)
-      );
-
-      // ALL remaining lookups are independent of each other: one parallel batch
-      const [
-        territoriesRes,
-        tradingPostTypesRes,
-        customTradingPostsRes,
-        customAllegiancesRes,
-        typeAllegiancesRes,
-        typeResourcesRes,
-        campResourcesRes,
-        gangResourcesRes,
-        fallbackMembersRes
-      ] = await Promise.all([
-        campaignIds.length > 0
-          ? supabase
-              .from('campaign_territories')
-              .select(`
-                id,
-                campaign_id,
-                created_at,
-                territory_id,
-                territory_name,
-                playing_card,
-                description,
-                ruined,
-                default_gang_territory
-              `)
-              .in('campaign_id', campaignIds)
-              .eq('gang_id', gangId)
-          : Promise.resolve({ data: [] }),
-        allTradingPostIds.length > 0
-          ? supabase
-              .from('trading_post_types')
-              .select('id, trading_post_name')
-              .in('id', allTradingPostIds)
-          : Promise.resolve({ data: [] }),
-        allCustomTradingPostIds.length > 0
-          ? supabase
-              .from('custom_trading_posts')
-              .select('id, custom_trading_post_name')
-              .in('id', allCustomTradingPostIds)
-          : Promise.resolve({ data: [] }),
-        customAllegianceIds.length > 0
-          ? supabase
-              .from('campaign_allegiances')
-              .select('id, allegiance_name')
-              .in('id', customAllegianceIds)
-          : Promise.resolve({ data: [] }),
-        typeAllegianceIds.length > 0
-          ? supabase
-              .from('campaign_type_allegiances')
-              .select('id, allegiance_name')
-              .in('id', typeAllegianceIds)
-          : Promise.resolve({ data: [] }),
-        campaignTypeIds.length > 0 && campaignGangIds.length > 0
-          ? supabase
-              .from('campaign_type_resources')
-              .select('id, resource_name, campaign_type_id')
-              .in('campaign_type_id', campaignTypeIds)
-          : Promise.resolve({ data: [] }),
-        campaignIds.length > 0 && campaignGangIds.length > 0
-          ? supabase
-              .from('campaign_resources')
-              .select('id, resource_name, campaign_id')
-              .in('campaign_id', campaignIds)
-          : Promise.resolve({ data: [] }),
-        campaignGangIds.length > 0 && campaignIds.length > 0
-          ? supabase
-              .from('campaign_gang_resources')
-              .select(`
-                id,
-                campaign_gang_id,
-                campaign_type_resource_id,
-                campaign_resource_id,
-                quantity
-              `)
-              .in('campaign_gang_id', campaignGangIds)
-          : Promise.resolve({ data: [] }),
-        fallbackRows.length > 0
-          ? supabase
-              .from('campaign_members')
-              .select('campaign_id, user_id, role, invited_at, invited_by')
-              .in('campaign_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg.campaigns as any).id))))
-              .in('user_id', Array.from(new Set(fallbackRows.map((cg: any) => (cg as any).user_id))))
-          : Promise.resolve({ data: [] })
-      ]);
-
-      // Build lookup maps
-      const territoriesByCampaign = groupBy(territoriesRes.data || [], 'campaign_id');
-
-      const tradingPostNamesMap: Record<string, string> = {};
-      (tradingPostTypesRes.data || []).forEach((tp: any) => {
-        tradingPostNamesMap[tp.id] = tp.trading_post_name;
+        return [{
+          campaign_id: campaign.id,
+          campaign_gang_id: cg.id,
+          campaign_name: campaign.campaign_name as string,
+          role: cg.campaign_member?.role as string,
+          trading_posts: tradingPosts,
+          trading_post_names: tradingPosts.flatMap((id) => names.tradingPostNames.get(id) || []),
+          custom_trading_posts: customTradingPosts,
+          custom_trading_post_names: customTradingPosts.flatMap((id) => names.customTradingPostNames.get(id) || []),
+          territories: campaign.campaign_territories,
+          allegiance: allegiance?.allegiance_name ? { id: allegiance.id, name: allegiance.allegiance_name } : null,
+          resources: [
+            ...(campaign.campaign_type?.campaign_type_resources ?? []).map(resource(false)),
+            ...campaign.campaign_resources.map(resource(true)),
+          ],
+        }];
       });
-
-      const customTradingPostNamesMap: Record<string, string> = {};
-      (customTradingPostsRes.data || []).forEach((tp: any) => {
-        customTradingPostNamesMap[tp.id] = tp.custom_trading_post_name;
-      });
-
-      const allegianceNamesMap: Record<string, string> = {};
-      (customAllegiancesRes.data || []).forEach((a: any) => {
-        allegianceNamesMap[a.id] = a.allegiance_name;
-      });
-      (typeAllegiancesRes.data || []).forEach((a: any) => {
-        allegianceNamesMap[a.id] = a.allegiance_name;
-      });
-
-      const fallbackMembersByPair: Record<string, MemberEntry[]> = {};
-      for (const entry of (fallbackMembersRes.data || []) as MemberEntry[]) {
-        const key = `${entry.campaign_id}:${entry.user_id}`;
-        (fallbackMembersByPair[key] ||= []).push(entry);
-      }
-
-      // Build resources for each campaign_gang
-      const predefinedResources = (typeResourcesRes.data || []) as Array<{ id: string; resource_name: string; campaign_type_id: string }>;
-      const customResources = (campResourcesRes.data || []) as Array<{ id: string; resource_name: string; campaign_id: string }>;
-
-      const quantityLookup: Record<string, Record<string, number>> = {};
-      (gangResourcesRes.data || []).forEach((gr: any) => {
-        const resourceId = gr.campaign_type_resource_id || gr.campaign_resource_id;
-        if (resourceId) {
-          if (!quantityLookup[resourceId]) {
-            quantityLookup[resourceId] = {};
-          }
-          quantityLookup[resourceId][gr.campaign_gang_id] = Number(gr.quantity) || 0;
-        }
-      });
-
-      const resourcesByCampaignGang: Record<string, GangCampaignResource[]> = {};
-      for (const cg of data || []) {
-        const campaignGangId = cg.id;
-        const campaignTypeId = (cg.campaigns as any)?.campaign_type_id;
-        const campaignId = (cg.campaigns as any)?.id;
-
-        if (!resourcesByCampaignGang[campaignGangId]) {
-          resourcesByCampaignGang[campaignGangId] = [];
-        }
-
-        // Add predefined resources for this campaign's type
-        const relevantPredefined = predefinedResources.filter(r => r.campaign_type_id === campaignTypeId);
-        for (const resource of relevantPredefined) {
-          const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
-          resourcesByCampaignGang[campaignGangId].push({
-            resource_id: resource.id,
-            resource_name: resource.resource_name,
-            quantity,
-            is_custom: false
-          });
-        }
-
-        // Add custom resources for this campaign
-        const relevantCustom = customResources.filter(r => r.campaign_id === campaignId);
-        for (const resource of relevantCustom) {
-          const quantity = quantityLookup[resource.id]?.[campaignGangId] || 0;
-          resourcesByCampaignGang[campaignGangId].push({
-            resource_id: resource.id,
-            resource_name: resource.resource_name,
-            quantity,
-            is_custom: true
-          });
-        }
-      }
-
-      const campaigns: GangCampaign[] = [];
-
-      for (const cg of data || []) {
-        if (cg.campaigns) {
-          // Get member data - need to consider ALL entries for this user in
-          // this campaign to determine the highest role (in case they have
-          // multiple gangs)
-          let memberData = cg.campaign_members;
-
-          if (!memberData || !(memberData as any)?.role) {
-            const entries = fallbackMembersByPair[`${(cg.campaigns as any).id}:${(cg as any).user_id}`];
-            if (entries && entries.length > 0) {
-              // Find the highest role (OWNER > ARBITRATOR > MEMBER)
-              const roleHierarchy: Record<string, number> = {
-                'OWNER': 3,
-                'ARBITRATOR': 2,
-                'MEMBER': 1
-              };
-
-              memberData = entries.reduce((highest: MemberEntry, current: MemberEntry) => {
-                const currentRank = roleHierarchy[current.role] || 0;
-                const highestRank = roleHierarchy[highest.role] || 0;
-                return currentRank > highestRank ? current : highest;
-              }, entries[0]);
-            }
-          }
-
-          // Get trading post names for this campaign
-          const tradingPosts = (cg.campaigns as any).trading_posts || [];
-          const trading_post_names = tradingPosts
-            .map((id: string) => tradingPostNamesMap[id])
-            .filter(Boolean);
-
-          const customTradingPosts = (cg.campaigns as any).custom_trading_posts || [];
-          const custom_trading_post_names = customTradingPosts
-            .map((id: string) => customTradingPostNamesMap[id])
-            .filter(Boolean);
-
-          // Get allegiance (custom takes precedence over type)
-          const allegianceId = (cg as any).campaign_allegiance_id || (cg as any).campaign_type_allegiance_id;
-          const allegiance = allegianceId && allegianceNamesMap[allegianceId]
-            ? { id: allegianceId, name: allegianceNamesMap[allegianceId] }
-            : null;
-
-          campaigns.push({
-            campaign_id: (cg.campaigns as any).id,
-            campaign_gang_id: cg.id,
-            campaign_name: (cg.campaigns as any).campaign_name,
-            role: (memberData as any)?.role,
-            invited_at: (memberData as any)?.invited_at,
-            invited_by: (memberData as any)?.invited_by,
-            trading_posts: tradingPosts,
-            trading_post_names,
-            custom_trading_posts: customTradingPosts,
-            custom_trading_post_names,
-            territories: territoriesByCampaign[(cg.campaigns as any).id] || [],
-            allegiance,
-            resources: resourcesByCampaignGang[cg.id] || []
-          });
-        }
-      }
-
-      return campaigns;
     },
-    [`gang-campaigns-v3-${gangId}`],
+    [`gang-campaigns-v4-${gangId}`],
     {
       tags: [
         TAGS.gangCampaigns(gangId),
@@ -793,346 +518,345 @@ export const getGangCampaigns = async (gangId: string, supabase: any): Promise<G
 
 /**
  * Fetch the raw gang fighters bundle: every fighter/vehicle-shaped row for a
- * gang in ONE cache entry (tag gang-{id}) filled by two round-trip stages of
- * wide batched queries. Page-specific shapes are produced by the pure
- * assemble* functions in utils/gang-assembly.ts.
- *
- * Stage 1 (parallel): fighters, ALL gang vehicles (both keyed by gang_id)
- * Stage 2 (parallel): equipment (fighter + vehicle rows in one query),
- *   skills, effects (fighter + vehicle scopes in one query), exotic beasts,
- *   loadouts (+assignments embedded), captured-by names
+ * gang in ONE cache entry (tag gang-roster-{id}), read with one nested Drizzle
+ * query over the direct connection (utils/db), so it adds no API gateway log.
+ * Page-specific shapes are produced by the pure assemble* functions in
+ * utils/gang-assembly.ts.
  */
-export const getGangFightersBundle = async (gangId: string, supabase: any): Promise<GangFightersBundle> => {
-  return unstable_cache(
-    async () => {
-      // Stage 1: fighters and ALL gang vehicles in parallel
-      const [fightersRes, vehiclesRes] = await Promise.all([
-        supabase
-          .from('fighters')
-          .select(`
-            id,
-            fighter_name,
-            label,
-            note,
-            note_backstory,
-            credits,
-            cost_adjustment,
-            movement,
-            weapon_skill,
-            ballistic_skill,
-            strength,
-            toughness,
-            wounds,
-            initiative,
-            attacks,
-            leadership,
-            cool,
-            willpower,
-            intelligence,
-            save,
-            xp,
-            starting_xp,
-            special_rules,
-            fighter_subtypes,
-            fighter_type,
-            fighter_type_id,
-            custom_fighter_type_id,
-            fighter_gang_legacy_id,
-            fighter_gang_legacy:fighter_gang_legacy_id (
-              id,
-              fighter_type_id,
-              name
-            ),
-            fighter_specialisation_id,
-            promoted_from_prospect,
-            fighter_variant,
-            killed,
-            starved,
-            retired,
-            enslaved,
-            recovery,
-            captured,
-            captured_by_gang_id,
-            free_skill,
-            kills,
-            kill_count,
-            fighter_pet_id,
-            image_url,
-            position,
-            active_loadout_id,
-            is_vehicle,
-            fighter_types!fighter_type_id (
-              fighter_type,
-              fighter_subtypes,
-              alliance_crew_name,
-              cost,
-              is_spyrer,
-              is_vehicle,
-              gang_type_id,
-              edition_id,
-              editions:edition_id (
-                slug
-              )
-            ),
-            fighter_specialisations!fighter_specialisation_id (
-              id,
-              specialisation_name
-            )
-          `)
-          .eq('gang_id', gangId),
-        supabase
-          .from('vehicles')
-          .select(`
-            id,
-            gang_id,
-            fighter_id,
-            created_at,
-            movement,
-            front,
-            side,
-            rear,
-            hull_points,
-            handling,
-            save,
-            body_slots,
-            drive_slots,
-            engine_slots,
-            body_slots_occupied,
-            drive_slots_occupied,
-            engine_slots_occupied,
-            special_rules,
-            vehicle_name,
-            vehicle_type_id,
-            vehicle_type,
-            cost
-          `)
-          .eq('gang_id', gangId)
-      ]);
-
-      const fighters = fightersRes.error ? [] : (fightersRes.data || []);
-      const vehicles = vehiclesRes.error ? [] : (vehiclesRes.data || []);
-
-      const emptyBundle: GangFightersBundle = {
-        gangId,
-        fighters,
-        vehicles,
-        equipment: [],
-        skills: [],
-        effects: [],
-        beastLinks: [],
-        loadouts: [],
-        capturedByGangs: []
-      };
-
-      if (fighters.length === 0 && vehicles.length === 0) {
-        return emptyBundle;
+export const getGangFightersBundle = async (gangId: string): Promise<GangFightersBundle> => {
+  // The rules are cached globally, so editing one takes effect without busting
+  // every roster; the gang's own scope columns come with the roster, whose tag
+  // invalidateGang busts when the gang's origin or subtypes change
+  const [{ gangScope, ...roster }, rules] = await Promise.all([
+    unstable_cache(
+      async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
+      [`gang-fighters-bundle-v7-${gangId}`],
+      {
+        tags: [TAGS.gangRoster(gangId)],
+        revalidate: false
       }
+    )(),
+    getGangRules()
+  ]);
+  return {
+    ...roster,
+    gangTypeId: gangScope?.gang_type_id ?? null,
+    gangRules: gangScope ? resolveGangRules(rules, gangScope) : []
+  };
+};
 
-      const fighterIds = fighters.map((f: any) => f.id);
-      const vehicleIds = vehicles.map((v: any) => v.id);
-
-      const equipmentSelect = `
-        id,
-        fighter_id,
-        vehicle_id,
-        equipment_id,
-        custom_equipment_id,
-        purchase_cost,
-        original_cost,
-        is_master_crafted,
-        is_editable,
-        cost_resource,
-        fighter_skill_id,
-        equipment:equipment_id (
-          equipment_name,
-          equipment_type,
-          equipment_category,
-          is_consumable,
-          weapon_profiles (
-            id,
-            equipment_id,
-            weapon_group_id,
-            profile_name,
-            range_short,
-            range_long,
-            acc_short,
-            acc_long,
-            strength,
-            ap,
-            damage,
-            lethality,
-            ammo,
-            traits,
-            sort_order
-          )
-        ),
-        custom_equipment:custom_equipment_id (
-          equipment_name,
-          equipment_type,
-          equipment_category,
-          is_consumable,
-          custom_weapon_profiles (
-            id,
-            custom_equipment_id,
-            weapon_group_id,
-            profile_name,
-            range_short,
-            range_long,
-            acc_short,
-            acc_long,
-            strength,
-            ap,
-            damage,
-            lethality,
-            ammo,
-            traits,
-            sort_order
-          )
-        )
-      `;
-
-      const effectsSelect = `
-        id,
-        fighter_id,
-        vehicle_id,
-        fighter_equipment_id,
-        target_equipment_id,
-        fighter_effect_type_id,
-        effect_name,
-        type_specific_data,
-        sort_order,
-        created_at,
-        updated_at,
-        fighter_effect_type:fighter_effect_type_id (
-          sort_order,
-          fighter_effect_category:fighter_effect_category_id (
-            category_name
-          )
-        ),
-        fighter_effect_modifiers (
-          id,
-          fighter_effect_id,
-          stat_name,
-          numeric_value,
-          operation
-        )
-      `;
-
-      // Equipment: fighter-held (vehicle_id null) + vehicle-mounted, one query
-      const equipmentQuery = (() => {
-        let q = supabase.from('fighter_equipment').select(equipmentSelect);
-        if (fighterIds.length > 0 && vehicleIds.length > 0) {
-          return q.or(`and(fighter_id.in.(${fighterIds.join(',')}),vehicle_id.is.null),vehicle_id.in.(${vehicleIds.join(',')})`);
+/**
+ * Every gang rule row with its effect type and modifiers. A handful of
+ * rows game-wide, resolved per gang by resolveGangRules.
+ * Cache: global-gang-rules
+ */
+export const getGangRules = async (): Promise<GangRuleRow[]> => {
+  return unstable_cache(
+    async () => getAppDb().query.gangRules.findMany({
+      columns: { gang_type_id: true, gang_origin_id: true, gang_subtype_id: true, excluded: true },
+      with: {
+        fighter_effect_type: {
+          columns: { id: true, effect_name: true, type_specific_data: true },
+          with: {
+            fighter_effect_type_modifiers: {
+              columns: { stat_name: true, default_numeric_value: true, operation: true }
+            }
+          }
         }
-        if (fighterIds.length > 0) {
-          return q.in('fighter_id', fighterIds).is('vehicle_id', null);
-        }
-        return q.in('vehicle_id', vehicleIds);
-      })();
-
-      // Effects: fighter-scoped + vehicle-scoped, one query (partitioned at assembly)
-      const effectsQuery = (() => {
-        let q = supabase.from('fighter_effects').select(effectsSelect);
-        if (fighterIds.length > 0 && vehicleIds.length > 0) {
-          q = q.or(`fighter_id.in.(${fighterIds.join(',')}),vehicle_id.in.(${vehicleIds.join(',')})`);
-        } else if (fighterIds.length > 0) {
-          q = q.in('fighter_id', fighterIds);
-        } else {
-          q = q.in('vehicle_id', vehicleIds);
-        }
-        return q.order('sort_order', { ascending: true, nullsFirst: false });
-      })();
-
-      const capturedByGangIds = Array.from(
-        new Set(fighters.filter((f: any) => f.captured_by_gang_id).map((f: any) => f.captured_by_gang_id))
-      );
-
-      // Stage 2: everything else in parallel
-      const [
-        equipmentRes,
-        skillsRes,
-        effectsRes,
-        beastLinksRes,
-        loadoutsRes,
-        capturedByGangsRes
-      ] = await Promise.all([
-        equipmentQuery,
-        fighterIds.length > 0
-          ? supabase
-              .from('fighter_skills')
-              .select(`
-                id,
-                fighter_id,
-                credits_increase,
-                xp_cost,
-                is_advance,
-                fighter_effect_skill_id,
-                custom_skill_id,
-                created_at,
-                skill:skill_id (
-                  name
-                ),
-                custom_skill:custom_skill_id (
-                  skill_name
-                ),
-                fighter_effect_skills!fighter_effect_skill_id (
-                  fighter_effects (
-                    effect_name,
-                    type_specific_data,
-                    fighter_equipment_id
-                  )
-                )
-              `)
-              .in('fighter_id', fighterIds)
-          : Promise.resolve({ data: [] }),
-        effectsQuery,
-        fighterIds.length > 0
-          ? supabase
-              .from('fighter_exotic_beasts')
-              .select(`
-                fighter_owner_id,
-                fighter_pet_id,
-                fighter_equipment_id,
-                fighters!fighter_owner_id (
-                  fighter_name
-                ),
-                fighter_equipment!fighter_equipment_id (
-                  gang_stash
-                )
-              `)
-              .in('fighter_owner_id', fighterIds)
-          : Promise.resolve({ data: [] }),
-        fighterIds.length > 0
-          ? supabase
-              .from('fighter_loadouts')
-              .select('id, fighter_id, loadout_name, created_at, fighter_loadout_equipment (loadout_id, fighter_equipment_id)')
-              .in('fighter_id', fighterIds)
-              .order('created_at', { ascending: true })
-          : Promise.resolve({ data: [] }),
-        capturedByGangIds.length > 0
-          ? supabase.from('gangs').select('id, name').in('id', capturedByGangIds)
-          : Promise.resolve({ data: [] })
-      ]);
-
-      return {
-        gangId,
-        fighters,
-        vehicles,
-        equipment: equipmentRes.data || [],
-        skills: skillsRes.data || [],
-        effects: effectsRes.data || [],
-        beastLinks: beastLinksRes.data || [],
-        loadouts: loadoutsRes.data || [],
-        capturedByGangs: capturedByGangsRes.data || []
-      };
-    },
-    [`gang-fighters-bundle-v4-${gangId}`],
+      }
+    }),
+    ['gang-rules'],
     {
-      tags: [TAGS.gangRoster(gangId)],
+      tags: [TAGS.globalGangRules()],
       revalidate: false
     }
   )();
 };
+
+// Columns read by rosterQuery(); the equipment and effects selections are shared
+// by fighters and vehicles.
+const WEAPON_PROFILE_COLUMNS = {
+  id: true,
+  weapon_group_id: true,
+  profile_name: true,
+  range_short: true,
+  range_long: true,
+  acc_short: true,
+  acc_long: true,
+  strength: true,
+  ap: true,
+  damage: true,
+  lethality: true,
+  ammo: true,
+  traits: true,
+  sort_order: true,
+} as const;
+
+const EQUIPMENT_ITEM_COLUMNS = {
+  equipment_name: true,
+  equipment_type: true,
+  equipment_category: true,
+  equipment_category_id: true,
+  is_consumable: true,
+} as const;
+
+const EQUIPMENT_QUERY = {
+  columns: {
+    id: true,
+    fighter_id: true,
+    vehicle_id: true,
+    equipment_id: true,
+    custom_equipment_id: true,
+    purchase_cost: true,
+    original_cost: true,
+    is_master_crafted: true,
+    is_editable: true,
+    cost_resource: true,
+    fighter_skill_id: true,
+  },
+  with: {
+    equipment: {
+      columns: EQUIPMENT_ITEM_COLUMNS,
+      with: { weapon_profiles: { columns: { ...WEAPON_PROFILE_COLUMNS, equipment_id: true } } },
+    },
+    custom_equipment: {
+      columns: EQUIPMENT_ITEM_COLUMNS,
+      with: { custom_weapon_profiles: { columns: { ...WEAPON_PROFILE_COLUMNS, custom_equipment_id: true } } },
+    },
+  },
+} as const;
+
+const EFFECTS_QUERY = {
+  columns: {
+    id: true,
+    fighter_id: true,
+    vehicle_id: true,
+    fighter_equipment_id: true,
+    target_equipment_id: true,
+    fighter_effect_type_id: true,
+    effect_name: true,
+    type_specific_data: true,
+    sort_order: true,
+    created_at: true,
+    updated_at: true,
+  },
+  with: {
+    fighter_effect_type: {
+      columns: { sort_order: true },
+      with: { fighter_effect_category: { columns: { category_name: true } } },
+    },
+    fighter_effect_modifiers: {
+      columns: { id: true, fighter_effect_id: true, stat_name: true, numeric_value: true, operation: true },
+    },
+  },
+} as const;
+
+const FIGHTER_COLUMNS = {
+  id: true,
+  fighter_name: true,
+  label: true,
+  note: true,
+  note_backstory: true,
+  credits: true,
+  cost_adjustment: true,
+  movement: true,
+  weapon_skill: true,
+  ballistic_skill: true,
+  strength: true,
+  toughness: true,
+  wounds: true,
+  initiative: true,
+  attacks: true,
+  leadership: true,
+  cool: true,
+  willpower: true,
+  intelligence: true,
+  save: true,
+  xp: true,
+  starting_xp: true,
+  special_rules: true,
+  fighter_subtypes: true,
+  fighter_type: true,
+  fighter_type_id: true,
+  custom_fighter_type_id: true,
+  fighter_gang_legacy_id: true,
+  fighter_specialisation_id: true,
+  promoted_from_prospect: true,
+  fighter_variant: true,
+  killed: true,
+  starved: true,
+  retired: true,
+  enslaved: true,
+  recovery: true,
+  captured: true,
+  captured_by_gang_id: true,
+  free_skill: true,
+  kills: true,
+  kill_count: true,
+  fighter_pet_id: true,
+  image_url: true,
+  position: true,
+  active_loadout_id: true,
+  is_vehicle: true,
+} as const;
+
+const VEHICLE_COLUMNS = {
+  id: true,
+  gang_id: true,
+  fighter_id: true,
+  created_at: true,
+  movement: true,
+  front: true,
+  side: true,
+  rear: true,
+  hull_points: true,
+  handling: true,
+  save: true,
+  body_slots: true,
+  drive_slots: true,
+  engine_slots: true,
+  body_slots_occupied: true,
+  drive_slots_occupied: true,
+  engine_slots_occupied: true,
+  special_rules: true,
+  vehicle_name: true,
+  vehicle_type_id: true,
+  vehicle_type: true,
+  cost: true,
+} as const;
+
+/** The whole roster in one query, nested under the gang row. */
+function rosterQuery(db: AppDb, gangId: string) {
+  return db.query.gangs.findFirst({
+    columns: { id: true, gang_type_id: true, gang_origin_id: true, gang_subtypes: true },
+    where: (gang, { eq }) => eq(gang.id, gangId),
+    with: {
+      fighters: {
+        columns: FIGHTER_COLUMNS,
+        with: {
+          fighter_gang_legacy: { columns: { id: true, fighter_type_id: true, name: true } },
+          fighter_types: {
+            columns: {
+              fighter_type: true,
+              fighter_subtypes: true,
+              alliance_crew_name: true,
+              cost: true,
+              is_spyrer: true,
+              is_vehicle: true,
+              gang_type_id: true,
+              edition_id: true,
+            },
+            with: {
+              editions: { columns: { slug: true } },
+              count_limits: {
+                columns: {
+                  id: true,
+                  gang_type_id: true,
+                  gang_origin_id: true,
+                  gang_subtype_id: true,
+                  min_count: true,
+                  max_count: true,
+                },
+              },
+            },
+          },
+          fighter_specialisations: { columns: { id: true, specialisation_name: true } },
+          // Fighter-held items only; vehicle-mounted ones come through vehicles below
+          fighter_equipment: { ...EQUIPMENT_QUERY, where: (item, { isNull }) => isNull(item.vehicle_id) },
+          fighter_skills: {
+            columns: {
+              id: true,
+              fighter_id: true,
+              credits_increase: true,
+              xp_cost: true,
+              is_advance: true,
+              fighter_effect_skill_id: true,
+              custom_skill_id: true,
+              created_at: true,
+            },
+            with: {
+              skill: { columns: { name: true } },
+              custom_skill: { columns: { skill_name: true } },
+              fighter_effect_skills: {
+                columns: {},
+                with: {
+                  fighter_effects: {
+                    columns: { effect_name: true, type_specific_data: true, fighter_equipment_id: true },
+                  },
+                },
+              },
+            },
+          },
+          // Likewise, effects tied to a vehicle come through vehicles below
+          fighter_effects: { ...EFFECTS_QUERY, where: (effect, { isNull }) => isNull(effect.vehicle_id) },
+          fighter_exotic_beasts: {
+            columns: { fighter_owner_id: true, fighter_pet_id: true, fighter_equipment_id: true },
+            with: {
+              fighters: { columns: { fighter_name: true } },
+              fighter_equipment: { columns: { gang_stash: true } },
+            },
+          },
+          fighter_loadouts: {
+            columns: { id: true, fighter_id: true, loadout_name: true, created_at: true },
+            with: { fighter_loadout_equipment: { columns: { loadout_id: true, fighter_equipment_id: true } } },
+            orderBy: (loadout, { asc }) => asc(loadout.created_at),
+          },
+          captured_by: { columns: { id: true, name: true } },
+        },
+      },
+      vehicles: {
+        columns: VEHICLE_COLUMNS,
+        with: {
+          fighter_equipment: EQUIPMENT_QUERY,
+          fighter_effects: EFFECTS_QUERY,
+        },
+      },
+    },
+  });
+}
+
+// Effects from every fighter and vehicle are sorted together by sort_order,
+// NULLs last
+function bySortOrder(a: { sort_order: number | null }, b: { sort_order: number | null }): number {
+  if (a.sort_order === b.sort_order) return 0;
+  if (a.sort_order === null) return 1;
+  if (b.sort_order === null) return -1;
+  return a.sort_order - b.sort_order;
+}
+
+/** Flatten the nested roster into the bundle's per-table lists. */
+function flattenRoster(
+  gangId: string,
+  gang: Awaited<ReturnType<typeof rosterQuery>>
+): Omit<GangFightersBundle, 'gangTypeId' | 'gangRules'> & {
+  gangScope: { gang_type_id: string | null; gang_origin_id: string | null; gang_subtypes: string[] | null } | null;
+} {
+  const fighterRows = gang?.fighters ?? [];
+  const vehicleRows = gang?.vehicles ?? [];
+  const rows = [...fighterRows, ...vehicleRows];
+  // Several captured fighters can be held by the same gang
+  const capturedByGangs = new Map(
+    fighterRows.flatMap(({ captured_by }) => (captured_by ? [[captured_by.id, captured_by] as const] : []))
+  );
+
+  return {
+    gangId,
+    gangScope: gang
+      ? { gang_type_id: gang.gang_type_id, gang_origin_id: gang.gang_origin_id, gang_subtypes: gang.gang_subtypes }
+      : null,
+    fighters: fighterRows.map(
+      ({ fighter_equipment, fighter_skills, fighter_effects, fighter_exotic_beasts, fighter_loadouts, captured_by, ...fighter }) =>
+        fighter
+    ),
+    vehicles: vehicleRows.map(({ fighter_equipment, fighter_effects, ...vehicle }) => vehicle),
+    equipment: rows.flatMap((row) => row.fighter_equipment),
+    skills: fighterRows.flatMap((fighter) => fighter.fighter_skills),
+    effects: rows.flatMap((row) => row.fighter_effects).sort(bySortOrder),
+    beastLinks: fighterRows.flatMap((fighter) => fighter.fighter_exotic_beasts),
+    loadouts: fighterRows.flatMap((fighter) => fighter.fighter_loadouts),
+    capturedByGangs: [...capturedByGangs.values()],
+  };
+}
 
 /**
  * Get all fighters in a gang with complete data — selector over
@@ -1141,23 +865,32 @@ export const getGangFightersBundle = async (gangId: string, supabase: any): Prom
  */
 export const getGangFightersList = async (
   gangId: string,
-  supabase: any,
   options?: GetGangFightersListOptions
 ): Promise<GangFighter[]> => {
   // Every fighter in a roster belongs to one gang, so the edition is resolved
   // once for the whole roster rather than per fighter from fighter_types —
   // which yields null for custom fighter types, and would leave them with no
-  // edition at all. Callers already holding the gang core pass it in; only the
-  // battle-session page, which has no core for the gangs it lists, pays a read.
+  // edition at all. Passing the edition does not skip the gang type, origin,
+  // and subtypes: count_limits scoped to those only match when the scope is known.
   const callerSlug = options?.gangEditionSlug;
-  const needsCore = callerSlug === undefined;
+  const needsEdition = callerSlug === undefined;
+  const scopeProvided =
+    options?.gangTypeId !== undefined &&
+    options?.gangOriginId !== undefined &&
+    options?.gangSubtypeIds !== undefined;
+  // A caller that already knows the edition still needs the gang's type, origin,
+  // and subtypes, or count_limits scoped to those never match.
+  const needsCore = needsEdition || !scopeProvided;
   const [bundle, core] = await Promise.all([
-    getGangFightersBundle(gangId, supabase),
-    needsCore ? getGangCore(gangId, supabase) : Promise.resolve(null)
+    getGangFightersBundle(gangId),
+    needsCore ? getGangCore(gangId) : Promise.resolve(null)
   ]);
   return assembleGangFighters(bundle, {
     ...options,
-    gangEditionSlug: needsCore ? core?.edition_slug ?? null : callerSlug
+    gangEditionSlug: needsEdition ? core?.edition_slug ?? null : callerSlug,
+    gangTypeId: options?.gangTypeId ?? core?.gang_type_id ?? null,
+    gangOriginId: options?.gangOriginId ?? core?.gang_origin_id ?? null,
+    gangSubtypeIds: options?.gangSubtypeIds ?? core?.gang_subtypes ?? [],
   });
 };
 
@@ -1165,22 +898,21 @@ export const getGangFightersList = async (
  * Get username and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
-export const getUserProfile = async (userId: string, supabase: any): Promise<{ 
+export const getUserProfile = async (userId: string): Promise<{
   username: string;
-  patreon_tier_id?: string;
-  patreon_tier_title?: string;
-  patron_status?: string;
+  patreon_tier_id: string | null;
+  patreon_tier_title: string | null;
+  patron_status: string | null;
 } | null> => {
+  if (!isUuid(userId)) return null;
+
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, patreon_tier_id, patreon_tier_title, patron_status')
-        .eq('id', userId)
-        .single();
-
-      if (error) return null;
-      return data;
+      const profile = await getAppDb().query.profiles.findFirst({
+        columns: { username: true, patreon_tier_id: true, patreon_tier_title: true, patron_status: true },
+        where: (profile, { eq }) => eq(profile.id, userId),
+      });
+      return profile ?? null;
     },
     [`user-profile-v2-${userId}`],
     {
@@ -1218,38 +950,30 @@ export interface GangFighterStats {
 export const sumFighterKills = (fighters: Array<{ kills: number | null }>) =>
   fighters.reduce((sum, f) => sum + (Number(f.kills) || 0), 0);
 
-export const getGangFighterStats = async (
-  gangId: string,
-  supabase: any
-): Promise<GangFighterStats> => {
+export const getGangFighterStats = async (gangId: string): Promise<GangFighterStats> => {
   return unstable_cache(
     async () => {
-      const { data: fighters, error } = await supabase
-        .from('fighters')
-        .select('fighter_name, fighter_type, fighter_subtypes, kills, killed')
-        .eq('gang_id', gangId);
+      const fighterList = await getAppDb().query.fighters.findMany({
+        columns: { fighter_name: true, fighter_type: true, fighter_subtypes: true, kills: true, killed: true },
+        where: (fighter, { eq }) => eq(fighter.gang_id, gangId),
+      });
 
-      if (error) throw error;
-
-      const fighterList = fighters || [];
       const ooaCaused = sumFighterKills(fighterList);
-      const deathsSuffered = fighterList.filter(
-        (f: { killed: boolean }) => f.killed === true
-      ).length;
+      const deathsSuffered = fighterList.filter((f) => f.killed === true).length;
 
       const ooaBreakdown: OoaBreakdownItem[] = fighterList
-        .filter((f: { kills: number }) => (Number(f.kills) || 0) > 0)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[]; kills: number }) => ({
+        .filter((f) => (Number(f.kills) || 0) > 0)
+        .map((f) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
           fighter_subtypes: f.fighter_subtypes || [],
           kills: Number(f.kills) || 0
         }))
-        .sort((a: OoaBreakdownItem, b: OoaBreakdownItem) => b.kills - a.kills);
+        .sort((a, b) => b.kills - a.kills);
 
       const deathsBreakdown: DeathsBreakdownItem[] = fighterList
-        .filter((f: { killed: boolean }) => f.killed === true)
-        .map((f: { fighter_name: string; fighter_type?: string; fighter_subtypes?: string[] }) => ({
+        .filter((f) => f.killed === true)
+        .map((f) => ({
           fighter_name: f.fighter_name || 'Unknown',
           fighter_type: f.fighter_type || '—',
           fighter_subtypes: f.fighter_subtypes || []

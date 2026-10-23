@@ -53,6 +53,8 @@ interface Territory {
   territory_name: string;
   /** Catalog/template name when linked via territory_id; null for custom territories */
   original_territory_name?: string | null;
+  /** Credits the territory gives; null when unset */
+  credits?: number | null;
   playing_card?: string | null;
   description?: string | null;
   gang_id: string | null;
@@ -87,6 +89,7 @@ interface TerritoryUpdate {
     playing_card?: string | null;
     description?: string | null;
     territory_name?: string;
+    credits?: number | null;
   };
   /** For 'restore': the row as it was before a mutation that then failed. */
   territory?: Territory;
@@ -165,7 +168,7 @@ export default function CampaignTerritoryList({
   const [territoryToEdit, setTerritoryToEdit] = useState<Territory | null>(null);
   const [editGroupTerritories, setEditGroupTerritories] = useState<Territory[]>([]);
   const [territoryToDelete, setTerritoryToDelete] = useState<{ id: string, name: string } | null>(null);
-  const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang'>('territory');
+  const [sortField, setSortField] = useState<'ref' | 'territory' | 'controllingGang' | 'credits'>('territory');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const listDefaultTerritories = useSyncExternalStore(
     subscribeToTerritoryPref,
@@ -328,6 +331,7 @@ export default function CampaignTerritoryList({
       playing_card: string | null;
       description: string | null;
       territory_name?: string;
+      credits?: number | null;
       displayName: string;
     }) => {
       const result = await updateTerritoryStatus({
@@ -339,7 +343,8 @@ export default function CampaignTerritoryList({
         description: variables.description,
         ...(variables.territory_name !== undefined
           ? { territory_name: variables.territory_name }
-          : {})
+          : {}),
+        ...(variables.credits !== undefined ? { credits: variables.credits } : {})
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to update territory');
@@ -361,7 +366,8 @@ export default function CampaignTerritoryList({
           description: variables.description,
           ...(variables.territory_name !== undefined
             ? { territory_name: variables.territory_name }
-            : {})
+            : {}),
+          ...(variables.credits !== undefined ? { credits: variables.credits } : {})
         }
       });
       
@@ -406,6 +412,7 @@ export default function CampaignTerritoryList({
     playing_card: string | null;
     description: string | null;
     territory_name?: string;
+    credits?: number | null;
   }) => {
     if (!territoryToEdit) return false;
 
@@ -421,6 +428,7 @@ export default function CampaignTerritoryList({
       ...(updates.territory_name !== undefined
         ? { territory_name: updates.territory_name }
         : {}),
+      ...(updates.credits !== undefined ? { credits: updates.credits } : {}),
       displayName
     });
     
@@ -428,7 +436,7 @@ export default function CampaignTerritoryList({
   };
 
   // Handle column header click for sorting
-  const handleSort = (field: 'ref' | 'territory' | 'controllingGang') => {
+  const handleSort = (field: 'ref' | 'territory' | 'controllingGang' | 'credits') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
@@ -437,7 +445,7 @@ export default function CampaignTerritoryList({
     }
   };
 
-  const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang') =>
+  const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang' | 'credits') =>
     sortField === field ? <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span> : null;
 
   // Helper function to group territories for display
@@ -452,9 +460,9 @@ export default function CampaignTerritoryList({
         controlledTerritories.push(territory);
       } else {
         // Group uncontrolled territories by name, ruined status, and ref
-        // so territories with different playing cards (or descriptions) are listed separately.
+        // so territories with different playing cards (or descriptions or credits) are listed separately.
         const descriptionKey = (territory.description ?? '').trim();
-        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}|${territory.playing_card ?? ''}|${descriptionKey}`;
+        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}|${territory.playing_card ?? ''}|${descriptionKey}|${territory.credits ?? ''}`;
         if (uncontrolledTerritories[key]) {
           uncontrolledTerritories[key].count++;
           uncontrolledTerritories[key].territories.push(territory);
@@ -507,7 +515,10 @@ export default function CampaignTerritoryList({
     const allItems = [...controlledItems, ...uncontrolledItems];
     
     allItems.sort((a, b) => {
-      const comparison = a.sortKey.localeCompare(b.sortKey);
+      // Credits sort as numbers, with territories that have none first
+      const comparison = sortField === 'credits'
+        ? (a.territory.credits ?? -1) - (b.territory.credits ?? -1)
+        : a.sortKey.localeCompare(b.sortKey);
       return sortDirection === 'asc' ? comparison : -comparison;
     });
 
@@ -618,20 +629,27 @@ export default function CampaignTerritoryList({
                 {sortIndicator('ref')}
               </th>
               <th 
-                className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/4 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('territory')}
               >
                 Territory
                 {sortIndicator('territory')}
               </th>
               <th 
-                className="w-2/5 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                className="w-1/4 px-2 py-2 text-left font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
                 onClick={() => handleSort('controllingGang')}
               >
                 Controlled by
                 {sortIndicator('controllingGang')}
               </th>
-              <th className="p-1 md:p-2 text-left font-medium whitespace-nowrap">
+              <th 
+                className="w-1/4 px-2 py-2 text-right font-medium whitespace-nowrap cursor-pointer hover:bg-muted select-none"
+                onClick={() => handleSort('credits')}
+              >
+                Credits
+                {sortIndicator('credits')}
+              </th>
+              <th className="w-1/4 pl-10 pr-2 py-2 text-left font-medium whitespace-nowrap">
                 <span className="hidden sm:inline">Description</span>
                 <span className="sm:hidden">Desc.</span>
               </th>
@@ -641,7 +659,7 @@ export default function CampaignTerritoryList({
           <tbody>
             {visibleTerritories.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-muted-foreground italic text-center py-4">
+                <td colSpan={6} className="text-muted-foreground italic text-center py-4">
                   {!listDefaultTerritories
                     ? 'No territories to show with default territories hidden'
                     : 'No territories in this campaign'}
@@ -649,7 +667,7 @@ export default function CampaignTerritoryList({
               </tr>
             ) : (
               sortedDisplayItems.map((item, index) => (
-                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}-${(item.territory.description ?? '').trim()}`}
+                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}-${(item.territory.description ?? '').trim()}-${item.territory.credits ?? ''}`}
                   className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
                   <td className="w-11 min-w-[2.75rem] px-1 py-2 text-center align-middle">
                     <span className="text-gray-400 inline-block w-10 text-center">
@@ -722,7 +740,10 @@ export default function CampaignTerritoryList({
                       ) : null}
                     </div>
                   </td>
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="px-2 py-2 text-right">
+                    {item.territory.credits ?? ''}
+                  </td>
+                  <td className="pl-10 pr-2 py-2 align-top">
                     {item.territory.description?.trim() && (
                       <span
                         className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
@@ -817,7 +838,8 @@ export default function CampaignTerritoryList({
           currentDefaultGangTerritory={territoryToEdit.default_gang_territory || false}
           currentPlayingCard={territoryToEdit.playing_card ?? null}
           currentDescription={territoryToEdit.description ?? null}
-          canRename={permissions.canManageTerritories}
+          currentCredits={territoryToEdit.credits ?? null}
+          canManage={permissions.canManageTerritories}
           groupedTerritories={editGroupTerritories}
           selectedTerritoryId={territoryToEdit.id}
           onSelectTerritory={(territoryId: string) => {

@@ -21,6 +21,12 @@
   color: inherit;
 }
 
+/* Notification HTML only. A bare .prose a rule would recolour links in notes
+   once this stylesheet loads on the same page. */
+.notification-html a {
+  color: inherit;
+}
+
 /* TipTap Editor - Matching Prose Rendering */
 .ProseMirror {
   outline: none;

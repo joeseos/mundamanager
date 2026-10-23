@@ -9,16 +9,12 @@ const ACTIVITY_WINDOWS_DAYS = [14, 30, 90, 180] as const;
  * Each period is loaded via the provided by-edition fetcher.
  */
 export function makeActivityStats(
-  fetcher: (since: string) => Promise<EditionCounts | null>,
+  fetcher: (since: string) => Promise<EditionCounts>,
   cacheKey: string,
   tag: string
-): () => Promise<ActivityStats | null> {
+): () => Promise<ActivityStats> {
   const getCached = unstable_cache(
     async () => {
-      if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-        return null;
-      }
-
       const cutoffFor = (days: number) =>
         new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 

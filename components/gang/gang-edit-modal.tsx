@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
@@ -17,13 +16,9 @@ import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { CSS } from '@dnd-kit/utilities';
-import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
+import { SortableRankList } from '@/components/ui/sortable-rank-list';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
-import { LuGripVertical, LuX } from 'react-icons/lu';
+import { getSkillSetGroupLabel, getSkillSetRank } from '@/utils/skillSetRank';
 
 interface GangUpdates {
   name?: string;
@@ -100,72 +95,6 @@ interface GangEditModalProps {
   onSave: (updates: GangUpdates) => Promise<boolean>;
 }
 
-function SortableSkillSetRankRow({
-  id,
-  rank,
-  name,
-  onRemove,
-}: {
-  id: string;
-  rank: number;
-  name: string;
-  onRemove: () => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const surface = dragSurfaceProps(true);
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
-        zIndex: isDragging ? 50 : 'auto',
-        position: 'relative',
-        // Prefer none over dragSurfaceProps' "manipulation" so vertical drags
-        // reorder rows instead of scrolling the modal underneath.
-        WebkitUserSelect: 'none',
-        userSelect: 'none',
-        WebkitTouchCallout: 'none',
-        WebkitTapHighlightColor: 'transparent',
-        touchAction: 'none',
-      }}
-      className={`flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 cursor-grab ${
-        isDragging ? 'shadow-md border-rose-700 cursor-grabbing' : ''
-      }`}
-      aria-label={`Drag to reorder ${name}`}
-      onContextMenu={surface.onContextMenu}
-      {...attributes}
-      {...listeners}
-    >
-      <span className="inline-flex w-5 shrink-0 items-center justify-center text-sm text-muted-foreground">{rank}</span>
-      <span className="shrink-0 p-1 text-muted-foreground" aria-hidden="true">
-        <LuGripVertical className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 shrink-0 cursor-pointer touch-auto p-0"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={onRemove}
-        aria-label={`Remove ${name}`}
-      >
-        <LuX className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
-
 /**
  * Gang Edit Modal Component
  * 
@@ -216,6 +145,7 @@ export default function GangEditModal({
   const effectiveAlignment = showAlignment ? alignment : '';
 
   const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
+  const skillSetRank = getSkillSetRank(editionSlug);
 
   const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['skill-types', editionSlug, 'strict'],
@@ -243,40 +173,6 @@ export default function GangEditModal({
 
   const [ranks, setRanks] = useState<string[]>([]);
   const [showRankChangeConfirm, setShowRankChangeConfirm] = useState(false);
-  const rankSensors = useDndSensorsConfig('distance');
-  const rankListRef = useRef<HTMLDivElement | null>(null);
-  const lockedScrollParentRef = useRef<{
-    el: HTMLElement;
-    overflowY: string;
-    overscrollBehavior: string;
-  } | null>(null);
-
-  const unlockRankModalScroll = useCallback(() => {
-    const locked = lockedScrollParentRef.current;
-    if (!locked) return;
-    locked.el.style.overflowY = locked.overflowY;
-    locked.el.style.overscrollBehavior = locked.overscrollBehavior;
-    lockedScrollParentRef.current = null;
-  }, []);
-
-  const lockRankModalScroll = useCallback(() => {
-    unlockRankModalScroll();
-    let el = rankListRef.current?.parentElement ?? null;
-    while (el) {
-      const { overflowY } = window.getComputedStyle(el);
-      if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
-        lockedScrollParentRef.current = {
-          el,
-          overflowY: el.style.overflowY,
-          overscrollBehavior: el.style.overscrollBehavior,
-        };
-        el.style.overflowY = 'hidden';
-        el.style.overscrollBehavior = 'none';
-        break;
-      }
-      el = el.parentElement;
-    }
-  }, [unlockRankModalScroll]);
 
   const addRank = useCallback((skillTypeId: string) => {
     if (!skillTypeId) return;
@@ -289,18 +185,6 @@ export default function GangEditModal({
   const removeRank = useCallback((skillTypeId: string) => {
     setRanks((prev) => prev.filter((id) => id !== skillTypeId));
   }, []);
-
-  const handleRankDragEnd = useCallback((event: DragEndEvent) => {
-    unlockRankModalScroll();
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setRanks((prev) => {
-      const oldIndex = prev.findIndex((id) => id === active.id);
-      const newIndex = prev.findIndex((id) => id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return prev;
-      return arrayMove(prev, oldIndex, newIndex);
-    });
-  }, [unlockRankModalScroll]);
 
   // Seeded once per opening, so a refetch mid-edit cannot overwrite unsaved reordering.
   // Adjusted during render like the form state below; an effect here cascades a render.
@@ -768,31 +652,14 @@ export default function GangEditModal({
             <p className="text-sm text-muted-foreground">Loading Skill Sets...</p>
           )}
           {ranksSeeded && ranks.length > 0 && (
-            <DndContext
-              sensors={rankSensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-              onDragStart={lockRankModalScroll}
-              onDragEnd={handleRankDragEnd}
-              onDragCancel={unlockRankModalScroll}
-            >
-              <SortableContext items={ranks} strategy={verticalListSortingStrategy}>
-                <div ref={rankListRef} className="space-y-2" style={{ touchAction: 'none' }}>
-                  {ranks.map((skillTypeId, i) => {
-                    const skillType = skillTypes.find((s) => s.id === skillTypeId);
-                    return (
-                      <SortableSkillSetRankRow
-                        key={skillTypeId}
-                        id={skillTypeId}
-                        rank={i + 1}
-                        name={skillType?.name ?? 'Unknown Skill Set'}
-                        onRemove={() => removeRank(skillTypeId)}
-                      />
-                    );
-                  })}
-                </div>
-              </SortableContext>
-            </DndContext>
+            <SortableRankList
+              items={ranks.map((skillTypeId) => ({
+                id: skillTypeId,
+                name: skillTypes.find((s) => s.id === skillTypeId)?.name ?? 'Unknown Skill Set',
+              }))}
+              onReorder={(items) => setRanks(items.map((item) => item.id))}
+              onRemove={removeRank}
+            />
           )}
           {ranksSeeded && ranks.length < 4 && (
             <Combobox
@@ -804,7 +671,22 @@ export default function GangEditModal({
               options={buildGroupedSkillSetComboboxOptions(
                 skillTypes,
                 editionSlug,
-                { excludeIds: new Set(ranks) },
+                {
+                  excludeIds: new Set(ranks),
+                  // Venators rank the core Skill Sets; others stay pickable but muted
+                  formatItem: (item) => {
+                    const rank = skillSetRank[item.name.toLowerCase()] ?? Infinity;
+                    const isCore = getSkillSetGroupLabel(rank) === 'Universal Skill Sets';
+                    return {
+                      label: isCore ? (
+                        <span className="pl-3">{item.name}</span>
+                      ) : (
+                        <span className="pl-3 italic text-neutral-400">{item.name}</span>
+                      ),
+                      displayValue: item.name,
+                    };
+                  },
+                },
               )}
               placeholder="Add a Skill Set"
               dropdownPlacement="down"

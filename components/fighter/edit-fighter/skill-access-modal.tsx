@@ -23,6 +23,7 @@ type AccessLevel = 'default' | 'primary' | 'secondary' | 'allowed' | 'denied';
 interface LocalSkillAccess {
   skill_type_id: string;
   skill_type_name: string;
+  is_custom: boolean;
   default_access_level: string | null;
   selected_access_level: AccessLevel;
 }
@@ -115,6 +116,7 @@ export function SkillAccessModal({
         return {
           skill_type_id: st.id,
           skill_type_name: st.name,
+          is_custom: st.is_custom,
           default_access_level: access?.default || null,
           selected_access_level: access?.override
             ? (access.override as AccessLevel)
@@ -188,7 +190,9 @@ export function SkillAccessModal({
         return true;
       })
       .map(sa => ({
-        skill_type_id: sa.skill_type_id,
+        ...(sa.is_custom
+          ? { custom_skill_type_id: sa.skill_type_id }
+          : { skill_type_id: sa.skill_type_id }),
         access_level: sa.selected_access_level as 'primary' | 'secondary' | 'allowed' | 'denied'
       }));
 

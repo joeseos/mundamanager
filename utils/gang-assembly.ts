@@ -2,8 +2,10 @@ import 'server-only';
 import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
+import type { CountLimit } from '@/types/fighter-type';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
+import { gangRulesForWeapon } from '@/utils/gang-rules';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -78,6 +80,43 @@ function buildProfileMaps(equipmentRows: any[]) {
   return { standardProfilesMap, standardAmmoByParentWeapon, customProfilesMap, customAmmoByParentWeapon };
 }
 
+/** The gang's rules when the fighter is of the gang's own gang type, else none */
+function gangRulesFor(bundle: GangFightersBundle, fighterType: { gang_type_id?: string | null } | null | undefined) {
+  return bundle.gangTypeId && fighterType?.gang_type_id === bundle.gangTypeId ? bundle.gangRules : [];
+}
+
+/**
+ * The most specific count_limits rule for this gang, matching get_fighter_types_with_cost:
+ * subtype, then origin, then gang type, then a rule for every gang. id breaks a tie.
+ */
+export function resolveGangCountLimit(
+  rules: CountLimit[] | null | undefined,
+  gang: {
+    gangTypeId?: string | null;
+    gangOriginId?: string | null;
+    gangSubtypeIds?: string[] | null;
+  }
+): { min_count: number | null; max_count: number | null } {
+  const subtypeIds = new Set(gang.gangSubtypeIds ?? []);
+  const matching = (rules ?? []).filter((rule) =>
+    (rule.gang_type_id == null || rule.gang_type_id === gang.gangTypeId) &&
+    (rule.gang_origin_id == null || rule.gang_origin_id === gang.gangOriginId) &&
+    (rule.gang_subtype_id == null || subtypeIds.has(rule.gang_subtype_id))
+  );
+  matching.sort((a, b) => {
+    const specificity = (rule: CountLimit) =>
+      (rule.gang_subtype_id ? 4 : 0) + (rule.gang_origin_id ? 2 : 0) + (rule.gang_type_id ? 1 : 0);
+    const bySpecificity = specificity(b) - specificity(a);
+    if (bySpecificity !== 0) return bySpecificity;
+    return (a.id ?? '').localeCompare(b.id ?? '');
+  });
+  const best = matching[0];
+  return {
+    min_count: best?.min_count ?? null,
+    max_count: best?.max_count ?? null,
+  };
+}
+
 /**
  * Assemble the gang page fighters list (GangFighter[]) from the raw bundle.
  * expandLoadoutsForPrint emits one entry per loadout for the print roster —
@@ -90,6 +129,11 @@ export function assembleGangFighters(
 ): GangFighter[] {
   const expandLoadoutsForPrint = options?.expandLoadoutsForPrint ?? false;
   const gangEditionSlug = options?.gangEditionSlug ?? null;
+  const gangScope = {
+    gangTypeId: options?.gangTypeId,
+    gangOriginId: options?.gangOriginId,
+    gangSubtypeIds: options?.gangSubtypeIds,
+  };
   const fighters = bundle.fighters;
   if (!fighters || fighters.length === 0) return [];
 
@@ -364,6 +408,7 @@ export function assembleGangFighters(
           : null;
 
         const fighterWideEffects = fighterWideWeaponEffects(Object.values(effects).flat());
+        const gangRules = gangRulesFor(bundle, fighter.fighter_types);
 
         // Process equipment and add weapon profiles
         const processedEquipment = equipment.map((item: any) => {
@@ -424,6 +469,8 @@ export function assembleGangFighters(
             if (targetingEffects.length > 0) {
               weaponProfiles = applyWeaponModifiers(weaponProfiles, targetingEffects);
             }
+            // After the fighter's own effects, so a trait an upgrade adds counts
+            weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item));
           }
 
           // Get effect names that target this equipment
@@ -632,6 +679,7 @@ export function assembleGangFighters(
         // Get fighter type info from the join
         const fighterTypeInfo = fighter.fighter_types || {};
         const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
+        const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, gangScope);
 
         // Calculate loadout cost for display: base cost + loadout equipment + skills + effects
         // This shows what the fighter costs with the current loadout
@@ -662,6 +710,10 @@ export function assembleGangFighters(
           fighter_name: fighter.fighter_name,
           label: fighter.label,
           fighter_type: fighter.fighter_type || fighterTypeInfo.fighter_type || 'Unknown',
+          fighter_type_id: fighter.fighter_type_id ?? undefined,
+          custom_fighter_type_id: fighter.custom_fighter_type_id ?? null,
+          min_count: countLimit.min_count,
+          max_count: countLimit.max_count,
           fighter_subtypes: fighter.fighter_subtypes || [],
           promoted_from_prospect: fighter.promoted_from_prospect,
           fighter_specialisation: fighterSpecialisationInfo ? {
@@ -995,6 +1047,8 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     myEffects.filter((e: any) => !activeLoadoutEquipmentIds || !e.fighter_equipment_id || activeLoadoutEquipmentIds.has(e.fighter_equipment_id))
   );
 
+  const gangRules = gangRulesFor(bundle, fighterRow?.fighter_types);
+
   // Standard profile map from nested profiles of the fighter's own equipment;
   // each profile is also aliased under its weapon_group_id (grouped weapons,
   // e.g. smoke grenades) when the fighter owns the profile's weapon.
@@ -1066,6 +1120,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       if (weaponEffects.length > 0) {
         weaponProfiles = applyWeaponModifiers(weaponProfiles, weaponEffects);
       }
+      weaponProfiles = applyWeaponModifiers(weaponProfiles, gangRulesForWeapon(gangRules, item));
     }
 
     const effectNames = targetingEffectNamesMap.get(item.id) || [];

@@ -11,7 +11,7 @@ import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
 import { TbMeatOff } from 'react-icons/tb';
 import { FaMedkit } from 'react-icons/fa';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { rollInRange } from '@/utils/dice';
+import { shuffle } from '@/utils/dice';
 import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
@@ -233,12 +233,7 @@ export default function CrewSelectionModal({
       });
 
       const pool = availableNonBeasts.filter((f) => !manualOnly.has(f.id));
-      const shuffled = [...pool];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = rollInRange(0, i);
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      const picked = shuffled.slice(0, Math.min(randomCount, shuffled.length));
+      const picked = shuffle(pool).slice(0, randomCount);
 
       const newRandomIds = new Set(picked.map((f) => f.id));
       setRandomlySelected(newRandomIds);

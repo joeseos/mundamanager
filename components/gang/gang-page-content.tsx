@@ -169,6 +169,16 @@ export default function GangPageContent({
     []
   );
 
+  const handleGangReputationUpdate = useCallback((newReputation: number) => {
+    setGangData((prev: GangDataState) => ({
+      ...prev,
+      processedData: {
+        ...prev.processedData,
+        reputation: newReputation
+      }
+    }));
+  }, []);
+
   const handleGangTradePointsUpdate = useCallback((newTradePoints: number) => {
     setGangData((prev: GangDataState) => ({
       ...prev,
@@ -674,6 +684,7 @@ export default function GangPageContent({
             onGangCreditsUpdate={handleGangCreditsUpdate}
             onGangWealthUpdate={handleGangWealthUpdate}
             onGangRatingUpdate={handleGangRatingUpdate}
+            onGangReputationUpdate={handleGangReputationUpdate}
             gang_subtypes={gangData.processedData.gang_subtypes}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
@@ -748,6 +759,8 @@ export default function GangPageContent({
               editionSlug={gangData.processedData.edition_slug}
               fighters={gangData.processedData.fighters}
               gangCredits={gangData.processedData.credits}
+              gangReputation={gangData.processedData.reputation}
+              territories={gangCampaigns.flatMap((campaign) => campaign.territories)}
               gangType={gangData.processedData.gang_type}
               isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
               gangSubtypes={gangData.processedData.gang_subtypes || []}
@@ -783,16 +796,14 @@ export default function GangPageContent({
       title: 'Battles',
       icon: <LuSwords key="swords" />,
       content: (
-        <div key="battles" className="space-y-4">
+        <div key="battles" className="bg-card shadow-md rounded-lg p-4 space-y-8">
           {hasGangTacticsCards(gangData.processedData.edition_slug) && (
-            <div className="bg-card shadow-md rounded-lg p-4">
-              <GangTacticsCards
-                gangId={gangId}
-                tacticsCards={gangData.processedData.tacticsCards || []}
-                onTacticsCardsUpdate={handleTacticsCardsUpdate}
-                userPermissions={userPermissions}
-              />
-            </div>
+            <GangTacticsCards
+              gangId={gangId}
+              tacticsCards={gangData.processedData.tacticsCards || []}
+              onTacticsCardsUpdate={handleTacticsCardsUpdate}
+              userPermissions={userPermissions}
+            />
           )}
           <GangBattleSessions
             sessions={gangData.processedData.battleSessions || []}
@@ -801,6 +812,7 @@ export default function GangPageContent({
             editionSlug={gangData.processedData.edition_slug}
             campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
             sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
+            wrapper={(children) => <div>{children}</div>}
           />
         </div>
       ),

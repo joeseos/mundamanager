@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims, safePostSignInPath, signInPath } from './utils/auth'
+import { lowerCaseUuids } from './utils/uuid'
 
 function createSupabaseProxyClient(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -45,6 +46,15 @@ export async function proxy(request: NextRequest) {
   // Skip proxy for server actions - they handle their own auth
   if (request.headers.get('Next-Action')) {
     return NextResponse.next();
+  }
+
+  // An upper-case id would find the row in Postgres but miss lower-case
+  // lookups, cache keys and cache tags, so redirect to the canonical URL
+  const canonicalPath = lowerCaseUuids(pathname);
+  if (canonicalPath !== pathname) {
+    const canonicalUrl = request.nextUrl.clone();
+    canonicalUrl.pathname = canonicalPath;
+    return NextResponse.redirect(canonicalUrl, 308);
   }
 
   // Auth pages - check if user is already logged in and redirect away

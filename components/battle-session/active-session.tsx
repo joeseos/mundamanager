@@ -207,17 +207,18 @@ export default function ActiveSession({
               <p className="text-sm text-neutral-500">{session.campaign_name}</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             {canManage && (
               <>
                 {isPreBattle && (
-                  <Button onClick={() => setShowAddPlayerModal(true)}>
+                  <Button className="flex-1 sm:flex-none" onClick={() => setShowAddPlayerModal(true)}>
                     Add Player
                   </Button>
                 )}
                 {battleActive && (
                   <Button
                     variant="outline"
+                    className="flex-1 sm:flex-none"
                     onClick={() => setShowReturnToSetupModal(true)}
                     disabled={changePhaseMutation.isPending}
                   >
@@ -227,6 +228,7 @@ export default function ActiveSession({
                 {isPostBattle && (
                   <Button
                     variant="outline"
+                    className="flex-1 sm:flex-none"
                     onClick={() => changePhaseMutation.mutate('back')}
                     disabled={changePhaseMutation.isPending}
                   >
@@ -235,6 +237,7 @@ export default function ActiveSession({
                 )}
                 <Button
                   variant="destructive"
+                  className="flex-1 sm:flex-none"
                   onClick={() => setShowCancelModal(true)}
                   disabled={cancelMutation.isPending}
                 >
@@ -297,14 +300,15 @@ export default function ActiveSession({
         )}
 
         {battleActive && (
-          <div className="mt-4 flex items-center gap-3">
-            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="w-full text-sm font-medium text-neutral-700 dark:text-neutral-300 sm:w-auto">
               Round {session.round}
             </span>
             {session.round > 1 && (
               <Button
                 size="sm"
                 variant="outline"
+                className="flex-1 sm:flex-none"
                 onClick={() => setShowRevertRoundModal(true)}
                 disabled={revertRoundMutation.isPending}
               >
@@ -313,11 +317,22 @@ export default function ActiveSession({
             )}
             <Button
               size="sm"
+              className="flex-1 sm:flex-none"
               onClick={() => setShowRoundModal(true)}
               disabled={roundMutation.isPending}
             >
               Complete Round
             </Button>
+            {canManage && (
+              <Button
+                size="sm"
+                className="w-full sm:ml-auto sm:w-auto"
+                onClick={() => changePhaseMutation.mutate('forward')}
+                disabled={changePhaseMutation.isPending}
+              >
+                End Battle
+              </Button>
+            )}
           </div>
         )}
 
@@ -345,6 +360,18 @@ export default function ActiveSession({
                 </div>
               );
             })()}
+            {canManage && (
+              <div className="mt-2 flex sm:justify-end">
+                <Button
+                  size="sm"
+                  className="w-full sm:w-auto"
+                  onClick={() => setShowCompleteBattleModal(true)}
+                  disabled={!session.participants.every((p) => p.ready)}
+                >
+                  Complete Battle
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -380,28 +407,6 @@ export default function ActiveSession({
             />
           ))}
         </div>
-
-        {battleActive && canManage && (
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              onClick={() => changePhaseMutation.mutate('forward')}
-              disabled={changePhaseMutation.isPending}
-            >
-              End Battle
-            </Button>
-          </div>
-        )}
-
-        {isPostBattle && canManage && (
-          <div className="mt-4 flex justify-end gap-2">
-            <Button
-              onClick={() => setShowCompleteBattleModal(true)}
-              disabled={!session.participants.every((p) => p.ready)}
-            >
-              Complete Battle
-            </Button>
-          </div>
-        )}
       </div>
 
       {showCancelModal && createPortal(
@@ -432,7 +437,7 @@ export default function ActiveSession({
           confirmText="Complete Round"
           confirmDisabled={roundMutation.isPending}
         >
-          <p>Complete round {session.round} and start round {session.round + 1}? All fighters will be reactivated.</p>
+          <p>Complete round {session.round} and start round {session.round + 1}? All fighters still in play will be reactivated.</p>
         </Modal>,
         document.body
       )}
@@ -446,10 +451,9 @@ export default function ActiveSession({
             setShowRevertRoundModal(false);
             return true;
           }}
-          confirmText="Revert Round"
           confirmDisabled={revertRoundMutation.isPending}
         >
-          <p>Go back to round {session.round - 1}? All fighters will be reactivated.</p>
+          <p>Go back to round {session.round - 1}? All fighters still in play will be reactivated.</p>
         </Modal>,
         document.body
       )}
@@ -463,7 +467,6 @@ export default function ActiveSession({
             setShowReturnToSetupModal(false);
             return true;
           }}
-          confirmText="Return to Pre-Battle"
           confirmDisabled={changePhaseMutation.isPending}
         >
           <p>Return to Pre-Battle Sequence? This will unlock crew selection for all players.</p>

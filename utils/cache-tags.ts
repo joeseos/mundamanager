@@ -42,6 +42,8 @@ import { revalidateTag } from 'next/cache';
  *                  home-card portraits/names |
  * global-gang-portraits catalogue file paths | catalogue row rename/delete
  *                  joined onto gangs         | (invalidateGangPortraits) |
+ * global-gang-rules gang rules and their   | admin gang rule and
+ *                  effect types              | rule effect type writes
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -76,6 +78,7 @@ export const TAGS = {
   globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
   globalGangPortraits: () => 'global-gang-portraits',
+  globalGangRules: () => 'global-gang-rules',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
   globalScenarioTables: () => 'global-scenario-tables',
@@ -283,6 +286,11 @@ export function invalidateCampaignCatalogLists() {
  */
 export function invalidateGangTypesCatalog() {
   bust(TAGS.globalGangTypes());
+}
+
+/** A gang rule, or the effect type behind one, changed. Applied at roster assembly. */
+export function invalidateGangRules() {
+  bust(TAGS.globalGangRules());
 }
 
 /** A gang_portraits row's path or identity changed. Joined portrait URLs are cached with the gang. */

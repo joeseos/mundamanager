@@ -1,163 +1,95 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
 
+import { getAppDb, type AppDb } from '@/utils/db/client';
+import {
+  getGangCampaigns,
+  getGangCore,
+  getGangFightersBundle,
+  getGangPositioning,
+} from '@/app/lib/shared/gang-data';
+import { assembleFighterView, selectGangFighterIndex } from '@/utils/gang-assembly';
+import { isUuid } from '@/utils/uuid';
+
 // =============================================================================
-// TYPES - Shared interfaces for fighter data
+// BASE DATA FUNCTIONS - Drizzle reads over the direct connection (utils/db)
 // =============================================================================
 
-export interface FighterBasic {
-  id: string;
-  fighter_name: string;
-  label?: string;
-  note?: string;
-  note_backstory?: string;
-  credits: number;
-  cost_adjustment?: number;
-  movement: number;
-  weapon_skill: number;
-  ballistic_skill: number;
-  strength: number;
-  toughness: number;
-  wounds: number;
-  initiative: number;
-  attacks: number;
-  leadership: number;
-  cool: number;
-  willpower: number;
-  intelligence: number;
-  save?: number | null;
-  xp: number;
-  /** null means N/A: this fighter's type cannot gain XP. */
-  starting_xp: number | null;
-  special_rules?: string[];
-  fighter_subtypes: string[];
-  fighter_type?: string;
-  fighter_type_id: string;
-  custom_fighter_type_id?: string | null;
-  custom_fighter_type?: {
-    gang_type_id: string | null;
-    custom_gang_type_id: string | null;
-    is_vehicle?: boolean;
-    editions?: { slug: string } | null;
-  } | null;
-  fighter_gang_legacy_id?: string | null;
-  fighter_gang_legacy?: {
-    id: string;
-    fighter_type_id: string;
-    name?: string;
-  } | null;
-  fighter_specialisation_id?: string;
-  promoted_from_prospect?: boolean;
-  fighter_variant?: string | null;
-  killed?: boolean;
-  starved?: boolean;
-  retired?: boolean;
-  enslaved?: boolean;
-  recovery?: boolean;
-  captured?: boolean;
-  captured_by_gang_id?: string | null;
-  free_skill?: boolean;
-  kills?: number;
-  kill_count?: number;
-  gang_id: string;
-  fighter_pet_id?: string;
-  image_url?: string;
-  position?: string;
-  active_loadout_id?: string | null;
-  selected_archetype_id?: string | null;
-  selected_archetype?: {
-    id: string;
-    name: string;
-  } | null;
+/** The fighter row with its custom type, gang legacy and skill access archetype. */
+function fighterBasicQuery(db: AppDb, fighterId: string) {
+  return db.query.fighters.findFirst({
+    columns: {
+      id: true,
+      fighter_name: true,
+      label: true,
+      note: true,
+      note_backstory: true,
+      credits: true,
+      cost_adjustment: true,
+      movement: true,
+      weapon_skill: true,
+      ballistic_skill: true,
+      strength: true,
+      toughness: true,
+      wounds: true,
+      initiative: true,
+      attacks: true,
+      leadership: true,
+      cool: true,
+      willpower: true,
+      intelligence: true,
+      save: true,
+      xp: true,
+      // null means N/A: this fighter's type cannot gain XP
+      starting_xp: true,
+      special_rules: true,
+      fighter_subtypes: true,
+      fighter_type: true,
+      fighter_type_id: true,
+      custom_fighter_type_id: true,
+      fighter_gang_legacy_id: true,
+      fighter_specialisation_id: true,
+      promoted_from_prospect: true,
+      fighter_variant: true,
+      killed: true,
+      starved: true,
+      retired: true,
+      enslaved: true,
+      recovery: true,
+      captured: true,
+      captured_by_gang_id: true,
+      free_skill: true,
+      kills: true,
+      kill_count: true,
+      gang_id: true,
+      fighter_pet_id: true,
+      image_url: true,
+      position: true,
+      active_loadout_id: true,
+      selected_archetype_id: true,
+    },
+    where: (fighter, { eq }) => eq(fighter.id, fighterId),
+    with: {
+      custom_fighter_type: {
+        columns: { gang_type_id: true, custom_gang_type_id: true, is_vehicle: true },
+        with: { editions: { columns: { slug: true } } },
+      },
+      fighter_gang_legacy: { columns: { id: true, fighter_type_id: true, name: true } },
+      selected_archetype: { columns: { id: true, name: true } },
+    },
+  });
 }
-
-// =============================================================================
-// BASE DATA FUNCTIONS - Raw database queries with proper cache tags
-// =============================================================================
 
 /**
  * Get fighter basic information (stats, name, type, etc.)
  * Cache: BASE_FIGHTER_BASIC
  */
-export const getFighterBasic = async (fighterId: string, supabase: any): Promise<FighterBasic | null> => {
-  return unstable_cache(
-    async () => {
-      const { data, error } = await supabase
-        .from('fighters')
-        .select(`
-          id,
-          fighter_name,
-          label,
-          note,
-          note_backstory,
-          credits,
-          cost_adjustment,
-          movement,
-          weapon_skill,
-          ballistic_skill,
-          strength,
-          toughness,
-          wounds,
-          initiative,
-          attacks,
-          leadership,
-          cool,
-          willpower,
-          intelligence,
-          save,
-          xp,
-          starting_xp,
-          special_rules,
-          fighter_subtypes,
-          fighter_type,
-          fighter_type_id,
-          custom_fighter_type_id,
-          custom_fighter_type:custom_fighter_type_id (
-            gang_type_id,
-            custom_gang_type_id,
-            is_vehicle,
-            editions:edition_id (slug)
-          ),
-          fighter_gang_legacy_id,
-          fighter_gang_legacy:fighter_gang_legacy_id (
-            id,
-            fighter_type_id,
-            name
-          ),
-          fighter_specialisation_id,
-          promoted_from_prospect,
-          fighter_variant,
-          killed,
-          starved,
-          retired,
-          enslaved,
-          recovery,
-          captured,
-          captured_by_gang_id,
-          free_skill,
-          kills,
-          kill_count,
-          gang_id,
-          fighter_pet_id,
-          image_url,
-          position,
-          active_loadout_id,
-          selected_archetype_id,
-          selected_archetype:selected_archetype_id (
-            id,
-            name
-          )
-        `)
-        .eq('id', fighterId)
-        .single();
+export const getFighterBasic = async (fighterId: string) => {
+  // The id comes from the URL; Postgres would reject a malformed one
+  if (!isUuid(fighterId)) return null;
 
-      if (error) {
-        // Return null for not found errors or invalid UUID format
-        if (error.code === 'PGRST116' || error.code === '22P02') return null;
-        throw error;
-      }
-      return data;
-    },
+  return unstable_cache(
+    async () => (await fighterBasicQuery(getAppDb(), fighterId)) ?? null,
     [`fighter-basic-v5-${fighterId}`],
     {
       tags: [TAGS.fighter(fighterId)],
@@ -165,6 +97,53 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
     }
   )();
 };
+
+/** The rows getFighterTotalCost adds up: the fighter's own, its vehicles' and its exotic beasts'. */
+function fighterCostQuery(db: AppDb, fighterId: string) {
+  return db.query.fighters.findFirst({
+    columns: { credits: true, cost_adjustment: true },
+    where: (fighter, { eq }) => eq(fighter.id, fighterId),
+    with: {
+      beast_link: { columns: { id: true } },
+      fighter_equipment: {
+        columns: { purchase_cost: true },
+        where: (item, { isNull }) => isNull(item.vehicle_id),
+      },
+      fighter_skills: { columns: { credits_increase: true } },
+      fighter_effects: {
+        columns: { type_specific_data: true },
+        where: (effect, { isNull }) => isNull(effect.vehicle_id),
+      },
+      vehicles: {
+        columns: { cost: true },
+        with: {
+          fighter_equipment: { columns: { purchase_cost: true } },
+          fighter_effects: { columns: { type_specific_data: true } },
+        },
+      },
+      fighter_exotic_beasts: {
+        columns: { fighter_pet_id: true },
+        with: {
+          fighter_equipment: { columns: { gang_stash: true } },
+          pet: {
+            columns: { id: true, cost_adjustment: true, killed: true, retired: true, enslaved: true, captured: true },
+            with: {
+              fighter_equipment: { columns: { purchase_cost: true } },
+              fighter_skills: { columns: { credits_increase: true } },
+              fighter_effects: { columns: { type_specific_data: true } },
+              fighter_types: { columns: { cost: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+/** An effect's type_specific_data.credits_increase, or 0 when it has none. */
+function creditsIncrease(typeSpecificData: unknown): number {
+  return (typeSpecificData as { credits_increase?: number } | null)?.credits_increase || 0;
+}
 
 /**
  * Calculate fighter's total cost (base + equipment + skills + effects +
@@ -175,112 +154,261 @@ export const getFighterBasic = async (fighterId: string, supabase: any): Promise
  * (this bit us before — see the pre-write cost comments in fighter-injury).
  * Page rendering derives the same figure from the gang fighters bundle.
  */
-export const getFighterTotalCost = async (fighterId: string, supabase: any): Promise<number> => {
-  const { data: fighter } = await supabase
-    .from('fighters')
-    .select('id, credits, cost_adjustment, fighter_pet_id')
-    .eq('id', fighterId)
-    .maybeSingle();
+export const getFighterTotalCost = async (fighterId: string): Promise<number> => {
+  // No fighter has a malformed id, and Postgres would reject it
+  if (!isUuid(fighterId)) return 0;
 
+  const fighter = await fighterCostQuery(getAppDb(), fighterId);
   if (!fighter) return 0;
 
   // Fighters owned by another fighter (exotic beasts) always cost 0
-  if (fighter.fighter_pet_id) {
-    const { data: ownershipData } = await supabase
-      .from('fighter_exotic_beasts')
-      .select('fighter_owner_id')
-      .eq('id', fighter.fighter_pet_id)
-      .maybeSingle();
-    if (ownershipData) return 0;
-  }
+  if (fighter.beast_link) return 0;
 
-  const [equipmentRes, skillsRes, effectsRes, vehiclesRes, beastLinksRes] = await Promise.all([
-    supabase
-      .from('fighter_equipment')
-      .select('purchase_cost')
-      .eq('fighter_id', fighterId)
-      .is('vehicle_id', null),
-    supabase
-      .from('fighter_skills')
-      .select('credits_increase')
-      .eq('fighter_id', fighterId),
-    supabase
-      .from('fighter_effects')
-      .select('type_specific_data')
-      .eq('fighter_id', fighterId)
-      .is('vehicle_id', null),
-    supabase
-      .from('vehicles')
-      .select(`
-        id,
-        cost,
-        fighter_equipment!vehicle_id (purchase_cost),
-        fighter_effects!vehicle_id (type_specific_data)
-      `)
-      .eq('fighter_id', fighterId),
-    supabase
-      .from('fighter_exotic_beasts')
-      .select('fighter_pet_id, fighter_equipment!fighter_equipment_id (gang_stash)')
-      .eq('fighter_owner_id', fighterId)
-  ]);
+  const equipmentCost = fighter.fighter_equipment.reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0);
+  const skillsCost = fighter.fighter_skills.reduce((sum, skill) => sum + (skill.credits_increase || 0), 0);
+  const effectsCost = fighter.fighter_effects.reduce(
+    (sum, effect) => sum + creditsIncrease(effect.type_specific_data), 0
+  );
 
-  const equipmentCost = (equipmentRes.data || []).reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
-  const skillsCost = (skillsRes.data || []).reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
-  const effectsCost = (effectsRes.data || []).reduce((sum: number, effect: any) => {
-    const data = effect.type_specific_data;
-    return sum + (typeof data === 'object' && data?.credits_increase ? data.credits_increase : 0);
-  }, 0);
-
-  const vehicleCost = (vehiclesRes.data || []).reduce((sum: number, vehicle: any) => {
+  const vehicleCost = fighter.vehicles.reduce((sum, vehicle) => {
     let vehicleTotal = vehicle.cost || 0;
-    vehicleTotal += ((vehicle.fighter_equipment as any[]) || []).reduce(
-      (s: number, eq: any) => s + (eq.purchase_cost || 0), 0
-    );
-    vehicleTotal += ((vehicle.fighter_effects as any[]) || []).reduce(
-      (s: number, effect: any) => s + (effect.type_specific_data?.credits_increase || 0), 0
-    );
+    vehicleTotal += vehicle.fighter_equipment.reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
+    vehicleTotal += vehicle.fighter_effects.reduce((s, effect) => s + creditsIncrease(effect.type_specific_data), 0);
     return sum + vehicleTotal;
   }, 0);
 
   // Owned exotic beasts roll their cost into the owner
-  let beastsCost = 0;
-  const beastLinks = beastLinksRes.data || [];
+  const beastLinks = fighter.fighter_exotic_beasts;
   const stashedBeastIds = new Set(
-    beastLinks.filter((b: any) => b.fighter_equipment?.gang_stash).map((b: any) => b.fighter_pet_id)
+    beastLinks.filter((b) => b.fighter_equipment?.gang_stash).map((b) => b.fighter_pet_id)
   );
-  const beastIds = beastLinks.map((b: any) => b.fighter_pet_id);
-  if (beastIds.length > 0) {
-    const { data: beastData } = await supabase
-      .from('fighters')
-      .select(`
-        id,
-        credits,
-        cost_adjustment,
-        fighter_equipment!fighter_id (purchase_cost),
-        fighter_skills!fighter_id (credits_increase),
-        fighter_effects!fighter_id (type_specific_data),
-        fighter_types!inner (cost)
-      `)
-      .in('id', beastIds)
-      .eq('killed', false)
-      .eq('retired', false)
-      .eq('enslaved', false)
-      .eq('captured', false);
+  // Each active beast with a fighter type, once even if two links point at it
+  const beasts = new Map(
+    beastLinks.flatMap(({ pet }) =>
+      pet?.fighter_types && pet.killed === false && pet.retired === false &&
+      pet.enslaved === false && pet.captured === false
+        ? [[pet.id, pet] as const]
+        : []
+    )
+  );
+  const beastsCost = [...beasts.values()].reduce((sum, beast) => {
+    // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
+    const beastEquipment = stashedBeastIds.has(beast.id)
+      ? 0
+      : beast.fighter_equipment.reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
+    const beastSkills = beast.fighter_skills.reduce((s, skill) => s + (skill.credits_increase || 0), 0);
+    const beastEffects = beast.fighter_effects.reduce((s, effect) => s + creditsIncrease(effect.type_specific_data), 0);
+    const baseBeastCost = beast.fighter_types?.cost || 0;
+    return sum + baseBeastCost + beastEquipment + beastSkills + beastEffects + (beast.cost_adjustment || 0);
+  }, 0);
 
-    beastsCost = (beastData || []).reduce((sum: number, beast: any) => {
-      // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
-      const beastEquipment = stashedBeastIds.has(beast.id)
-        ? 0
-        : ((beast.fighter_equipment as any[]) || []).reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
-      const beastSkills = ((beast.fighter_skills as any[]) || []).reduce((s, skill) => s + (skill.credits_increase || 0), 0);
-      const beastEffects = ((beast.fighter_effects as any[]) || []).reduce(
-        (s, effect) => s + (effect.type_specific_data?.credits_increase || 0), 0
-      );
-      const baseBeastCost = (beast.fighter_types as any)?.cost || 0;
-      return sum + baseBeastCost + beastEquipment + beastSkills + beastEffects + (beast.cost_adjustment || 0);
-    }, 0);
-  }
-
-  return fighter.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
+  return (fighter.credits || 0) + equipmentCost + skillsCost + effectsCost + vehicleCost +
          (fighter.cost_adjustment || 0) + beastsCost;
 };
+
+// =============================================================================
+// COMPOSITE DATA FUNCTIONS - Multi-entity aggregated data
+// =============================================================================
+
+/**
+ * Everything the fighter page renders, or null when the fighter or its gang
+ * does not exist. Callers authenticate first and check permissions against
+ * gangOwnerId.
+ */
+export async function getFighterPageData(fighterId: string) {
+  // Fetch basic fighter data first to check if fighter exists and resolve the gang
+  const fighterBasic = await getFighterBasic(fighterId);
+
+  // A fighter without a gang has no page
+  if (!fighterBasic?.gang_id) return null;
+
+  // The fighter's data comes from the SAME cache entries the gang page uses
+  // (core + fighters bundle + campaigns bundle) — usually warm after any
+  // gang page visit. The bundle is read ONCE: both the fighter view and the
+  // navigation roster are pure selectors over it.
+  const [gangBasic, gangPositioning, bundle, gangCampaigns] = await Promise.all([
+    getGangCore(fighterBasic.gang_id),
+    getGangPositioning(fighterBasic.gang_id),
+    getGangFightersBundle(fighterBasic.gang_id),
+    getGangCampaigns(fighterBasic.gang_id),
+  ]);
+
+  // Check if gang exists (shouldn't happen but handle gracefully)
+  if (!gangBasic) return null;
+
+  const gangFighters = selectGangFighterIndex(bundle);
+
+  const {
+    equipment,
+    skills,
+    effects,
+    vehicles,
+    beastCosts,
+    ownershipInfo,
+    loadouts,
+    capturedByGangName,
+    fighterTypeData,
+    fighterSpecialisationData
+  } = assembleFighterView(bundle, fighterId);
+
+  // Campaign data already processed and includes trading post names (from getGangCampaigns)
+  const campaigns = gangCampaigns;
+
+  // Custom fighter type gang info is embedded in fighterBasic via the FK join
+  const customFighterTypeInfo = fighterBasic.custom_fighter_type ?? null;
+  const isCustomFighterType = Boolean(fighterBasic.custom_fighter_type_id);
+  const isVehicle = isCustomFighterType
+    ? Boolean(customFighterTypeInfo?.is_vehicle)
+    : Boolean(fighterTypeData?.is_vehicle);
+  const fighterEditionSlug = isCustomFighterType
+    ? customFighterTypeInfo?.editions?.slug ?? (isVehicle ? gangBasic.edition_slug : null)
+    : fighterTypeData?.editions?.slug ?? null;
+
+  // Process owner data
+  const ownerName = ownershipInfo?.owner_name;
+
+  // Calculate total cost inline (derived from the shared bundle)
+  let totalCost = 0;
+
+  // Check if this fighter is owned by another fighter (exotic beast)
+  const isOwnedBeast = !!ownershipInfo;
+
+  if (!isOwnedBeast) {
+    // Calculate total cost for normal fighters
+    const equipmentCost = equipment.reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+    const skillsCost = Object.values(skills).reduce((sum: number, skill: any) => sum + skill.credits_increase, 0);
+    const effectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
+      const data = effect.type_specific_data;
+      return sum + (typeof data === 'object' && data?.credits_increase ? data.credits_increase : 0);
+    }, 0);
+
+    // Calculate vehicle costs (base vehicle cost + vehicle equipment + vehicle effects)
+    const vehicleCost = vehicles.reduce((sum: number, vehicle: any) => {
+      let vehicleTotal = vehicle.cost || 0;
+
+      // Add vehicle equipment costs
+      if (vehicle.equipment) {
+        vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => {
+          return equipSum + (eq.purchase_cost || 0);
+        }, 0);
+      }
+
+      // Add vehicle effects costs
+      if (vehicle.effects) {
+        vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
+          return effectSum + (effect.type_specific_data?.credits_increase || 0);
+        }, 0);
+      }
+
+      return sum + vehicleTotal;
+    }, 0);
+
+    totalCost = fighterBasic.credits + equipmentCost + skillsCost + effectsCost + vehicleCost +
+                (fighterBasic.cost_adjustment || 0) + beastCosts.total;
+  }
+
+  // Enrich beast-granting equipment with the beast's purchased equipment costs and
+  // advancements costs. The category is 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
+  equipment.forEach((eq: any) => {
+    const equipmentCategory = eq.equipment_category?.toLowerCase();
+    if (equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets') {
+      const breakdown = beastCosts.byEquipmentId[eq.fighter_equipment_id];
+      if (breakdown) {
+        eq.beast_equipment_cost = breakdown.equipment;
+        eq.beast_advancements_cost = breakdown.advancements;
+      }
+    }
+  });
+
+  // Compute refund credits for deletion: owner base cost + all owner equipment purchase_cost
+  // + each owned beast's own equipment purchase_cost (beast base is already in the owner's
+  // beast-granting equipment purchase_cost). Exotic Beast Advancements are excluded.
+  // Mirrors the server-side refund calculation in edit-fighter.ts case 'delete'.
+  const refundCredits = isOwnedBeast
+    ? 0
+    : (fighterBasic.credits || 0)
+        + equipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0)
+        + Object.values(beastCosts.byEquipmentId).reduce(
+            (sum: number, b: { equipment: number; advancements: number }) => sum + b.equipment,
+            0
+          );
+
+  // Filter effects by active loadout (for stats/display)
+  // Total cost above uses ALL effects (correct for gang rating)
+  if (fighterBasic.active_loadout_id) {
+    const activeLoadout = loadouts.find((l: any) => l.id === fighterBasic.active_loadout_id);
+    if (activeLoadout) {
+      const loadoutEquipmentIds = new Set(activeLoadout.equipment_ids);
+      Object.keys(effects).forEach(category => {
+        effects[category] = effects[category].filter((effect: any) => {
+          // Always show effects without equipment parent (injuries, advancements, etc.)
+          if (!effect.fighter_equipment_id) {
+            return true;
+          }
+          // Only show effects whose parent equipment is in active loadout
+          return loadoutEquipmentIds.has(effect.fighter_equipment_id);
+        });
+      });
+    }
+  }
+
+  // Assemble the fighter data structure
+  const fighterData = {
+    fighter: {
+      ...fighterBasic,
+      credits: totalCost,
+      alliance_crew_name: fighterTypeData?.alliance_crew_name,
+      is_spyrer: fighterTypeData?.is_spyrer || false,
+      is_vehicle: isVehicle,
+      edition_slug: fighterEditionSlug,
+      fighter_type: {
+        fighter_type_id: fighterTypeData?.id || fighterBasic.custom_fighter_type_id || '',
+        fighter_type: fighterBasic.fighter_type || fighterTypeData?.fighter_type || 'Unknown',
+        fighter_subtypes: Array.isArray(fighterTypeData?.fighter_subtypes)
+          ? fighterTypeData.fighter_subtypes
+          : [],
+        alliance_crew_name: fighterTypeData?.alliance_crew_name,
+        // Prefer the fighter type's own gang association; fall back to the owning gang's type
+        // so the promotion dropdown is never silently empty (e.g. when a custom gang type was deleted).
+        gang_type_id: fighterTypeData?.gang_type_id
+          || fighterBasic.custom_fighter_type?.gang_type_id
+          || gangBasic.gang_type_id
+          || null,
+        custom_gang_type_id: fighterBasic.custom_fighter_type?.custom_gang_type_id
+          || gangBasic.custom_gang_type_id
+          || null,
+      },
+      fighter_specialisation: fighterSpecialisationData ? {
+        id: fighterSpecialisationData.fighter_specialisation_id,
+        specialisation_name: fighterSpecialisationData.fighter_specialisation,
+        fighter_specialisation: fighterSpecialisationData.fighter_specialisation
+      } : undefined,
+      fighter_variant: fighterBasic.fighter_variant ?? null,
+      skills,
+      effects,
+      vehicles,
+      campaigns,
+      owner_name: ownerName,
+      captured_by_gang_name: capturedByGangName ?? undefined,
+      refund_credits: refundCredits,
+    },
+    gang: {
+      id: gangBasic.id,
+      credits: gangBasic.credits,
+      reputation: gangBasic.reputation,
+      trade_points: gangBasic.trade_points,
+      edition_slug: gangBasic.edition_slug ?? null,
+      gang_type: gangBasic.gang_type,
+      gang_type_id: gangBasic.gang_type_id,
+      custom_gang_type_id: gangBasic.custom_gang_type_id,
+      venator_ranks_incomplete: gangBasic.venator_ranks_incomplete ?? false,
+      gang_affiliation_id: gangBasic.gang_affiliation_id,
+      gang_affiliation_name: gangBasic.gang_affiliation?.name,
+      positioning: gangPositioning
+    },
+    equipment,
+    loadouts,
+  };
+
+  return { fighterData, gangFighters, gangOwnerId: gangBasic.user_id };
+}
