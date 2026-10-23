@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import postgres from 'postgres';
 import { DEVELOPMENT_PASSWORD, fixtureId, LOCAL_DATABASE_URL, optionsFromArgs } from './dev-dataset-utils.mjs';
 import { generateDataset, populateDataset, refreshDevelopmentFinancials } from './seed-development.mjs';
+import { createSeedWriter, SEED_BATCH_SIZE } from './dev-dataset-writer.mjs';
 
 const enabled = process.env.RUN_DEV_DATASET_INTEGRATION === '1';
 
@@ -53,6 +54,10 @@ test('both editions generate coherent data, rerun safely, and leave the database
           await tx`SELECT pg_advisory_xact_lock(hashtextextended('mundamanager-development-dataset',0))`;
           const existingId = await existingAccount(tx);
           const missingProfileId = await existingAccount(tx, true);
+          const otherGeneratedId = await existingAccount(tx, true);
+          await tx`UPDATE auth.users SET raw_app_meta_data=raw_app_meta_data ||
+            '{"development_dataset":{"generator":"mundamanager-dev","seed":"another-dataset"}}'::jsonb
+            WHERE id=${otherGeneratedId}`;
           const [existingBefore] = await tx`SELECT to_jsonb(u) AS account,to_jsonb(p) AS profile
             FROM auth.users u JOIN profiles p ON p.id=u.id WHERE u.id=${existingId}`;
           const start = queries.length;
@@ -62,6 +67,13 @@ test('both editions generate coherent data, rerun safely, and leave the database
           const generationQueries = queries.slice(start);
           assert.equal(generationQueries.filter(q => q.includes('SELECT fd.* FROM public.fighter_defaults')).length, 1);
           assert.equal(generationQueries.filter(q => q.includes('SELECT m.* FROM public.fighter_effect_type_modifiers')).length, 1);
+          const insertsInto = table => generationQueries.filter(q => new RegExp(`INSERT INTO "public"\\."${table}"`, 'i').test(q));
+          assert.equal(insertsInto('fighters').length, Math.ceil(result.inserted.fighters / SEED_BATCH_SIZE));
+          assert.equal(insertsInto('notifications').length, 1);
+          assert.ok(insertsInto('fighter_equipment').length < result.inserted.fighter_equipment / 5);
+          assert.equal(generationQueries.filter(q => /INSERT INTO auth\.users/i.test(q)).length, 1);
+          assert.equal(generationQueries.filter(q => /INSERT INTO auth\.identities/i.test(q)).length, 1);
+          assert.equal(generationQueries.filter(q => /UPDATE gangs g SET rating=v\.rating/i.test(q)).length, 1);
           assert.equal(result.gangs.length, 10);
           assert.equal(result.validation.queued_emails, 0);
           assert.equal(result.inserted.custom_fighter_types, 10);
@@ -70,6 +82,34 @@ test('both editions generate coherent data, rerun safely, and leave the database
           assert.equal(result.validation.members, 10 + result.includedExistingUsers.length);
           assert.equal(result.includedExistingUsers.find(u => u.id === existingId).role, 'MEMBER');
           assert.equal(result.includedExistingUsers.find(u => u.id === missingProfileId).profileCreated, true);
+          assert.ok(!result.includedExistingUsers.some(u => u.id === otherGeneratedId));
+          const [excluded] = await tx`SELECT
+            (SELECT count(*) FROM campaign_members WHERE campaign_id=${result.campaignId}
+              AND user_id=${otherGeneratedId})::int AS memberships,
+            (SELECT count(*) FROM profiles WHERE id=${otherGeneratedId})::int AS profiles`;
+          assert.equal(excluded.memberships, 0);
+          assert.equal(excluded.profiles, 0);
+          const [arcs] = await tx`SELECT
+            (SELECT count(*) FROM fighter_type_skill_access a JOIN custom_fighter_types f ON f.id=a.custom_fighter_type_id
+              WHERE f.user_id=ANY(${tx.array(result.users.map(u => u.id), 2950)})
+              AND num_nonnulls(a.skill_type_id,a.custom_skill_type_id)<>1)::int AS invalid_skill_arcs,
+            (SELECT count(*) FROM custom_shared WHERE campaign_id=${result.campaignId}
+              AND num_nonnulls(custom_fighter_type_id,custom_equipment_id,custom_skill_id,custom_collection_id)<>1)::int AS invalid_shares`;
+          assert.equal(arcs.invalid_skill_arcs, 0);
+          assert.equal(arcs.invalid_shares, 0);
+          if (!minimum && edition === 'n23') {
+            const resourceName = `batch-failure-${randomUUID()}`;
+            await assert.rejects(tx.savepoint(async sp => {
+              const writer = createSeedWriter(sp, `${config.date}T00:00:00Z`, {});
+              for (let i = 0; i < 2; i++) writer.insert('campaign_resources', {
+                id: randomUUID(), campaign_id: result.campaignId, resource_name: resourceName,
+              });
+              await writer.flush();
+            }), error => error.code === '23505');
+            const [failedRows] = await tx`SELECT count(*)::int AS count FROM campaign_resources
+              WHERE campaign_id=${result.campaignId} AND resource_name=${resourceName}`;
+            assert.equal(failedRows.count, 0);
+          }
           const notifications = await tx`SELECT created_at,expires_at FROM notifications
             WHERE receiver_id=ANY(${tx.array(result.users.map(user => user.id), 2950)})`;
           assert.equal(notifications.length, 50);
@@ -119,7 +159,8 @@ test('both editions generate coherent data, rerun safely, and leave the database
             FROM auth.users u JOIN profiles p ON p.id=u.id WHERE u.id=${existingId}`;
           assert.deepEqual(existingAfter, existingBefore);
           const [coverage] = await tx`SELECT count(*)::int AS missing FROM auth.users u
-            WHERE NOT EXISTS (SELECT 1 FROM campaign_members cm
+            WHERE NOT (coalesce(u.raw_app_meta_data,'{}'::jsonb) ? 'development_dataset')
+            AND NOT EXISTS (SELECT 1 FROM campaign_members cm
               WHERE cm.campaign_id=${result.campaignId} AND cm.user_id=u.id)`;
           assert.equal(coverage.missing, 0);
           const [states] = await tx`SELECT
@@ -198,6 +239,10 @@ test('both editions generate coherent data, rerun safely, and leave the database
           await tx`UPDATE campaign_members SET role='ARBITRATOR'
             WHERE campaign_id=${result.campaignId} AND user_id=${existingId}`;
           const laterId = await existingAccount(tx);
+          const laterGeneratedId = await existingAccount(tx);
+          await tx`UPDATE auth.users SET raw_app_meta_data=raw_app_meta_data ||
+            '{"development_dataset":{"generator":"mundamanager-dev","seed":"later-dataset"}}'::jsonb
+            WHERE id=${laterGeneratedId}`;
           const beforePreview = await snapshot(tx);
           await assert.rejects(tx.savepoint(sp => populateDataset(sp, { ...config, apply: false })), /Preview rolled back/);
           assert.deepEqual(await snapshot(tx), beforePreview);
@@ -206,6 +251,10 @@ test('both editions generate coherent data, rerun safely, and leave the database
           assert.equal(updated.includedExistingUsers.find(u => u.id === laterId).added, true);
           assert.equal(updated.includedExistingUsers.find(u => u.id === existingId).role, 'ARBITRATOR');
           assert.equal(updated.inserted.campaign_members, 1);
+          assert.ok(!updated.includedExistingUsers.some(u => [otherGeneratedId,laterGeneratedId].includes(u.id)));
+          const [laterExcluded] = await tx`SELECT count(*)::int AS count FROM campaign_members
+            WHERE campaign_id=${result.campaignId} AND user_id IN (${otherGeneratedId},${laterGeneratedId})`;
+          assert.equal(laterExcluded.count, 0);
           const populated = await snapshot(tx);
           const repeatStart = queries.length;
           const repeated = await populateDataset(tx, config);

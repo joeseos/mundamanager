@@ -83,14 +83,20 @@ below describe a fresh run with the default ten gangs and twenty historic battle
 - Ten generated, email-confirmed accounts, each owning one generated gang.
 - The first account is a campaign `OWNER` and app admin; the second is an
   `ARBITRATOR`; the other eight are `MEMBER`s with ordinary app-user profiles.
-- All other existing accounts in the local database are also joined as campaign
-  `MEMBER`s, including accounts created by other generator seeds.
+- Existing non-generated accounts in the local database are also joined as campaign
+  `MEMBER`s, so your developer/tester login can access each new campaign. Accounts
+  from other generated datasets are excluded using their `development_dataset`
+  auth app-metadata marker, not their username, email, or role. The new campaign's
+  own generated owner accounts remain members as usual.
 - Missing profiles for existing auth accounts are created with unique local
   usernames, because campaign membership references `profiles`.
 
 Existing passwords, auth metadata, profile/app roles, and existing membership
 roles are preserved. Existing accounts do not receive extra gangs, and existing
 gangs are not moved into the generated campaign.
+The exclusion only prevents new memberships; it does not remove generated users
+already added to older campaigns. There is no option to include other datasets'
+generated users automatically.
 
 ### Gangs and rosters
 
@@ -185,7 +191,7 @@ tournament-legal gang composition and purchases.
 | `--dry-run` | Implicit default | Explicitly request rollback-only preview. Cannot be combined with `--apply`. |
 | `--seed NAME` | `underhive` | Non-blank string of 1–100 characters. Controls random choices and dataset identity. |
 | `--edition SLUG` | `n23` | `n23` or `n26`; resolves the edition from the database by slug. |
-| `--gangs N` | `10` | Integer from 2 to 50; also controls generated owner-account count. Existing accounts are additional members. |
+| `--gangs N` | `10` | Integer from 2 to 50; also controls generated owner-account count. Existing non-generated accounts are additional members. |
 | `--fighters-min N` | `8` | Integer from 6 to 30, not greater than `--fighters-max`. |
 | `--fighters-max N` | `14` | Integer from 6 to 30, not less than `--fighters-min`. |
 | `--battles N` | `20` | Integer from 1 to 200; played historical reports only. Challenge/session counts are additional. |
@@ -278,11 +284,13 @@ in generated auth app metadata records the generator version and sizing options;
 editable campaign descriptions are not used as the manifest.
 
 - **Same seed, already complete:** leave fixture records and your edits alone.
-  Once all local accounts have memberships, the rerun is a no-op and does not
+  Once all eligible local accounts have memberships, the rerun is a no-op and does not
   disable/re-enable table triggers.
-- **New local accounts since the last run:** add their missing profiles and/or
+- **New non-generated local accounts since the last run:** add their missing profiles and/or
   memberships, without duplicating or changing existing memberships. Preview
   stages those additions and rolls them back; `--apply` keeps them.
+- **Accounts from another generated dataset:** skip them on fresh generation and
+  reruns, without creating missing profiles or changing existing memberships.
 - **Different sizing options/version for an existing seed:** stop with a clear
   conflict message. Choose a new seed rather than replacing the old dataset.
 - **Campaign deleted but generated accounts remain:** stop with an explicit
@@ -300,6 +308,8 @@ latest fixture behavior without discarding work in an older dataset.
 Entry point: [`scripts/seed-development.mjs`](seed-development.mjs).
 Argument validation, IDs, randomization, and catalog-filter helpers live in
 [`scripts/dev-dataset-utils.mjs`](dev-dataset-utils.mjs).
+The staged bulk-insert writer lives in
+[`scripts/dev-dataset-writer.mjs`](dev-dataset-writer.mjs).
 
 1. Parse/validate options and enforce the local connection guard.
 2. Connect directly with `postgres.js`, using one connection and no prepared
@@ -307,7 +317,7 @@ Argument validation, IDs, randomization, and catalog-filter helpers live in
    per-statement timeout, and acquire the generator's transaction-scoped advisory
    lock. These are not a 30-second limit for the entire run.
 3. Detect an existing campaign or partial dataset. Existing campaigns synchronize
-   missing local memberships only; fully up-to-date campaigns need no trigger DDL.
+   missing eligible local memberships only; fully up-to-date campaigns need no trigger DDL.
 4. Resolve the edition and catalog. Preload fighter defaults and effect modifiers
    once, grouping them in memory rather than querying for every fighter/effect.
    Resolve beast-equipment relationships and explicit generic vehicle eligibility.
@@ -315,6 +325,15 @@ Argument validation, IDs, randomization, and catalog-filter helpers live in
    Foreign keys, check constraints, and the auth profile trigger remain enabled.
 6. Insert generated auth accounts, confirmed email identities, campaign data,
    rosters, custom content, gear, loadouts, effects, map, and territories.
+   Auth accounts/identities use bulk statements. Public fixture rows are queued
+   by table and written in foreign-key dependency order, in batches of at most
+   **250 rows** and within a conservative SQL parameter budget. Rows with
+   different supplied columns are batched separately so omitted fields keep
+   their database defaults and official/custom foreign-key arcs are preserved.
+   Parent rows are flushed before dependent reads/updates, with active-loadout
+   references and fighter states assigned in bulk after their parents exist.
+   The enabled auth profile trigger still runs per account inside PostgreSQL;
+   batching reduces client/database round trips, not constraint checks.
 7. Finalize non-conflicting fighter states and calculate financial values from
    stored assets. Costing reuses the pure implementation in
    [`utils/fighter-cost.ts`](../utils/fighter-cost.ts), also used by the app's
@@ -322,9 +341,11 @@ Argument validation, IDs, randomization, and catalog-filter helpers live in
    [`countsTowardRating`](../utils/fighter-status.ts): captured/killed/retired/enslaved
    fighters are excluded; recovery alone does not exclude rating. Wealth includes
    rating, credits, stash, and unassigned vehicle value.
+   Asset rows are grouped by gang once instead of scanning the whole dataset
+   again for each gang, and gang financial values are persisted in one bulk update.
 8. Create battle history, challenges, and sessions from eligible crews, with
    edition-appropriate session conditions and finalized rating snapshots.
-9. Insert sample social/notification records and include existing local accounts.
+9. Insert sample social/notification records and include existing non-generated local accounts.
    Restore notification trigger states and validate core row counts, session
    relationships, and absence of queued email for the sample send.
 10. Commit for `--apply`; otherwise intentionally roll back. Any error rolls back
@@ -387,13 +408,16 @@ RUN_DEV_DATASET_INTEGRATION=1 node --test scripts/dev-dataset-utils.test.mjs scr
 ```
 
 Use Node 24 as above. Tests cover both editions, default/minimum rosters,
-account hashes/identities, existing-user inclusion, role preservation, relationships,
+account hashes/identities, existing-user inclusion, exclusion of other generated
+accounts on generation/reruns, role preservation, relationships,
 crew state eligibility, edition conditions, ratings, app-compatible log types and
 descriptions, recruitment/battle chronology, visible notifications with historical
 dates, no-op reruns, partial datasets,
 timestamp helpers, batched reference reads, email suppression, and rollback/trigger
 restoration. Integration tests create temporary accounts and records inside
 transactions/savepoints; they do not keep a populated campaign afterward.
+Batch-writer checks cover row/parameter limits, mixed column sets, bulk statement
+counts, and rollback when a multi-row insert fails a uniqueness constraint.
 
 ## Troubleshooting and cleanup
 

@@ -6,6 +6,7 @@ import { assertLocalDatabase, DEVELOPMENT_PASSWORD, eligibleVehicleFighters, fix
 import { hasBlazeCondition, canLeaveBattlefield } from '../types/edition.ts';
 import { countsTowardRating } from '../utils/fighter-status.ts';
 import { calculateFighterCost, calculateVehicleCost } from '../utils/fighter-cost.ts';
+import { createSeedWriter, insertBatches } from './dev-dataset-writer.mjs';
 
 const VERSION = 1;
 const DAY = 86_400_000;
@@ -83,18 +84,23 @@ async function catalogs(sql, slug) {
     defaults: groupedBy(defaults, 'fighter_type_id'), modifiers: groupedBy(modifiers, 'fighter_effect_type_id') };
 }
 
-async function localAccountRows(sql, campaignId) {
+async function localAccountRows(sql, campaignId, generatedUsers) {
   return sql`SELECT u.id,u.email,p.username,cm.id AS member_id,cm.role
     FROM auth.users u LEFT JOIN public.profiles p ON p.id=u.id
     LEFT JOIN LATERAL (
       SELECT id,role FROM public.campaign_members
       WHERE campaign_id=${campaignId} AND user_id=u.id ORDER BY id LIMIT 1
-    ) cm ON true ORDER BY u.id`;
+    ) cm ON true
+    WHERE NOT (coalesce(u.raw_app_meta_data,'{}'::jsonb) ? 'development_dataset')
+      OR u.id=ANY(${sql.array(generatedUsers.map(user => user.id), 2950)})
+    ORDER BY u.id`;
 }
 
 async function includeExistingUsers(sql, { campaignId, ownerId, generatedUsers, id, insert, timestamp }, existing) {
   const generatedRoles = new Map(generatedUsers.map(user => [user.id, user.role]));
-  existing ??= await localAccountRows(sql, campaignId);
+  existing ??= await localAccountRows(sql, campaignId, generatedUsers);
+  const usernames = existing.some(user => user.username === null)
+    ? new Set((await sql`SELECT username FROM public.profiles`).map(p => p.username)) : null;
   const included = [];
   for (const user of existing) {
     if (generatedRoles.has(user.id) && user.member_id) continue;
@@ -103,10 +109,11 @@ async function includeExistingUsers(sql, { campaignId, ownerId, generatedUsers, 
       const base = `local_${user.id.replaceAll('-', '').slice(0, 14)}`;
       let username = base;
       let suffix = 0;
-      while ((await sql`SELECT 1 FROM public.profiles WHERE username=${username}`).length) {
+      while (usernames.has(username)) {
         const ending = `_${++suffix}`;
         username = `${base.slice(0, 20 - ending.length)}${ending}`;
       }
+      usernames.add(username);
       await insert('profiles', { id: user.id, username });
       user.username = username;
     }
@@ -156,19 +163,25 @@ export async function refreshDevelopmentFinancials(sql, gangs) {
     fighter_equipment: equipmentByFighter.get(f.id) ?? [], fighter_skills: skillsByFighter.get(f.id) ?? [],
     fighter_effects: effectsByFighter.get(f.id) ?? [] }]));
   const equipmentMap = new Map(equipmentRows.map(e => [e.id, e]));
+  const fightersByGang = groupedBy([...fighterMap.values()], 'gang_id');
+  const stashByGang = groupedBy(equipmentRows.filter(e => e.gang_stash), 'gang_id');
+  const unassignedByGang = groupedBy(vehicleRows.filter(v => !v.fighter_id), 'gang_id');
+  const financials = [];
   for (const gang of gangs) {
-    const rating = [...fighterMap.values()].filter(f => f.gang_id === gang.id && countsTowardRating(f))
+    const rating = (fightersByGang.get(gang.id) ?? []).filter(countsTowardRating)
       .reduce((sum, f) => sum + calculateFighterCost({ ...f, beast_link: beastsByPet.get(f.id)?.[0] ?? null,
         vehicles: vehiclesByFighter.get(f.id) ?? [],
         fighter_exotic_beasts: (beastsByOwner.get(f.id) ?? []).map(link => ({ ...link,
           fighter_equipment: equipmentMap.get(link.fighter_equipment_id) ?? null,
           pet: fighterMap.get(link.fighter_pet_id) ?? null })) }), 0);
-    const stash = equipmentRows.filter(e => e.gang_id === gang.id && e.gang_stash).reduce((sum, e) => sum + e.purchase_cost, 0);
-    const unassignedVehicles = vehicleRows.filter(v => v.gang_id === gang.id && !v.fighter_id)
+    const stash = (stashByGang.get(gang.id) ?? []).reduce((sum, e) => sum + e.purchase_cost, 0);
+    const unassignedVehicles = (unassignedByGang.get(gang.id) ?? [])
       .reduce((sum, vehicle) => sum + calculateVehicleCost(vehicle), 0);
     gang.rating = rating;
-    await sql`UPDATE gangs SET rating=${rating},wealth=${rating + gang.credits + stash + unassignedVehicles} WHERE id=${gang.id}`;
+    financials.push({ id: gang.id, rating, wealth: rating + gang.credits + stash + unassignedVehicles });
   }
+  if (financials.length) await sql`UPDATE gangs g SET rating=v.rating,wealth=v.wealth
+    FROM jsonb_to_recordset(${sql.json(financials)}) AS v(id uuid,rating numeric,wealth numeric) WHERE g.id=v.id`;
 }
 
 // Exported for rollback-only integration tests; normal callers use generateDataset.
@@ -190,14 +203,8 @@ export async function populateDataset(sql, config) {
   const report = { seed: config.seed, edition: config.edition, date: config.date,
     committed: false, alreadyExists: false, campaignId, campaignPath: `/campaigns/${campaignId}`,
     password: DEVELOPMENT_PASSWORD, users, includedExistingUsers: [], gangs: [], inserted: {}, warnings: [] };
-  let timestampColumns;
-  const insert = async (table, row) => {
-    timestampColumns ??= groupedBy(await sql`SELECT table_name,column_name FROM information_schema.columns
-      WHERE table_schema='public' AND column_name IN ('created_at','updated_at')`, 'table_name');
-    const timestamps = Object.fromEntries((timestampColumns.get(table) ?? []).map(c => [c.column_name, ago(0)]));
-    await sql`INSERT INTO ${sql(`public.${table}`)} ${sql({ ...timestamps, ...row })}`;
-    report.inserted[table] = (report.inserted[table] ?? 0) + 1;
-  };
+  const writer = createSeedWriter(sql, ago(0), report.inserted);
+  const { insert } = writer;
   const includeLocalAccounts = existing => includeExistingUsers(sql, {
     campaignId, ownerId: users[0].id, generatedUsers: users, id, insert, timestamp: ago(0),
   }, existing);
@@ -210,10 +217,11 @@ export async function populateDataset(sql, config) {
     const gangRows = await sql`SELECT id,name,gang_type FROM public.gangs WHERE id IN
       (SELECT gang_id FROM public.campaign_gangs WHERE campaign_id=${campaignId}) ORDER BY name`;
     report.gangs = gangRows.map(gang => ({ ...gang, path: `/gang/${gang.id}` }));
-    const accounts = await localAccountRows(sql, campaignId);
+    const accounts = await localAccountRows(sql, campaignId, users);
     const needsWrites = accounts.some(user => !user.member_id || user.username === null);
     const restoreNotifications = needsWrites ? await pauseNotifications(sql) : null;
     report.includedExistingUsers = await includeLocalAccounts(accounts);
+    await writer.flush();
     if (restoreNotifications) await restoreNotifications();
     report.warnings.push('Existing fixtures/credentials left unchanged; missing local account memberships are added only with --apply.');
     if (!config.apply && Object.keys(report.inserted).length) {
@@ -237,22 +245,25 @@ export async function populateDataset(sql, config) {
   // trigger enabled, create email identities, and hash local-only passwords in Postgres.
   const [crypto] = await sql`SELECT n.nspname AS schema_name FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='pgcrypto'`;
   if (!crypto) throw new Error('The local pgcrypto extension is required for development passwords.');
-  for (const user of users) {
-    await sql`INSERT INTO auth.users (instance_id,id,aud,role,email,encrypted_password,
+  await sql`INSERT INTO auth.users (instance_id,id,aud,role,email,encrypted_password,
       email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at,
       confirmation_token,recovery_token,email_change_token_new,email_change,email_change_token_current,reauthentication_token)
-      VALUES ('00000000-0000-0000-0000-000000000000',${user.id},'authenticated','authenticated',${user.email},
+      SELECT '00000000-0000-0000-0000-000000000000'::uuid,u.id,'authenticated','authenticated',u.email,
       ${sql(`${crypto.schema_name}.crypt`)}(${DEVELOPMENT_PASSWORD},${sql(`${crypto.schema_name}.gen_salt`)}('bf')),
       ${ago(60)},${sql.json({ provider: 'email', providers: ['email'], development_dataset: manifest })},
-      ${sql.json({ username: user.username })},${ago(60)},${ago(0)},'','','','','','')`;
-    await sql`INSERT INTO auth.identities (id,provider_id,user_id,identity_data,provider,created_at,updated_at)
-      VALUES (${id(`identity:${user.id}`)},${user.id},${user.id},
-      ${sql.json({ sub: user.id, email: user.email, email_verified: true, phone_verified: false })},'email',${ago(60)},${ago(0)})`;
-    // The bootstrap trigger normally creates this; tolerate a local installation without it.
-    await sql`INSERT INTO public.profiles (id,username) VALUES (${user.id},${user.username}) ON CONFLICT (id) DO NOTHING`;
-    await sql`UPDATE public.profiles SET user_role=${user === users[0] ? 'admin' : 'user'},
-      created_at=${ago(60)},updated_at=${ago(0)} WHERE id=${user.id}`;
-  }
+      jsonb_build_object('username',u.username),${ago(60)},${ago(0)},'','','','','',''
+      FROM jsonb_to_recordset(${sql.json(users.map(({ id, email, username }) => ({ id, email, username })))})
+        AS u(id uuid,email text,username text)`;
+  const identities = users.map(user => ({ id: id(`identity:${user.id}`), provider_id: user.id, user_id: user.id,
+    identity_data: sql.json({ sub: user.id, email: user.email, email_verified: true, phone_verified: false }),
+    provider: 'email', created_at: ago(60), updated_at: ago(0) }));
+  for (const batch of insertBatches(identities)) await sql`INSERT INTO auth.identities ${sql(batch.rows, batch.columns)}`;
+  // The bootstrap trigger normally creates these; tolerate its absence locally.
+  await sql`INSERT INTO public.profiles (id,username)
+    SELECT u.id,u.username FROM jsonb_to_recordset(${sql.json(users.map(({ id, username }) => ({ id, username })))})
+      AS u(id uuid,username text) ON CONFLICT (id) DO NOTHING`;
+  await sql`UPDATE public.profiles SET user_role=CASE WHEN id=${users[0].id} THEN 'admin' ELSE 'user' END,
+    created_at=${ago(60)},updated_at=${ago(0)} WHERE id=ANY(${sql.array(users.map(u => u.id), 2950)})`;
   report.inserted['auth.users'] = users.length;
   report.inserted['auth.identities'] = users.length;
   report.inserted.profiles = users.length;
@@ -400,8 +411,6 @@ export async function populateDataset(sql, config) {
       // special_rules is jsonb[] on fighters, unlike the JSON arrays on custom types.
       fighter.createdAt = row.created_at;
       await insert('fighters', row);
-      if (!custom) await sql`UPDATE public.fighters SET special_rules=ft.special_rules
-        FROM public.fighter_types ft WHERE fighters.id=${fighter.id} AND ft.id=${source.id}`;
       if (custom) {
         await addEquipment(gang, fighter, customWeapon, `custom-owned-weapon:${i}`, true);
         await insert('fighter_skills', { id: id(`custom-owned-skill:${i}`), fighter_id: fighter.id,
@@ -442,7 +451,6 @@ export async function populateDataset(sql, config) {
         user_id: user.id, loadout_name: 'Patrol kit' });
       for (const equipmentId of fighter.equipment) await insert('fighter_loadout_equipment', {
         loadout_id: loadoutId, fighter_equipment_id: equipmentId });
-      await sql`UPDATE public.fighters SET active_loadout_id=${loadoutId} WHERE id=${fighter.id}`;
       fighter.loadoutId = loadoutId;
       await log(gang, 'fighter_added', `Added fighter "${fighter.name}" (${row.credits} credits).`, fighter.id, row.created_at);
     }
@@ -491,14 +499,24 @@ export async function populateDataset(sql, config) {
       const fighter = candidates[0];
       await applyEffect(gang, fighter, random.pick(injuries), `injury:${i}`);
       fighter.recovery = true;
-      await sql`UPDATE fighters SET recovery=true WHERE id=${fighter.id}`;
     }
     const captive = candidates.find(f => !f.recovery);
     if (i % 4 === 0 && captive) {
       captive.captured = true;
-      await sql`UPDATE fighters SET captured=true,captured_by_gang_id=${gangs[(i + 1) % gangs.length].id} WHERE id=${captive.id}`;
+      captive.capturedByGangId = gangs[(i + 1) % gangs.length].id;
     }
   }
+  await writer.flush();
+  const fighterUpdates = gangs.flatMap(gang => gang.fighters.map(fighter => ({
+    id: fighter.id, loadout_id: fighter.loadoutId, recovery: fighter.recovery,
+    captured: fighter.captured, captured_by_gang_id: fighter.capturedByGangId ?? null,
+  })));
+  await sql`UPDATE public.fighters f SET active_loadout_id=v.loadout_id,recovery=v.recovery,
+    captured=v.captured,captured_by_gang_id=v.captured_by_gang_id
+    FROM jsonb_to_recordset(${sql.json(fighterUpdates)})
+      AS v(id uuid,loadout_id uuid,recovery boolean,captured boolean,captured_by_gang_id uuid) WHERE f.id=v.id`;
+  await sql`UPDATE public.fighters f SET special_rules=ft.special_rules FROM public.fighter_types ft
+    WHERE f.id=ANY(${sql.array(fighterUpdates.map(f => f.id), 2950)}) AND f.fighter_type_id=ft.id`;
   await refreshDevelopmentFinancials(sql, gangs);
 
   const pairs = [];
@@ -608,6 +626,7 @@ export async function populateDataset(sql, config) {
       created_at: new Date(anchor - j * 3_600_000).toISOString(), expires_at: notificationExpiresAt });
   }
   report.includedExistingUsers = await includeLocalAccounts();
+  await writer.flush();
   await restoreNotifications();
   report.gangs = gangs.map(gang => ({ id: gang.id, name: gang.name, gang_type: gang.type.gang_type,
     fighters: gang.fighters.length, owner: gang.user.email, path: `/gang/${gang.id}` }));
@@ -667,8 +686,9 @@ Usage: npm run db:seed:dev -- [options]
   --date YYYY-MM-DD        Anchor fixture timestamps (today in UTC)
   --database-url URL       Local postgres only; DATABASE_URL is ignored
 
-Existing fixtures are never overwritten. All existing local accounts are joined
-as campaign members, including accounts added since a previous run.
+Existing fixtures are never overwritten. Existing non-generated local accounts
+are joined as campaign members, including accounts added since a previous run.
+Accounts belonging to other generated datasets are skipped.
 A new seed adds another campaign.
 See supabase/README.md for coverage, credentials, and cache caveats.`);
     return;
