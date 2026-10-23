@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Combobox } from '@/components/ui/combobox'
+import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
+import { LuX } from 'react-icons/lu'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { GangCardContent } from '@/components/home/gang-card'
 import type { EditionSlug } from '@/types/edition'
@@ -13,6 +15,8 @@ import type { PublicGang, PublicGangFilterOption, PublicGangFilters } from '@/ap
 
 interface BrowseGangsProps {
   filters: PublicGangFilters;
+  /** The filtered user's name, looked up from filters.userId */
+  username: string | null;
   gangTypes: PublicGangFilterOption[];
   subtypes: PublicGangFilterOption[];
   gangs: PublicGang[];
@@ -21,6 +25,7 @@ interface BrowseGangsProps {
 
 function browseGangsHref(filters: Omit<PublicGangFilters, 'page'>, page = 1): string {
   const params = new URLSearchParams({ edition: filters.edition });
+  if (filters.userId) params.set('user', filters.userId);
   if (filters.gangTypeId) params.set('type', filters.gangTypeId);
   if (filters.subtypeId) params.set('subtype', filters.subtypeId);
   if (filters.minRating !== null) params.set('minRating', String(filters.minRating));
@@ -32,9 +37,12 @@ function browseGangsHref(filters: Omit<PublicGangFilters, 'page'>, page = 1): st
 const ratingInput = (value: string): number | null =>
   value.trim() === '' ? null : Number(value);
 
-export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: BrowseGangsProps) {
+export function BrowseGangs({ filters, username, gangTypes, subtypes, gangs, hasMore }: BrowseGangsProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [user, setUser] = useState<UserSearchResult | null>(
+    filters.userId && username ? { id: filters.userId, username } : null
+  );
   const [gangTypeId, setGangTypeId] = useState(filters.gangTypeId ?? '');
   const [subtypeId, setSubtypeId] = useState(filters.subtypeId ?? '');
   const [minRating, setMinRating] = useState(filters.minRating?.toString() ?? '');
@@ -46,6 +54,7 @@ export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: Br
     e.preventDefault();
     search(browseGangsHref({
       edition: filters.edition,
+      userId: user?.id ?? null,
       gangTypeId: gangTypeId || null,
       subtypeId: subtypeId || null,
       minRating: ratingInput(minRating),
@@ -53,9 +62,9 @@ export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: Br
     }));
   };
 
-  // Gang types and subtypes belong to an edition, so switching it starts over
+  // Gang types and subtypes belong to an edition, so switching it clears them
   const handleEditionChange = (edition: EditionSlug) => {
-    search(browseGangsHref({ edition, gangTypeId: null, subtypeId: null, minRating: null, maxRating: null }));
+    search(browseGangsHref({ edition, userId: user?.id ?? null, gangTypeId: null, subtypeId: null, minRating: null, maxRating: null }));
   };
 
   return (
@@ -65,8 +74,26 @@ export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: Br
         <EditionToggle value={filters.edition} onChange={handleEditionChange} />
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-4 gap-2 items-end">
-        <div className="col-span-2 md:col-span-1">
+      <form onSubmit={handleSubmit} className="grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
+        <div className="col-span-2">
+          <span className="text-sm font-medium">Username</span>
+          {user ? (
+            <div className="flex items-center justify-between h-10 px-3 rounded-md border border-input bg-muted text-base md:text-sm">
+              <span className="truncate">{user.username}</span>
+              <button
+                type="button"
+                onClick={() => setUser(null)}
+                className="text-muted-foreground hover:text-foreground"
+                aria-label="Clear username"
+              >
+                <LuX className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <UserSearchBar placeholder="Any" onSelect={setUser} />
+          )}
+        </div>
+        <div className="col-span-2">
           <label htmlFor="browse-gang-type" className="text-sm font-medium">Gang Type</label>
           <Combobox
             id="browse-gang-type"
@@ -78,7 +105,7 @@ export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: Br
           />
         </div>
         {subtypes.length > 0 && (
-          <div className="col-span-2 md:col-span-1">
+          <div className="col-span-2">
             <label htmlFor="browse-gang-subtype" className="text-sm font-medium">Subtype</label>
             <Combobox
               id="browse-gang-subtype"
@@ -90,7 +117,7 @@ export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: Br
             />
           </div>
         )}
-        <div>
+        <div className="md:col-span-3">
           <label htmlFor="browse-min-rating" className="text-sm font-medium">Min Rating</label>
           <Input
             id="browse-min-rating"
@@ -100,7 +127,7 @@ export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: Br
             onChange={(e) => setMinRating(e.target.value)}
           />
         </div>
-        <div>
+        <div className="md:col-span-3">
           <label htmlFor="browse-max-rating" className="text-sm font-medium">Max Rating</label>
           <Input
             id="browse-max-rating"
@@ -110,7 +137,7 @@ export function BrowseGangs({ filters, gangTypes, subtypes, gangs, hasMore }: Br
             onChange={(e) => setMaxRating(e.target.value)}
           />
         </div>
-        <Button type="submit" disabled={isPending} className="col-span-2 md:col-span-4">
+        <Button type="submit" disabled={isPending} className="col-span-2 md:col-span-6">
           {isPending ? 'Searching...' : 'Search'}
         </Button>
       </form>

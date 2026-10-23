@@ -15,6 +15,7 @@ export const PUBLIC_GANGS_PAGE_SIZE = 50;
 
 export interface PublicGangFilters {
   edition: EditionSlug;
+  userId: string | null;
   gangTypeId: string | null;
   subtypeId: string | null;
   minRating: number | null;
@@ -45,12 +46,14 @@ const ratingParam = (value: string | string[] | undefined): number | null => {
 /** Filters from the /gangs query string; anything malformed is dropped. */
 export function parsePublicGangFilters(searchParams: SearchParams): PublicGangFilters {
   const edition = firstParam(searchParams.edition) === EDITION_N23 ? EDITION_N23 : EDITION_N26;
+  const userId = firstParam(searchParams.user);
   const gangTypeId = firstParam(searchParams.type);
   const subtypeId = firstParam(searchParams.subtype);
   const page = Number(firstParam(searchParams.page));
 
   return {
     edition,
+    userId: isUuid(userId) ? userId : null,
     gangTypeId: isUuid(gangTypeId) ? gangTypeId : null,
     subtypeId: isUuid(subtypeId) ? subtypeId : null,
     minRating: ratingParam(searchParams.minRating),
@@ -124,6 +127,7 @@ export async function searchPublicGangs(filters: PublicGangFilters): Promise<{
           .innerJoin(editions, eq(editions.id, gangTypes.edition_id))
           .where(eq(editions.slug, filters.edition))
       ),
+      filters.userId ? eq(gang.user_id, filters.userId) : undefined,
       filters.gangTypeId ? eq(gang.gang_type_id, filters.gangTypeId) : undefined,
       filters.subtypeId ? sql`${gang.gang_subtypes} @> ${JSON.stringify([filters.subtypeId])}::jsonb` : undefined,
       filters.minRating !== null ? gte(gang.rating, filters.minRating) : undefined,

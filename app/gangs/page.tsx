@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
 import { BrowseGangs } from "@/components/browse-gangs";
+import { getUserProfile } from "@/app/lib/shared/gang-data";
 import {
   getPublicGangFilterOptions,
   parsePublicGangFilters,
@@ -21,9 +22,10 @@ export default async function BrowseGangsPage(props: {
   }
 
   const filters = parsePublicGangFilters(await props.searchParams);
-  const [{ gangTypes, subtypes }, { gangs, hasMore }] = await Promise.all([
+  const [{ gangTypes, subtypes }, { gangs, hasMore }, profile] = await Promise.all([
     getPublicGangFilterOptions(filters.edition),
     searchPublicGangs(filters),
+    filters.userId ? getUserProfile(filters.userId) : null,
   ]);
 
   return (
@@ -33,6 +35,7 @@ export default async function BrowseGangsPage(props: {
           // Remount on each search so the inputs show the filters in the URL
           key={JSON.stringify(filters)}
           filters={filters}
+          username={profile?.username ?? null}
           gangTypes={gangTypes}
           subtypes={subtypes}
           gangs={gangs}
