@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/utils/supabase/server'
-import { parseExpiresInDays, prepareNotificationHtml } from '@/utils/notifications'
+import { parseExpiresInDays, parseLoggedInSince, prepareNotificationHtml } from '@/utils/notifications'
 import { isUuid } from '@/utils/uuid'
 import { notificationSendFailure } from '@/utils/sent-notification-history'
 
@@ -10,6 +10,7 @@ type SendBody = {
   expiresInDays?: unknown
   audience?: unknown
   userIds?: unknown
+  loggedInSince?: unknown
 }
 
 type SendResult = {
@@ -26,6 +27,8 @@ export async function postNotificationSend(
     recipientNoun: 'user' | 'player'
     failureFallback: string
     type: string | ((body: SendBody) => string | NextResponse)
+    /** Admin all-user sends must include a login cutoff. Other callers ignore the field. */
+    requireLoggedInSince?: boolean
   }
 ): Promise<NextResponse> {
   const body = (await request.json()) as SendBody
@@ -62,6 +65,17 @@ export async function postNotificationSend(
     receiverIds = Array.from(new Set(ids))
   }
 
+  let loggedInSince: string | null = null
+  if (input.requireLoggedInSince && audience === 'all') {
+    loggedInSince = parseLoggedInSince(body.loggedInSince)
+    if (!loggedInSince) {
+      return NextResponse.json(
+        { error: 'Logged in on or after must be a real date that is not in the future' },
+        { status: 400 }
+      )
+    }
+  }
+
   const { data, error } = await createServiceRoleClient().rpc('create_notification_send', {
     p_sender_id: input.senderId,
     p_type: resolvedType,
@@ -70,6 +84,7 @@ export async function postNotificationSend(
     p_expires_in_days: expiresInDays,
     p_audience: audience === 'all' ? 'all' : 'selected',
     p_receiver_ids: receiverIds,
+    p_logged_in_since: loggedInSince,
   })
 
   if (error) {

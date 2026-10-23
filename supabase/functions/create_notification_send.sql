@@ -5,11 +5,19 @@
 -- campaign member (not only members with an accepted gang) and are capped at 5 sends
 -- per campaign per UTC day, and at 10 campaign messages per sender per UTC day.
 --
+-- Admin all-user sends may pass p_logged_in_since. Those recipients are profiles
+-- whose auth.users.last_sign_in_at is at or after that instant, the start of the
+-- selected local calendar day. A null value keeps every profile. Campaign sends
+-- ignore the parameter.
+--
 -- service_role only. The Next.js routes check the caller is an admin, or a campaign
 -- owner, arbitrator, or app admin, before calling this.
 --
 -- Apply supabase/migrations/20261021234309_notification_sends.sql before this file
--- is deployed: the function inserts into notification_sends.
+-- is deployed: the function inserts into notification_sends. The replacement
+-- signature is also in supabase/migrations/20261023153535_notification_send_logged_in_since.sql.
+
+DROP FUNCTION IF EXISTS public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]);
 
 CREATE OR REPLACE FUNCTION public.create_notification_send(
   p_sender_id uuid,
@@ -18,7 +26,8 @@ CREATE OR REPLACE FUNCTION public.create_notification_send(
   p_text text,
   p_expires_in_days integer,
   p_audience text,
-  p_receiver_ids uuid[]
+  p_receiver_ids uuid[],
+  p_logged_in_since timestamptz DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -72,9 +81,14 @@ BEGIN
     WHERE cm.campaign_id = p_campaign_id
       AND cm.user_id IS NOT NULL;
   ELSIF p_audience = 'all' THEN
+    -- p_logged_in_since limits admin broadcasts to users who logged in at or after
+    -- that instant. Null keeps every profile. Campaign sends do not reach here.
     SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
     INTO v_receiver_ids
-    FROM public.profiles p;
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p_logged_in_since IS NULL
+       OR u.last_sign_in_at >= p_logged_in_since;
   ELSE
     SELECT COALESCE(array_agg(DISTINCT receiver.receiver_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -193,7 +207,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) TO service_role;
+REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) TO service_role;
