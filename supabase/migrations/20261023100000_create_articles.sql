@@ -76,23 +76,23 @@ CREATE POLICY "Published articles are viewable by everyone"
   ON public.articles FOR SELECT
   USING (published_at IS NOT NULL);
 
-CREATE POLICY "Editors can view all articles"
+CREATE POLICY "Admins and editors can view all articles"
   ON public.articles FOR SELECT
   TO authenticated
   USING ((SELECT private.is_editor() AS is_editor));
 
-CREATE POLICY "Editors can create articles"
+CREATE POLICY "Admins and editors can create articles"
   ON public.articles FOR INSERT
   TO authenticated
   WITH CHECK ((SELECT private.is_editor() AS is_editor));
 
-CREATE POLICY "Editors can update articles"
+CREATE POLICY "Admins and editors can update articles"
   ON public.articles FOR UPDATE
   TO authenticated
   USING ((SELECT private.is_editor() AS is_editor))
   WITH CHECK ((SELECT private.is_editor() AS is_editor));
 
-CREATE POLICY "Editors can delete articles"
+CREATE POLICY "Admins and editors can delete articles"
   ON public.articles FOR DELETE
   TO authenticated
   USING ((SELECT private.is_editor() AS is_editor));
@@ -101,11 +101,11 @@ GRANT SELECT ON public.articles TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.articles TO authenticated;
 
 -- Article images: site-images/articles/<article id>/..., drafts under .../_draft/.
--- Same policies as the user guide images (20260913185838), for editors.
+-- Same policies as the user guide images (20260913185838), for admins and editors.
 DROP POLICY IF EXISTS "Article images are viewable by everyone" ON storage.objects;
-DROP POLICY IF EXISTS "Article images can be uploaded by editors" ON storage.objects;
-DROP POLICY IF EXISTS "Article images can be updated by editors" ON storage.objects;
-DROP POLICY IF EXISTS "Article images can be deleted by editors" ON storage.objects;
+DROP POLICY IF EXISTS "Article images can be uploaded by admins and editors" ON storage.objects;
+DROP POLICY IF EXISTS "Article images can be updated by admins and editors" ON storage.objects;
+DROP POLICY IF EXISTS "Article images can be deleted by admins and editors" ON storage.objects;
 
 CREATE POLICY "Article images are viewable by everyone"
     ON storage.objects FOR SELECT
@@ -115,7 +115,7 @@ CREATE POLICY "Article images are viewable by everyone"
         AND SPLIT_PART(name, '/', 1) = 'articles'
     );
 
-CREATE POLICY "Article images can be uploaded by editors"
+CREATE POLICY "Article images can be uploaded by admins and editors"
     ON storage.objects FOR INSERT
     TO authenticated
     WITH CHECK (
@@ -124,7 +124,7 @@ CREATE POLICY "Article images can be uploaded by editors"
         AND (SELECT private.is_editor() AS is_editor)
     );
 
-CREATE POLICY "Article images can be updated by editors"
+CREATE POLICY "Article images can be updated by admins and editors"
     ON storage.objects FOR UPDATE
     TO authenticated
     USING (
@@ -138,7 +138,7 @@ CREATE POLICY "Article images can be updated by editors"
         AND (SELECT private.is_editor() AS is_editor)
     );
 
-CREATE POLICY "Article images can be deleted by editors"
+CREATE POLICY "Article images can be deleted by admins and editors"
     ON storage.objects FOR DELETE
     TO authenticated
     USING (

@@ -1,7 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { getPublishedArticles } from '@/app/lib/articles';
-import { formatArticleDate } from '@/utils/article-date';
+import { formatArticleDate, getPublishedArticles } from '@/app/lib/articles';
 
 const defaultUrl = process.env.NODE_ENV === 'development'
   ? "http://localhost:3000"

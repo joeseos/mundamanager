@@ -1,7 +1,6 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { getPublishedArticle } from '@/app/lib/articles';
-import { formatArticleDate } from '@/utils/article-date';
+import { formatArticleDate, getPublishedArticle } from '@/app/lib/articles';
 import { PREPARED_CONTENT_CLASS_NAME, prepareUserGuideContent } from '@/utils/user-guide-content';
 import '@/components/ui/rich-text-editor.css';
 

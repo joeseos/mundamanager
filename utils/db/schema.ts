@@ -1013,6 +1013,22 @@ export const customCollections = pgTable('custom_collections', {
   edition_id: uuid('edition_id'),
 });
 
+export const articles = pgTable('articles', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  slug: text('slug').notNull(),
+  title: text('title').notNull(),
+  summary: text('summary'),
+  content: text('content').default('').notNull(),
+  published_at: timestamp('published_at', { withTimezone: true, mode: 'string' }),
+  author_id: uuid('author_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  updated_by: uuid('updated_by'),
+  draft_title: text('draft_title'),
+  draft_summary: text('draft_summary'),
+  draft_content: text('draft_content'),
+});
+
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
 // one()s point at the same table, each pair gets a relationName:

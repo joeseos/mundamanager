@@ -1,5 +1,7 @@
 import { unstable_cache } from 'next/cache';
-import { createClient } from '@supabase/supabase-js';
+import { and, desc, eq, isNotNull, sql } from 'drizzle-orm';
+import { getAppDb } from '@/utils/db/client';
+import { articles } from '@/utils/db/schema';
 import { TAGS } from '@/utils/cache-tags';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 
@@ -19,53 +21,40 @@ export interface PublishedArticle extends PublishedArticleSummary {
 }
 
 /**
- * Published articles, read with the anon key like getUserGuides(): the pages
- * are public and RLS only lets anon read published rows. Tag-driven: the admin
- * write path (/api/admin/articles) calls invalidateArticles() on publish,
- * unpublish and delete, so these can be cached indefinitely.
+ * Published articles, read over the direct connection like the reference data:
+ * the pages are public, and RLS lets everyone read published rows. Tag-driven:
+ * the admin write path (/api/admin/articles) calls invalidateArticles() on
+ * publish, unpublish and delete, so these can be cached indefinitely.
  *
  * Content is sanitized here, once per cache entry, rather than on save: RLS lets
  * an editor write the table directly, past the API route.
  */
-function anonClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+const SUMMARY_COLUMNS = {
+  slug: articles.slug,
+  title: articles.title,
+  summary: articles.summary,
+  published_at: sql<string>`to_json(${articles.published_at})`,
+  updated_at: sql<string | null>`to_json(${articles.updated_at})`,
+};
 
 export const getPublishedArticles = unstable_cache(
-  async (): Promise<PublishedArticleSummary[]> => {
-    const { data, error } = await anonClient()
-      .from('articles')
-      .select('slug, title, summary, published_at, updated_at')
-      .not('published_at', 'is', null)
-      .order('published_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching articles:', error);
-      throw new Error(`Failed to fetch articles: ${error.message}`);
-    }
-    return (data ?? []) as PublishedArticleSummary[];
-  },
+  async (): Promise<PublishedArticleSummary[]> =>
+    getAppDb()
+      .select(SUMMARY_COLUMNS)
+      .from(articles)
+      .where(isNotNull(articles.published_at))
+      .orderBy(desc(articles.published_at)),
   ['published-articles'],
   { tags: [TAGS.articles()], revalidate: false }
 );
 
 const getCachedPublishedArticle = unstable_cache(
   async (slug: string): Promise<PublishedArticle | null> => {
-    const { data, error } = await anonClient()
-      .from('articles')
-      .select('slug, title, summary, content, published_at, updated_at')
-      .eq('slug', slug)
-      .not('published_at', 'is', null)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error fetching article:', error);
-      throw new Error(`Failed to fetch article: ${error.message}`);
-    }
-    return data ? { ...data, content: sanitizeArticleHtml(data.content) } as PublishedArticle : null;
+    const [article] = await getAppDb()
+      .select({ ...SUMMARY_COLUMNS, content: articles.content })
+      .from(articles)
+      .where(and(eq(articles.slug, slug), isNotNull(articles.published_at)));
+    return article ? { ...article, content: sanitizeArticleHtml(article.content) } : null;
   },
   ['published-article'],
   { tags: [TAGS.articles()], revalidate: false }
@@ -75,4 +64,14 @@ export async function getPublishedArticle(slug: string): Promise<PublishedArticl
   // Don't query or cache slugs that can't exist.
   if (!ARTICLE_SLUG_RE.test(slug)) return null;
   return getCachedPublishedArticle(slug);
+}
+
+/** "23 October 2026". Fixed locale and time zone so server and client render the same text. */
+export function formatArticleDate(date: string): string {
+  return new Date(date).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
 }
