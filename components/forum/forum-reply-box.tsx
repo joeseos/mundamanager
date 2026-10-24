@@ -63,11 +63,7 @@ export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBo
       )}
       {canReply && !loading && (
         <section ref={sectionRef} className="mt-4 border-t pt-4 scroll-mt-24">
-          {!userId ? (
-            <Button asChild variant="outline">
-              <Link href={signInPath(path)}>Sign in to reply</Link>
-            </Button>
-          ) : replying ? (
+          {userId && replying ? (
             <ForumPostForm
               key={formKey}
               editorRef={editorRef}
@@ -79,7 +75,15 @@ export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBo
               onCancel={closeReply}
             />
           ) : (
-            <Button onClick={() => setReplying(true)}>Reply</Button>
+            <div className="flex justify-end">
+              {userId ? (
+                <Button onClick={() => setReplying(true)}>Reply</Button>
+              ) : (
+                <Button asChild variant="outline">
+                  <Link href={signInPath(path)}>Sign in to reply</Link>
+                </Button>
+              )}
+            </div>
           )}
         </section>
       )}
