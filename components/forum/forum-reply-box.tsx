@@ -29,6 +29,8 @@ export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBo
   // The editor mounts only while replying: on mobile its toolbar is pinned to the top of the screen
   const [replying, setReplying] = useState(false);
   const [initialContent, setInitialContent] = useState('');
+  // Bumped to start the form again with a quote that came in while the editor was loading
+  const [formKey, setFormKey] = useState(0);
   const editorRef = useRef<RichTextEditorHandle | null>(null);
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -38,6 +40,7 @@ export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBo
     } else {
       // The editor hasn't loaded yet, so nothing has been typed: the quotes go in its starting text
       setInitialContent((content) => content + html);
+      setFormKey((key) => key + 1);
       setReplying(true);
     }
     sectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -64,8 +67,7 @@ export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBo
               </Button>
             ) : replying ? (
               <ForumPostForm
-                // Starts again with a quote that came in while the editor was loading
-                key={initialContent}
+                key={formKey}
                 editorRef={editorRef}
                 initialContent={initialContent}
                 placeholder="Write a reply..."

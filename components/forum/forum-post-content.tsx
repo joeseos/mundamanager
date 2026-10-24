@@ -16,17 +16,22 @@ interface ForumPostContentProps {
   pagePath: string;
 }
 
+const QUOTE_ATTRIBUTION = 'Originally posted by ';
+
 /**
- * A quote of the post for a reply: its text without the quotes it holds itself,
- * under a line naming its author and linking back to it.
+ * A quote of the post for a reply: its text without the forum quotes it holds
+ * itself, under a line naming its author and linking back to it.
  */
 function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): string {
   const quoted = new DOMParser().parseFromString(post.content, 'text/html').body;
-  quoted.querySelectorAll('blockquote').forEach((nested) => nested.remove());
+  // Blockquotes the author made themselves stay
+  quoted.querySelectorAll('blockquote').forEach((nested) => {
+    if (nested.firstElementChild?.textContent?.startsWith(QUOTE_ATTRIBUTION)) nested.remove();
+  });
 
   const blockquote = document.createElement('blockquote');
   const attribution = blockquote.appendChild(document.createElement('p'));
-  attribution.append('Originally posted by ');
+  attribution.append(QUOTE_ATTRIBUTION);
   const link = attribution.appendChild(document.createElement('strong')).appendChild(document.createElement('a'));
   link.href = `${pagePath}#post-${post.post_number}`;
   link.textContent = post.author ?? 'Unknown User';
