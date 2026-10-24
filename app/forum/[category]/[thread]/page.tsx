@@ -6,6 +6,7 @@ import {
   FORUM_POSTS_PER_PAGE,
   formatForumDate,
   formatForumReplies,
+  getForumCategories,
   forumPageCount,
   forumThreadPath,
   getForumLikedPostIds,
@@ -56,9 +57,10 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
   if (page > pageCount) notFound();
 
-  const [posts, userId] = await Promise.all([
+  const [posts, userId, categories] = await Promise.all([
     getForumPosts(thread, page),
     createClient().then(getUserIdFromClaims),
+    getForumCategories(),
   ]);
   const likedPostIds = userId ? await getForumLikedPostIds(userId, posts.map((post) => post.id)) : new Set<string>();
   const pagePath = page === 1 ? path : `${path}?page=${page}`;
@@ -72,7 +74,13 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
             <span className="min-w-0 break-words">{thread.title}</span>
           </h1>
-          <ForumThreadModeration threadId={thread.id} isPinned={thread.is_pinned} isLocked={thread.is_locked} />
+          <ForumThreadModeration
+            threadId={thread.id}
+            isPinned={thread.is_pinned}
+            isLocked={thread.is_locked}
+            categoryId={thread.category.id}
+            categories={categories.map(({ id, name }) => ({ id, name }))}
+          />
         </div>
         <p className="text-sm text-muted-foreground">
           {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}

@@ -275,6 +275,7 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
 }
 
 const MODERATORS_ONLY_FLAGS = 'Only moderators can pin or lock threads';
+const MODERATORS_ONLY_MOVE = 'Only moderators can move threads';
 
 /** Pins or locks a thread, or undoes it (moderators only). */
 export async function setForumThreadFlag(params: {
@@ -304,6 +305,41 @@ export async function setForumThreadFlag(params: {
   } catch (error) {
     console.error('Failed to update the thread', error);
     return { success: false, error: 'Failed to update the thread' };
+  }
+}
+
+/** Moves a thread to another category (moderators only). */
+export async function moveForumThread(params: { threadId: string; categoryId: string }): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: from, error: readError } = await supabase
+      .from('forum_threads')
+      .select('category_id')
+      .eq('id', params.threadId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!from) return { success: false, error: 'This thread no longer exists' };
+    if (from.category_id === params.categoryId) return { success: false, error: 'The thread is already in that category' };
+
+    // RLS lets only the author and moderators update a thread, and the trigger refuses the author
+    const { data: thread, error } = await supabase
+      .from('forum_threads')
+      .update({ category_id: params.categoryId })
+      .eq('id', params.threadId)
+      .select(THREAD_SELECT)
+      .maybeSingle<ThreadRow>();
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to move the thread', MODERATORS_ONLY_MOVE) };
+    if (!thread) return { success: false, error: MODERATORS_ONLY_MOVE };
+
+    // Both categories' lists and counts change
+    invalidateForumThread(from.category_id, thread.number);
+    invalidateForumThreadList(thread.category_id, thread.number);
+    return { success: true, path: postPath(thread, 1) };
+  } catch (error) {
+    console.error('Failed to move the thread', error);
+    return { success: false, error: 'Failed to move the thread' };
   }
 }
 
