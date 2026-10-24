@@ -15,6 +15,7 @@ import {
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';
+import { ForumThreadModeration } from '@/components/forum/forum-thread-moderation';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { UserRoleBadge } from '@/components/ui/user-role-badge';
@@ -57,11 +58,14 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full bg-card shadow-md rounded-lg p-4">
-        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-          {thread.is_pinned && <LuPin className="h-5 w-5 shrink-0 text-red-800" aria-label="Pinned" />}
-          {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
-          <span className="min-w-0 break-words">{thread.title}</span>
-        </h1>
+        <div className="flex items-start justify-between gap-2">
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">
+            {thread.is_pinned && <LuPin className="h-5 w-5 shrink-0 text-red-800" aria-label="Pinned" />}
+            {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
+            <span className="min-w-0 break-words">{thread.title}</span>
+          </h1>
+          <ForumThreadModeration threadId={thread.id} isPinned={thread.is_pinned} isLocked={thread.is_locked} />
+        </div>
         <p className="text-sm text-muted-foreground">
           {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)}
         </p>
@@ -111,7 +115,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
                   {post.is_removed ? (
                     <p className="text-muted-foreground italic">This post was removed.</p>
                   ) : (
-                    <ForumPostContent post={post} thread={thread} pagePath={pagePath} />
+                    <ForumPostContent post={post} threadTitle={thread.title} pagePath={pagePath} />
                   )}
                   {!post.is_removed && post.like_count > 0 && (
                     <p className="flex items-center gap-1 text-sm text-muted-foreground mt-2">

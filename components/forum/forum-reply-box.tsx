@@ -10,7 +10,7 @@ import { useForumViewer } from '@/components/forum/forum-viewer';
 import { replyToForumThread } from '@/app/actions/forum';
 import { signInPath } from '@/utils/auth';
 
-/** Adds a quote to the reply, opening the reply box first. Null on a locked thread. */
+/** Adds a quote to the reply, opening the reply box first. Null when the viewer can't reply. */
 const ForumQuoteContext = createContext<((html: string) => void) | null>(null);
 
 export const useForumQuote = () => useContext(ForumQuoteContext);
@@ -25,7 +25,9 @@ interface ForumReplyBoxProps {
 }
 
 export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBoxProps) {
-  const { userId, loading } = useForumViewer();
+  const { userId, isModerator, loading } = useForumViewer();
+  // Moderators can still reply to a locked thread, e.g. to say why it was locked
+  const canReply = !locked || isModerator;
   // The editor mounts only while replying: on mobile its toolbar is pinned to the top of the screen
   const [replying, setReplying] = useState(false);
   const [initialContent, setInitialContent] = useState('');
@@ -52,35 +54,34 @@ export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBo
   };
 
   return (
-    <ForumQuoteContext.Provider value={locked ? null : quote}>
+    <ForumQuoteContext.Provider value={canReply ? quote : null}>
       {children}
-      {locked ? (
+      {locked && (
         <p className="flex items-center gap-2 text-sm text-muted-foreground mt-4">
           <LuLock className="h-4 w-4" /> This thread is locked.
         </p>
-      ) : (
-        !loading && (
-          <section ref={sectionRef} className="mt-4 border-t pt-4 scroll-mt-24">
-            {!userId ? (
-              <Button asChild variant="outline">
-                <Link href={signInPath(path)}>Sign in to reply</Link>
-              </Button>
-            ) : replying ? (
-              <ForumPostForm
-                key={formKey}
-                editorRef={editorRef}
-                initialContent={initialContent}
-                placeholder="Write a reply..."
-                submitText="Post reply"
-                onSubmit={({ content }) => replyToForumThread({ threadId, content })}
-                onSuccess={closeReply}
-                onCancel={closeReply}
-              />
-            ) : (
-              <Button onClick={() => setReplying(true)}>Reply</Button>
-            )}
-          </section>
-        )
+      )}
+      {canReply && !loading && (
+        <section ref={sectionRef} className="mt-4 border-t pt-4 scroll-mt-24">
+          {!userId ? (
+            <Button asChild variant="outline">
+              <Link href={signInPath(path)}>Sign in to reply</Link>
+            </Button>
+          ) : replying ? (
+            <ForumPostForm
+              key={formKey}
+              editorRef={editorRef}
+              initialContent={initialContent}
+              placeholder="Write a reply..."
+              submitText="Post reply"
+              onSubmit={({ content }) => replyToForumThread({ threadId, content })}
+              onSuccess={closeReply}
+              onCancel={closeReply}
+            />
+          ) : (
+            <Button onClick={() => setReplying(true)}>Reply</Button>
+          )}
+        </section>
       )}
     </ForumQuoteContext.Provider>
   );

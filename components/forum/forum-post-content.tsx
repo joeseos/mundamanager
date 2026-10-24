@@ -1,21 +1,20 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuLock, LuLockOpen, LuPencil, LuPin, LuPinOff, LuQuote, LuTrash2 } from 'react-icons/lu';
+import { LuPencil, LuQuote, LuTrash2 } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import { useForumQuote } from '@/components/forum/forum-reply-box';
-import { deleteForumPost, editForumPost, setForumThreadFlag } from '@/app/actions/forum';
-import type { ForumThread } from '@/app/lib/forum';
+import { deleteForumPost, editForumPost } from '@/app/actions/forum';
 
 interface ForumPostContentProps {
   post: { id: string; post_number: number; author_id: string | null; author: string | null; content: string };
-  /** Its title is edited along with the opening post, which also holds the pin and lock buttons. */
-  thread: Pick<ForumThread, 'id' | 'title' | 'is_pinned' | 'is_locked'>;
+  /** Edited along with the opening post. */
+  threadTitle: string;
   /** The page the post is on, which a quote links back to. */
   pagePath: string;
 }
@@ -44,29 +43,14 @@ function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): strin
   return `${blockquote.outerHTML}<p></p>`;
 }
 
-/**
- * A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for
- * moderators. Moderators can also pin and lock the thread from its opening post.
- */
-export function ForumPostContent({ post, thread, pagePath }: ForumPostContentProps) {
+/** A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for moderators. */
+export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
   const router = useRouter();
   const { userId, isModerator } = useForumViewer();
   const quote = useForumQuote();
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [updatingThread, startThreadUpdate] = useTransition();
   const isOpeningPost = post.post_number === 1;
-
-  const toggleThreadFlag = (flag: 'is_pinned' | 'is_locked') =>
-    startThreadUpdate(async () => {
-      try {
-        const result = await setForumThreadFlag({ threadId: thread.id, flag, value: !thread[flag] });
-        if (!result.success) throw new Error(result.error);
-        router.refresh();
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Failed to update the thread');
-      }
-    });
 
   const handleDelete = async () => {
     try {
@@ -83,7 +67,7 @@ export function ForumPostContent({ post, thread, pagePath }: ForumPostContentPro
   if (editing) {
     return (
       <ForumPostForm
-        initialTitle={isOpeningPost ? thread.title : undefined}
+        initialTitle={isOpeningPost ? threadTitle : undefined}
         initialContent={post.content}
         placeholder="Write your post..."
         submitText="Save"
@@ -120,32 +104,6 @@ export function ForumPostContent({ post, thread, pagePath }: ForumPostContentPro
             >
               <LuPencil className="h-4 w-4" />
             </Button>
-          )}
-          {isModerator && isOpeningPost && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-9 p-0"
-                onClick={() => toggleThreadFlag('is_pinned')}
-                disabled={updatingThread}
-                title={thread.is_pinned ? 'Unpin thread' : 'Pin thread'}
-                aria-label={thread.is_pinned ? 'Unpin thread' : 'Pin thread'}
-              >
-                {thread.is_pinned ? <LuPinOff className="h-4 w-4" /> : <LuPin className="h-4 w-4" />}
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-9 p-0"
-                onClick={() => toggleThreadFlag('is_locked')}
-                disabled={updatingThread}
-                title={thread.is_locked ? 'Unlock thread' : 'Lock thread'}
-                aria-label={thread.is_locked ? 'Unlock thread' : 'Lock thread'}
-              >
-                {thread.is_locked ? <LuLockOpen className="h-4 w-4" /> : <LuLock className="h-4 w-4" />}
-              </Button>
-            </>
           )}
           {isModerator && (
             <Button
