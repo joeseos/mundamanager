@@ -60,7 +60,7 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
   return (
     <>
       <div
-        className="prose max-w-none [&_li]:marker:text-red-800 prose-blockquote:not-italic prose-blockquote:font-normal prose-blockquote:text-foreground prose-blockquote:[quotes:none] prose-blockquote:rounded-md prose-blockquote:border prose-blockquote:border-l-4 prose-blockquote:bg-muted prose-blockquote:px-4 prose-blockquote:py-1"
+        className="forum-post prose max-w-none [&_li]:marker:text-red-800"
         dangerouslySetInnerHTML={{ __html: post.content }}
       />
       {userId !== null && (
