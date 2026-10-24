@@ -43,15 +43,15 @@ function validateContent(content: string): string | null {
 /**
  * The forum triggers raise messages meant for the user: the posting limits
  * (MM002), and a locked thread or removed post (42501). RLS refusals share
- * 42501, so they and anything else get a generic message.
+ * 42501, so they get `refusal` and anything else the fallback.
  */
-function writeErrorMessage(error: PostgrestError, fallback: string): string {
+function writeErrorMessage(error: PostgrestError, fallback: string, refusal = "You can't post here"): string {
   const fromTrigger =
     error.code === 'MM002' ||
     (error.code === '42501' && !error.message.includes('row-level security'));
   if (fromTrigger) return error.message;
   console.error(fallback, error);
-  return error.code === '42501' ? "You can't post here" : fallback;
+  return error.code === '42501' ? refusal : fallback;
 }
 
 function postPath(thread: ThreadRow, postNumber: number): string {
@@ -140,7 +140,7 @@ export async function editForumPost(params: {
       .select(`post_number, thread_id, forum_threads(${THREAD_SELECT})`)
       .maybeSingle<{ post_number: number; thread_id: string; forum_threads: ThreadRow }>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to save the post') };
-    if (!post) return { success: false, error: 'You can only edit your own posts' };
+    if (!post) return { success: false, error: "You can't edit this post" };
 
     const thread = post.forum_threads;
     const renamed = title !== undefined && post.post_number === 1 && title !== thread.title;
@@ -165,6 +165,8 @@ export async function editForumPost(params: {
  * Removes a post (moderators only). Removing a thread's opening post deletes the
  * thread; any other post keeps its place as "This post was removed".
  */
+const MODERATORS_ONLY = 'Only moderators can delete posts';
+
 export async function deleteForumPost(postId: string): Promise<ForumActionResult> {
   try {
     const supabase = await createClient();
@@ -185,8 +187,8 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
         .delete()
         .eq('id', post.thread_id)
         .select('id');
-      if (error) throw error;
-      if (!deleted.length) return { success: false, error: 'Only moderators can delete posts' };
+      if (error) return { success: false, error: writeErrorMessage(error, 'Failed to delete the thread', MODERATORS_ONLY) };
+      if (!deleted.length) return { success: false, error: MODERATORS_ONLY };
 
       invalidateForumThreadList(thread.category_id, thread.number);
       return { success: true, path: forumCategoryPath(thread.forum_categories?.slug ?? '') };
@@ -198,10 +200,8 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', postId)
       .select('id');
-    if (error && !error.message.includes('row-level security')) {
-      return { success: false, error: writeErrorMessage(error, 'Failed to delete the post') };
-    }
-    if (error || !removed.length) return { success: false, error: 'Only moderators can delete posts' };
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to delete the post', MODERATORS_ONLY) };
+    if (!removed.length) return { success: false, error: MODERATORS_ONLY };
 
     invalidateForumThread(thread.category_id, thread.number);
     return { success: true, path: postPath(thread, post.post_number) };

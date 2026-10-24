@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LuPencil, LuQuote, LuTrash2 } from 'react-icons/lu';
 import { toast } from 'sonner';
@@ -50,17 +50,18 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
   const quote = useForumQuote();
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [, startTransition] = useTransition();
   const isOpeningPost = post.post_number === 1;
 
   const handleDelete = async () => {
-    const result = await deleteForumPost(post.id);
-    if (!result.success) {
-      toast.error(result.error);
+    try {
+      const result = await deleteForumPost(post.id);
+      if (!result.success) throw new Error(result.error);
+      router.push(result.path!);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete the post');
       return false;
     }
-    startTransition(() => router.push(result.path!));
-    return true;
   };
 
   if (editing) {
@@ -130,6 +131,7 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
           }
           onClose={() => setConfirmingDelete(false)}
           onConfirm={handleDelete}
+          confirmText="Delete"
         />
       )}
     </>
