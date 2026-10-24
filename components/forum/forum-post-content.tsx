@@ -22,6 +22,8 @@ interface ForumPostContentProps {
   };
   /** Whether the viewer has liked the post. */
   liked: boolean;
+  /** Signed in, and not the post's author. */
+  canLike: boolean;
   /** Edited along with the opening post. */
   threadTitle: string;
   /** The page the post is on, which a quote links back to. */
@@ -54,12 +56,16 @@ function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): strin
   return `${blockquote.outerHTML}<p></p>`;
 }
 
-/** A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for moderators. */
-/** The post's likes, and for signed-in users other than its author a heart that likes it. */
-function ForumLikeButton({ post, liked: savedLiked }: Pick<ForumPostContentProps, 'post' | 'liked'>) {
-  const { userId } = useForumViewer();
+/** The post's likes, with a heart that likes it when the viewer can. */
+function ForumLikeButton({ post, liked: savedLiked, canLike }: Pick<ForumPostContentProps, 'post' | 'liked' | 'canLike'>) {
   const [liked, setLiked] = useState(savedLiked);
+  const [prevSavedLiked, setPrevSavedLiked] = useState(savedLiked);
   const [saving, setSaving] = useState(false);
+  // A refreshed page may bring a like changed elsewhere, e.g. in another tab
+  if (savedLiked !== prevSavedLiked) {
+    setPrevSavedLiked(savedLiked);
+    setLiked(savedLiked);
+  }
   // like_count includes the saved like, so only a change since then is added
   const count = post.like_count - Number(savedLiked) + Number(liked);
   const heart = (
@@ -69,7 +75,7 @@ function ForumLikeButton({ post, liked: savedLiked }: Pick<ForumPostContentProps
     </>
   );
 
-  if (userId === null || userId === post.author_id) {
+  if (!canLike) {
     return count > 0 ? (
       <span className="flex items-center h-9 px-3 text-sm text-muted-foreground" aria-label={`${count} likes`}>
         {heart}
@@ -89,13 +95,22 @@ function ForumLikeButton({ post, liked: savedLiked }: Pick<ForumPostContentProps
   };
 
   return (
-    <Button variant="ghost" size="sm" onClick={toggle} disabled={saving} aria-pressed={liked} title={liked ? 'Unlike' : 'Like'}>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={toggle}
+      disabled={saving}
+      aria-pressed={liked}
+      title={liked ? 'Unlike' : 'Like'}
+      aria-label={liked ? 'Unlike' : 'Like'}
+    >
       {heart}
     </Button>
   );
 }
 
-export function ForumPostContent({ post, liked, threadTitle, pagePath }: ForumPostContentProps) {
+/** A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for moderators. */
+export function ForumPostContent({ post, liked, canLike, threadTitle, pagePath }: ForumPostContentProps) {
   const router = useRouter();
   const { userId, isModerator } = useForumViewer();
   const quote = useForumQuote();
@@ -138,7 +153,7 @@ export function ForumPostContent({ post, liked, threadTitle, pagePath }: ForumPo
         dangerouslySetInnerHTML={{ __html: post.content }}
       />
       <div className="flex justify-end gap-1 mt-2 empty:hidden">
-        <ForumLikeButton post={post} liked={liked} />
+        <ForumLikeButton post={post} liked={liked} canLike={canLike} />
         {userId !== null && quote && (
           <Button variant="ghost" size="sm" onClick={() => quote(quoteHtml(post, pagePath))}>
             <LuQuote className="h-4 w-4 mr-1" /> Quote

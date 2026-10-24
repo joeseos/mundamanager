@@ -49,7 +49,8 @@ import { revalidateTag } from 'next/cache';
  *                  (category page counts)    | delete); else every 60 s
  * forum-category-{id} a category's thread    | any change to a thread in it
  *                  list pages                | (new, reply, rename, pin,
- *                                            | lock, move, delete, like)
+ *                                            | lock, move, delete, like on
+ *                                            | the opening post)
  * forum-thread-{number} a thread and its     | any change to the thread or
  *                  post pages                | its posts, likes included
  */
@@ -327,5 +328,10 @@ export function invalidateForumThreadList(categoryId: string, threadNumber: numb
 /** A forum thread or one of its posts changed. */
 export function invalidateForumThread(categoryId: string, threadNumber: number) {
   bust(TAGS.forumCategory(categoryId));
+  bust(TAGS.forumThread(threadNumber));
+}
+
+/** A reply's likes changed: only the thread's own pages show them. */
+export function invalidateForumThreadPosts(threadNumber: number) {
   bust(TAGS.forumThread(threadNumber));
 }

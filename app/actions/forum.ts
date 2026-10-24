@@ -3,7 +3,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateForumThread, invalidateForumThreadList } from '@/utils/cache-tags';
+import { invalidateForumThread, invalidateForumThreadList, invalidateForumThreadPosts } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumThreadPath } from '@/app/lib/forum';
@@ -307,7 +307,7 @@ export async function setForumThreadFlag(params: {
   }
 }
 
-/** Likes a post, or takes the like back. Not your own posts, nor removed ones. */
+/** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */
 export async function setForumPostLike(params: { postId: string; liked: boolean }): Promise<ForumActionResult> {
   try {
     const supabase = await createClient();
@@ -315,12 +315,10 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
 
     const { data: post, error: readError } = await supabase
       .from('forum_posts')
-      .select(`author_id, deleted_at, forum_threads(${THREAD_SELECT})`)
+      .select(`post_number, forum_threads(${THREAD_SELECT})`)
       .eq('id', params.postId)
-      .single<{ author_id: string | null; deleted_at: string | null; forum_threads: ThreadRow }>();
+      .single<{ post_number: number; forum_threads: ThreadRow }>();
     if (readError) throw readError;
-    if (post.author_id === user.id) return { success: false, error: "You can't like your own post" };
-    if (post.deleted_at) return { success: false, error: 'This post was removed' };
 
     const like = { post_id: params.postId, user_id: user.id };
     // Liking twice, or taking back a like that's gone, changes nothing
@@ -329,8 +327,10 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
       : await supabase.from('forum_post_likes').delete().match(like);
     if (error) throw error;
 
-    // The category list shows the opening post's likes, so it's busted too
-    invalidateForumThread(post.forum_threads.category_id, post.forum_threads.number);
+    // The category list shows the opening post's likes
+    const thread = post.forum_threads;
+    if (post.post_number === 1) invalidateForumThread(thread.category_id, thread.number);
+    else invalidateForumThreadPosts(thread.number);
     return { success: true };
   } catch (error) {
     console.error('Failed to update the like', error);

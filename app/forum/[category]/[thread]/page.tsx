@@ -126,6 +126,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
                     <ForumPostContent
                       post={post}
                       liked={likedPostIds.has(post.id)}
+                      canLike={userId !== null && userId !== post.author_id}
                       threadTitle={thread.title}
                       pagePath={pagePath}
                     />

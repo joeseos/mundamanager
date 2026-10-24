@@ -40,7 +40,7 @@ export interface ForumThreadSummary {
   last_post_author: string | null;
 }
 
-export interface ForumThread extends ForumThreadSummary {
+export interface ForumThread extends Omit<ForumThreadSummary, 'like_count'> {
   id: string;
   category: { id: string; slug: string; name: string };
 }
@@ -141,7 +141,6 @@ const THREAD_SUMMARY_COLUMNS = {
   is_pinned: forumThreads.is_pinned,
   is_locked: forumThreads.is_locked,
   post_count: forumThreads.post_count,
-  like_count: sql<number>`coalesce(${openingPost.like_count}, 0)`,
   created_at: iso(forumThreads.created_at),
   last_post_at: iso(forumThreads.last_post_at),
   last_post_author: lastPostAuthor.username,
@@ -152,7 +151,7 @@ export function getForumThreads(categoryId: string, page: number): Promise<Forum
   return unstable_cache(
     async () =>
       getAppDb()
-        .select(THREAD_SUMMARY_COLUMNS)
+        .select({ ...THREAD_SUMMARY_COLUMNS, like_count: sql<number>`coalesce(${openingPost.like_count}, 0)` })
         .from(forumThreads)
         .leftJoin(author, eq(author.id, forumThreads.author_id))
         .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
@@ -184,7 +183,6 @@ export const getForumThread = cache((number: number): Promise<ForumThread | null
         .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
         .leftJoin(author, eq(author.id, forumThreads.author_id))
         .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
-        .leftJoin(openingPost, and(eq(openingPost.thread_id, forumThreads.id), eq(openingPost.post_number, 1)))
         .where(eq(forumThreads.number, number));
       return thread ?? null;
     },
