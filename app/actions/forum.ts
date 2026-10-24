@@ -210,3 +210,31 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
     return { success: false, error: 'Failed to delete the post' };
   }
 }
+
+/** Pins or locks a thread, or undoes it (moderators only). */
+export async function setForumThreadFlag(params: {
+  threadId: string;
+  flag: 'is_pinned' | 'is_locked';
+  value: boolean;
+}): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    // RLS lets only the author and moderators update a thread, and the trigger refuses the author
+    const { data: thread, error } = await supabase
+      .from('forum_threads')
+      .update({ [params.flag]: params.value })
+      .eq('id', params.threadId)
+      .select(THREAD_SELECT)
+      .maybeSingle<ThreadRow>();
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the thread') };
+    if (!thread) return { success: false, error: 'Only moderators can pin or lock threads' };
+
+    invalidateForumThread(thread.category_id, thread.number);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update the thread', error);
+    return { success: false, error: 'Failed to update the thread' };
+  }
+}
