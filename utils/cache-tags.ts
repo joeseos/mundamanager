@@ -49,10 +49,9 @@ import { revalidateTag } from 'next/cache';
  *                  (category page counts)    | delete); else every 60 s
  * forum-category-{id} a category's thread    | any change to a thread in it
  *                  list pages                | (new, reply, rename, pin,
- *                                            | lock, move, delete)
+ *                                            | lock, move, delete, like)
  * forum-thread-{number} a thread and its     | any change to the thread or
- *                  post pages                | its posts; post pages also
- *                                            | refresh every 60 s
+ *                  post pages                | its posts, likes included
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,

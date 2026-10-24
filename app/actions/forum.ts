@@ -306,3 +306,34 @@ export async function setForumThreadFlag(params: {
     return { success: false, error: 'Failed to update the thread' };
   }
 }
+
+/** Likes a post, or takes the like back. Not your own posts, nor removed ones. */
+export async function setForumPostLike(params: { postId: string; liked: boolean }): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: post, error: readError } = await supabase
+      .from('forum_posts')
+      .select(`author_id, deleted_at, forum_threads(${THREAD_SELECT})`)
+      .eq('id', params.postId)
+      .single<{ author_id: string | null; deleted_at: string | null; forum_threads: ThreadRow }>();
+    if (readError) throw readError;
+    if (post.author_id === user.id) return { success: false, error: "You can't like your own post" };
+    if (post.deleted_at) return { success: false, error: 'This post was removed' };
+
+    const like = { post_id: params.postId, user_id: user.id };
+    // Liking twice, or taking back a like that's gone, changes nothing
+    const { error } = params.liked
+      ? await supabase.from('forum_post_likes').upsert(like, { ignoreDuplicates: true })
+      : await supabase.from('forum_post_likes').delete().match(like);
+    if (error) throw error;
+
+    // The category list shows the opening post's likes, so it's busted too
+    invalidateForumThread(post.forum_threads.category_id, post.forum_threads.number);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update the like', error);
+    return { success: false, error: 'Failed to update the like' };
+  }
+}

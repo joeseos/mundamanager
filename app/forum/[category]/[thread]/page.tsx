@@ -1,13 +1,14 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
+import { LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_POSTS_PER_PAGE,
   formatForumDate,
   formatForumReplies,
   forumPageCount,
   forumThreadPath,
+  getForumLikedPostIds,
   getForumPosts,
   getForumThread,
   parseForumPage,
@@ -20,6 +21,8 @@ import { ForumThreadModeration } from '@/components/forum/forum-thread-moderatio
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { UserRoleBadge } from '@/components/ui/user-role-badge';
+import { createClient } from '@/utils/supabase/server';
+import { getUserIdFromClaims } from '@/utils/auth';
 import '@/components/ui/rich-text-editor.css';
 
 interface ForumThreadPageProps {
@@ -53,7 +56,11 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
   if (page > pageCount) notFound();
 
-  const posts = await getForumPosts(thread, page);
+  const [posts, userId] = await Promise.all([
+    getForumPosts(thread, page),
+    createClient().then(getUserIdFromClaims),
+  ]);
+  const likedPostIds = userId ? await getForumLikedPostIds(userId, posts.map((post) => post.id)) : new Set<string>();
   const pagePath = page === 1 ? path : `${path}?page=${page}`;
 
   return (
@@ -116,13 +123,12 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
                   {post.is_removed ? (
                     <p className="text-muted-foreground italic">This post was removed.</p>
                   ) : (
-                    <ForumPostContent post={post} threadTitle={thread.title} pagePath={pagePath} />
-                  )}
-                  {!post.is_removed && post.like_count > 0 && (
-                    <p className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                      <LuHeart className="h-4 w-4" aria-label="Likes" />
-                      {post.like_count}
-                    </p>
+                    <ForumPostContent
+                      post={post}
+                      liked={likedPostIds.has(post.id)}
+                      threadTitle={thread.title}
+                      pagePath={pagePath}
+                    />
                   )}
                 </div>
               </li>
