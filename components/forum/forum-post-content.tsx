@@ -1,21 +1,49 @@
 'use client';
 
 import { useState } from 'react';
-import { LuPencil } from 'react-icons/lu';
+import { LuPencil, LuQuote } from 'react-icons/lu';
 import { Button } from '@/components/ui/button';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
 import { useForumViewer } from '@/components/forum/forum-viewer';
+import { useForumQuote } from '@/components/forum/forum-reply-box';
 import { editForumPost } from '@/app/actions/forum';
 
 interface ForumPostContentProps {
-  post: { id: string; post_number: number; author_id: string | null; content: string };
+  post: { id: string; post_number: number; author_id: string | null; author: string | null; content: string };
   /** Edited along with the opening post. */
   threadTitle: string;
+  /** The page the post is on, which a quote links back to. */
+  pagePath: string;
 }
 
-/** A post's text, with an Edit button for its author. */
-export function ForumPostContent({ post, threadTitle }: ForumPostContentProps) {
+const QUOTE_ATTRIBUTION = 'Originally posted by ';
+
+/**
+ * A quote of the post for a reply: its text without the forum quotes it holds
+ * itself, under a line naming its author and linking back to it.
+ */
+function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): string {
+  const quoted = new DOMParser().parseFromString(post.content, 'text/html').body;
+  // Blockquotes the author made themselves stay
+  quoted.querySelectorAll('blockquote').forEach((nested) => {
+    if (nested.firstElementChild?.textContent?.startsWith(QUOTE_ATTRIBUTION)) nested.remove();
+  });
+
+  const blockquote = document.createElement('blockquote');
+  const attribution = blockquote.appendChild(document.createElement('p'));
+  attribution.append(QUOTE_ATTRIBUTION);
+  const link = attribution.appendChild(document.createElement('strong')).appendChild(document.createElement('a'));
+  link.href = `${pagePath}#post-${post.post_number}`;
+  link.textContent = post.author ?? 'Unknown User';
+  blockquote.append(...quoted.childNodes);
+  // An empty paragraph after it, so the reply isn't typed into the quote
+  return `${blockquote.outerHTML}<p></p>`;
+}
+
+/** A post's text, with Quote for signed-in users and Edit for its author. */
+export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
   const { userId } = useForumViewer();
+  const quote = useForumQuote();
   const [editing, setEditing] = useState(false);
 
   if (editing) {
@@ -36,12 +64,22 @@ export function ForumPostContent({ post, threadTitle }: ForumPostContentProps) {
 
   return (
     <>
-      <div className="prose max-w-none [&_li]:marker:text-red-800" dangerouslySetInnerHTML={{ __html: post.content }} />
-      {userId !== null && userId === post.author_id && (
-        <div className="flex justify-end mt-2">
-          <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-            <LuPencil className="h-4 w-4 mr-1" /> Edit
-          </Button>
+      <div
+        className="forum-post prose max-w-none [&_li]:marker:text-red-800"
+        dangerouslySetInnerHTML={{ __html: post.content }}
+      />
+      {userId !== null && (
+        <div className="flex justify-end gap-1 mt-2">
+          {quote && (
+            <Button variant="ghost" size="sm" onClick={() => quote(quoteHtml(post, pagePath))}>
+              <LuQuote className="h-4 w-4 mr-1" /> Quote
+            </Button>
+          )}
+          {userId === post.author_id && (
+            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+              <LuPencil className="h-4 w-4 mr-1" /> Edit
+            </Button>
+          )}
         </div>
       )}
     </>

@@ -90,6 +90,8 @@ export interface RichTextEditorHandle {
   discardAssets: () => Promise<void>;
   /** Replace editor HTML without emitting onChange (caller owns draft state). */
   setContent: (html: string) => void;
+  /** Add HTML after the document's last block, emitting onChange. */
+  appendContent: (html: string) => void;
 }
 
 export interface RichTextEditorProps {
@@ -555,6 +557,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     discardAssets,
     setContent: (html: string) => {
       editor?.commands.setContent(html || '', { emitUpdate: false });
+    },
+    appendContent: (html: string) => {
+      editor?.chain().insertContentAt(editor.state.doc.content.size, html).focus('end').run();
     },
   }));
 
