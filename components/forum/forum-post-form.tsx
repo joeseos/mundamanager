@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition, type FormEvent } from 'react';
+import { useRef, useState, useTransition, type FormEvent, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,8 @@ interface ForumPostFormProps {
   /** Its state changes land with the refreshed page, so the old post doesn't flash back. */
   onSuccess?: () => void;
   onCancel?: () => void;
+  /** Lets the parent add to the post, e.g. a quote. */
+  editorRef?: RefObject<RichTextEditorHandle | null>;
 }
 
 export function ForumPostForm({
@@ -30,10 +32,12 @@ export function ForumPostForm({
   onSubmit,
   onSuccess,
   onCancel,
+  editorRef: parentEditorRef,
 }: ForumPostFormProps) {
   const router = useRouter();
   const { userId } = useForumViewer();
-  const editorRef = useRef<RichTextEditorHandle | null>(null);
+  const ownEditorRef = useRef<RichTextEditorHandle | null>(null);
+  const editorRef = parentEditorRef ?? ownEditorRef;
   const [title, setTitle] = useState(initialTitle ?? '');
   const [content, setContent] = useState(initialContent);
   const [submitting, setSubmitting] = useState(false);
