@@ -25,7 +25,9 @@ export type NotificationType =
   | 'user_message'
   | 'campaign_message'
   | 'mm_staff_message'
-  | 'mm_announcement';
+  | 'mm_announcement'
+  | 'forum_reply'
+  | 'forum_mention';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -123,6 +125,9 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
   error: { label: 'Errors', supportsEmail: false, defaultEnabled: false, subject: '' },
   // Battle-session invitations — in-app only (deliberately not emailed).
   battle_invite: { label: 'Battle session invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // Forum replies to your thread and @mentions — in-app only.
+  forum_reply: { label: 'Forum replies', supportsEmail: false, defaultEnabled: false, subject: '' },
+  forum_mention: { label: 'Forum mentions', supportsEmail: false, defaultEnabled: false, subject: '' },
 };
 
 /**
@@ -363,6 +368,10 @@ export function getNotificationLinkLabel(link: string, campaignName?: string | n
 
   if (pathname.startsWith('/gang/')) {
     return 'View gang';
+  }
+
+  if (pathname.startsWith('/forum/')) {
+    return 'View post';
   }
 
   if (pathname.startsWith('/account')) {
