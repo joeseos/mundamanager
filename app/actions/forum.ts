@@ -1,10 +1,11 @@
 'use server';
 
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateForumThread, invalidateForumThreadList } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
+import { isUuid } from '@/utils/uuid';
 import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumThreadPath } from '@/app/lib/forum';
 
 export interface ForumActionResult {
@@ -18,13 +19,14 @@ export interface ForumActionResult {
 const TITLE_MAX_LENGTH = 150;
 const CONTENT_MAX_LENGTH = 50000;
 
-// The thread and its category, for the post's URL and the cache tags
-const THREAD_SELECT = 'number, title, category_id, forum_categories(slug)';
+// The thread and its category, for the post's URL and the cache tags, and its author for reply notifications
+const THREAD_SELECT = 'number, title, category_id, author_id, forum_categories(slug)';
 
 interface ThreadRow {
   number: number;
   title: string;
   category_id: string;
+  author_id: string | null;
   forum_categories: { slug: string } | null;
 }
 
@@ -60,6 +62,64 @@ function postPath(thread: ThreadRow, postNumber: number): string {
   return `${path}${page > 1 ? `?page=${page}` : ''}#post-${postNumber}`;
 }
 
+// The @mentions RichTextEditor saves: <a data-type="mention" data-id="<user id>" ...>
+const MENTION_TAG = /<a\b[^>]*\bdata-type="mention"[^>]*>/gi;
+const MENTION_ID = /\bdata-id="([^"]*)"/;
+// So one post can't notify a crowd
+const MENTION_NOTIFY_LIMIT = 10;
+
+function mentionedUserIds(html: string): Set<string> {
+  const ids = new Set<string>();
+  for (const [tag] of html.matchAll(MENTION_TAG)) {
+    const id = tag.match(MENTION_ID)?.[1];
+    if (isUuid(id)) ids.add(id);
+  }
+  return ids;
+}
+
+/**
+ * Notifies the people a post mentions, leaving out the ones `previousContent`
+ * already mentioned so an edit doesn't notify them twice, and `replyTo` (the
+ * thread's author on a reply) unless they're mentioned too. The post is saved
+ * by now, so a failure is only logged.
+ */
+async function notifyForumPost(
+  supabase: SupabaseClient,
+  params: { senderId: string; thread: ThreadRow; postNumber: number; content: string; previousContent?: string; replyTo?: string | null },
+) {
+  const { senderId, thread } = params;
+  const previous = mentionedUserIds(params.previousContent ?? '');
+  const mentioned = [...mentionedUserIds(params.content)]
+    .filter((id) => id !== senderId && !previous.has(id))
+    .slice(0, MENTION_NOTIFY_LIMIT);
+  const replyTo = params.replyTo && params.replyTo !== senderId && !mentioned.includes(params.replyTo) ? params.replyTo : null;
+  if (!mentioned.length && !replyTo) return;
+
+  // Also checks the mentioned ids are real users
+  const { data: profiles, error } = await supabase.from('profiles').select('id, username').in('id', [senderId, ...mentioned]);
+  if (error) {
+    console.error('Failed to send the forum notifications', error);
+    return;
+  }
+
+  const sender = profiles.find((profile) => profile.id === senderId)?.username ?? 'Someone';
+  const notification = { sender_id: senderId, link: postPath(thread, params.postNumber) };
+  const rows = profiles
+    .filter((profile) => profile.id !== senderId)
+    .map((profile) => ({
+      ...notification,
+      receiver_id: profile.id,
+      type: 'forum_mention',
+      text: `${sender} mentioned you in "${thread.title}".`,
+    }));
+  if (replyTo) {
+    rows.push({ ...notification, receiver_id: replyTo, type: 'forum_reply', text: `${sender} replied to your thread "${thread.title}".` });
+  }
+
+  const { error: insertError } = await supabase.from('notifications').insert(rows);
+  if (insertError) console.error('Failed to send the forum notifications', insertError);
+}
+
 export async function createForumThread(params: {
   categoryId: string;
   title: string;
@@ -71,7 +131,7 @@ export async function createForumThread(params: {
 
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
 
     // Starts the thread and its opening post in one transaction
     const { data: thread, error } = await supabase
@@ -84,6 +144,7 @@ export async function createForumThread(params: {
       .single<ThreadRow>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to start the thread') };
 
+    await notifyForumPost(supabase, { senderId: user.id, thread, postNumber: 1, content: params.content });
     invalidateForumThreadList(thread.category_id, thread.number);
     return { success: true, path: postPath(thread, 1) };
   } catch (error) {
@@ -110,8 +171,16 @@ export async function replyToForumThread(params: {
       .single<{ post_number: number; forum_threads: ThreadRow }>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to post the reply') };
 
-    invalidateForumThread(post.forum_threads.category_id, post.forum_threads.number);
-    return { success: true, path: postPath(post.forum_threads, post.post_number) };
+    const thread = post.forum_threads;
+    await notifyForumPost(supabase, {
+      senderId: user.id,
+      thread,
+      postNumber: post.post_number,
+      content: params.content,
+      replyTo: thread.author_id,
+    });
+    invalidateForumThread(thread.category_id, thread.number);
+    return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
     console.error('Failed to post the reply', error);
     return { success: false, error: 'Failed to post the reply' };
@@ -130,7 +199,15 @@ export async function editForumPost(params: {
 
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
+
+    // For the mentions the post already had
+    const { data: previous, error: readError } = await supabase
+      .from('forum_posts')
+      .select('content')
+      .eq('id', params.postId)
+      .maybeSingle();
+    if (readError) throw readError;
 
     // RLS limits this to the author's own posts (and moderators), so other posts match no row
     const { data: post, error } = await supabase
@@ -149,6 +226,14 @@ export async function editForumPost(params: {
       ({ error: titleError } = await supabase.from('forum_threads').update({ title }).eq('id', post.thread_id));
       if (!titleError) thread.title = title;
     }
+
+    await notifyForumPost(supabase, {
+      senderId: user.id,
+      thread,
+      postNumber: post.post_number,
+      content: params.content,
+      previousContent: previous?.content,
+    });
 
     // The content is saved even if the rename failed, so clear its cache either way
     if (renamed && !titleError) invalidateForumThreadList(thread.category_id, thread.number);

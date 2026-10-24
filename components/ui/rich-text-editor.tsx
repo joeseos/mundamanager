@@ -8,6 +8,7 @@ import { Color } from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import { UserMention } from '@/components/ui/rich-text-mention';
 
 // On mobile the toolbar is fixed to the top of the screen instead of sitting above the text.
 const isMobileViewport = () =>
@@ -106,6 +107,7 @@ export interface RichTextEditorProps {
   filePrefix?: string; // Final file name prefix for promoted uploads; defaults to 'pack'
   maxImages?: number | null; // Max hosted images; null = unlimited; defaults to 5
   enableImages?: boolean; // When false, hide all image upload/hotlink UI
+  enableMentions?: boolean; // When true, typing @ suggests users to mention
   stickyWithinScrollContainer?: boolean; // When true, sticky toolbar follows nearest scrollable parent
   // Matches the notification sanitizer: headings 1–3, no code, no horizontal rule.
   notificationFormatting?: boolean;
@@ -139,6 +141,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     filePrefix,
     maxImages,
     enableImages,
+    enableMentions = false,
     stickyWithinScrollContainer = false,
     notificationFormatting = false,
   }: RichTextEditorProps,
@@ -240,6 +243,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           class: 'max-w-full h-auto rounded-md my-2',
         },
       }),
+      ...(enableMentions ? [UserMention] : []),
     ],
     content,
     onUpdate: ({ editor }) => {
