@@ -17,6 +17,7 @@ import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
+import { UserRoleBadge } from '@/components/ui/user-role-badge';
 import '@/components/ui/rich-text-editor.css';
 
 interface ForumThreadPageProps {
@@ -96,6 +97,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
                         />
                       </span>
                     )}
+                    <UserRoleBadge role={post.author_role} className="ml-1.5 px-1.5 py-0 text-[10px] align-[1px]" />
                     <span className="text-muted-foreground">
                       {' '}· {formatForumDate(post.created_at)}
                       {post.updated_at && !post.is_removed && ' · edited'}

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { notFound } from "next/navigation";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
+import { UserRoleBadge } from "@/components/ui/user-role-badge";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { FaUser, FaUsers } from "react-icons/fa6";
 import { MdOutlineColorLens } from "react-icons/md";
@@ -175,9 +176,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
             <div>
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
                 {profile.username}
-                {profile.user_role === 'admin' && (
-                  <Badge variant="destructive">Admin</Badge>
-                )}
+                <UserRoleBadge role={profile.user_role} />
               </h1>
               <p className="text-muted-foreground mt-2">
                 Member since: {new Date(profile.created_at).toISOString().split('T')[0]}
