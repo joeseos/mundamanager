@@ -155,8 +155,15 @@ export function ForumPostContent({ post, liked, canLike, threadTitle, pagePath }
       <div className="flex justify-end gap-1 mt-2 empty:hidden">
         <ForumLikeButton post={post} liked={liked} canLike={canLike} />
         {userId !== null && quote && (
-          <Button variant="ghost" size="sm" onClick={() => quote(quoteHtml(post, pagePath))}>
-            <LuQuote className="h-4 w-4 mr-1" /> Quote
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-9 p-0"
+            onClick={() => quote(quoteHtml(post, pagePath))}
+            title="Quote post"
+            aria-label="Quote post"
+          >
+            <LuQuote className="h-4 w-4" />
           </Button>
         )}
         {userId !== null && (userId === post.author_id || isModerator) && (
