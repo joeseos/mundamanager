@@ -211,12 +211,17 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
   }
 }
 
+const MODERATORS_ONLY_FLAGS = 'Only moderators can pin or lock threads';
+
 /** Pins or locks a thread, or undoes it (moderators only). */
 export async function setForumThreadFlag(params: {
   threadId: string;
   flag: 'is_pinned' | 'is_locked';
   value: boolean;
 }): Promise<ForumActionResult> {
+  // Server actions can be called with anything, so don't let the flag name another column
+  if (params.flag !== 'is_pinned' && params.flag !== 'is_locked') return { success: false, error: 'Unknown setting' };
+
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
@@ -228,8 +233,8 @@ export async function setForumThreadFlag(params: {
       .eq('id', params.threadId)
       .select(THREAD_SELECT)
       .maybeSingle<ThreadRow>();
-    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the thread') };
-    if (!thread) return { success: false, error: 'Only moderators can pin or lock threads' };
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the thread', MODERATORS_ONLY_FLAGS) };
+    if (!thread) return { success: false, error: MODERATORS_ONLY_FLAGS };
 
     invalidateForumThread(thread.category_id, thread.number);
     return { success: true };
