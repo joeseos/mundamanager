@@ -111,7 +111,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
                   {post.is_removed ? (
                     <p className="text-muted-foreground italic">This post was removed.</p>
                   ) : (
-                    <ForumPostContent post={post} threadTitle={thread.title} pagePath={pagePath} />
+                    <ForumPostContent post={post} thread={thread} pagePath={pagePath} />
                   )}
                   {!post.is_removed && post.like_count > 0 && (
                     <p className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
