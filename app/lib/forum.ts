@@ -1,9 +1,9 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { and, asc, between, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, between, desc, eq, inArray, sql } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
-import { getAppDb } from '@/utils/db/client';
-import { forumCategories, forumPosts, forumThreads, profiles } from '@/utils/db/schema';
+import { getAppDb, withUserClaims } from '@/utils/db/client';
+import { forumCategories, forumPostLikes, forumPosts, forumThreads, profiles } from '@/utils/db/schema';
 import { TAGS } from '@/utils/cache-tags';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import { slugifyHeading } from '@/utils/user-guide-content';
@@ -33,12 +33,14 @@ export interface ForumThreadSummary {
   is_pinned: boolean;
   is_locked: boolean;
   post_count: number;
+  /** The opening post's likes, which count as the thread's. */
+  like_count: number;
   created_at: string;
   last_post_at: string;
   last_post_author: string | null;
 }
 
-export interface ForumThread extends ForumThreadSummary {
+export interface ForumThread extends Omit<ForumThreadSummary, 'like_count'> {
   id: string;
   category: { id: string; slug: string; name: string };
 }
@@ -73,6 +75,7 @@ const iso = (column: AnyPgColumn) => sql<string>`to_json(${column})`;
 
 const author = alias(profiles, 'author');
 const lastPostAuthor = alias(profiles, 'last_post_author');
+const openingPost = alias(forumPosts, 'opening_post');
 
 /** Categories in index order, each with its most recently active thread. */
 export const getForumCategories = unstable_cache(
@@ -148,10 +151,11 @@ export function getForumThreads(categoryId: string, page: number): Promise<Forum
   return unstable_cache(
     async () =>
       getAppDb()
-        .select(THREAD_SUMMARY_COLUMNS)
+        .select({ ...THREAD_SUMMARY_COLUMNS, like_count: sql<number>`coalesce(${openingPost.like_count}, 0)` })
         .from(forumThreads)
         .leftJoin(author, eq(author.id, forumThreads.author_id))
         .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
+        .leftJoin(openingPost, and(eq(openingPost.thread_id, forumThreads.id), eq(openingPost.post_number, 1)))
         .where(eq(forumThreads.category_id, categoryId))
         .orderBy(desc(forumThreads.is_pinned), desc(forumThreads.last_post_at))
         .limit(FORUM_THREADS_PER_PAGE)
@@ -190,7 +194,7 @@ export const getForumThread = cache((number: number): Promise<ForumThread | null
 /**
  * One page of a thread's posts, oldest first. Post numbers run 1, 2, 3... with
  * no gaps (posts are removed, never deleted), so a page is a range of them.
- * Refreshes every 60 s so like counts catch up without a bust on every like.
+ * Refreshes every 60 s so changes to the authors' profiles (name, avatar, role) show.
  */
 export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: number): Promise<ForumPost[]> {
   return unstable_cache(
@@ -230,6 +234,18 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
     ['forum-posts', String(thread.number), String(page)],
     { tags: [TAGS.forumThread(thread.number)], revalidate: 60 }
   )();
+}
+
+/** Which of these posts the user has liked. Per viewer, so not cached; RLS shows a user only their own likes. */
+export async function getForumLikedPostIds(userId: string, postIds: string[]): Promise<Set<string>> {
+  if (!postIds.length) return new Set();
+  const rows = await withUserClaims(userId, (tx) =>
+    tx
+      .select({ post_id: forumPostLikes.post_id })
+      .from(forumPostLikes)
+      .where(and(eq(forumPostLikes.user_id, userId), inArray(forumPostLikes.post_id, postIds)))
+  );
+  return new Set(rows.map((row) => row.post_id));
 }
 
 export function forumCategoryPath(categorySlug: string): string {

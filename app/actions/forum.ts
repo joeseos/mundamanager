@@ -3,7 +3,7 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateForumThread, invalidateForumThreadList } from '@/utils/cache-tags';
+import { invalidateForumThread, invalidateForumThreadList, invalidateForumThreadPosts } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumThreadPath } from '@/app/lib/forum';
@@ -304,5 +304,36 @@ export async function setForumThreadFlag(params: {
   } catch (error) {
     console.error('Failed to update the thread', error);
     return { success: false, error: 'Failed to update the thread' };
+  }
+}
+
+/** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */
+export async function setForumPostLike(params: { postId: string; liked: boolean }): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: post, error: readError } = await supabase
+      .from('forum_posts')
+      .select(`post_number, forum_threads(${THREAD_SELECT})`)
+      .eq('id', params.postId)
+      .single<{ post_number: number; forum_threads: ThreadRow }>();
+    if (readError) throw readError;
+
+    const like = { post_id: params.postId, user_id: user.id };
+    // Liking twice, or taking back a like that's gone, changes nothing
+    const { error } = params.liked
+      ? await supabase.from('forum_post_likes').upsert(like, { ignoreDuplicates: true })
+      : await supabase.from('forum_post_likes').delete().match(like);
+    if (error) throw error;
+
+    // The category list shows the opening post's likes
+    const thread = post.forum_threads;
+    if (post.post_number === 1) invalidateForumThread(thread.category_id, thread.number);
+    else invalidateForumThreadPosts(thread.number);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update the like', error);
+    return { success: false, error: 'Failed to update the like' };
   }
 }

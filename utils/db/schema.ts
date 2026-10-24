@@ -1058,6 +1058,12 @@ export const forumPosts = pgTable('forum_posts', {
   deleted_by: uuid('deleted_by'),
 });
 
+export const forumPostLikes = pgTable('forum_post_likes', {
+  post_id: uuid('post_id').notNull(),
+  user_id: uuid('user_id').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.post_id, table.user_id] })]);
+
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
 // one()s point at the same table, each pair gets a relationName:

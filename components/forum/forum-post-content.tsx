@@ -2,17 +2,28 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuPencil, LuQuote, LuTrash2 } from 'react-icons/lu';
+import { LuHeart, LuPencil, LuQuote, LuTrash2 } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import { useForumQuote } from '@/components/forum/forum-reply-box';
-import { deleteForumPost, editForumPost } from '@/app/actions/forum';
+import { deleteForumPost, editForumPost, setForumPostLike } from '@/app/actions/forum';
 
 interface ForumPostContentProps {
-  post: { id: string; post_number: number; author_id: string | null; author: string | null; content: string };
+  post: {
+    id: string;
+    post_number: number;
+    author_id: string | null;
+    author: string | null;
+    content: string;
+    like_count: number;
+  };
+  /** Whether the viewer has liked the post. */
+  liked: boolean;
+  /** Signed in, and not the post's author. */
+  canLike: boolean;
   /** Edited along with the opening post. */
   threadTitle: string;
   /** The page the post is on, which a quote links back to. */
@@ -45,8 +56,61 @@ function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): strin
   return `${blockquote.outerHTML}<p></p>`;
 }
 
+/** The post's likes, with a heart that likes it when the viewer can. */
+function ForumLikeButton({ post, liked: savedLiked, canLike }: Pick<ForumPostContentProps, 'post' | 'liked' | 'canLike'>) {
+  const [liked, setLiked] = useState(savedLiked);
+  const [prevSavedLiked, setPrevSavedLiked] = useState(savedLiked);
+  const [saving, setSaving] = useState(false);
+  // A refreshed page may bring a like changed elsewhere, e.g. in another tab
+  if (savedLiked !== prevSavedLiked) {
+    setPrevSavedLiked(savedLiked);
+    setLiked(savedLiked);
+  }
+  // like_count includes the saved like, so only a change since then is added
+  const count = post.like_count - Number(savedLiked) + Number(liked);
+  const heart = (
+    <>
+      <LuHeart className={`h-4 w-4 ${liked ? 'fill-current text-red-800' : ''}`} />
+      {count > 0 && <span className="ml-1">{count}</span>}
+    </>
+  );
+
+  if (!canLike) {
+    return count > 0 ? (
+      <span className="flex items-center h-9 px-3 text-sm text-muted-foreground" aria-label={`${count} likes`}>
+        {heart}
+      </span>
+    ) : null;
+  }
+
+  const toggle = async () => {
+    setSaving(true);
+    setLiked(!liked);
+    const result = await setForumPostLike({ postId: post.id, liked: !liked });
+    if (!result.success) {
+      setLiked(liked);
+      toast.error(result.error);
+    }
+    setSaving(false);
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={toggle}
+      disabled={saving}
+      aria-pressed={liked}
+      title={liked ? 'Unlike' : 'Like'}
+      aria-label={liked ? 'Unlike' : 'Like'}
+    >
+      {heart}
+    </Button>
+  );
+}
+
 /** A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for moderators. */
-export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
+export function ForumPostContent({ post, liked, canLike, threadTitle, pagePath }: ForumPostContentProps) {
   const router = useRouter();
   const { userId, isModerator } = useForumViewer();
   const quote = useForumQuote();
@@ -88,39 +152,38 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
         className="forum-post prose max-w-none [&_li]:marker:text-red-800"
         dangerouslySetInnerHTML={{ __html: post.content }}
       />
-      {userId !== null && (
-        <div className="flex justify-end gap-1 mt-2">
-          {quote && (
-            <Button variant="ghost" size="sm" onClick={() => quote(quoteHtml(post, pagePath))}>
-              <LuQuote className="h-4 w-4 mr-1" /> Quote
-            </Button>
-          )}
-          {(userId === post.author_id || isModerator) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-9 p-0"
-              onClick={() => setEditing(true)}
-              title="Edit post"
-              aria-label="Edit post"
-            >
-              <LuPencil className="h-4 w-4" />
-            </Button>
-          )}
-          {isModerator && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-9 p-0 text-red-600 hover:text-red-700"
-              onClick={() => setConfirmingDelete(true)}
-              title="Delete post"
-              aria-label="Delete post"
-            >
-              <LuTrash2 className="h-4 w-4" />
-            </Button>
-          )}
-        </div>
-      )}
+      <div className="flex justify-end gap-1 mt-2 empty:hidden">
+        <ForumLikeButton post={post} liked={liked} canLike={canLike} />
+        {userId !== null && quote && (
+          <Button variant="ghost" size="sm" onClick={() => quote(quoteHtml(post, pagePath))}>
+            <LuQuote className="h-4 w-4 mr-1" /> Quote
+          </Button>
+        )}
+        {userId !== null && (userId === post.author_id || isModerator) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-9 p-0"
+            onClick={() => setEditing(true)}
+            title="Edit post"
+            aria-label="Edit post"
+          >
+            <LuPencil className="h-4 w-4" />
+          </Button>
+        )}
+        {isModerator && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-9 p-0 text-red-600 hover:text-red-700"
+            onClick={() => setConfirmingDelete(true)}
+            title="Delete post"
+            aria-label="Delete post"
+          >
+            <LuTrash2 className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
       {confirmingDelete && (
         <Modal
           title={isOpeningPost ? 'Delete Thread' : 'Delete Post'}

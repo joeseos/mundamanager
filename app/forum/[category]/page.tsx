@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { LuLock, LuPin } from 'react-icons/lu';
+import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_THREADS_PER_PAGE,
   formatForumDate,
@@ -76,6 +76,11 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)}
+                    {thread.like_count > 0 && (
+                      <>
+                        {' '}· <LuHeart className="inline h-3.5 w-3.5 align-[-2px]" aria-label="Likes" /> {thread.like_count}
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0">
