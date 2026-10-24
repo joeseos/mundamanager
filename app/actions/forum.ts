@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateForumThread, invalidateForumThreadList } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
-import { FORUM_POSTS_PER_PAGE, forumThreadPath } from '@/app/lib/forum';
+import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumThreadPath } from '@/app/lib/forum';
 
 export interface ForumActionResult {
   success: boolean;
@@ -158,5 +158,55 @@ export async function editForumPost(params: {
   } catch (error) {
     console.error('Failed to save the post', error);
     return { success: false, error: 'Failed to save the post' };
+  }
+}
+
+/**
+ * Removes a post (moderators only). Removing a thread's opening post deletes the
+ * thread; any other post keeps its place as "This post was removed".
+ */
+export async function deleteForumPost(postId: string): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: post, error: readError } = await supabase
+      .from('forum_posts')
+      .select(`post_number, thread_id, forum_threads(${THREAD_SELECT})`)
+      .eq('id', postId)
+      .single<{ post_number: number; thread_id: string; forum_threads: ThreadRow }>();
+    if (readError) throw readError;
+    const thread = post.forum_threads;
+
+    // RLS limits both to moderators: the thread delete matches no row, the post update is refused
+    if (post.post_number === 1) {
+      const { data: deleted, error } = await supabase
+        .from('forum_threads')
+        .delete()
+        .eq('id', post.thread_id)
+        .select('id');
+      if (error) throw error;
+      if (!deleted.length) return { success: false, error: 'Only moderators can delete posts' };
+
+      invalidateForumThreadList(thread.category_id, thread.number);
+      return { success: true, path: forumCategoryPath(thread.forum_categories?.slug ?? '') };
+    }
+
+    // The trigger sets deleted_at itself, empties the content and keeps it as a revision
+    const { data: removed, error } = await supabase
+      .from('forum_posts')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', postId)
+      .select('id');
+    if (error && !error.message.includes('row-level security')) {
+      return { success: false, error: writeErrorMessage(error, 'Failed to delete the post') };
+    }
+    if (error || !removed.length) return { success: false, error: 'Only moderators can delete posts' };
+
+    invalidateForumThread(thread.category_id, thread.number);
+    return { success: true, path: postPath(thread, post.post_number) };
+  } catch (error) {
+    console.error('Failed to delete the post', error);
+    return { success: false, error: 'Failed to delete the post' };
   }
 }
