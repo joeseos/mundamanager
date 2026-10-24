@@ -266,3 +266,9 @@ export function formatForumDate(date: string): string {
     timeZone: 'UTC',
   });
 }
+
+/** "3 replies" for a thread's post_count, which includes the opening post. */
+export function formatForumReplies(postCount: number): string {
+  const replies = Math.max(postCount - 1, 0);
+  return `${replies} ${replies === 1 ? 'reply' : 'replies'}`;
+}
