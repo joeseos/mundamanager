@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { LuPencil, LuQuote } from 'react-icons/lu';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { LuPencil, LuQuote, LuTrash2 } from 'react-icons/lu';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import Modal from '@/components/ui/modal';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import { useForumQuote } from '@/components/forum/forum-reply-box';
-import { editForumPost } from '@/app/actions/forum';
+import { deleteForumPost, editForumPost } from '@/app/actions/forum';
 
 interface ForumPostContentProps {
   post: { id: string; post_number: number; author_id: string | null; author: string | null; content: string };
@@ -40,21 +43,35 @@ function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): strin
   return `${blockquote.outerHTML}<p></p>`;
 }
 
-/** A post's text, with Quote for signed-in users and Edit for its author. */
+/** A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for moderators. */
 export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
-  const { userId } = useForumViewer();
+  const router = useRouter();
+  const { userId, isModerator } = useForumViewer();
   const quote = useForumQuote();
   const [editing, setEditing] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [, startTransition] = useTransition();
+  const isOpeningPost = post.post_number === 1;
+
+  const handleDelete = async () => {
+    const result = await deleteForumPost(post.id);
+    if (!result.success) {
+      toast.error(result.error);
+      return false;
+    }
+    startTransition(() => router.push(result.path!));
+    return true;
+  };
 
   if (editing) {
     return (
       <ForumPostForm
-        initialTitle={post.post_number === 1 ? threadTitle : undefined}
+        initialTitle={isOpeningPost ? threadTitle : undefined}
         initialContent={post.content}
         placeholder="Write your post..."
         submitText="Save"
         onSubmit={({ title, content }) =>
-          editForumPost({ postId: post.id, content, title: post.post_number === 1 ? title : undefined })
+          editForumPost({ postId: post.id, content, title: isOpeningPost ? title : undefined })
         }
         onSuccess={() => setEditing(false)}
         onCancel={() => setEditing(false)}
@@ -75,12 +92,45 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
               <LuQuote className="h-4 w-4 mr-1" /> Quote
             </Button>
           )}
-          {userId === post.author_id && (
-            <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-              <LuPencil className="h-4 w-4 mr-1" /> Edit
+          {(userId === post.author_id || isModerator) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-9 p-0"
+              onClick={() => setEditing(true)}
+              title="Edit post"
+              aria-label="Edit post"
+            >
+              <LuPencil className="h-4 w-4" />
+            </Button>
+          )}
+          {isModerator && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-9 p-0 text-red-600 hover:text-red-700"
+              onClick={() => setConfirmingDelete(true)}
+              title="Delete post"
+              aria-label="Delete post"
+            >
+              <LuTrash2 className="h-4 w-4" />
             </Button>
           )}
         </div>
+      )}
+      {confirmingDelete && (
+        <Modal
+          title={isOpeningPost ? 'Delete Thread' : 'Delete Post'}
+          content={
+            <p>
+              {isOpeningPost
+                ? 'This is the opening post, so the whole thread and all its replies will be deleted. This cannot be undone.'
+                : `Delete this post by ${post.author ?? 'Unknown User'}? It will show as removed.`}
+            </p>
+          }
+          onClose={() => setConfirmingDelete(false)}
+          onConfirm={handleDelete}
+        />
       )}
     </>
   );
