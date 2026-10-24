@@ -5,7 +5,6 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateForumThread, invalidateForumThreadList } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
-import { isUuid } from '@/utils/uuid';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumThreadPath } from '@/app/lib/forum';
 
@@ -63,20 +62,14 @@ function postPath(thread: ThreadRow, postNumber: number): string {
   return `${path}${page > 1 ? `?page=${page}` : ''}#post-${postNumber}`;
 }
 
-// The @mentions the sanitizer keeps: <a ... data-type="mention" data-id="<user id>" ...>
-const MENTION_TAG = /<a\b[^>]*\bdata-type="mention"[^>]*>/gi;
-const MENTION_ID = /\bdata-id="([^"]*)"/;
+// How the sanitizer writes an @mention, whose id it has checked is a uuid
+const MENTION_ID = /data-type="mention" data-id="([^"]+)"/g;
 // So one post can't notify a crowd
 const MENTION_NOTIFY_LIMIT = 10;
 
 /** The users a post mentions, read from what the page will show. */
 function mentionedUserIds(html: string): Set<string> {
-  const ids = new Set<string>();
-  for (const [tag] of sanitizeArticleHtml(html).matchAll(MENTION_TAG)) {
-    const id = tag.match(MENTION_ID)?.[1];
-    if (isUuid(id)) ids.add(id);
-  }
-  return ids;
+  return new Set(Array.from(sanitizeArticleHtml(html).matchAll(MENTION_ID), ([, id]) => id));
 }
 
 /**

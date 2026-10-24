@@ -3,7 +3,7 @@
 import { forwardRef, useImperativeHandle, useState } from 'react';
 import { ReactRenderer } from '@tiptap/react';
 import Mention from '@tiptap/extension-mention';
-import type { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
+import type { SuggestionProps } from '@tiptap/suggestion';
 import { SEARCH_DEBOUNCE_MS, searchUsers, type UserSearchResult } from '@/components/shared/user-search-bar';
 
 type MentionListProps = SuggestionProps<UserSearchResult, { id: string; label: string }>;
@@ -34,7 +34,7 @@ const MentionList = forwardRef<MentionListHandle, MentionListProps>(function Men
       if (!items.length) return false;
       if (event.key === 'ArrowUp') setSelected((selected + items.length - 1) % items.length);
       else if (event.key === 'ArrowDown') setSelected((selected + 1) % items.length);
-      else if (event.key === 'Enter' || event.key === 'Tab') pick(selected);
+      else if (event.key === 'Enter') pick(selected);
       else return false;
       return true;
     },
@@ -82,13 +82,7 @@ export const UserMention = Mention.extend({
       let list: ReactRenderer<MentionListHandle, MentionListProps> | null = null;
       let unmount: (() => void) | null = null;
 
-      const close = () => {
-        unmount?.();
-        list?.destroy();
-        list = null;
-        unmount = null;
-      };
-
+      // The plugin closes the list on Escape and when the @ text goes, through onExit
       return {
         onStart: (props) => {
           list = new ReactRenderer(MentionList, { props, editor: props.editor });
@@ -97,14 +91,11 @@ export const UserMention = Mention.extend({
           unmount = props.mount(list.element);
         },
         onUpdate: (props) => list?.updateProps(props),
-        onKeyDown: ({ event }: SuggestionKeyDownProps) => {
-          if (event.key === 'Escape') {
-            close();
-            return true;
-          }
-          return list?.ref?.onKeyDown(event) ?? false;
+        onKeyDown: ({ event }) => list?.ref?.onKeyDown(event) ?? false,
+        onExit: () => {
+          unmount?.();
+          list?.destroy();
         },
-        onExit: close,
       };
     },
   },
