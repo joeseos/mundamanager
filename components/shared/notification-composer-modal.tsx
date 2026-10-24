@@ -14,6 +14,9 @@ import {
   NOTIFICATION_BROADCAST_MAX_LENGTH,
   NOTIFICATION_EXPIRES_MAX_DAYS,
   NOTIFICATION_EXPIRES_MIN_DAYS,
+  defaultLoggedInSince,
+  latestLoggedInSince,
+  loggedInSinceInstant,
   notificationPlainTextLength,
 } from '@/utils/notifications'
 import { LazyRichTextEditor } from '@/components/ui/lazy-rich-text-editor'
@@ -60,6 +63,7 @@ export function NotificationComposerModal({
   typeIcon,
   allLabel,
   allWarning,
+  loggedInSince = false,
   allToggleDisabled = false,
   allowSendAll = true,
   picker,
@@ -77,7 +81,9 @@ export function NotificationComposerModal({
   typeLabel: (send: SentNotificationRow) => string
   typeIcon: (send: SentNotificationRow) => ReactNode
   allLabel: string
-  allWarning: string
+  allWarning?: string
+  /** When All users is on, require a sign-in cutoff. Defaults to two months ago. */
+  loggedInSince?: boolean
   allToggleDisabled?: boolean
   allowSendAll?: boolean
   picker: (input: PickerProps) => ReactNode
@@ -89,7 +95,10 @@ export function NotificationComposerModal({
   const [text, setText] = useState('')
   const [expiresInDays, setExpiresInDays] = useState(30)
   const [audienceAll, setAudienceAll] = useState(false)
+  const [signedInSince, setSignedInSince] = useState<string | null>(null)
   const [selected, setSelected] = useState<ComposerRecipient[]>([])
+  const signedInSinceValue =
+    signedInSince ?? (loggedInSince && audienceAll ? defaultLoggedInSince() : '')
 
   const history = useQuery({
     queryKey: ['sent-notifications', historyUrl],
@@ -105,10 +114,14 @@ export function NotificationComposerModal({
 
   const expiresValid =
     expiresInDays >= NOTIFICATION_EXPIRES_MIN_DAYS && expiresInDays <= NOTIFICATION_EXPIRES_MAX_DAYS
+  const signedInSinceInstant =
+    loggedInSince && audienceAll ? loggedInSinceInstant(signedInSinceValue) : null
+  const signedInSinceValid = !loggedInSince || !audienceAll || signedInSinceInstant != null
   const canSend =
     !isHtmlEffectivelyEmpty(text) &&
     notificationPlainTextLength(text) <= NOTIFICATION_BROADCAST_MAX_LENGTH &&
     expiresValid &&
+    signedInSinceValid &&
     (audienceAll ? allowSendAll : selected.length > 0)
 
   const historyStatus: SentHistoryStatus = history.isError
@@ -125,6 +138,7 @@ export function NotificationComposerModal({
       return
     }
     setSelected([])
+    setSignedInSince(null)
     setAudienceAll(true)
   }
 
@@ -141,6 +155,7 @@ export function NotificationComposerModal({
           expiresInDays,
           audience: audienceAll ? 'all' : selectedAudience,
           userIds: audienceAll ? undefined : selected.map((recipient) => recipient.id),
+          ...(signedInSinceInstant ? { loggedInSince: signedInSinceInstant } : {}),
           ...extraBody,
         }),
       })
@@ -239,9 +254,23 @@ export function NotificationComposerModal({
                   ))}
                 </div>
               )}
-              {audienceAll && (
+              {audienceAll && loggedInSince && (
+                <div className="space-y-2 pt-1">
+                  <Label htmlFor="notification-logged-in-since">All users who logged in on or after</Label>
+                  <Input
+                    id="notification-logged-in-since"
+                    type="date"
+                    max={latestLoggedInSince()}
+                    value={signedInSinceValue}
+                    onChange={(event) => setSignedInSince(event.target.value)}
+                  />
+                </div>
+              )}
+              {audienceAll && (loggedInSince || allWarning) && (
                 <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
-                  {allWarning}
+                  {loggedInSince
+                    ? `This will send the notification to every user who logged in on or after ${signedInSinceValue || 'the date below'}. Double-check the message before sending.`
+                    : allWarning}
                 </p>
               )}
             </div>

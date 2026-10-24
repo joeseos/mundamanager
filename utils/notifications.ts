@@ -179,6 +179,82 @@ export function parseExpiresInDays(value: unknown): number | null {
   return days;
 }
 
+const LOGGED_IN_SINCE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function padDatePart(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+function formatLocalDate(date: Date): string {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+}
+
+/** A real YYYY-MM-DD, or null. Does not check whether the date is in the future. */
+function calendarDate(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const match = LOGGED_IN_SINCE_PATTERN.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return value;
+}
+
+/** Local calendar date two months before today, as YYYY-MM-DD. Clamps short months. */
+export function defaultLoggedInSince(now = new Date()): string {
+  const target = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(now.getDate(), lastDay));
+  return formatLocalDate(target);
+}
+
+/** Local calendar date for the date input's max. */
+export function latestLoggedInSince(now = new Date()): string {
+  return formatLocalDate(now);
+}
+
+/** True when the date is real and not after today's local calendar date. */
+function loggedInSinceIsCurrentOrPast(value: string, now = new Date()): boolean {
+  const date = calendarDate(value);
+  if (!date) return false;
+  return date <= formatLocalDate(now);
+}
+
+/** Start of that local calendar day, as an ISO instant. Null when the date is unusable. */
+export function loggedInSinceInstant(value: string, now = new Date()): string | null {
+  if (!loggedInSinceIsCurrentOrPast(value, now)) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  const instant = new Date(year, month - 1, day);
+  if (Number.isNaN(instant.getTime())) return null;
+  return instant.toISOString();
+}
+
+const LOGGED_IN_SINCE_INSTANT_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/** Clock skew allowed when the server is slightly behind the browser. */
+const LOGGED_IN_SINCE_FUTURE_SKEW_MS = 15 * 60 * 1000;
+
+/**
+ * A real instant that is not after now (plus a little clock skew), or null.
+ * Date-only strings are rejected so a calendar day is not read as UTC midnight.
+ */
+export function parseLoggedInSince(value: unknown, now = new Date()): string | null {
+  if (typeof value !== 'string' || !LOGGED_IN_SINCE_INSTANT_PATTERN.test(value)) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getTime() > now.getTime() + LOGGED_IN_SINCE_FUTURE_SKEW_MS) return null;
+  return parsed.toISOString();
+}
+
 export function prepareNotificationHtml(
   raw: unknown
 ): { ok: true; text: string } | { ok: false; error: string } {

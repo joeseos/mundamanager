@@ -44,6 +44,7 @@ export async function POST(request: Request) {
       selectedAudience: 'users',
       recipientNoun: 'user',
       failureFallback: 'Failed to send notifications',
+      requireLoggedInSince: true,
       type: (body) => {
         if (typeof body.type !== 'string' || !isAdminNotificationType(body.type)) {
           return NextResponse.json(

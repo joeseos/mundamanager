@@ -36,7 +36,7 @@ export function AdminNotificationsModal({ onClose }: { onClose: () => void }) {
         )
       }
       allLabel="All users"
-      allWarning="This will send the notification to every user in the database. Double-check the message before sending."
+      loggedInSince
       extraBody={{ type }}
       picker={({ disabled, excludeIds, onSelect }) => (
         <UserSearchBar
