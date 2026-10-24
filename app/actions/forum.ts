@@ -1,10 +1,11 @@
 'use server';
 
-import type { PostgrestError } from '@supabase/supabase-js';
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateForumThread, invalidateForumThreadList } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
+import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumThreadPath } from '@/app/lib/forum';
 
 export interface ForumActionResult {
@@ -18,13 +19,14 @@ export interface ForumActionResult {
 const TITLE_MAX_LENGTH = 150;
 const CONTENT_MAX_LENGTH = 50000;
 
-// The thread and its category, for the post's URL and the cache tags
-const THREAD_SELECT = 'number, title, category_id, forum_categories(slug)';
+// The thread and its category, for the post's URL and the cache tags, and its author for reply notifications
+const THREAD_SELECT = 'number, title, category_id, author_id, forum_categories(slug)';
 
 interface ThreadRow {
   number: number;
   title: string;
   category_id: string;
+  author_id: string | null;
   forum_categories: { slug: string } | null;
 }
 
@@ -60,6 +62,58 @@ function postPath(thread: ThreadRow, postNumber: number): string {
   return `${path}${page > 1 ? `?page=${page}` : ''}#post-${postNumber}`;
 }
 
+// How the sanitizer writes an @mention, whose id it has checked is a uuid
+const MENTION_ID = /data-type="mention" data-id="([^"]+)"/g;
+// So one post can't notify a crowd
+const MENTION_NOTIFY_LIMIT = 10;
+
+/** The users a post mentions, read from what the page will show. */
+function mentionedUserIds(html: string): Set<string> {
+  return new Set(Array.from(sanitizeArticleHtml(html).matchAll(MENTION_ID), ([, id]) => id));
+}
+
+/**
+ * Notifies the people a new post mentions, and `replyTo` (the thread's author on
+ * a reply) unless they're mentioned too. Edits notify no one, so editing a
+ * mention out and back in can't notify someone again. The post is saved by now,
+ * so a failure is only logged.
+ */
+async function notifyForumPost(
+  supabase: SupabaseClient,
+  params: { senderId: string; thread: ThreadRow; postNumber: number; content: string; replyTo?: string | null },
+) {
+  const { senderId, thread } = params;
+  const mentioned = [...mentionedUserIds(params.content)]
+    .filter((id) => id !== senderId)
+    .slice(0, MENTION_NOTIFY_LIMIT);
+  const replyTo = params.replyTo && params.replyTo !== senderId && !mentioned.includes(params.replyTo) ? params.replyTo : null;
+  if (!mentioned.length && !replyTo) return;
+
+  // Also checks the mentioned ids are real users
+  const { data: profiles, error } = await supabase.from('profiles').select('id, username').in('id', [senderId, ...mentioned]);
+  if (error) {
+    console.error('Failed to send the forum notifications', error);
+    return;
+  }
+
+  const sender = profiles.find((profile) => profile.id === senderId)?.username ?? 'Someone';
+  const notification = { sender_id: senderId, link: postPath(thread, params.postNumber) };
+  const rows = profiles
+    .filter((profile) => profile.id !== senderId)
+    .map((profile) => ({
+      ...notification,
+      receiver_id: profile.id,
+      type: 'forum_mention',
+      text: `${sender} mentioned you in "${thread.title}".`,
+    }));
+  if (replyTo) {
+    rows.push({ ...notification, receiver_id: replyTo, type: 'forum_reply', text: `${sender} replied to your thread "${thread.title}".` });
+  }
+
+  const { error: insertError } = await supabase.from('notifications').insert(rows);
+  if (insertError) console.error('Failed to send the forum notifications', insertError);
+}
+
 export async function createForumThread(params: {
   categoryId: string;
   title: string;
@@ -71,7 +125,7 @@ export async function createForumThread(params: {
 
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
 
     // Starts the thread and its opening post in one transaction
     const { data: thread, error } = await supabase
@@ -84,6 +138,7 @@ export async function createForumThread(params: {
       .single<ThreadRow>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to start the thread') };
 
+    await notifyForumPost(supabase, { senderId: user.id, thread, postNumber: 1, content: params.content });
     invalidateForumThreadList(thread.category_id, thread.number);
     return { success: true, path: postPath(thread, 1) };
   } catch (error) {
@@ -110,8 +165,16 @@ export async function replyToForumThread(params: {
       .single<{ post_number: number; forum_threads: ThreadRow }>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to post the reply') };
 
-    invalidateForumThread(post.forum_threads.category_id, post.forum_threads.number);
-    return { success: true, path: postPath(post.forum_threads, post.post_number) };
+    const thread = post.forum_threads;
+    await notifyForumPost(supabase, {
+      senderId: user.id,
+      thread,
+      postNumber: post.post_number,
+      content: params.content,
+      replyTo: thread.author_id,
+    });
+    invalidateForumThread(thread.category_id, thread.number);
+    return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
     console.error('Failed to post the reply', error);
     return { success: false, error: 'Failed to post the reply' };

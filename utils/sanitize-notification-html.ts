@@ -1,5 +1,6 @@
 import sanitizeHtml from 'sanitize-html';
 import { notificationHtmlSanitizeOptions } from '@/supabase/edge-functions/send-notification-email/_notification-html-allowlist';
+import { isUuid } from '@/utils/uuid';
 
 // TipTap output for an admin notification: blocks, marks, text colour, alignment,
 // and https or site-relative links. The allowlist lives next to the email worker
@@ -14,7 +15,8 @@ export function sanitizeNotificationHtml(html: string): string {
 // written by any signed-in user. Same allowlist as notifications, plus what the
 // full editor can produce: images, headings 4–6, code, horizontal rules, and
 // only the editor's own classes on links and images (they keep links blue on the
-// dark theme), so a post can't restyle the page with other classes.
+// dark theme), so a post can't restyle the page with other classes. @mentions keep
+// their user id, and their link is rebuilt from it.
 
 const { a: notificationLink } = notificationHtmlSanitizeOptions.transformTags;
 
@@ -26,7 +28,7 @@ const articleHtmlSanitizeOptions: sanitizeHtml.IOptions = {
   ],
   allowedAttributes: {
     ...notificationHtmlSanitizeOptions.allowedAttributes,
-    a: [...notificationHtmlSanitizeOptions.allowedAttributes.a, 'class'],
+    a: [...notificationHtmlSanitizeOptions.allowedAttributes.a, 'class', 'data-type', 'data-id', 'data-label'],
     img: ['src', 'alt', 'title', 'width', 'class', 'data-align'],
   },
   // The classes RichTextEditor puts on links and images
@@ -37,6 +39,13 @@ const articleHtmlSanitizeOptions: sanitizeHtml.IOptions = {
   transformTags: {
     ...notificationHtmlSanitizeOptions.transformTags,
     a: (tagName, attribs) => {
+      if (attribs['data-type'] === 'mention' && isUuid(attribs['data-id'])) {
+        const { 'data-id': id, 'data-label': label = '' } = attribs;
+        return {
+          tagName,
+          attribs: { href: `/user/${id}`, class: 'text-blue-600', 'data-type': 'mention', 'data-id': id, 'data-label': label },
+        };
+      }
       const result = notificationLink(tagName, attribs);
       return result.tagName === 'a' && attribs.class
         ? { ...result, attribs: { ...result.attribs, class: attribs.class } }

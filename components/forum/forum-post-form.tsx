@@ -95,6 +95,7 @@ export function ForumPostForm({
           placeholder={placeholder}
           className="min-h-[200px]"
           enableImages
+          enableMentions
           storageBasePath={userId ? `forum/${userId}/${imageFolder}` : undefined}
           filePrefix="post"
         />

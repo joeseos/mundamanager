@@ -31,6 +31,8 @@ function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): strin
   quoted.querySelectorAll('blockquote').forEach((nested) => {
     if (nested.firstElementChild?.textContent?.startsWith(QUOTE_ATTRIBUTION)) nested.remove();
   });
+  // Plain profile links in the quote, so quoting doesn't notify the people the post mentions again
+  quoted.querySelectorAll('a[data-type="mention"]').forEach((mention) => mention.removeAttribute('data-type'));
 
   const blockquote = document.createElement('blockquote');
   const attribution = blockquote.appendChild(document.createElement('p'));
