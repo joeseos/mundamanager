@@ -12,11 +12,15 @@ interface MentionListHandle {
   onKeyDown: (event: KeyboardEvent) => boolean;
 }
 
-const MentionList = forwardRef<MentionListHandle, MentionListProps>(function MentionList({ items, command }, ref) {
+const MentionList = forwardRef<MentionListHandle, MentionListProps>(function MentionList(
+  { items: latestItems, loading, command },
+  ref,
+) {
   const [selected, setSelected] = useState(0);
-  const [prevItems, setPrevItems] = useState(items);
-  if (items !== prevItems) {
-    setPrevItems(items);
+  // Keeps the last results while the next ones load, instead of closing the list on each keystroke
+  const [items, setItems] = useState(latestItems);
+  if (!loading && latestItems !== items) {
+    setItems(latestItems);
     setSelected(0);
   }
 
@@ -72,38 +76,27 @@ export const UserMention = Mention.extend({
   suggestion: {
     debounce: SEARCH_DEBOUNCE_MS,
     // The search needs two characters
-    items: ({ query, signal }) => (query.length < 2 ? [] : searchUsers(query, signal)),
+    minQueryLength: 2,
+    items: ({ query, signal }) => searchUsers(query, signal),
     render: () => {
       let list: ReactRenderer<MentionListHandle, MentionListProps> | null = null;
-
-      const place = (props: MentionListProps) => {
-        const rect = props.clientRect?.();
-        if (!list || !rect) return;
-        Object.assign(list.element.style, {
-          position: 'fixed',
-          left: `${rect.left}px`,
-          top: `${rect.bottom + 4}px`,
-          // Above the editor toolbar (z-[70])
-          zIndex: '80',
-        });
-      };
+      let unmount: (() => void) | null = null;
 
       const close = () => {
-        list?.element.remove();
+        unmount?.();
         list?.destroy();
         list = null;
+        unmount = null;
       };
 
       return {
         onStart: (props) => {
           list = new ReactRenderer(MentionList, { props, editor: props.editor });
-          document.body.appendChild(list.element);
-          place(props);
+          // Above the editor toolbar (z-[70])
+          list.element.style.zIndex = '80';
+          unmount = props.mount(list.element);
         },
-        onUpdate: (props) => {
-          list?.updateProps(props);
-          place(props);
-        },
+        onUpdate: (props) => list?.updateProps(props),
         onKeyDown: ({ event }: SuggestionKeyDownProps) => {
           if (event.key === 'Escape') {
             close();
