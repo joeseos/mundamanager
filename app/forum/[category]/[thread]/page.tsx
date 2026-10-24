@@ -5,6 +5,7 @@ import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_POSTS_PER_PAGE,
   formatForumDate,
+  formatForumReplies,
   forumPageCount,
   forumThreadPath,
   getForumPosts,
@@ -67,7 +68,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
           <ForumThreadModeration threadId={thread.id} isPinned={thread.is_pinned} isLocked={thread.is_locked} />
         </div>
         <p className="text-sm text-muted-foreground">
-          {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)}
+          {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}
         </p>
 
         <ForumReplyBox threadId={thread.id} path={pagePath} locked={thread.is_locked}>
