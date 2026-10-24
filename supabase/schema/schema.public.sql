@@ -7257,7 +7257,7 @@ CREATE TABLE public.notifications (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     is_html boolean DEFAULT false NOT NULL,
     send_id uuid,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text, 'forum_reply'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text, 'forum_reply'::text, 'forum_mention'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
@@ -7285,6 +7285,7 @@ CREATE TABLE public.profiles (
     patreon_tier_id text,
     patreon_discord_role_ids text[],
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    avatar_url text,
     CONSTRAINT username_format CHECK ((username ~ '^[a-zA-Z0-9_-]+$'::text)),
     CONSTRAINT username_length CHECK (((char_length(username) >= 3) AND (char_length(username) <= 20)))
 );
@@ -15561,7 +15562,9 @@ CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT
 -- Name: forum_post_likes Users can like posts; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can like posts" ON public.forum_post_likes FOR INSERT TO authenticated WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+CREATE POLICY "Users can like posts" ON public.forum_post_likes FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.forum_posts p
+  WHERE ((p.id = forum_post_likes.post_id) AND (p.deleted_at IS NULL) AND (p.author_id IS DISTINCT FROM ( SELECT auth.uid() AS uid)))))));
 
 
 --
