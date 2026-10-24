@@ -129,6 +129,14 @@ schema/backend changes without touching the production database.
 
 3. **Start the app** with `npm run dev` as usual.
 
+4. **Optional: populate a development campaign.** Run `npm run db:seed:dev` for a
+   rollback-only preview, then `npm run db:seed:dev -- --apply` to add a randomized
+   campaign with ten gangs, rosters, battles, and sign-in accounts. Existing data is
+   preserved, and existing non-generated local accounts are also joined to the campaign. See
+   [the generator guide](supabase/README.md#generate-a-populated-development-campaign)
+   for setup, or [`scripts/SEEDS.md`](scripts/SEEDS.md) for the full command/options
+   reference, credentials, generation details, and local-only safeguards.
+
 **Notes**
 - `supabase db reset` wipes the local database, rebuilds it cleanly from the daily production schema snapshot, and seeds reference game lookup data.
 - The email webhook is intentionally **not** part of local setup: it needs AWS
