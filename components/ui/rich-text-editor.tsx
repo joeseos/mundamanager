@@ -871,6 +871,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault();
                     addLink();
                   }
                 }}
@@ -935,6 +936,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                           onBlur={(e) => applyImageWidth(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
+                              e.preventDefault();
                               applyImageWidth((e.target as HTMLInputElement).value);
                             }
                           }}
@@ -1042,6 +1044,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                     className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
+                        e.preventDefault();
                         addImage();
                       }
                       if (e.key === 'Escape') {
