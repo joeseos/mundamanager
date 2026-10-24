@@ -194,6 +194,7 @@ export const getForumThread = cache((number: number): Promise<ForumThread | null
 /**
  * One page of a thread's posts, oldest first. Post numbers run 1, 2, 3... with
  * no gaps (posts are removed, never deleted), so a page is a range of them.
+ * Refreshes every 60 s so changes to the authors' profiles (name, avatar, role) show.
  */
 export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: number): Promise<ForumPost[]> {
   return unstable_cache(
@@ -231,7 +232,7 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
       }));
     },
     ['forum-posts', String(thread.number), String(page)],
-    { tags: [TAGS.forumThread(thread.number)], revalidate: false }
+    { tags: [TAGS.forumThread(thread.number)], revalidate: 60 }
   )();
 }
 

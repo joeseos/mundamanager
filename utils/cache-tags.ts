@@ -52,7 +52,9 @@ import { revalidateTag } from 'next/cache';
  *                                            | lock, move, delete, like on
  *                                            | the opening post)
  * forum-thread-{number} a thread and its     | any change to the thread or
- *                  post pages                | its posts, likes included
+ *                  post pages                | its posts, likes included;
+ *                                            | post pages also refresh
+ *                                            | every 60 s
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
