@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { LuNewspaper } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import {
   type ForumArticleResult,
-  getForumArticleStatus,
   reviewForumArticle,
   setForumThreadFlag,
   submitForumArticle,
@@ -18,7 +17,9 @@ import type { ForumArticleSubmission } from '@/app/lib/forum';
 
 interface ForumArticleStatusProps {
   threadId: string;
-  authorId: string | null;
+  isAuthor: boolean;
+  /** The author's suggestion, null when there is none. */
+  submission: ForumArticleSubmission | null;
 }
 
 type NoteDecision = 'changes_requested' | 'declined';
@@ -32,23 +33,13 @@ const NOTE_DECISIONS: Record<NoteDecision, { title: string; confirmText: string;
  * Under the title of a thread that isn't an article yet: its author suggests it
  * for publication, and moderators answer the suggestion.
  */
-export function ForumArticleStatus({ threadId, authorId }: ForumArticleStatusProps) {
-  const { userId, isModerator } = useForumViewer();
-  const isAuthor = userId !== null && userId === authorId;
-  // undefined while loading
-  const [submission, setSubmission] = useState<ForumArticleSubmission | null | undefined>(undefined);
+export function ForumArticleStatus({ threadId, isAuthor, submission: initialSubmission }: ForumArticleStatusProps) {
+  const { isModerator } = useForumViewer();
+  // Suggestions aren't cached, so the page doesn't refresh them: the actions' results update this
+  const [submission, setSubmission] = useState(initialSubmission);
   const [saving, startSave] = useTransition();
   const [noteDecision, setNoteDecision] = useState<NoteDecision | null>(null);
   const [note, setNote] = useState('');
-
-  // Only the author and moderators can see a suggestion, so only they load it
-  const canSee = isAuthor || isModerator;
-  useEffect(() => {
-    if (!canSee) return;
-    getForumArticleStatus(threadId)
-      .then(setSubmission)
-      .catch(() => toast.error('Failed to load the article suggestion'));
-  }, [canSee, threadId]);
 
   // The action's cache invalidation sends the updated page back with its response
   const save = (action: () => Promise<ForumArticleResult>) =>

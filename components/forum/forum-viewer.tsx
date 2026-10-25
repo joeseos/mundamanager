@@ -2,6 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from 'react';
 import { useClaims } from '@/hooks/use-claims';
+import { isForumModeratorRole } from '@/utils/auth';
 
 interface ForumViewer {
   /** null while loading and when signed out. */
@@ -16,7 +17,7 @@ const ForumViewerContext = createContext<ForumViewer>({ userId: null, isModerato
 /** Reads the signed-in user once for all the forum's client components on a page. */
 export function ForumViewerProvider({ children }: { children: ReactNode }) {
   const { userId, profile, loading } = useClaims();
-  const isModerator = profile?.user_role === 'admin' || profile?.user_role === 'moderator';
+  const isModerator = isForumModeratorRole(profile?.user_role);
   return (
     <ForumViewerContext.Provider value={{ userId, isModerator, loading }}>
       {children}

@@ -10,6 +10,7 @@ import {
   forumPageCount,
   forumPageHref,
   forumThreadPath,
+  getForumArticleSubmission,
   getForumLikedPostIds,
   getForumPosts,
   getForumThread,
@@ -25,7 +26,7 @@ import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { UserRoleBadge } from '@/components/ui/user-role-badge';
 import { createClient } from '@/utils/supabase/server';
-import { getUserIdFromClaims } from '@/utils/auth';
+import { getClaims, isForumModeratorRole } from '@/utils/auth';
 import '@/components/ui/rich-text-editor.css';
 
 interface ForumThreadPageProps {
@@ -59,11 +60,16 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
   if (page > pageCount) notFound();
 
-  const [posts, userId] = await Promise.all([
-    getForumPosts(thread, page),
-    createClient().then(getUserIdFromClaims),
+  const [posts, claims] = await Promise.all([getForumPosts(thread, page), createClient().then(getClaims)]);
+  const userId = claims?.userId ?? null;
+  // Only the author and moderators can see a suggestion, and it shows on page 1 of a thread that isn't an article
+  const showSuggestion =
+    page === 1 && !thread.article_published_at && userId !== null &&
+    (userId === thread.author_id || isForumModeratorRole(claims?.profile?.user_role));
+  const [likedPostIds, submission] = await Promise.all([
+    userId ? getForumLikedPostIds(userId, posts.map((post) => post.id)) : new Set<string>(),
+    showSuggestion ? getForumArticleSubmission(userId, thread.id) : null,
   ]);
-  const likedPostIds = userId ? await getForumLikedPostIds(userId, posts.map((post) => post.id)) : new Set<string>();
   const pagePath = forumPageHref(path, page);
 
   return (
@@ -94,8 +100,8 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             </>
           )}
         </p>
-        {page === 1 && !thread.article_published_at && (
-          <ForumArticleStatus threadId={thread.id} authorId={thread.author_id} />
+        {showSuggestion && (
+          <ForumArticleStatus threadId={thread.id} isAuthor={userId === thread.author_id} submission={submission} />
         )}
 
         <ForumReplyBox threadId={thread.id} path={pagePath} locked={thread.is_locked}>

@@ -100,6 +100,9 @@ BEGIN
   -- Publishing stamps the time here, so the client only says whether it's an article
   IF NEW.article_published_at IS NOT NULL THEN
     NEW.article_published_at := coalesce(OLD.article_published_at, now());
+  END IF;
+  -- Publishing ends the author's suggestion
+  IF OLD.article_published_at IS NULL AND NEW.article_published_at IS NOT NULL THEN
     DELETE FROM forum_article_submissions WHERE thread_id = NEW.id;
   END IF;
   NEW.updated_at := now();

@@ -10,7 +10,7 @@ import {
   type ForumArticleQueueItem,
 } from '@/app/lib/forum';
 import { createClient } from '@/utils/supabase/server';
-import { getClaims } from '@/utils/auth';
+import { getClaims, isForumModeratorRole } from '@/utils/auth';
 
 // Rendered per request: DATABASE_URL only exists at runtime, so the build can't
 // read the articles. getForumArticles() is cached, so a request doesn't hit the database.
@@ -31,8 +31,7 @@ export default async function ArticlesPage({ searchParams }: ArticlesPageProps) 
     getForumArticles(),
     createClient().then(getClaims),
   ]);
-  const role = claims?.profile?.user_role;
-  const queue = claims && (role === 'admin' || role === 'moderator') ? await getForumArticleQueue(claims.userId) : null;
+  const queue = claims && isForumModeratorRole(claims.profile?.user_role) ? await getForumArticleQueue(claims.userId) : null;
 
   // The categories that have articles, in the order their newest article was published
   const categories = [...new Map(articles.map((article) => [article.category.slug, article.category.name]))];

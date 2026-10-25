@@ -20,7 +20,6 @@ import {
   forumMentionIds,
   forumPageHref,
   forumThreadPath,
-  getForumArticleSubmission,
   getForumCategories,
 } from '@/app/lib/forum';
 
@@ -226,9 +225,12 @@ export async function editForumPost(params: {
 
     // The content is saved even if the rename failed, so clear its cache either way.
     // Only a new title shows outside the thread, and an article's opening post on its card.
-    if (renamed && !titleError) invalidateForumThreadList(thread.category_id, thread.number, isArticle(thread));
-    else invalidateForumThreadPosts(thread.number);
-    if (post.post_number === 1 && isArticle(thread)) invalidateForumArticles();
+    const articleChanged = post.post_number === 1 && isArticle(thread);
+    if (renamed && !titleError) invalidateForumThreadList(thread.category_id, thread.number, articleChanged);
+    else {
+      invalidateForumThreadPosts(thread.number);
+      if (articleChanged) invalidateForumArticles();
+    }
     if (titleError) return { success: false, error: writeErrorMessage(titleError, 'Failed to rename the thread') };
     return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
@@ -419,13 +421,6 @@ async function notifyArticleAuthor(supabase: SupabaseClient, senderId: string, t
 
 export interface ForumArticleResult extends ForumActionResult {
   submission?: ForumArticleSubmission;
-}
-
-/** Where the author's suggestion of the thread stands, for the author and moderators (RLS shows no one else). */
-export async function getForumArticleStatus(threadId: string): Promise<ForumArticleSubmission | null> {
-  const supabase = await createClient();
-  const user = await getAuthenticatedUser(supabase);
-  return getForumArticleSubmission(user.id, threadId);
 }
 
 const AUTHOR_ONLY = "Only the thread's author can suggest it";
