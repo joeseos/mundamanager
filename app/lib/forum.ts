@@ -6,6 +6,7 @@ import { getAppDb, withUserClaims } from '@/utils/db/client';
 import { forumCategories, forumPostLikes, forumPosts, forumThreads, profiles } from '@/utils/db/schema';
 import { TAGS } from '@/utils/cache-tags';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
+import { escapeHtml } from '@/utils/html';
 import { slugifyHeading } from '@/utils/user-guide-content';
 
 export const FORUM_THREADS_PER_PAGE = 25;
@@ -225,10 +226,26 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
         )
         .orderBy(asc(forumPosts.post_number));
 
-      return rows.map(({ deleted_at, content, ...post }) => ({
+      const posts = rows.map(({ deleted_at, content, ...post }) => ({
         ...post,
         content: deleted_at ? '' : sanitizeArticleHtml(content),
         is_removed: deleted_at !== null,
+      }));
+
+      // A mention shows the user's current name, whatever text the post saved with it
+      const mentioned = [...new Set(posts.flatMap((post) => [...forumMentionIds(post.content)]))];
+      if (!mentioned.length) return posts;
+      const names = new Map(
+        (await getAppDb().select({ id: profiles.id, username: profiles.username }).from(profiles).where(inArray(profiles.id, mentioned)))
+          .map(({ id, username }) => [id, username]),
+      );
+      return posts.map((post) => ({
+        ...post,
+        content: post.content.replace(MENTION, (_, tag: string) => {
+          const name = escapeHtml(names.get(mentionId(tag) ?? '') ?? 'Unknown User');
+          // data-label too, which the editor shows when the post is edited
+          return `${tag.replace(/data-label="[^"]*"/, `data-label="${name}"`)}@${name}</a>`;
+        }),
       }));
     },
     ['forum-posts', String(thread.number), String(page)],
@@ -255,6 +272,15 @@ export function forumCategoryPath(categorySlug: string): string {
 /** /forum/<category slug>/<number>-<title slug>. Only the number identifies the thread. */
 export function forumThreadPath(categorySlug: string, number: number, title: string): string {
   return `/forum/${categorySlug}/${number}-${slugifyHeading(title)}`;
+}
+
+// The sanitizer keeps data-type="mention" only on mentions, with a lowercase uuid it has checked as data-id
+const MENTION = /(<a [^>]*data-type="mention"[^>]*>)[\s\S]*?<\/a>/g;
+const mentionId = (tag: string) => /data-id="([^"]+)"/.exec(tag)?.[1];
+
+/** The users sanitized post HTML mentions. */
+export function forumMentionIds(html: string): Set<string> {
+  return new Set(Array.from(html.matchAll(MENTION), ([, tag]) => mentionId(tag)).filter((id) => id !== undefined));
 }
 
 /** A page of a thread or category: page 1 is the bare path, the others add ?page=. */

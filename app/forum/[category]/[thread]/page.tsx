@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound, permanentRedirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_POSTS_PER_PAGE,
@@ -51,7 +51,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   // A moved or renamed thread keeps its number, so old links land on the current URL.
   const path = forumThreadPath(thread.category.slug, thread.number, thread.title);
   if (path !== `/forum/${categorySlug}/${segment}`) {
-    permanentRedirect(forumPageHref(path, page));
+    redirect(forumPageHref(path, page));
   }
 
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);

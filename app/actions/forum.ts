@@ -7,7 +7,14 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateForumThread, invalidateForumThreadList, invalidateForumThreadPosts } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
-import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumPageHref, forumThreadPath, getForumCategories } from '@/app/lib/forum';
+import {
+  FORUM_POSTS_PER_PAGE,
+  forumCategoryPath,
+  forumMentionIds,
+  forumPageHref,
+  forumThreadPath,
+  getForumCategories,
+} from '@/app/lib/forum';
 
 export interface ForumActionResult {
   success: boolean;
@@ -38,21 +45,19 @@ function validateTitle(title: string): string | null {
 }
 
 function validateContent(content: string): string | null {
-  if (isHtmlEffectivelyEmpty(content)) return 'Write something first';
   if (content.length > CONTENT_MAX_LENGTH) return 'This post is too long';
+  // What the page will show, so a post of only stripped markup counts as empty
+  if (isHtmlEffectivelyEmpty(sanitizeArticleHtml(content))) return 'Write something first';
   return null;
 }
 
 /**
- * The forum triggers raise messages meant for the user: the posting limits
- * (MM002), and a locked thread or removed post (42501). RLS refusals share
- * 42501, so they get `refusal` and anything else the fallback.
+ * The forum triggers raise their messages for the user with SQLSTATE MM002
+ * (posting limits, a locked thread, a removed post). Anything else is logged:
+ * RLS refusals (42501) get `refusal`, other errors the fallback.
  */
 function writeErrorMessage(error: PostgrestError, fallback: string, refusal = "You can't post here"): string {
-  const fromTrigger =
-    error.code === 'MM002' ||
-    (error.code === '42501' && !error.message.includes('row-level security'));
-  if (fromTrigger) return error.message;
+  if (error.code === 'MM002') return error.message;
   console.error(fallback, error);
   return error.code === '42501' ? refusal : fallback;
 }
@@ -62,18 +67,8 @@ function postPath(thread: ThreadRow, postNumber: number): string {
   return `${forumPageHref(path, Math.ceil(postNumber / FORUM_POSTS_PER_PAGE))}#post-${postNumber}`;
 }
 
-// The sanitizer keeps data-type="mention" only on mentions, with an id it has checked is a uuid
-const MENTION_TAG = /<a [^>]*data-type="mention"[^>]*>/g;
-const DATA_ID = /data-id="([^"]+)"/;
 // So one post can't notify a crowd
 const MENTION_NOTIFY_LIMIT = 10;
-
-/** The users a post mentions, read from what the page will show. */
-function mentionedUserIds(html: string): Set<string> {
-  return new Set(
-    Array.from(sanitizeArticleHtml(html).matchAll(MENTION_TAG), ([tag]) => DATA_ID.exec(tag)?.[1]).filter((id) => id !== undefined),
-  );
-}
 
 /**
  * Notifies the people a new post mentions, and `replyTo` (the thread's author on
@@ -86,7 +81,7 @@ async function notifyForumPost(
   params: { senderId: string; thread: ThreadRow; postNumber: number; content: string; replyTo?: string | null },
 ) {
   const { senderId, thread } = params;
-  const mentioned = [...mentionedUserIds(params.content)]
+  const mentioned = [...forumMentionIds(sanitizeArticleHtml(params.content))]
     .filter((id) => id !== senderId)
     .slice(0, MENTION_NOTIFY_LIMIT);
   const replyTo = params.replyTo && params.replyTo !== senderId && !mentioned.includes(params.replyTo) ? params.replyTo : null;
