@@ -2,13 +2,8 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ForumArticleCard } from '@/components/forum/forum-article-card';
-import {
-  formatForumDate,
-  forumThreadPath,
-  getForumArticleQueue,
-  getForumArticles,
-  type ForumArticleQueueItem,
-} from '@/app/lib/forum';
+import { getForumArticleQueue, getForumArticles, type ForumArticleQueueItem } from '@/app/lib/forum';
+import { formatForumDate, forumThreadPath } from '@/utils/forum';
 import { createClient } from '@/utils/supabase/server';
 import { getClaims, isForumModeratorRole } from '@/utils/auth';
 

@@ -15,13 +15,11 @@ import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import {
   FORUM_POSTS_PER_PAGE,
   type ForumArticleSubmission,
-  forumArticlePath,
-  forumCategoryPath,
   forumMentionIds,
   forumPageHref,
-  forumThreadPath,
   getForumCategories,
 } from '@/app/lib/forum';
+import { forumArticlePath, forumCategoryPath, forumThreadPath } from '@/utils/forum';
 
 export interface ForumActionResult {
   success: boolean;

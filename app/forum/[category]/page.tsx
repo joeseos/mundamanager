@@ -4,15 +4,12 @@ import { notFound } from 'next/navigation';
 import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_THREADS_PER_PAGE,
-  formatForumDate,
-  formatForumReplies,
-  forumCategoryPath,
   forumPageCount,
-  forumThreadPath,
   getForumCategory,
   getForumThreads,
   parseForumPage,
 } from '@/app/lib/forum';
+import { formatForumDate, formatForumReplies, forumCategoryPath, forumThreadPath } from '@/utils/forum';
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 

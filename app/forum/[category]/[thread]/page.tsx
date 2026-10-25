@@ -4,12 +4,8 @@ import { notFound, redirect } from 'next/navigation';
 import { LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_POSTS_PER_PAGE,
-  formatForumDate,
-  formatForumReplies,
-  forumArticlePath,
   forumPageCount,
   forumPageHref,
-  forumThreadPath,
   getForumArticleSubmission,
   type ForumArticleSubmission,
   getForumLikedPostIds,
@@ -18,6 +14,7 @@ import {
   parseForumPage,
   parseForumThreadNumber,
 } from '@/app/lib/forum';
+import { formatForumDate, formatForumReplies, forumArticlePath, forumThreadPath } from '@/utils/forum';
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';

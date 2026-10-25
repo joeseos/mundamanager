@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { formatForumDate, forumCategoryPath, forumThreadPath, type ForumCategory } from '@/app/lib/forum';
+import type { ForumCategory } from '@/app/lib/forum';
+import { formatForumDate, forumCategoryPath, forumThreadPath } from '@/utils/forum';
 
 /** The forum's categories with their thread counts and newest threads, on /forum and the home page. */
 export function ForumCategoryList({ categories }: { categories: ForumCategory[] }) {

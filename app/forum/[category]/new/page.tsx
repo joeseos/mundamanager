@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { forumCategoryPath, getForumCategory } from '@/app/lib/forum';
+import { getForumCategory } from '@/app/lib/forum';
+import { forumCategoryPath } from '@/utils/forum';
 import { ForumNewThreadForm } from '@/components/forum/forum-new-thread';
 import '@/components/ui/rich-text-editor.css';
 

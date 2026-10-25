@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
@@ -19,6 +19,7 @@ import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
 import { GangsTab } from '@/components/home/gangs-tab'
 import { CampaignsTab } from '@/components/home/campaigns-tab'
+import { ArticlesTab, ForumTab } from '@/components/home/forum-tabs'
 import { sameEditionForDisplay } from '@/types/edition'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
@@ -38,9 +39,6 @@ interface HomeTabsProps {
   customTradingPosts: CustomTradingPost[];
   customCollections: CustomCollectionWithItems[];
   userCampaigns: UserCampaign[];
-  /** Rendered on the server, as they read the forum's cached data. */
-  articlesTab: ReactNode;
-  forumTab: ReactNode;
 }
 
 export default function HomeTabs({
@@ -53,9 +51,7 @@ export default function HomeTabs({
   customGangTypes,
   customTradingPosts,
   customCollections,
-  userCampaigns,
-  articlesTab,
-  forumTab
+  userCampaigns
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
   // URL is the source of truth, so a fresh load of /?tab=... lands on the right tab.
@@ -233,9 +229,9 @@ export default function HomeTabs({
           </div>
         )}
 
-        {activeTab === 3 && articlesTab}
+        {activeTab === 3 && <ArticlesTab />}
 
-        {activeTab === 4 && forumTab}
+        {activeTab === 4 && <ForumTab />}
       </div>
     </div>
   );

@@ -8,7 +8,6 @@ import { TAGS } from '@/utils/cache-tags';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import { escapeHtml } from '@/utils/html';
 import { decodeHtmlEntities } from '@/utils/htmlCleanUp';
-import { slugifyHeading } from '@/utils/user-guide-content';
 
 export const FORUM_THREADS_PER_PAGE = 25;
 export const FORUM_POSTS_PER_PAGE = 20;
@@ -271,15 +270,6 @@ export async function getForumLikedPostIds(userId: string, postIds: string[]): P
   return new Set(rows.map((row) => row.post_id));
 }
 
-export function forumCategoryPath(categorySlug: string): string {
-  return `/forum/${categorySlug}`;
-}
-
-/** /forum/<category slug>/<number>-<title slug>. Only the number identifies the thread. */
-export function forumThreadPath(categorySlug: string, number: number, title: string): string {
-  return `/forum/${categorySlug}/${number}-${slugifyHeading(title)}`;
-}
-
 // The sanitizer keeps data-type="mention" only on mentions, with a lowercase uuid it has checked as data-id
 const MENTION = /(<a [^>]*data-type="mention"[^>]*>)[\s\S]*?<\/a>/g;
 const mentionId = (tag: string) => /data-id="([^"]+)"/.exec(tag)?.[1];
@@ -308,27 +298,6 @@ export function parseForumPage(value: string | string[] | undefined): number | n
 
 export function forumPageCount(itemCount: number, perPage: number): number {
   return Math.max(1, Math.ceil(itemCount / perPage));
-}
-
-/** "23 Oct 2026". Fixed locale and time zone so server and client render the same text. */
-export function formatForumDate(date: string): string {
-  return new Date(date).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
-/** Replies in a thread, from its post_count, which includes the opening post. */
-export function forumReplyCount(postCount: number): number {
-  return Math.max(postCount - 1, 0);
-}
-
-/** "3 replies" for a thread's post_count. */
-export function formatForumReplies(postCount: number): string {
-  const replies = forumReplyCount(postCount);
-  return `${replies} ${replies === 1 ? 'reply' : 'replies'}`;
 }
 
 export interface ForumArticle {
@@ -433,9 +402,4 @@ export function getForumArticleQueue(userId: string): Promise<ForumArticleQueueI
       .where(eq(forumArticleSubmissions.status, 'submitted'))
       .orderBy(asc(forumArticleSubmissions.submitted_at))
   );
-}
-
-/** /articles/<number>-<title slug>, numbered like the thread. */
-export function forumArticlePath(number: number, title: string): string {
-  return `/articles/${number}-${slugifyHeading(title)}`;
 }

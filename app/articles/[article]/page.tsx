@@ -3,16 +3,8 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/ui/user-avatar';
-import {
-  formatForumDate,
-  formatForumReplies,
-  forumArticlePath,
-  forumThreadPath,
-  getForumArticle,
-  getForumPosts,
-  getForumThread,
-  parseForumThreadNumber,
-} from '@/app/lib/forum';
+import { getForumArticle, getForumPosts, getForumThread, parseForumThreadNumber } from '@/app/lib/forum';
+import { formatForumDate, formatForumReplies, forumArticlePath, forumThreadPath } from '@/utils/forum';
 import '@/components/ui/rich-text-editor.css';
 
 interface ArticlePageProps {
