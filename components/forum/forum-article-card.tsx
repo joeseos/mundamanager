@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { LuMessageSquare, LuNewspaper } from 'react-icons/lu';
 import { UserAvatar } from '@/components/ui/user-avatar';
-import { formatForumDate, formatForumReplies, forumArticlePath, type ForumArticle } from '@/app/lib/forum';
+import { formatForumDate, formatForumReplies, forumArticlePath, forumReplyCount, type ForumArticle } from '@/app/lib/forum';
 
 interface ForumArticleCardProps {
   article: ForumArticle;
@@ -47,7 +47,7 @@ export function ForumArticleCard({ article, featured = false }: ForumArticleCard
           </span>
           <span className="flex items-center gap-1 shrink-0" title={formatForumReplies(article.post_count)}>
             <LuMessageSquare className="h-3.5 w-3.5" />
-            {Math.max(article.post_count - 1, 0)}
+            {forumReplyCount(article.post_count)}
           </span>
         </div>
       </div>

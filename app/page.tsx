@@ -63,7 +63,11 @@ export default async function Home() {
     getCampaignTypes(),
     getTradingPostTypesCached(),
     getUserShareCampaigns(user.id),
-    getForumArticles()
+    // Optional on this page, so a failed read leaves the row out rather than the page
+    getForumArticles().catch((error) => {
+      console.error('Failed to load the articles', error);
+      return [];
+    })
   ]);
 
   return (

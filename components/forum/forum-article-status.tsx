@@ -8,7 +8,7 @@ import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import {
-  type ForumActionResult,
+  type ForumArticleResult,
   getForumArticleStatus,
   reviewForumArticle,
   setForumThreadFlag,
@@ -51,7 +51,7 @@ export function ForumArticleStatus({ threadId, authorId }: ForumArticleStatusPro
   }, [canSee, threadId]);
 
   // The action's cache invalidation sends the updated page back with its response
-  const save = (action: () => Promise<ForumActionResult & { submission?: ForumArticleSubmission }>) =>
+  const save = (action: () => Promise<ForumArticleResult>) =>
     new Promise<boolean>((resolve) =>
       startSave(async () => {
         try {

@@ -303,6 +303,8 @@ export async function setForumThreadFlag(params: {
   const { flag, value } = params;
   // Server actions can be called with anything, so don't let the flag name another column
   if (flag !== 'is_pinned' && flag !== 'is_locked' && flag !== 'is_article') return { success: false, error: 'Unknown setting' };
+  if (typeof value !== 'boolean') return { success: false, error: 'Unknown setting' };
+  const publishing = flag === 'is_article' && value;
   const update = flag === 'is_article' ? { article_published_at: value ? new Date().toISOString() : null } : { [flag]: value };
 
   try {
@@ -310,16 +312,14 @@ export async function setForumThreadFlag(params: {
     const user = await getAuthenticatedUser(supabase);
 
     // RLS lets only the author and moderators update a thread, and the trigger refuses the author
-    const { data: thread, error } = await supabase
-      .from('forum_threads')
-      .update(update)
-      .eq('id', params.threadId)
-      .select(THREAD_SELECT)
-      .maybeSingle<ThreadRow>();
+    let query = supabase.from('forum_threads').update(update).eq('id', params.threadId);
+    // Only an unpublished thread, so publishing twice doesn't notify the author twice
+    if (publishing) query = query.is('article_published_at', null);
+    const { data: thread, error } = await query.select(THREAD_SELECT).maybeSingle<ThreadRow>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the thread', MODERATORS_ONLY_FLAGS) };
-    if (!thread) return { success: false, error: MODERATORS_ONLY_FLAGS };
+    if (!thread) return { success: false, error: publishing ? 'This thread is already an article' : MODERATORS_ONLY_FLAGS };
 
-    if (flag === 'is_article' && value) after(() => notifyArticleAuthor(supabase, user.id, thread, 'published'));
+    if (publishing) after(() => notifyArticleAuthor(supabase, user.id, thread, 'published'));
     // Unpublishing leaves article_published_at empty, but the card still has to go
     invalidateForumThread(thread.category_id, thread.number, flag === 'is_article' || isArticle(thread));
     return { success: true };
@@ -470,6 +470,7 @@ export async function reviewForumArticle(params: {
   // Server actions can be called with anything
   if (params.status !== 'changes_requested' && params.status !== 'declined') return { success: false, error: 'Unknown decision' };
   const note = params.note?.trim() || null;
+  if (!note && params.status === 'changes_requested') return { success: false, error: 'Say what should change' };
   if (note && note.length > REVIEW_NOTE_MAX_LENGTH) {
     return { success: false, error: `Notes can be at most ${REVIEW_NOTE_MAX_LENGTH} characters` };
   }

@@ -66,7 +66,9 @@ export default async function ArticlesPage({ searchParams }: ArticlesPageProps) 
             {hero ? (
               <ForumArticleCard article={hero} featured />
             ) : (
-              <p className="text-muted-foreground italic">No articles yet.</p>
+              <p className="text-muted-foreground italic">
+                {shown === articles ? 'No articles yet.' : 'No articles in this category.'}
+              </p>
             )}
           </div>
         </div>

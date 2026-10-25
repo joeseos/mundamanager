@@ -320,9 +320,14 @@ export function formatForumDate(date: string): string {
   });
 }
 
-/** "3 replies" for a thread's post_count, which includes the opening post. */
+/** Replies in a thread, from its post_count, which includes the opening post. */
+export function forumReplyCount(postCount: number): number {
+  return Math.max(postCount - 1, 0);
+}
+
+/** "3 replies" for a thread's post_count. */
 export function formatForumReplies(postCount: number): string {
-  const replies = Math.max(postCount - 1, 0);
+  const replies = forumReplyCount(postCount);
   return `${replies} ${replies === 1 ? 'reply' : 'replies'}`;
 }
 
