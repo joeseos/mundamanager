@@ -59,6 +59,11 @@ import { revalidateTag } from 'next/cache';
  *                                            | to an article's thread or
  *                                            | opening post; else every
  *                                            | 60 s
+ * forum-tags       the tag list, and every   | a moderator adds, renames
+ *                  thread list, thread and   | or deletes a tag
+ *                  article that shows tags   |
+ * forum-tag-threads the tag list's counts    | a thread's tags change;
+ *                  and the tag pages         | else every 60 s
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -109,6 +114,8 @@ export const TAGS = {
   forumCategory: (id: string) => `forum-category-${id}`,
   forumThread: (number: number) => `forum-thread-${number}`,
   forumArticles: () => 'forum-articles',
+  forumTags: () => 'forum-tags',
+  forumTagThreads: () => 'forum-tag-threads',
   campaignTypes: () => 'campaign-types',
   campaignTriumphs: () => 'campaign-triumphs',
 } as const;
@@ -340,6 +347,12 @@ export function invalidateForumThread(categoryId: string, threadNumber: number, 
 
 /** A thread was published or unpublished, or an article's opening post changed. */
 export const invalidateForumArticles = () => bust(TAGS.forumArticles());
+
+/** A moderator added, renamed or deleted a tag: everything that shows tags. */
+export const invalidateForumTags = () => bust(TAGS.forumTags());
+
+/** A thread's tags changed: the tag list's counts and the tag pages. */
+export const invalidateForumTagThreads = () => bust(TAGS.forumTagThreads());
 
 /** A reply's likes changed: only the thread's own pages show them. */
 export function invalidateForumThreadPosts(threadNumber: number) {

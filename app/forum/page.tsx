@@ -1,5 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
+import { LuTags } from 'react-icons/lu';
+import { Button } from '@/components/ui/button';
 import {
   formatForumDate,
   forumCategoryPath,
@@ -22,7 +24,14 @@ export default async function ForumPage() {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full bg-card shadow-md rounded-lg p-4">
-        <h1 className="text-2xl font-bold mb-4">Forum</h1>
+        <div className="flex items-start justify-between gap-2 mb-4">
+          <h1 className="text-2xl font-bold">Forum</h1>
+          <Button asChild size="sm" variant="outline">
+            <Link href="/forum/tags" prefetch={false}>
+              <LuTags className="h-4 w-4 mr-1" /> Tags
+            </Link>
+          </Button>
+        </div>
 
         <ul className="divide-y">
           {categories.map((category) => (

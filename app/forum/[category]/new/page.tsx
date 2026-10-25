@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { forumCategoryPath, getForumCategory } from '@/app/lib/forum';
+import { forumCategoryPath, getForumCategory, getForumTags } from '@/app/lib/forum';
 import { ForumNewThreadForm } from '@/components/forum/forum-new-thread';
 import '@/components/ui/rich-text-editor.css';
 
@@ -16,14 +16,14 @@ export async function generateMetadata({ params }: NewForumThreadPageProps): Pro
 
 // Signed-out visitors don't get here: the proxy sends them to sign in first.
 export default async function NewForumThreadPage({ params }: NewForumThreadPageProps) {
-  const category = await getForumCategory((await params).category);
+  const [category, tags] = await Promise.all([getForumCategory((await params).category), getForumTags()]);
   if (!category) notFound();
 
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full bg-card shadow-md rounded-lg p-4">
         <h1 className="text-2xl font-bold mb-4">New thread in {category.name}</h1>
-        <ForumNewThreadForm category={category} categoryPath={forumCategoryPath(category.slug)} />
+        <ForumNewThreadForm category={category} categoryPath={forumCategoryPath(category.slug)} tags={tags} />
       </div>
     </main>
   );

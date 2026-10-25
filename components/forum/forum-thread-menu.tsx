@@ -12,6 +12,7 @@ import {
   LuPin,
   LuPinOff,
   LuSend,
+  LuTags,
   LuX,
 } from 'react-icons/lu';
 import { toast } from 'sonner';
@@ -19,16 +20,19 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
+import { ForumTagPicker } from '@/components/forum/forum-tag-picker';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import {
   type ForumActionResult,
   getForumMoveCategories,
+  getForumTagOptions,
   moveForumThread,
   reviewForumArticle,
   setForumThreadFlag,
+  setForumThreadTags,
   submitForumArticle,
 } from '@/app/actions/forum';
-import type { ForumArticleSubmission } from '@/app/lib/forum';
+import type { ForumArticleSubmission, ForumTag } from '@/app/lib/forum';
 
 interface ForumThreadMenuProps {
   threadId: string;
@@ -39,6 +43,7 @@ interface ForumThreadMenuProps {
   isAuthor: boolean;
   /** The author's suggestion of the thread as an article, null when there is none or the viewer can't see it. */
   submissionStatus: ForumArticleSubmission['status'] | null;
+  tagIds: string[];
 }
 
 type NoteDecision = 'changes_requested' | 'declined';
@@ -50,7 +55,8 @@ const NOTE_DECISIONS: Record<NoteDecision, { title: string; confirmText: string;
 
 /**
  * The thread's ... menu, in its header on every page: moderators pin, lock, move
- * and publish the thread and answer its suggestion, and its author suggests it as an article.
+ * and publish the thread and answer its suggestion, its author suggests it as an
+ * article, and both edit its tags.
  */
 export function ForumThreadMenu({
   threadId,
@@ -60,6 +66,7 @@ export function ForumThreadMenu({
   categoryId,
   isAuthor,
   submissionStatus,
+  tagIds,
 }: ForumThreadMenuProps) {
   const { isModerator, loading } = useForumViewer();
   const router = useRouter();
@@ -69,11 +76,16 @@ export function ForumThreadMenu({
   const [otherCategories, setOtherCategories] = useState<{ id: string; name: string }[]>([]);
   const [noteDecision, setNoteDecision] = useState<NoteDecision | null>(null);
   const [note, setNote] = useState('');
+  // Loaded the first time the Edit tags dialog opens, like the categories
+  const [allTags, setAllTags] = useState<ForumTag[] | null>(null);
+  const [editedTagIds, setEditedTagIds] = useState<string[] | null>(null);
 
   // Moderators publish directly, so only other authors suggest
   // Wait for the role, so a moderator's own thread never offers it
   const canSubmit = !loading && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
-  if (!isModerator && !canSubmit) return null;
+  // A locked thread's tags are the moderators', like its title
+  const canEditTags = isModerator || (isAuthor && !isLocked);
+  if (!isModerator && !canSubmit && !canEditTags) return null;
 
   // Resolves false on a failure, so the note dialog stays open. Suggestions aren't
   // cached, so their actions refresh the page; the flag actions' cache invalidation already does.
@@ -112,6 +124,16 @@ export function ForumThreadMenu({
       }
     });
 
+  const openTags = () =>
+    startUpdate(async () => {
+      try {
+        if (!allTags) setAllTags(await getForumTagOptions());
+        setEditedTagIds(tagIds);
+      } catch {
+        toast.error('Failed to load the tags');
+      }
+    });
+
   const closeNote = () => {
     setNoteDecision(null);
     setNote('');
@@ -130,6 +152,12 @@ export function ForumThreadMenu({
             <DropdownMenuItem onClick={() => run(() => submitForumArticle(threadId), 'Failed to submit the thread')}>
               <LuSend className="mr-2 h-4 w-4" />
               {submissionStatus === 'changes_requested' ? 'Resubmit for publication' : 'Submit for publication'}
+            </DropdownMenuItem>
+          )}
+          {canEditTags && (
+            <DropdownMenuItem onClick={openTags}>
+              <LuTags className="mr-2 h-4 w-4" />
+              Edit tags
             </DropdownMenuItem>
           )}
           {isModerator && (
@@ -199,6 +227,15 @@ export function ForumThreadMenu({
             return true;
           }}
           confirmText="Move"
+        />
+      )}
+      {allTags && editedTagIds && (
+        <Modal
+          title="Edit Tags"
+          content={<ForumTagPicker tags={allTags} selected={editedTagIds} onChange={setEditedTagIds} />}
+          onClose={() => setEditedTagIds(null)}
+          onConfirm={() => run(() => setForumThreadTags({ threadId, tagIds: editedTagIds }), 'Failed to update the tags', false)}
+          confirmText="Save"
         />
       )}
       {noteDecision && (

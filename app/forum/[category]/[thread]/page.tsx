@@ -21,6 +21,7 @@ import {
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';
+import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import { ForumThreadMenu } from '@/components/forum/forum-thread-menu';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
@@ -95,6 +96,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             categoryId={thread.category.id}
             isAuthor={isAuthor}
             submissionStatus={submission?.status ?? null}
+            tagIds={thread.tags.map((tag) => tag.id)}
           />
         </div>
         <p className="text-sm text-muted-foreground">
@@ -108,6 +110,7 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             </>
           )}
         </p>
+        <ForumTagChips tags={thread.tags} className="mt-1" />
         {submission && (
           <p className="text-sm text-muted-foreground whitespace-pre-line">
             {SUGGESTION_TEXT[submission.status]}

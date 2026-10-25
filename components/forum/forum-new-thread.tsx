@@ -1,12 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LuPlus } from 'react-icons/lu';
 import { Button } from '@/components/ui/button';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
+import { ForumTagPicker } from '@/components/forum/forum-tag-picker';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import { createForumThread } from '@/app/actions/forum';
+import type { ForumTag } from '@/app/lib/forum';
 
 interface ForumNewThreadProps {
   category: { id: string; name: string; moderators_only: boolean };
@@ -27,9 +30,10 @@ export function ForumNewThreadButton({ category, categoryPath }: ForumNewThreadP
   );
 }
 
-export function ForumNewThreadForm({ category, categoryPath }: ForumNewThreadProps) {
+export function ForumNewThreadForm({ category, categoryPath, tags }: ForumNewThreadProps & { tags: ForumTag[] }) {
   const router = useRouter();
   const { loading, isModerator } = useForumViewer();
+  const [tagIds, setTagIds] = useState<string[]>([]);
   if (loading) return null;
 
   if (category.moderators_only && !isModerator) {
@@ -41,8 +45,10 @@ export function ForumNewThreadForm({ category, categoryPath }: ForumNewThreadPro
       initialTitle=""
       placeholder="Write the opening post..."
       submitText="Post thread"
-      onSubmit={({ title, content }) => createForumThread({ categoryId: category.id, title, content })}
+      onSubmit={({ title, content }) => createForumThread({ categoryId: category.id, title, content, tagIds })}
       onCancel={() => router.push(categoryPath)}
-    />
+    >
+      <ForumTagPicker tags={tags} selected={tagIds} onChange={setTagIds} />
+    </ForumPostForm>
   );
 }
