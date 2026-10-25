@@ -23,6 +23,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
 import type { UserCampaign } from "@/types/campaign";
+import { getForumArticles } from "@/app/lib/forum";
+import { ForumArticleCard } from "@/components/forum/forum-article-card";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -57,10 +59,11 @@ export default async function Home() {
   
   // Reference data for the create-campaign modal and the user's share-modal
   // campaigns — all cached (campaign-types / global / user-{id} tags).
-  const [campaignTypes, tradingPostTypes, userCampaigns] = await Promise.all([
+  const [campaignTypes, tradingPostTypes, userCampaigns, articles] = await Promise.all([
     getCampaignTypes(),
     getTradingPostTypesCached(),
-    getUserShareCampaigns(user.id)
+    getUserShareCampaigns(user.id),
+    getForumArticles()
   ]);
 
   return (
@@ -102,7 +105,23 @@ export default async function Home() {
             </div>
           </div>
         </div>
-        
+
+        {articles.length > 0 && (
+          <div className="bg-card shadow-md rounded-lg p-4">
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <h2 className="text-xl md:text-2xl font-bold">Latest articles</h2>
+              <Link href="/articles" prefetch={false} className="text-sm text-muted-foreground hover:text-foreground">
+                All articles
+              </Link>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {articles.slice(0, 3).map((article) => (
+                <ForumArticleCard key={article.number} article={article} />
+              ))}
+            </div>
+          </div>
+        )}
+
         <HomeTabs
           gangs={gangs}
           campaigns={campaigns}

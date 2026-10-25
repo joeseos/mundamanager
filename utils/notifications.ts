@@ -27,7 +27,8 @@ export type NotificationType =
   | 'mm_staff_message'
   | 'mm_announcement'
   | 'forum_reply'
-  | 'forum_mention';
+  | 'forum_mention'
+  | 'forum_article';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -128,6 +129,8 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
   // Forum replies to your thread and @mentions — in-app only.
   forum_reply: { label: 'Forum replies', supportsEmail: false, defaultEnabled: false, subject: '' },
   forum_mention: { label: 'Forum mentions', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // A reviewer published your thread as an article, asked for changes or declined it — in-app only.
+  forum_article: { label: 'Article reviews', supportsEmail: false, defaultEnabled: false, subject: '' },
 };
 
 /**

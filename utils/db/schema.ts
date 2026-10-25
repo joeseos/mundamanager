@@ -1060,6 +1060,16 @@ export const forumPostLikes = pgTable('forum_post_likes', {
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [primaryKey({ columns: [table.post_id, table.user_id] })]);
 
+export const forumArticles = pgTable('forum_articles', {
+  thread_id: uuid('thread_id').primaryKey(),
+  status: text('status').$type<'submitted' | 'changes_requested' | 'declined' | 'published'>().default('submitted').notNull(),
+  review_note: text('review_note'),
+  submitted_at: timestamp('submitted_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  reviewed_at: timestamp('reviewed_at', { withTimezone: true, mode: 'string' }),
+  reviewed_by: uuid('reviewed_by'),
+  published_at: timestamp('published_at', { withTimezone: true, mode: 'string' }),
+});
+
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
 // one()s point at the same table, each pair gets a relationName:

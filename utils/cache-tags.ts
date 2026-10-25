@@ -55,6 +55,9 @@ import { revalidateTag } from 'next/cache';
  *                  post pages                | its posts, likes included;
  *                                            | post pages also refresh
  *                                            | every 60 s
+ * forum-articles   published articles' cards | a review, an opening post
+ *                                            | edit, and any change the
+ *                                            | category list gets
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -104,6 +107,7 @@ export const TAGS = {
   forumIndex: () => 'forum-index',
   forumCategory: (id: string) => `forum-category-${id}`,
   forumThread: (number: number) => `forum-thread-${number}`,
+  forumArticles: () => 'forum-articles',
   campaignTypes: () => 'campaign-types',
   campaignTriumphs: () => 'campaign-triumphs',
 } as const;
@@ -323,15 +327,18 @@ export const invalidateUserGuides = () => bust(TAGS.userGuides());
 /** A forum thread was started or renamed: the forum index shows it too. */
 export function invalidateForumThreadList(categoryId: string, threadNumber: number) {
   bust(TAGS.forumIndex());
-  bust(TAGS.forumCategory(categoryId));
-  bust(TAGS.forumThread(threadNumber));
+  invalidateForumThread(categoryId, threadNumber);
 }
 
-/** A forum thread or one of its posts changed. */
+/** A forum thread or one of its posts changed. Article cards show the thread's title and reply count. */
 export function invalidateForumThread(categoryId: string, threadNumber: number) {
   bust(TAGS.forumCategory(categoryId));
   bust(TAGS.forumThread(threadNumber));
+  bust(TAGS.forumArticles());
 }
+
+/** An article was reviewed, or an opening post's content changed: its card shows the first image and the opening text. */
+export const invalidateForumArticles = () => bust(TAGS.forumArticles());
 
 /** A reply's likes changed: only the thread's own pages show them. */
 export function invalidateForumThreadPosts(threadNumber: number) {

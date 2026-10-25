@@ -4,15 +4,23 @@ import { after } from 'next/server';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { invalidateForumThread, invalidateForumThreadList, invalidateForumThreadPosts } from '@/utils/cache-tags';
+import {
+  invalidateForumArticles,
+  invalidateForumThread,
+  invalidateForumThreadList,
+  invalidateForumThreadPosts,
+} from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import {
   FORUM_POSTS_PER_PAGE,
+  type ForumArticleReview,
+  forumArticlePath,
   forumCategoryPath,
   forumMentionIds,
   forumPageHref,
   forumThreadPath,
+  getForumArticleReview,
   getForumCategories,
 } from '@/app/lib/forum';
 
@@ -214,9 +222,10 @@ export async function editForumPost(params: {
     }
 
     // The content is saved even if the rename failed, so clear its cache either way.
-    // Only a new title shows outside the thread.
+    // Only a new title shows outside the thread, and the opening post on its article card.
     if (renamed && !titleError) invalidateForumThreadList(thread.category_id, thread.number);
     else invalidateForumThreadPosts(thread.number);
+    if (post.post_number === 1) invalidateForumArticles();
     if (titleError) return { success: false, error: writeErrorMessage(titleError, 'Failed to rename the thread') };
     return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
@@ -376,3 +385,104 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
     return { success: false, error: 'Failed to update the like' };
   }
 }
+
+export interface ForumArticleResult extends ForumActionResult {
+  review?: ForumArticleReview;
+}
+
+/** Where the thread's submission stands, for its author and admins (RLS shows no one else). */
+export async function getForumArticleStatus(threadId: string): Promise<ForumArticleReview | null> {
+  const supabase = await createClient();
+  const user = await getAuthenticatedUser(supabase);
+  return getForumArticleReview(user.id, threadId);
+}
+
+const AUTHOR_ONLY = "Only the thread's author can submit it";
+
+/** Submits a thread's opening post for publication as an article, or resubmits it after changes were asked for. */
+export async function submitForumArticle(threadId: string): Promise<ForumArticleResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const articles = supabase.from('forum_articles');
+    const { data: resubmitted, error: updateError } = await articles
+      .update({ status: 'submitted' })
+      .eq('thread_id', threadId)
+      .eq('status', 'changes_requested')
+      .select('thread_id');
+    if (updateError) return { success: false, error: writeErrorMessage(updateError, 'Failed to submit the thread', AUTHOR_ONLY) };
+
+    if (!resubmitted.length) {
+      // RLS lets only the thread's author insert, and the trigger starts it as submitted
+      const { error } = await articles.insert({ thread_id: threadId });
+      if (error?.code === '23505') return { success: false, error: 'This thread was already submitted' };
+      if (error) return { success: false, error: writeErrorMessage(error, 'Failed to submit the thread', AUTHOR_ONLY) };
+    }
+    return { success: true, review: { status: 'submitted', review_note: null } };
+  } catch (error) {
+    console.error('Failed to submit the thread', error);
+    return { success: false, error: 'Failed to submit the thread' };
+  }
+}
+
+type ForumArticleDecision = Exclude<ForumArticleReview['status'], 'submitted'>;
+
+const REVIEW_NOTE_MAX_LENGTH = 2000;
+const ADMINS_ONLY = 'Only admins can review articles';
+
+const DECISION_TEXT: Record<ForumArticleDecision, (title: string) => string> = {
+  published: (title) => `Your thread "${title}" was published as an article.`,
+  changes_requested: (title) => `Changes were asked for before your thread "${title}" can be published.`,
+  declined: (title) => `Your thread "${title}" was not published as an article.`,
+};
+
+/** Publishes a submitted thread as an article, asks its author for changes, or declines it (admins only). */
+export async function reviewForumArticle(params: {
+  threadId: string;
+  status: ForumArticleDecision;
+  note?: string;
+}): Promise<ForumArticleResult> {
+  // Server actions can be called with anything
+  if (!Object.hasOwn(DECISION_TEXT, params.status)) return { success: false, error: 'Unknown decision' };
+  const note = params.note?.trim() || null;
+  if (note && note.length > REVIEW_NOTE_MAX_LENGTH) {
+    return { success: false, error: `Notes can be at most ${REVIEW_NOTE_MAX_LENGTH} characters` };
+  }
+
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    // RLS lets only the author and admins update, and the trigger refuses the author
+    const { data, error } = await supabase
+      .from('forum_articles')
+      .update({ status: params.status, review_note: note })
+      .eq('thread_id', params.threadId)
+      .select(`forum_threads(${THREAD_SELECT})`)
+      .maybeSingle<{ forum_threads: ThreadRow }>();
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to save the review', ADMINS_ONLY) };
+    if (!data) return { success: false, error: ADMINS_ONLY };
+
+    const thread = data.forum_threads;
+    if (thread.author_id && thread.author_id !== user.id) {
+      const notification = {
+        sender_id: user.id,
+        receiver_id: thread.author_id,
+        type: 'forum_article',
+        text: DECISION_TEXT[params.status](thread.title),
+        link: params.status === 'published' ? forumArticlePath(thread.number, thread.title) : postPath(thread, 1),
+      };
+      after(async () => {
+        const { error: notifyError } = await supabase.from('notifications').insert(notification);
+        if (notifyError) console.error('Failed to send the article review notification', notifyError);
+      });
+    }
+    invalidateForumArticles();
+    return { success: true, review: { status: params.status, review_note: note } };
+  } catch (error) {
+    console.error('Failed to save the review', error);
+    return { success: false, error: 'Failed to save the review' };
+  }
+}
+
