@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, type ReactNode } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
 import { isForumModeratorRole } from '@/utils/auth';
 import { type ForumThreadViewerData, getForumThreadViewer } from '@/app/actions/forum';
@@ -33,26 +33,26 @@ interface ForumThreadViewer {
   isAuthor: boolean;
   /** Empty while it loads and when signed out. */
   data?: ForumThreadViewerData | null;
-  /** Records a like the viewer just saved. */
+  /** Shows the viewer's like, or its removal, on the post. */
   setLiked: (postId: string, liked: boolean) => void;
   /** Loads it again after a change to the thread's article suggestion. */
-  reload: () => void;
+  reload: () => Promise<void>;
 }
 
 const ForumThreadViewerContext = createContext<ForumThreadViewer>({
   isAuthor: false,
   setLiked: () => {},
-  reload: () => {},
+  reload: async () => {},
 });
 
 /** What a thread page shows only to the signed-in viewer, loaded in the browser so the page itself is static. */
 export function ForumThreadViewerProvider({
-  threadId,
+  threadNumber,
   authorId,
   postIds,
   children,
 }: {
-  threadId: string;
+  threadNumber: number;
   authorId: string | null;
   /** The page's posts. */
   postIds: string[];
@@ -60,20 +60,21 @@ export function ForumThreadViewerProvider({
 }) {
   const { userId } = useForumViewer();
   const queryClient = useQueryClient();
-  const queryKey = ['forum-thread-viewer', userId, threadId, postIds];
+  const queryKey = ['forum-thread-viewer', userId, threadNumber, postIds];
   const { data } = useQuery({
     queryKey,
-    queryFn: () => getForumThreadViewer({ threadId, postIds }),
+    queryFn: () => getForumThreadViewer({ threadNumber, postIds }),
     enabled: userId !== null,
+    // A reply adds a post to the page: the likes shown stay until the new ones load
+    placeholderData: keepPreviousData,
   });
 
   const setLiked = (postId: string, liked: boolean) =>
-    queryClient.setQueryData<ForumThreadViewerData | null>(queryKey, (viewer) =>
-      viewer && {
-        ...viewer,
-        likedPostIds: liked ? [...viewer.likedPostIds, postId] : viewer.likedPostIds.filter((id) => id !== postId),
-      },
-    );
+    queryClient.setQueryData<ForumThreadViewerData | null>(queryKey, (viewer) => {
+      const likes = viewer?.likes[postId];
+      if (!likes || likes.liked === liked) return viewer;
+      return { ...viewer, likes: { ...viewer.likes, [postId]: { liked, count: likes.count + (liked ? 1 : -1) } } };
+    });
 
   return (
     <ForumThreadViewerContext.Provider

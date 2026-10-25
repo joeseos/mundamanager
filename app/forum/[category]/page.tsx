@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_THREADS_PER_PAGE,
@@ -42,7 +42,9 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
   const page = parseForumPage(pageParam);
   if (!category || page === null) notFound();
 
-  // Checked before the read so out-of-range pages add no cache entries
+  if (pageParam === '1') redirect(forumCategoryPath(category.slug));
+
+  // Checked before the read, so out-of-range pages add no data cache entries
   const pageCount = forumPageCount(category.thread_count, FORUM_THREADS_PER_PAGE);
   if (page > pageCount) notFound();
 

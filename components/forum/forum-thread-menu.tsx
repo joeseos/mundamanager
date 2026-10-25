@@ -102,15 +102,17 @@ export function ForumThreadMenu({
   const canEditTags = isModerator || (isAuthor && !isLocked);
   if (!canSubmit && !canEditTags) return null;
 
-  // Resolves false on a failure, so the note dialog stays open. Changes to the thread refresh the
-  // page through the actions' cache invalidation; the suggestion loads apart from the page, so it loads again.
-  const run = (action: () => Promise<ForumActionResult>, fallback: string) =>
+  // Resolves false on a failure, so the note dialog stays open. Changes to the thread refresh the page
+  // through the actions' cache invalidation; the suggestion loads apart from the page, so it loads again
+  // after the actions that change it (publishing ends it).
+  const run = (action: () => Promise<ForumActionResult>, fallback: string, reloadSuggestion = true) =>
     new Promise<boolean>((resolve) =>
       startUpdate(async () => {
         try {
           const result = await action();
           if (!result.success) throw new Error(result.error);
-          reload();
+          // Awaited, so the menu stays disabled until it no longer offers what was just done
+          if (reloadSuggestion) await reload();
           resolve(true);
         } catch (error) {
           toast.error(error instanceof Error ? error.message : fallback);
@@ -120,7 +122,7 @@ export function ForumThreadMenu({
     );
 
   const toggle = (flag: 'is_pinned' | 'is_locked' | 'is_article', value: boolean) =>
-    run(() => setForumThreadFlag({ threadId, flag, value }), 'Failed to update the thread');
+    run(() => setForumThreadFlag({ threadId, flag, value }), 'Failed to update the thread', flag === 'is_article');
 
   const openMove = () =>
     startUpdate(async () => {
@@ -249,7 +251,7 @@ export function ForumThreadMenu({
           title="Edit Tags"
           content={<ForumTagPicker tags={allTags} selected={editedTagIds} onChange={setEditedTagIds} />}
           onClose={() => setEditedTagIds(null)}
-          onConfirm={() => run(() => setForumThreadTags({ threadId, tagIds: editedTagIds }), 'Failed to update the tags')}
+          onConfirm={() => run(() => setForumThreadTags({ threadId, tagIds: editedTagIds }), 'Failed to update the tags', false)}
           confirmText="Save"
         />
       )}

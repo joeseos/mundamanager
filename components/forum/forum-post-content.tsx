@@ -55,20 +55,12 @@ function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): strin
 /** The post's likes, with a heart that likes it when the viewer can. */
 function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
   const { userId } = useForumViewer();
-  const { data: viewer, setLiked: saveLiked } = useForumThreadViewer();
-  const savedLiked = viewer?.likedPostIds.includes(post.id) ?? false;
-  // Not before the viewer's likes have loaded, so the heart starts from their saved like
-  const canLike = !!viewer && userId !== post.author_id;
-  const [liked, setLiked] = useState(savedLiked);
-  const [prevSavedLiked, setPrevSavedLiked] = useState(savedLiked);
+  const { data: viewer, setLiked } = useForumThreadViewer();
   const [saving, setSaving] = useState(false);
-  // The saved like loads after the page, and a reload may bring one changed in another tab
-  if (savedLiked !== prevSavedLiked) {
-    setPrevSavedLiked(savedLiked);
-    setLiked(savedLiked);
-  }
-  // like_count includes the saved like, so only a change since then is added
-  const count = post.like_count - Number(savedLiked) + Number(liked);
+  // The signed-in viewer's likes load as they are now, so the count and their heart change together
+  const likes = viewer?.likes[post.id];
+  const liked = likes?.liked ?? false;
+  const count = likes?.count ?? post.like_count;
   const heart = (
     <>
       <LuHeart className={`h-4 w-4 ${liked ? 'fill-current text-red-800' : ''}`} />
@@ -76,7 +68,8 @@ function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
     </>
   );
 
-  if (!canLike) {
+  // Only a count until the viewer's likes load, and on their own posts
+  if (!likes || userId === post.author_id) {
     return count > 0 ? (
       <span className="flex items-center h-9 px-3 text-sm text-muted-foreground" aria-label={`${count} likes`}>
         {heart}
@@ -86,12 +79,10 @@ function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
 
   const toggle = async () => {
     setSaving(true);
-    setLiked(!liked);
+    setLiked(post.id, !liked);
     const result = await setForumPostLike({ postId: post.id, liked: !liked });
-    if (result.success) {
-      saveLiked(post.id, !liked);
-    } else {
-      setLiked(liked);
+    if (!result.success) {
+      setLiked(post.id, liked);
       toast.error(result.error);
     }
     setSaving(false);

@@ -53,21 +53,19 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
   const page = parseForumPage(pageParam);
   if (!thread || page === null) notFound();
 
-  // A moved or renamed thread keeps its number, so old links land on the current URL.
+  // A moved or renamed thread keeps its number, so old links land on the current URL (and /page/1 on the bare path)
   const path = forumThreadPath(thread.category.slug, thread.number, thread.title);
-  if (path !== `/forum/${categorySlug}/${segment}`) {
-    redirect(forumPageHref(path, page));
-  }
+  const pagePath = forumPageHref(path, page);
+  if (pagePath !== `/forum/${categorySlug}/${segment}${pageParam ? `/page/${pageParam}` : ''}`) redirect(pagePath);
 
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
   if (page > pageCount) notFound();
 
   const posts = await getForumPosts(thread, page);
-  const pagePath = forumPageHref(path, page);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <ForumThreadViewerProvider threadId={thread.id} authorId={thread.author_id} postIds={posts.map((post) => post.id)}>
+      <ForumThreadViewerProvider threadNumber={thread.number} authorId={thread.author_id} postIds={posts.map((post) => post.id)}>
         <div className="w-full bg-card shadow-md rounded-lg p-4">
           <div className="flex items-start justify-between gap-2">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">
