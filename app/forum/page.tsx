@@ -6,7 +6,6 @@ import {
   forumThreadPath,
   getForumCategories,
 } from '@/app/lib/forum';
-import { MainTabHeader, MainTabs } from '@/components/home/main-tabs';
 
 // Rendered per request: DATABASE_URL only exists at runtime, so the build can't
 // read the forum. getForumCategories() is cached, so a request doesn't hit the database.
@@ -21,10 +20,9 @@ export default async function ForumPage() {
   const categories = await getForumCategories();
 
   return (
-    <main className="flex min-h-screen flex-col items-center gap-4">
-      <MainTabs active="forum" />
+    <main className="flex min-h-screen flex-col items-center">
       <div className="w-full bg-card shadow-md rounded-lg p-4">
-        <MainTabHeader title="Forum" as="h1" className="mb-4" />
+        <h1 className="text-2xl font-bold mb-4">Forum</h1>
 
         <ul className="divide-y">
           {categories.map((category) => (

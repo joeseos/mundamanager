@@ -10,8 +10,7 @@ import type { CustomFighterType } from '@/types/fighter'
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types'
 import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts'
 import type { CustomCollectionWithItems } from '@/app/lib/customise/custom-collections'
-import type { CampaignType, UserCampaign } from '@/types/campaign'
-import type { TradingPostType } from '@/app/lib/reference-data'
+import type { UserCampaign } from '@/types/campaign'
 import { CustomiseGangTypes } from '@/components/customise/custom-gang-types'
 import { CustomiseTradingPosts } from '@/components/customise/custom-trading-posts'
 import { CustomiseCollections } from '@/components/customise/custom-collections'
@@ -23,10 +22,10 @@ import { CampaignsTab } from '@/components/home/campaigns-tab'
 import { sameEditionForDisplay } from '@/types/edition'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
-import { MainTabHeader, MainTabs, type HomeTabKey } from '@/components/home/main-tabs'
 
-const TAB_KEYS: HomeTabKey[] = ['gangs', 'campaigns', 'customassets']
-const tabIndexFromParam = (tab: string | null) => Math.max(TAB_KEYS.indexOf(tab as HomeTabKey), 0);
+type TabKey = 'gangs' | 'campaigns' | 'customassets'
+const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
+const tabIndexFromParam = (tab: string | null) => Math.max(TAB_KEYS.indexOf(tab as TabKey), 0);
 
 interface HomeTabsProps {
   gangs: Gang[];
@@ -39,8 +38,6 @@ interface HomeTabsProps {
   customTradingPosts: CustomTradingPost[];
   customCollections: CustomCollectionWithItems[];
   userCampaigns: UserCampaign[];
-  campaignTypes: CampaignType[];
-  tradingPostTypes: TradingPostType[];
 }
 
 export default function HomeTabs({
@@ -53,9 +50,7 @@ export default function HomeTabs({
   customGangTypes,
   customTradingPosts,
   customCollections,
-  userCampaigns,
-  campaignTypes,
-  tradingPostTypes
+  userCampaigns
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
   // URL is the source of truth, so a fresh load of /?tab=... lands on the right tab.
@@ -111,7 +106,7 @@ export default function HomeTabs({
     setFighterTypes(previousFighters);
   }, []);
 
-  const updateUrlParam = useCallback((tab: HomeTabKey) => {
+  const updateUrlParam = useCallback((tab: TabKey) => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     if (url.searchParams.get('tab') === tab) return;
@@ -125,7 +120,7 @@ export default function HomeTabs({
 
   useEffect(() => {
     const handleTabSwitch = (event: Event) => {
-      const customEvent = event as CustomEvent<HomeTabKey>;
+      const customEvent = event as CustomEvent<TabKey>;
       const tab = customEvent.detail;
       if (!tab) return;
 
@@ -141,22 +136,40 @@ export default function HomeTabs({
     };
   }, [handleTabChange]);
 
+  const tabTitles = ['Gangs', 'Campaigns', 'Custom Assets'];
+
   return (
-    <div className="w-full space-y-4">
-      <MainTabs active={TAB_KEYS[activeTab]} onHomeTab={updateUrlParam} />
+    <div className="w-full">
+      {/* Tab Navigation */}
+      <div className="bg-card shadow-md rounded-lg mb-4 flex justify-center">
+        {tabTitles.map((title, index) => (
+          <button
+            key={index}
+            onClick={() => handleTabChange(index)}
+            className={`md:[word-spacing:0vw] [word-spacing:100vw] flex-1 md:p-4 p-2 leading-none text-center transition-colors ${
+              activeTab === index
+                ? 'text-foreground font-medium border-b-0 border-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {title}
+          </button>
+        ))}
+      </div>
 
       {/* Tab Content */}
       <div className="space-y-4">
         {activeTab === 0 && <GangsTab gangs={gangs} />}
 
-        {activeTab === 1 && <CampaignsTab campaigns={campaigns} campaignTypes={campaignTypes} tradingPostTypes={tradingPostTypes} userId={userId} />}
+        {activeTab === 1 && <CampaignsTab campaigns={campaigns} />}
 
         {activeTab === 2 && (
           <div className="bg-card shadow-md rounded-lg p-4 space-y-6">
             <div>
-              <MainTabHeader title="Custom Assets" className="mb-2">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h2 className="text-xl md:text-2xl font-bold">Custom Assets</h2>
                 <EditionToggle value={editionSlug} onChange={setEditionSlug} />
-              </MainTabHeader>
+              </div>
               <p className="text-muted-foreground">
                 Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you&apos;re an Arbitrator of. Bundle them into Asset Collections to apply a whole themed set to a campaign at once, or copy another arbitrator&apos;s asset collection into your account. Custom Territories and Scenarios are created in the campaign pages.
               </p>

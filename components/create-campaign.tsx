@@ -40,8 +40,10 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
 
   return (
     <>
-      {/* Same width for both, so the home page headers line up across tabs */}
-      <Button onClick={() => setShowModal(true)} className="w-40">
+      <Button 
+        onClick={() => setShowModal(true)}
+        className="w-full"
+      >
         Create Campaign
       </Button>
 
