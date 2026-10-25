@@ -197,16 +197,8 @@ export default function CampaignEditModal({
       return;
     }
 
-    const params = new URLSearchParams({
-      client_id: clientId,
-      permissions: '2048',
-      scope: 'bot identify',
-      redirect_uri: `${appUrl}/api/discord/callback`,
-      response_type: 'code',
-      state: campaignData.id,
-    });
-    const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
-    window.open(url, '_blank', 'width=500,height=800');
+    // The connect route adds the state nonce and sends the popup on to Discord
+    window.open(`${appUrl}/api/discord/connect?campaign_id=${campaignData.id}`, '_blank', 'width=500,height=800');
   };
 
   const handleDisconnectDiscord = async () => {
