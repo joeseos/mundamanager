@@ -257,6 +257,11 @@ export function forumThreadPath(categorySlug: string, number: number, title: str
   return `/forum/${categorySlug}/${number}-${slugifyHeading(title)}`;
 }
 
+/** A page of a thread or category: page 1 is the bare path, the others add ?page=. */
+export function forumPageHref(path: string, page: number): string {
+  return page === 1 ? path : `${path}?page=${page}`;
+}
+
 /** The thread number from a `<number>-<title slug>` URL segment, or null. */
 export function parseForumThreadNumber(segment: string): number | null {
   const match = /^([1-9]\d{0,14})(?:-|$)/.exec(segment);

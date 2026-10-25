@@ -1022,11 +1022,7 @@ export const forumCategories = pgTable('forum_categories', {
   position: integer('position').default(0).notNull(),
   moderators_only: boolean('moderators_only').default(false).notNull(),
   thread_count: integer('thread_count').default(0).notNull(),
-  post_count: integer('post_count').default(0).notNull(),
-  last_post_at: timestamp('last_post_at', { withTimezone: true, mode: 'string' }),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
-  updated_by: uuid('updated_by'),
 });
 
 export const forumThreads = pgTable('forum_threads', {

@@ -1,12 +1,13 @@
 'use server';
 
+import { after } from 'next/server';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { invalidateForumThread, invalidateForumThreadList, invalidateForumThreadPosts } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
-import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumThreadPath } from '@/app/lib/forum';
+import { FORUM_POSTS_PER_PAGE, forumCategoryPath, forumPageHref, forumThreadPath, getForumCategories } from '@/app/lib/forum';
 
 export interface ForumActionResult {
   success: boolean;
@@ -57,26 +58,28 @@ function writeErrorMessage(error: PostgrestError, fallback: string, refusal = "Y
 }
 
 function postPath(thread: ThreadRow, postNumber: number): string {
-  const page = Math.ceil(postNumber / FORUM_POSTS_PER_PAGE);
   const path = forumThreadPath(thread.forum_categories?.slug ?? '', thread.number, thread.title);
-  return `${path}${page > 1 ? `?page=${page}` : ''}#post-${postNumber}`;
+  return `${forumPageHref(path, Math.ceil(postNumber / FORUM_POSTS_PER_PAGE))}#post-${postNumber}`;
 }
 
-// How the sanitizer writes an @mention, whose id it has checked is a uuid
-const MENTION_ID = /data-type="mention" data-id="([^"]+)"/g;
+// The sanitizer keeps data-type="mention" only on mentions, with an id it has checked is a uuid
+const MENTION_TAG = /<a [^>]*data-type="mention"[^>]*>/g;
+const DATA_ID = /data-id="([^"]+)"/;
 // So one post can't notify a crowd
 const MENTION_NOTIFY_LIMIT = 10;
 
 /** The users a post mentions, read from what the page will show. */
 function mentionedUserIds(html: string): Set<string> {
-  return new Set(Array.from(sanitizeArticleHtml(html).matchAll(MENTION_ID), ([, id]) => id));
+  return new Set(
+    Array.from(sanitizeArticleHtml(html).matchAll(MENTION_TAG), ([tag]) => DATA_ID.exec(tag)?.[1]).filter((id) => id !== undefined),
+  );
 }
 
 /**
  * Notifies the people a new post mentions, and `replyTo` (the thread's author on
  * a reply) unless they're mentioned too. Edits notify no one, so editing a
- * mention out and back in can't notify someone again. The post is saved by now,
- * so a failure is only logged.
+ * mention out and back in can't notify someone again. Runs after the response,
+ * as the post is saved by now, so a failure is only logged.
  */
 async function notifyForumPost(
   supabase: SupabaseClient,
@@ -138,7 +141,7 @@ export async function createForumThread(params: {
       .single<ThreadRow>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to start the thread') };
 
-    await notifyForumPost(supabase, { senderId: user.id, thread, postNumber: 1, content: params.content });
+    after(() => notifyForumPost(supabase, { senderId: user.id, thread, postNumber: 1, content: params.content }));
     invalidateForumThreadList(thread.category_id, thread.number);
     return { success: true, path: postPath(thread, 1) };
   } catch (error) {
@@ -166,13 +169,15 @@ export async function replyToForumThread(params: {
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to post the reply') };
 
     const thread = post.forum_threads;
-    await notifyForumPost(supabase, {
-      senderId: user.id,
-      thread,
-      postNumber: post.post_number,
-      content: params.content,
-      replyTo: thread.author_id,
-    });
+    after(() =>
+      notifyForumPost(supabase, {
+        senderId: user.id,
+        thread,
+        postNumber: post.post_number,
+        content: params.content,
+        replyTo: thread.author_id,
+      }),
+    );
     invalidateForumThread(thread.category_id, thread.number);
     return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
@@ -213,9 +218,10 @@ export async function editForumPost(params: {
       if (!titleError) thread.title = title;
     }
 
-    // The content is saved even if the rename failed, so clear its cache either way
+    // The content is saved even if the rename failed, so clear its cache either way.
+    // Only a new title shows outside the thread.
     if (renamed && !titleError) invalidateForumThreadList(thread.category_id, thread.number);
-    else invalidateForumThread(thread.category_id, thread.number);
+    else invalidateForumThreadPosts(thread.number);
     if (titleError) return { success: false, error: writeErrorMessage(titleError, 'Failed to rename the thread') };
     return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
@@ -224,12 +230,12 @@ export async function editForumPost(params: {
   }
 }
 
+const MODERATORS_ONLY = 'Only moderators can delete posts';
+
 /**
  * Removes a post (moderators only). Removing a thread's opening post deletes the
  * thread; any other post keeps its place as "This post was removed".
  */
-const MODERATORS_ONLY = 'Only moderators can delete posts';
-
 export async function deleteForumPost(postId: string): Promise<ForumActionResult> {
   try {
     const supabase = await createClient();
@@ -266,7 +272,8 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to delete the post', MODERATORS_ONLY) };
     if (!removed.length) return { success: false, error: MODERATORS_ONLY };
 
-    invalidateForumThread(thread.category_id, thread.number);
+    // The thread list shows nothing of a reply but the count, which a removal keeps
+    invalidateForumThreadPosts(thread.number);
     return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
     console.error('Failed to delete the post', error);
@@ -343,29 +350,30 @@ export async function moveForumThread(params: { threadId: string; categoryId: st
   }
 }
 
+/** The categories a moderator can move a thread to, loaded when the Move dialog opens. */
+export async function getForumMoveCategories(): Promise<{ id: string; name: string }[]> {
+  return (await getForumCategories()).map(({ id, name }) => ({ id, name }));
+}
+
 /** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */
 export async function setForumPostLike(params: { postId: string; liked: boolean }): Promise<ForumActionResult> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const { data: post, error: readError } = await supabase
-      .from('forum_posts')
-      .select(`post_number, forum_threads(${THREAD_SELECT})`)
-      .eq('id', params.postId)
-      .single<{ post_number: number; forum_threads: ThreadRow }>();
-    if (readError) throw readError;
-
     const like = { post_id: params.postId, user_id: user.id };
-    // Liking twice, or taking back a like that's gone, changes nothing
-    const { error } = params.liked
-      ? await supabase.from('forum_post_likes').upsert(like, { ignoreDuplicates: true })
-      : await supabase.from('forum_post_likes').delete().match(like);
+    // The post comes back with the like, for the cache tags
+    const likes = supabase.from('forum_post_likes');
+    const { data, error } = await (params.liked ? likes.upsert(like, { ignoreDuplicates: true }) : likes.delete().match(like))
+      .select(`forum_posts(post_number, forum_threads(${THREAD_SELECT}))`)
+      .maybeSingle<{ forum_posts: { post_number: number; forum_threads: ThreadRow } }>();
     if (error) throw error;
+    // Liking twice, or taking back a like that's gone, changes nothing
+    if (!data) return { success: true };
 
     // The category list shows the opening post's likes
-    const thread = post.forum_threads;
-    if (post.post_number === 1) invalidateForumThread(thread.category_id, thread.number);
+    const { post_number, forum_threads: thread } = data.forum_posts;
+    if (post_number === 1) invalidateForumThread(thread.category_id, thread.number);
     else invalidateForumThreadPosts(thread.number);
     return { success: true };
   } catch (error) {
