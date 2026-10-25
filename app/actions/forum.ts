@@ -14,13 +14,13 @@ import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import {
   FORUM_POSTS_PER_PAGE,
-  type ForumArticleReview,
+  type ForumArticleSubmission,
   forumArticlePath,
   forumCategoryPath,
   forumMentionIds,
   forumPageHref,
   forumThreadPath,
-  getForumArticleReview,
+  getForumArticleSubmission,
   getForumCategories,
 } from '@/app/lib/forum';
 
@@ -36,15 +36,18 @@ const TITLE_MAX_LENGTH = 150;
 const CONTENT_MAX_LENGTH = 50000;
 
 // The thread and its category, for the post's URL and the cache tags, and its author for reply notifications
-const THREAD_SELECT = 'number, title, category_id, author_id, forum_categories(slug)';
+const THREAD_SELECT = 'number, title, category_id, author_id, article_published_at, forum_categories(slug)';
 
 interface ThreadRow {
   number: number;
   title: string;
   category_id: string;
   author_id: string | null;
+  article_published_at: string | null;
   forum_categories: { slug: string } | null;
 }
+
+const isArticle = (thread: ThreadRow) => thread.article_published_at !== null;
 
 function validateTitle(title: string): string | null {
   if (!title) return 'Give the thread a title';
@@ -181,7 +184,7 @@ export async function replyToForumThread(params: {
         replyTo: thread.author_id,
       }),
     );
-    invalidateForumThread(thread.category_id, thread.number);
+    invalidateForumThread(thread.category_id, thread.number, isArticle(thread));
     return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
     console.error('Failed to post the reply', error);
@@ -222,10 +225,10 @@ export async function editForumPost(params: {
     }
 
     // The content is saved even if the rename failed, so clear its cache either way.
-    // Only a new title shows outside the thread, and the opening post on its article card.
-    if (renamed && !titleError) invalidateForumThreadList(thread.category_id, thread.number);
+    // Only a new title shows outside the thread, and an article's opening post on its card.
+    if (renamed && !titleError) invalidateForumThreadList(thread.category_id, thread.number, isArticle(thread));
     else invalidateForumThreadPosts(thread.number);
-    if (post.post_number === 1) invalidateForumArticles();
+    if (post.post_number === 1 && isArticle(thread)) invalidateForumArticles();
     if (titleError) return { success: false, error: writeErrorMessage(titleError, 'Failed to rename the thread') };
     return { success: true, path: postPath(thread, post.post_number) };
   } catch (error) {
@@ -263,7 +266,7 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
       if (error) return { success: false, error: writeErrorMessage(error, 'Failed to delete the thread', MODERATORS_ONLY) };
       if (!deleted.length) return { success: false, error: MODERATORS_ONLY };
 
-      invalidateForumThreadList(thread.category_id, thread.number);
+      invalidateForumThreadList(thread.category_id, thread.number, isArticle(thread));
       return { success: true, path: forumCategoryPath(thread.forum_categories?.slug ?? '') };
     }
 
@@ -285,33 +288,40 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
   }
 }
 
-const MODERATORS_ONLY_FLAGS = 'Only moderators can pin or lock threads';
+const MODERATORS_ONLY_FLAGS = 'Only moderators can pin, lock or publish threads';
 const MODERATORS_ONLY_MOVE = 'Only moderators can move threads';
 
-/** Pins or locks a thread, or undoes it (moderators only). */
+/**
+ * Pins or locks a thread, or publishes it as an article, or undoes it (moderators
+ * only). The trigger stamps the publish time.
+ */
 export async function setForumThreadFlag(params: {
   threadId: string;
-  flag: 'is_pinned' | 'is_locked';
+  flag: 'is_pinned' | 'is_locked' | 'is_article';
   value: boolean;
 }): Promise<ForumActionResult> {
+  const { flag, value } = params;
   // Server actions can be called with anything, so don't let the flag name another column
-  if (params.flag !== 'is_pinned' && params.flag !== 'is_locked') return { success: false, error: 'Unknown setting' };
+  if (flag !== 'is_pinned' && flag !== 'is_locked' && flag !== 'is_article') return { success: false, error: 'Unknown setting' };
+  const update = flag === 'is_article' ? { article_published_at: value ? new Date().toISOString() : null } : { [flag]: value };
 
   try {
     const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
+    const user = await getAuthenticatedUser(supabase);
 
     // RLS lets only the author and moderators update a thread, and the trigger refuses the author
     const { data: thread, error } = await supabase
       .from('forum_threads')
-      .update({ [params.flag]: params.value })
+      .update(update)
       .eq('id', params.threadId)
       .select(THREAD_SELECT)
       .maybeSingle<ThreadRow>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the thread', MODERATORS_ONLY_FLAGS) };
     if (!thread) return { success: false, error: MODERATORS_ONLY_FLAGS };
 
-    invalidateForumThread(thread.category_id, thread.number);
+    if (flag === 'is_article' && value) after(() => notifyArticleAuthor(supabase, user.id, thread, 'published'));
+    // Unpublishing leaves article_published_at empty, but the card still has to go
+    invalidateForumThread(thread.category_id, thread.number, flag === 'is_article' || isArticle(thread));
     return { success: true };
   } catch (error) {
     console.error('Failed to update the thread', error);
@@ -346,7 +356,7 @@ export async function moveForumThread(params: { threadId: string; categoryId: st
 
     // Both categories' lists and counts change
     invalidateForumThread(from.category_id, thread.number);
-    invalidateForumThreadList(thread.category_id, thread.number);
+    invalidateForumThreadList(thread.category_id, thread.number, isArticle(thread));
     return { success: true, path: postPath(thread, 1) };
   } catch (error) {
     console.error('Failed to move the thread', error);
@@ -386,27 +396,49 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
   }
 }
 
-export interface ForumArticleResult extends ForumActionResult {
-  review?: ForumArticleReview;
+type ForumArticleDecision = 'published' | Exclude<ForumArticleSubmission['status'], 'submitted'>;
+
+const ARTICLE_NOTIFICATION_TEXT: Record<ForumArticleDecision, (title: string) => string> = {
+  published: (title) => `Your thread "${title}" was published as an article.`,
+  changes_requested: (title) => `A moderator asked for changes before your thread "${title}" is published.`,
+  declined: (title) => `Your thread "${title}" was not published as an article.`,
+};
+
+/** Tells the thread's author what became of it as an article. Runs after the response, so a failure is only logged. */
+async function notifyArticleAuthor(supabase: SupabaseClient, senderId: string, thread: ThreadRow, decision: ForumArticleDecision) {
+  if (!thread.author_id || thread.author_id === senderId) return;
+  const { error } = await supabase.from('notifications').insert({
+    sender_id: senderId,
+    receiver_id: thread.author_id,
+    type: 'forum_article',
+    text: ARTICLE_NOTIFICATION_TEXT[decision](thread.title),
+    link: decision === 'published' ? forumArticlePath(thread.number, thread.title) : postPath(thread, 1),
+  });
+  if (error) console.error('Failed to send the article notification', error);
 }
 
-/** Where the thread's submission stands, for its author and admins (RLS shows no one else). */
-export async function getForumArticleStatus(threadId: string): Promise<ForumArticleReview | null> {
+export interface ForumArticleResult extends ForumActionResult {
+  submission?: ForumArticleSubmission;
+}
+
+/** Where the author's suggestion of the thread stands, for the author and moderators (RLS shows no one else). */
+export async function getForumArticleStatus(threadId: string): Promise<ForumArticleSubmission | null> {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
-  return getForumArticleReview(user.id, threadId);
+  return getForumArticleSubmission(user.id, threadId);
 }
 
-const AUTHOR_ONLY = "Only the thread's author can submit it";
+const AUTHOR_ONLY = "Only the thread's author can suggest it";
 
-/** Submits a thread's opening post for publication as an article, or resubmits it after changes were asked for. */
+/** Suggests the thread as an article (its author only), or resubmits it after a moderator asked for changes. */
 export async function submitForumArticle(threadId: string): Promise<ForumArticleResult> {
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
 
-    const articles = supabase.from('forum_articles');
-    const { data: resubmitted, error: updateError } = await articles
+    // The trigger only lets the author resubmit, and only after changes were asked for
+    const submissions = supabase.from('forum_article_submissions');
+    const { data: resubmitted, error: updateError } = await submissions
       .update({ status: 'submitted' })
       .eq('thread_id', threadId)
       .eq('status', 'changes_requested')
@@ -414,37 +446,29 @@ export async function submitForumArticle(threadId: string): Promise<ForumArticle
     if (updateError) return { success: false, error: writeErrorMessage(updateError, 'Failed to submit the thread', AUTHOR_ONLY) };
 
     if (!resubmitted.length) {
-      // RLS lets only the thread's author insert, and the trigger starts it as submitted
-      const { error } = await articles.insert({ thread_id: threadId });
-      if (error?.code === '23505') return { success: false, error: 'This thread was already submitted' };
+      // RLS lets only the thread's author insert
+      const { error } = await submissions.insert({ thread_id: threadId });
+      if (error?.code === '23505') return { success: false, error: 'This thread was already suggested' };
       if (error) return { success: false, error: writeErrorMessage(error, 'Failed to submit the thread', AUTHOR_ONLY) };
     }
-    return { success: true, review: { status: 'submitted', review_note: null } };
+    return { success: true, submission: { status: 'submitted', review_note: null } };
   } catch (error) {
     console.error('Failed to submit the thread', error);
     return { success: false, error: 'Failed to submit the thread' };
   }
 }
 
-type ForumArticleDecision = Exclude<ForumArticleReview['status'], 'submitted'>;
-
 const REVIEW_NOTE_MAX_LENGTH = 2000;
-const ADMINS_ONLY = 'Only admins can review articles';
+const MODERATORS_ONLY_REVIEW = 'Only moderators can answer a suggestion';
 
-const DECISION_TEXT: Record<ForumArticleDecision, (title: string) => string> = {
-  published: (title) => `Your thread "${title}" was published as an article.`,
-  changes_requested: (title) => `Changes were asked for before your thread "${title}" can be published.`,
-  declined: (title) => `Your thread "${title}" was not published as an article.`,
-};
-
-/** Publishes a submitted thread as an article, asks its author for changes, or declines it (admins only). */
+/** Asks the author for changes to a suggested thread, or declines it (moderators only). Publishing is setForumThreadFlag. */
 export async function reviewForumArticle(params: {
   threadId: string;
-  status: ForumArticleDecision;
+  status: 'changes_requested' | 'declined';
   note?: string;
 }): Promise<ForumArticleResult> {
   // Server actions can be called with anything
-  if (!Object.hasOwn(DECISION_TEXT, params.status)) return { success: false, error: 'Unknown decision' };
+  if (params.status !== 'changes_requested' && params.status !== 'declined') return { success: false, error: 'Unknown decision' };
   const note = params.note?.trim() || null;
   if (note && note.length > REVIEW_NOTE_MAX_LENGTH) {
     return { success: false, error: `Notes can be at most ${REVIEW_NOTE_MAX_LENGTH} characters` };
@@ -454,35 +478,22 @@ export async function reviewForumArticle(params: {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    // RLS lets only the author and admins update, and the trigger refuses the author
+    // Only a waiting suggestion, so answering twice doesn't notify twice; the trigger refuses non-moderators
     const { data, error } = await supabase
-      .from('forum_articles')
+      .from('forum_article_submissions')
       .update({ status: params.status, review_note: note })
       .eq('thread_id', params.threadId)
+      .eq('status', 'submitted')
       .select(`forum_threads(${THREAD_SELECT})`)
       .maybeSingle<{ forum_threads: ThreadRow }>();
-    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to save the review', ADMINS_ONLY) };
-    if (!data) return { success: false, error: ADMINS_ONLY };
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to answer the suggestion', MODERATORS_ONLY_REVIEW) };
+    if (!data) return { success: false, error: 'This suggestion was already answered' };
 
-    const thread = data.forum_threads;
-    if (thread.author_id && thread.author_id !== user.id) {
-      const notification = {
-        sender_id: user.id,
-        receiver_id: thread.author_id,
-        type: 'forum_article',
-        text: DECISION_TEXT[params.status](thread.title),
-        link: params.status === 'published' ? forumArticlePath(thread.number, thread.title) : postPath(thread, 1),
-      };
-      after(async () => {
-        const { error: notifyError } = await supabase.from('notifications').insert(notification);
-        if (notifyError) console.error('Failed to send the article review notification', notifyError);
-      });
-    }
-    invalidateForumArticles();
-    return { success: true, review: { status: params.status, review_note: note } };
+    after(() => notifyArticleAuthor(supabase, user.id, data.forum_threads, params.status));
+    return { success: true, submission: { status: params.status, review_note: note } };
   } catch (error) {
-    console.error('Failed to save the review', error);
-    return { success: false, error: 'Failed to save the review' };
+    console.error('Failed to answer the suggestion', error);
+    return { success: false, error: 'Failed to answer the suggestion' };
   }
 }
 

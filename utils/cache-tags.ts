@@ -55,9 +55,10 @@ import { revalidateTag } from 'next/cache';
  *                  post pages                | its posts, likes included;
  *                                            | post pages also refresh
  *                                            | every 60 s
- * forum-articles   published articles' cards | a review, an opening post
- *                                            | edit, and any change the
- *                                            | category list gets
+ * forum-articles   published articles' cards | publishing, and any change
+ *                                            | to an article's thread or
+ *                                            | opening post; else every
+ *                                            | 60 s
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -325,19 +326,19 @@ export const invalidateCampaignCount = () => bust(TAGS.globalCampaignCount());
 export const invalidateUserGuides = () => bust(TAGS.userGuides());
 
 /** A forum thread was started or renamed: the forum index shows it too. */
-export function invalidateForumThreadList(categoryId: string, threadNumber: number) {
+export function invalidateForumThreadList(categoryId: string, threadNumber: number, isArticle = false) {
   bust(TAGS.forumIndex());
-  invalidateForumThread(categoryId, threadNumber);
+  invalidateForumThread(categoryId, threadNumber, isArticle);
 }
 
-/** A forum thread or one of its posts changed. Article cards show the thread's title and reply count. */
-export function invalidateForumThread(categoryId: string, threadNumber: number) {
+/** A forum thread or one of its posts changed. An article's card shows its thread too. */
+export function invalidateForumThread(categoryId: string, threadNumber: number, isArticle = false) {
   bust(TAGS.forumCategory(categoryId));
   bust(TAGS.forumThread(threadNumber));
-  bust(TAGS.forumArticles());
+  if (isArticle) invalidateForumArticles();
 }
 
-/** An article was reviewed, or an opening post's content changed: its card shows the first image and the opening text. */
+/** A thread was published or unpublished, or an article's opening post changed. */
 export const invalidateForumArticles = () => bust(TAGS.forumArticles());
 
 /** A reply's likes changed: only the thread's own pages show them. */

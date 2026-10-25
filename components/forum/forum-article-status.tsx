@@ -1,21 +1,24 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import Link from 'next/link';
 import { LuNewspaper } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { useForumViewer } from '@/components/forum/forum-viewer';
-import { getForumArticleStatus, reviewForumArticle, submitForumArticle } from '@/app/actions/forum';
-import type { ForumArticleReview } from '@/app/lib/forum';
+import {
+  type ForumActionResult,
+  getForumArticleStatus,
+  reviewForumArticle,
+  setForumThreadFlag,
+  submitForumArticle,
+} from '@/app/actions/forum';
+import type { ForumArticleSubmission } from '@/app/lib/forum';
 
 interface ForumArticleStatusProps {
   threadId: string;
   authorId: string | null;
-  /** The article's page when it's published. */
-  articlePath: string | null;
 }
 
 type NoteDecision = 'changes_requested' | 'declined';
@@ -26,106 +29,91 @@ const NOTE_DECISIONS: Record<NoteDecision, { title: string; confirmText: string;
 };
 
 /**
- * Under the thread's title: the author submits the opening post as an article,
- * and admins review it. Everyone sees the link once it's published.
+ * Under the title of a thread that isn't an article yet: its author suggests it
+ * for publication, and moderators answer the suggestion.
  */
-export function ForumArticleStatus({ threadId, authorId, articlePath }: ForumArticleStatusProps) {
-  const { userId, isAdmin } = useForumViewer();
+export function ForumArticleStatus({ threadId, authorId }: ForumArticleStatusProps) {
+  const { userId, isModerator } = useForumViewer();
   const isAuthor = userId !== null && userId === authorId;
-  const [review, setReview] = useState<ForumArticleReview | null | undefined>(undefined);
+  // undefined while loading
+  const [submission, setSubmission] = useState<ForumArticleSubmission | null | undefined>(undefined);
   const [saving, startSave] = useTransition();
   const [noteDecision, setNoteDecision] = useState<NoteDecision | null>(null);
   const [note, setNote] = useState('');
 
-  // Only the author and admins can see a submission, so only they load it
-  const canSeeReview = isAuthor || isAdmin;
+  // Only the author and moderators can see a suggestion, so only they load it
+  const canSee = isAuthor || isModerator;
   useEffect(() => {
-    if (!canSeeReview || articlePath) return;
+    if (!canSee) return;
     getForumArticleStatus(threadId)
-      .then(setReview)
-      .catch(() => toast.error('Failed to load the article status'));
-  }, [canSeeReview, articlePath, threadId]);
+      .then(setSubmission)
+      .catch(() => toast.error('Failed to load the article suggestion'));
+  }, [canSee, threadId]);
 
-  const save = (action: () => ReturnType<typeof submitForumArticle>) =>
+  // The action's cache invalidation sends the updated page back with its response
+  const save = (action: () => Promise<ForumActionResult & { submission?: ForumArticleSubmission }>) =>
     new Promise<boolean>((resolve) =>
       startSave(async () => {
-        const result = await action();
-        if (!result.success) toast.error(result.error);
-        else setReview(result.review);
-        resolve(result.success);
+        try {
+          const result = await action();
+          if (!result.success) throw new Error(result.error);
+          if (result.submission) setSubmission(result.submission);
+          resolve(true);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Failed to save');
+          resolve(false);
+        }
       }),
     );
 
-  const decide = (status: 'published' | NoteDecision, reviewNote?: string) =>
-    save(() => reviewForumArticle({ threadId, status, note: reviewNote }));
-
-  const openNote = (decision: NoteDecision) => {
-    setNote('');
-    setNoteDecision(decision);
-  };
+  const submit = () => save(() => submitForumArticle(threadId));
 
   let content: React.ReactNode = null;
-  if (articlePath) {
+  if (submission === null && isAuthor) {
     content = (
       <>
-        <span className="flex-1">
-          Published as an article.{' '}
-          <Link href={articlePath} prefetch={false} className="underline hover:text-red-800">
-            Read the article
-          </Link>
-        </span>
-        {isAdmin && (
-          <Button variant="outline" size="sm" disabled={saving} onClick={() => openNote('declined')}>
-            Unpublish
-          </Button>
-        )}
-      </>
-    );
-  } else if (review === null && isAuthor) {
-    content = (
-      <>
-        <span className="flex-1">Want this on the articles page? An admin reviews it first.</span>
-        <Button size="sm" disabled={saving} onClick={() => save(() => submitForumArticle(threadId))}>
+        <span className="flex-1">Think this belongs on the articles page? Suggest it to the moderators.</span>
+        <Button size="sm" disabled={saving} onClick={submit}>
           Submit for publication
         </Button>
       </>
     );
-  } else if (review?.status === 'submitted') {
-    content = isAdmin ? (
+  } else if (submission?.status === 'submitted') {
+    content = isModerator ? (
       <>
-        <span className="flex-1">Submitted for publication.</span>
+        <span className="flex-1">The author suggested this as an article.</span>
         <div className="flex flex-wrap gap-2">
-          <Button size="sm" disabled={saving} onClick={() => decide('published')}>
-            Approve
+          <Button size="sm" disabled={saving} onClick={() => save(() => setForumThreadFlag({ threadId, flag: 'is_article', value: true }))}>
+            Publish
           </Button>
-          <Button variant="outline" size="sm" disabled={saving} onClick={() => openNote('changes_requested')}>
+          <Button variant="outline" size="sm" disabled={saving} onClick={() => setNoteDecision('changes_requested')}>
             Request changes
           </Button>
-          <Button variant="outline" size="sm" disabled={saving} onClick={() => openNote('declined')}>
+          <Button variant="outline" size="sm" disabled={saving} onClick={() => setNoteDecision('declined')}>
             Decline
           </Button>
         </div>
       </>
     ) : (
-      <span className="flex-1">Submitted for publication. An admin will review it.</span>
+      <span className="flex-1">Submitted for publication. A moderator will review it.</span>
     );
-  } else if (review?.status === 'changes_requested') {
+  } else if (submission?.status === 'changes_requested') {
     content = (
       <>
         <span className="flex-1 whitespace-pre-line">
-          Changes were requested before publication{review.review_note ? `: ${review.review_note}` : '.'}
+          Changes were requested before publication{submission.review_note ? `: ${submission.review_note}` : '.'}
         </span>
         {isAuthor && (
-          <Button size="sm" disabled={saving} onClick={() => save(() => submitForumArticle(threadId))}>
+          <Button size="sm" disabled={saving} onClick={submit}>
             Resubmit
           </Button>
         )}
       </>
     );
-  } else if (review?.status === 'declined') {
+  } else if (submission?.status === 'declined') {
     content = (
       <span className="flex-1 whitespace-pre-line">
-        Not published as an article{review.review_note ? `: ${review.review_note}` : '.'}
+        Not published as an article{submission.review_note ? `: ${submission.review_note}` : '.'}
       </span>
     );
   }
@@ -149,8 +137,11 @@ export function ForumArticleStatus({ threadId, authorId, articlePath }: ForumArt
               <Textarea id="forum-article-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={2000} rows={4} />
             </div>
           }
-          onClose={() => setNoteDecision(null)}
-          onConfirm={() => decide(noteDecision, note)}
+          onClose={() => {
+            setNoteDecision(null);
+            setNote('');
+          }}
+          onConfirm={() => save(() => reviewForumArticle({ threadId, status: noteDecision, note }))}
           confirmText={NOTE_DECISIONS[noteDecision].confirmText}
           confirmDisabled={noteDecision === 'changes_requested' && !note.trim()}
         />

@@ -8,20 +8,17 @@ interface ForumViewer {
   userId: string | null;
   /** Only decides what to show: RLS and the forum triggers enforce it. */
   isModerator: boolean;
-  /** Admins review articles. */
-  isAdmin: boolean;
   loading: boolean;
 }
 
-const ForumViewerContext = createContext<ForumViewer>({ userId: null, isModerator: false, isAdmin: false, loading: true });
+const ForumViewerContext = createContext<ForumViewer>({ userId: null, isModerator: false, loading: true });
 
 /** Reads the signed-in user once for all the forum's client components on a page. */
 export function ForumViewerProvider({ children }: { children: ReactNode }) {
   const { userId, profile, loading } = useClaims();
-  const isAdmin = profile?.user_role === 'admin';
-  const isModerator = isAdmin || profile?.user_role === 'moderator';
+  const isModerator = profile?.user_role === 'admin' || profile?.user_role === 'moderator';
   return (
-    <ForumViewerContext.Provider value={{ userId, isModerator, isAdmin, loading }}>
+    <ForumViewerContext.Provider value={{ userId, isModerator, loading }}>
       {children}
     </ForumViewerContext.Provider>
   );

@@ -5,9 +5,9 @@ import { ForumArticleCard } from '@/components/forum/forum-article-card';
 import {
   formatForumDate,
   forumThreadPath,
+  getForumArticleQueue,
   getForumArticles,
-  getForumArticleSubmissions,
-  type ForumArticleSubmission,
+  type ForumArticleQueueItem,
 } from '@/app/lib/forum';
 import { createClient } from '@/utils/supabase/server';
 import { getClaims } from '@/utils/auth';
@@ -31,8 +31,8 @@ export default async function ArticlesPage({ searchParams }: ArticlesPageProps) 
     getForumArticles(),
     createClient().then(getClaims),
   ]);
-  const submissions =
-    claims?.profile?.user_role === 'admin' ? await getForumArticleSubmissions(claims.userId) : null;
+  const role = claims?.profile?.user_role;
+  const queue = claims && (role === 'admin' || role === 'moderator') ? await getForumArticleQueue(claims.userId) : null;
 
   // The categories that have articles, in the order their newest article was published
   const categories = [...new Map(articles.map((article) => [article.category.slug, article.category.name]))];
@@ -82,13 +82,13 @@ export default async function ArticlesPage({ searchParams }: ArticlesPageProps) 
           </div>
         )}
 
-        {submissions && <SubmissionList submissions={submissions} />}
+        {queue && <ArticleQueue queue={queue} />}
 
         <div className="bg-card shadow-md rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="flex-1">
             <h2 className="font-bold">Have a story to share?</h2>
             <p className="text-sm text-muted-foreground">
-              Start a forum thread, then submit its opening post for publication.
+              Start a forum thread, then submit it for publication from the thread.
             </p>
           </div>
           <Button asChild size="sm" className="shrink-0">
@@ -115,24 +115,24 @@ function CategoryLink({ href, active, label }: { href: string; active: boolean; 
   );
 }
 
-/** Admins only: the threads submitted for publication, reviewed on the thread itself. */
-function SubmissionList({ submissions }: { submissions: ForumArticleSubmission[] }) {
+/** Moderators only: threads their authors suggested, answered on the thread itself. */
+function ArticleQueue({ queue }: { queue: ForumArticleQueueItem[] }) {
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
       <h2 className="text-xl md:text-2xl font-bold mb-4">Awaiting review</h2>
       <ul className="divide-y">
-        {submissions.length ? (
-          submissions.map((submission) => (
-            <li key={submission.number} className="py-2 first:pt-0 last:pb-0 text-sm">
+        {queue.length ? (
+          queue.map((item) => (
+            <li key={item.number} className="py-2 first:pt-0 last:pb-0 text-sm">
               <Link
-                href={forumThreadPath(submission.category_slug, submission.number, submission.title)}
+                href={forumThreadPath(item.category_slug, item.number, item.title)}
                 prefetch={false}
                 className="font-semibold hover:text-red-800 transition-colors"
               >
-                {submission.title}
+                {item.title}
               </Link>
               <p className="text-muted-foreground">
-                {submission.author ?? 'Unknown User'} · submitted {formatForumDate(submission.submitted_at)}
+                {item.author ?? 'Unknown User'} · submitted {formatForumDate(item.submitted_at)}
               </p>
             </li>
           ))

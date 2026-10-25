@@ -10,7 +10,6 @@ import {
   forumPageCount,
   forumPageHref,
   forumThreadPath,
-  getForumArticle,
   getForumLikedPostIds,
   getForumPosts,
   getForumThread,
@@ -60,10 +59,9 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
   if (page > pageCount) notFound();
 
-  const [posts, userId, article] = await Promise.all([
+  const [posts, userId] = await Promise.all([
     getForumPosts(thread, page),
     createClient().then(getUserIdFromClaims),
-    getForumArticle(thread.number),
   ]);
   const likedPostIds = userId ? await getForumLikedPostIds(userId, posts.map((post) => post.id)) : new Set<string>();
   const pagePath = forumPageHref(path, page);
@@ -81,18 +79,23 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             threadId={thread.id}
             isPinned={thread.is_pinned}
             isLocked={thread.is_locked}
+            isArticle={thread.article_published_at !== null}
             categoryId={thread.category.id}
           />
         </div>
         <p className="text-sm text-muted-foreground">
           {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}
+          {thread.article_published_at && (
+            <>
+              {' '}·{' '}
+              <Link href={forumArticlePath(thread.number, thread.title)} prefetch={false} className="hover:text-red-800 transition-colors">
+                Read as an article
+              </Link>
+            </>
+          )}
         </p>
-        {page === 1 && (
-          <ForumArticleStatus
-            threadId={thread.id}
-            authorId={thread.author_id}
-            articlePath={article && forumArticlePath(article.number, article.title)}
-          />
+        {page === 1 && !thread.article_published_at && (
+          <ForumArticleStatus threadId={thread.id} authorId={thread.author_id} />
         )}
 
         <ForumReplyBox threadId={thread.id} path={pagePath} locked={thread.is_locked}>

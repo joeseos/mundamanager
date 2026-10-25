@@ -1,9 +1,9 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { and, asc, between, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, between, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getAppDb, withUserClaims } from '@/utils/db/client';
-import { forumArticles, forumCategories, forumPostLikes, forumPosts, forumThreads, profiles } from '@/utils/db/schema';
+import { forumArticleSubmissions, forumCategories, forumPostLikes, forumPosts, forumThreads, profiles } from '@/utils/db/schema';
 import { TAGS } from '@/utils/cache-tags';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import { escapeHtml } from '@/utils/html';
@@ -45,6 +45,8 @@ export interface ForumThreadSummary {
 export interface ForumThread extends Omit<ForumThreadSummary, 'like_count'> {
   id: string;
   author_id: string | null;
+  /** Set when a moderator published the thread as an article. */
+  article_published_at: string | null;
   category: { id: string; slug: string; name: string };
 }
 
@@ -177,6 +179,7 @@ export const getForumThread = cache((number: number): Promise<ForumThread | null
           ...THREAD_SUMMARY_COLUMNS,
           id: forumThreads.id,
           author_id: forumThreads.author_id,
+          article_published_at: sql<string | null>`to_json(${forumThreads.article_published_at})`,
           category: {
             id: forumCategories.id,
             slug: forumCategories.slug,
@@ -323,8 +326,6 @@ export function formatForumReplies(postCount: number): string {
   return `${replies} ${replies === 1 ? 'reply' : 'replies'}`;
 }
 
-export type ForumArticleStatus = typeof forumArticles.$inferSelect.status;
-
 export interface ForumArticle {
   number: number;
   title: string;
@@ -342,7 +343,10 @@ export interface ForumArticle {
 const EXCERPT_LENGTH = 160;
 const FIRST_IMAGE = /<img [^>]*src="([^"]+)"/;
 
-/** Published articles, newest first. The article is the thread's opening post. */
+/**
+ * Published articles, newest first: threads a moderator published, shown by their
+ * opening post. Refreshes every 60 s so changes to the authors' profiles show.
+ */
 export const getForumArticles = unstable_cache(
   async (): Promise<ForumArticle[]> => {
     const rows = await getAppDb()
@@ -353,16 +357,15 @@ export const getForumArticles = unstable_cache(
         author: author.username,
         author_avatar_url: author.avatar_url,
         post_count: forumThreads.post_count,
-        published_at: iso(forumArticles.published_at),
+        published_at: iso(forumThreads.article_published_at),
         content: openingPost.content,
       })
-      .from(forumArticles)
-      .innerJoin(forumThreads, eq(forumThreads.id, forumArticles.thread_id))
+      .from(forumThreads)
       .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
       .innerJoin(openingPost, and(eq(openingPost.thread_id, forumThreads.id), eq(openingPost.post_number, 1)))
       .leftJoin(author, eq(author.id, forumThreads.author_id))
-      .where(eq(forumArticles.status, 'published'))
-      .orderBy(desc(forumArticles.published_at), desc(forumThreads.number));
+      .where(isNotNull(forumThreads.article_published_at))
+      .orderBy(desc(forumThreads.article_published_at), desc(forumThreads.number));
 
     // From the sanitized HTML, so a card only shows an image the post itself could
     return rows.map(({ content, ...article }) => {
@@ -377,7 +380,7 @@ export const getForumArticles = unstable_cache(
     });
   },
   ['forum-articles'],
-  { tags: [TAGS.forumArticles()], revalidate: false }
+  { tags: [TAGS.forumArticles()], revalidate: 60 }
 );
 
 // cache(): the page, its metadata and its breadcrumb share one lookup per request
@@ -386,23 +389,20 @@ export const getForumArticle = cache(async (number: number): Promise<ForumArticl
   return articles.find((article) => article.number === number) ?? null;
 });
 
-export interface ForumArticleReview {
-  status: ForumArticleStatus;
-  review_note: string | null;
-}
+export type ForumArticleSubmission = Pick<typeof forumArticleSubmissions.$inferSelect, 'status' | 'review_note'>;
 
-/** Where a thread's submission stands. RLS shows it only to the thread's author and admins. */
-export async function getForumArticleReview(userId: string, threadId: string): Promise<ForumArticleReview | null> {
-  const [review] = await withUserClaims(userId, (tx) =>
+/** Where the author's suggestion of the thread stands. RLS shows it only to the author and moderators. */
+export async function getForumArticleSubmission(userId: string, threadId: string): Promise<ForumArticleSubmission | null> {
+  const [submission] = await withUserClaims(userId, (tx) =>
     tx
-      .select({ status: forumArticles.status, review_note: forumArticles.review_note })
-      .from(forumArticles)
-      .where(eq(forumArticles.thread_id, threadId))
+      .select({ status: forumArticleSubmissions.status, review_note: forumArticleSubmissions.review_note })
+      .from(forumArticleSubmissions)
+      .where(eq(forumArticleSubmissions.thread_id, threadId))
   );
-  return review ?? null;
+  return submission ?? null;
 }
 
-export interface ForumArticleSubmission {
+export interface ForumArticleQueueItem {
   number: number;
   title: string;
   category_slug: string;
@@ -410,8 +410,8 @@ export interface ForumArticleSubmission {
   submitted_at: string;
 }
 
-/** Submissions awaiting review, oldest first. Per admin and rarely read, so not cached. */
-export function getForumArticleSubmissions(userId: string): Promise<ForumArticleSubmission[]> {
+/** Suggestions waiting for a moderator, oldest first. Moderators only and rarely read, so not cached. */
+export function getForumArticleQueue(userId: string): Promise<ForumArticleQueueItem[]> {
   return withUserClaims(userId, (tx) =>
     tx
       .select({
@@ -419,14 +419,14 @@ export function getForumArticleSubmissions(userId: string): Promise<ForumArticle
         title: forumThreads.title,
         category_slug: forumCategories.slug,
         author: author.username,
-        submitted_at: iso(forumArticles.submitted_at),
+        submitted_at: iso(forumArticleSubmissions.submitted_at),
       })
-      .from(forumArticles)
-      .innerJoin(forumThreads, eq(forumThreads.id, forumArticles.thread_id))
+      .from(forumArticleSubmissions)
+      .innerJoin(forumThreads, eq(forumThreads.id, forumArticleSubmissions.thread_id))
       .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
       .leftJoin(author, eq(author.id, forumThreads.author_id))
-      .where(eq(forumArticles.status, 'submitted'))
-      .orderBy(asc(forumArticles.submitted_at))
+      .where(eq(forumArticleSubmissions.status, 'submitted'))
+      .orderBy(asc(forumArticleSubmissions.submitted_at))
   );
 }
 
@@ -434,4 +434,3 @@ export function getForumArticleSubmissions(userId: string): Promise<ForumArticle
 export function forumArticlePath(number: number, title: string): string {
   return `/articles/${number}-${slugifyHeading(title)}`;
 }
-

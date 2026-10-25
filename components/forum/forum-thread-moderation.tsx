@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuEllipsis, LuFolderInput, LuLock, LuLockOpen, LuPin, LuPinOff } from 'react-icons/lu';
+import { LuEllipsis, LuFolderInput, LuLock, LuLockOpen, LuNewspaper, LuPin, LuPinOff } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -14,11 +14,12 @@ interface ForumThreadModerationProps {
   threadId: string;
   isPinned: boolean;
   isLocked: boolean;
+  isArticle: boolean;
   categoryId: string;
 }
 
-/** A menu for moderators to pin, lock and move the thread, in the thread's header on every page. */
-export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId }: ForumThreadModerationProps) {
+/** A menu for moderators to pin, lock, move and publish the thread, in the thread's header on every page. */
+export function ForumThreadModeration({ threadId, isPinned, isLocked, isArticle, categoryId }: ForumThreadModerationProps) {
   const { isModerator } = useForumViewer();
   const router = useRouter();
   const [updating, startUpdate] = useTransition();
@@ -29,7 +30,7 @@ export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId
   if (!isModerator) return null;
 
   // The action's cache invalidation sends the updated page back with its response
-  const toggle = (flag: 'is_pinned' | 'is_locked', value: boolean) =>
+  const toggle = (flag: 'is_pinned' | 'is_locked' | 'is_article', value: boolean) =>
     startUpdate(async () => {
       try {
         const result = await setForumThreadFlag({ threadId, flag, value });
@@ -79,6 +80,10 @@ export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId
           <DropdownMenuItem onClick={() => toggle('is_locked', !isLocked)}>
             {isLocked ? <LuLockOpen className="mr-2 h-4 w-4" /> : <LuLock className="mr-2 h-4 w-4" />}
             {isLocked ? 'Unlock thread' : 'Lock thread'}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggle('is_article', !isArticle)}>
+            <LuNewspaper className="mr-2 h-4 w-4" />
+            {isArticle ? 'Remove from articles' : 'Publish as article'}
           </DropdownMenuItem>
           <DropdownMenuItem onClick={openMove}>
             <LuFolderInput className="mr-2 h-4 w-4" />
