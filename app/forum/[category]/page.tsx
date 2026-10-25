@@ -15,6 +15,7 @@ import {
 } from '@/app/lib/forum';
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
+import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 
 interface ForumCategoryPageProps {
   params: Promise<{ category: string }>;
@@ -82,6 +83,7 @@ export default async function ForumCategoryPage({ params, searchParams }: ForumC
                       </>
                     )}
                   </p>
+                  <ForumTagChips tags={thread.tags} className="mt-1" />
                 </div>
                 <div className="text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0">
                   {formatForumReplies(thread.post_count)}

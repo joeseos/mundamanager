@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/ui/user-avatar';
+import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import {
   formatForumDate,
   formatForumReplies,
@@ -53,6 +54,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <article className="w-full bg-card shadow-md rounded-lg p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-red-800">{article.category.name}</p>
         <h1 className="text-2xl md:text-3xl font-bold break-words">{article.title}</h1>
+        <ForumTagChips tags={article.tags} className="mt-1" />
         <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
           <UserAvatar username={article.author} avatarUrl={article.author_avatar_url} className="size-8 text-xs" />
           <span>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useTransition, type FormEvent, type RefObject } from 'react';
+import { useRef, useState, useTransition, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,8 @@ interface ForumPostFormProps {
   onCancel?: () => void;
   /** Lets the parent add to the post, e.g. a quote. */
   editorRef?: RefObject<RichTextEditorHandle | null>;
+  /** More fields under the title, e.g. a new thread's tags. */
+  children?: ReactNode;
 }
 
 export function ForumPostForm({
@@ -33,6 +35,7 @@ export function ForumPostForm({
   onSuccess,
   onCancel,
   editorRef: parentEditorRef,
+  children,
 }: ForumPostFormProps) {
   const router = useRouter();
   const { userId } = useForumViewer();
@@ -86,6 +89,7 @@ export function ForumPostForm({
           required
         />
       )}
+      {children}
       <div className="bg-white rounded-md">
         <LazyRichTextEditor
           editorRef={editorRef}

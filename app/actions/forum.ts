@@ -19,8 +19,10 @@ import {
   forumCategoryPath,
   forumMentionIds,
   forumPageHref,
+  type ForumTag,
   forumThreadPath,
   getForumCategories,
+  getForumTags,
 } from '@/app/lib/forum';
 
 export interface ForumActionResult {
@@ -126,6 +128,7 @@ export async function createForumThread(params: {
   categoryId: string;
   title: string;
   content: string;
+  tagIds: string[];
 }): Promise<ForumActionResult> {
   const title = params.title.trim();
   const invalid = validateTitle(title) ?? validateContent(params.content);
@@ -135,12 +138,13 @@ export async function createForumThread(params: {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    // Starts the thread and its opening post in one transaction
+    // Starts the thread, its opening post and its tags in one transaction
     const { data: thread, error } = await supabase
       .rpc('create_forum_thread', {
         p_category_id: params.categoryId,
         p_title: title,
         p_content: params.content,
+        p_tag_ids: params.tagIds,
       })
       .select(THREAD_SELECT)
       .single<ThreadRow>();
@@ -364,6 +368,31 @@ export async function moveForumThread(params: { threadId: string; categoryId: st
     console.error('Failed to move the thread', error);
     return { success: false, error: 'Failed to move the thread' };
   }
+}
+
+/** Replaces a thread's tags (its author and moderators; on a locked thread only moderators). */
+export async function setForumThreadTags(params: { threadId: string; tagIds: string[] }): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: thread, error } = await supabase
+      .rpc('set_forum_thread_tags', { p_thread_id: params.threadId, p_tag_ids: params.tagIds })
+      .select(THREAD_SELECT)
+      .single<ThreadRow>();
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the tags') };
+
+    invalidateForumThread(thread.category_id, thread.number, isArticle(thread));
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update the tags', error);
+    return { success: false, error: 'Failed to update the tags' };
+  }
+}
+
+/** Every tag, loaded when the Edit tags dialog opens. */
+export async function getForumTagOptions(): Promise<ForumTag[]> {
+  return getForumTags();
 }
 
 /** The categories a moderator can move a thread to, loaded when the Move dialog opens. */

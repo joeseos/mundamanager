@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { LuMessageSquare, LuNewspaper } from 'react-icons/lu';
 import { UserAvatar } from '@/components/ui/user-avatar';
+import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import { formatForumDate, formatForumReplies, forumArticlePath, forumReplyCount, type ForumArticle } from '@/app/lib/forum';
 
 interface ForumArticleCardProps {
@@ -9,7 +10,7 @@ interface ForumArticleCardProps {
   featured?: boolean;
 }
 
-/** An article's card: its first image, category, title, opening text, author and replies. */
+/** An article's card: its first image, category, title, opening text, tags, author and replies. */
 export function ForumArticleCard({ article, featured = false }: ForumArticleCardProps) {
   return (
     <article
@@ -40,6 +41,7 @@ export function ForumArticleCard({ article, featured = false }: ForumArticleCard
           {article.title}
         </Link>
         <p className={`text-sm text-muted-foreground ${featured ? 'line-clamp-4' : 'line-clamp-2'}`}>{article.excerpt}</p>
+        <ForumTagChips tags={article.tags} className="mt-1" />
         <div className="mt-auto flex items-center gap-2 pt-2 text-xs text-muted-foreground">
           <UserAvatar username={article.author} avatarUrl={article.author_avatar_url} className="size-6 text-[10px]" />
           <span className="min-w-0 flex-1 truncate">
