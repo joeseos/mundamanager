@@ -36,11 +36,13 @@ const articleHtmlSanitizeOptions: sanitizeHtml.IOptions = {
     a: ['text-blue-600', 'underline', 'cursor-pointer'],
     img: ['max-w-full', 'h-auto', 'rounded-md', 'my-2'],
   },
+  exclusiveFilter: (frame) => frame.tag === 'img' && !isExternalImage(frame.attribs.src),
   transformTags: {
     ...notificationHtmlSanitizeOptions.transformTags,
     a: (tagName, attribs) => {
       if (attribs['data-type'] === 'mention' && isUuid(attribs['data-id'])) {
-        const { 'data-id': id, 'data-label': label = '' } = attribs;
+        const id = attribs['data-id'].toLowerCase();
+        const { 'data-label': label = '' } = attribs;
         return {
           tagName,
           attribs: { href: `/user/${id}`, class: 'text-blue-600', 'data-type': 'mention', 'data-id': id, 'data-label': label },
@@ -53,6 +55,18 @@ const articleHtmlSanitizeOptions: sanitizeHtml.IOptions = {
     },
   },
 };
+
+// Images load by themselves when the page shows, with the reader's cookies on our
+// own site, so a post's image could make readers call our routes. Only https
+// images from other sites are kept (uploads are on Supabase storage).
+function isExternalImage(src: string | undefined): boolean {
+  try {
+    const url = new URL(src ?? '');
+    return url.protocol === 'https:' && !/(^|\.)mundamanager\.com\.?$/i.test(url.hostname);
+  } catch {
+    return false;
+  }
+}
 
 export function sanitizeArticleHtml(html: string): string {
   return sanitizeHtml(html, articleHtmlSanitizeOptions);

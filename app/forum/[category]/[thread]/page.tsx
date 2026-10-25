@@ -1,13 +1,13 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound, permanentRedirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_POSTS_PER_PAGE,
   formatForumDate,
   formatForumReplies,
-  getForumCategories,
   forumPageCount,
+  forumPageHref,
   forumThreadPath,
   getForumLikedPostIds,
   getForumPosts,
@@ -51,19 +51,18 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
   // A moved or renamed thread keeps its number, so old links land on the current URL.
   const path = forumThreadPath(thread.category.slug, thread.number, thread.title);
   if (path !== `/forum/${categorySlug}/${segment}`) {
-    permanentRedirect(page === 1 ? path : `${path}?page=${page}`);
+    redirect(forumPageHref(path, page));
   }
 
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
   if (page > pageCount) notFound();
 
-  const [posts, userId, categories] = await Promise.all([
+  const [posts, userId] = await Promise.all([
     getForumPosts(thread, page),
     createClient().then(getUserIdFromClaims),
-    getForumCategories(),
   ]);
   const likedPostIds = userId ? await getForumLikedPostIds(userId, posts.map((post) => post.id)) : new Set<string>();
-  const pagePath = page === 1 ? path : `${path}?page=${page}`;
+  const pagePath = forumPageHref(path, page);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
@@ -79,7 +78,6 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             isPinned={thread.is_pinned}
             isLocked={thread.is_locked}
             categoryId={thread.category.id}
-            categories={categories.map(({ id, name }) => ({ id, name }))}
           />
         </div>
         <p className="text-sm text-muted-foreground">

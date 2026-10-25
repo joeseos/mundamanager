@@ -8,24 +8,23 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Modal from '@/components/ui/modal';
 import { useForumViewer } from '@/components/forum/forum-viewer';
-import { moveForumThread, setForumThreadFlag } from '@/app/actions/forum';
+import { getForumMoveCategories, moveForumThread, setForumThreadFlag } from '@/app/actions/forum';
 
 interface ForumThreadModerationProps {
   threadId: string;
   isPinned: boolean;
   isLocked: boolean;
   categoryId: string;
-  /** The categories it can move to, in index order */
-  categories: { id: string; name: string }[];
 }
 
 /** A menu for moderators to pin, lock and move the thread, in the thread's header on every page. */
-export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId, categories }: ForumThreadModerationProps) {
+export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId }: ForumThreadModerationProps) {
   const { isModerator } = useForumViewer();
   const router = useRouter();
   const [updating, startUpdate] = useTransition();
   const [moveTo, setMoveTo] = useState<string | null>(null);
-  const otherCategories = categories.filter((category) => category.id !== categoryId);
+  // Loaded the first time a moderator opens the Move dialog, so the page doesn't send them to every viewer
+  const [otherCategories, setOtherCategories] = useState<{ id: string; name: string }[]>([]);
 
   if (!isModerator) return null;
 
@@ -37,6 +36,23 @@ export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId
         if (!result.success) throw new Error(result.error);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Failed to update the thread');
+      }
+    });
+
+  const openMove = () =>
+    startUpdate(async () => {
+      try {
+        const categories = otherCategories.length
+          ? otherCategories
+          : (await getForumMoveCategories()).filter((category) => category.id !== categoryId);
+        if (!categories.length) {
+          toast.error('There is no other category to move it to');
+          return;
+        }
+        setOtherCategories(categories);
+        setMoveTo(categories[0].id);
+      } catch {
+        toast.error('Failed to load the categories');
       }
     });
 
@@ -64,12 +80,10 @@ export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId
             {isLocked ? <LuLockOpen className="mr-2 h-4 w-4" /> : <LuLock className="mr-2 h-4 w-4" />}
             {isLocked ? 'Unlock thread' : 'Lock thread'}
           </DropdownMenuItem>
-          {otherCategories.length > 0 && (
-            <DropdownMenuItem onClick={() => setMoveTo(otherCategories[0].id)}>
-              <LuFolderInput className="mr-2 h-4 w-4" />
-              Move thread
-            </DropdownMenuItem>
-          )}
+          <DropdownMenuItem onClick={openMove}>
+            <LuFolderInput className="mr-2 h-4 w-4" />
+            Move thread
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
       {moveTo !== null && (
