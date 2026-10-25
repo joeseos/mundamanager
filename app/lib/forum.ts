@@ -39,7 +39,6 @@ export interface ForumCategory {
 
 export interface ForumTag {
   id: string;
-  slug: string;
   name: string;
 }
 
@@ -157,7 +156,7 @@ export const getForumCategory = cache(async (slug: string): Promise<ForumCategor
 
 /** The thread's tags in name order, as a JSON array, so a list stays one query. */
 const threadTags = sql<ForumTag[]>`coalesce((
-  select json_agg(json_build_object('id', ${forumTags.id}, 'slug', ${forumTags.slug}, 'name', ${forumTags.name}) order by ${forumTags.name})
+  select json_agg(json_build_object('id', ${forumTags.id}, 'name', ${forumTags.name}) order by ${forumTags.name})
   from ${forumThreadTags} join ${forumTags} on ${forumTags.id} = ${forumThreadTags.tag_id}
   where ${forumThreadTags.thread_id} = ${forumThreads.id}
 ), '[]'::json)`;
@@ -190,7 +189,7 @@ export function getForumThreads(categoryId: string, page: number): Promise<Forum
         .limit(FORUM_THREADS_PER_PAGE)
         .offset((page - 1) * FORUM_THREADS_PER_PAGE),
     ['forum-threads-v2', categoryId, String(page)],
-    { tags: [TAGS.forumCategory(categoryId), TAGS.forumTags()], revalidate: false }
+    { tags: [TAGS.forumCategory(categoryId)], revalidate: false }
   )();
 }
 
@@ -218,7 +217,7 @@ export const getForumThread = cache((number: number): Promise<ForumThread | null
       return thread ?? null;
     },
     ['forum-thread-v2', String(number)],
-    { tags: [TAGS.forumThread(number), TAGS.forumTags()], revalidate: false }
+    { tags: [TAGS.forumThread(number)], revalidate: false }
   )()
 );
 
@@ -411,7 +410,7 @@ export const getForumArticles = unstable_cache(
     });
   },
   ['forum-articles-v2'],
-  { tags: [TAGS.forumArticles(), TAGS.forumTags()], revalidate: 60 }
+  { tags: [TAGS.forumArticles()], revalidate: 60 }
 );
 
 // cache(): the page, its metadata and its breadcrumb share one lookup per request
@@ -420,72 +419,13 @@ export const getForumArticle = cache(async (number: number): Promise<ForumArticl
   return articles.find((article) => article.number === number) ?? null;
 });
 
-export interface ForumTagWithCount extends ForumTag {
-  thread_count: number;
-}
-
-/** Every tag, by name, with how many threads carry it. */
+/** Every tag, by name, for the tag picker. Tags are edited in the database, so the list refreshes every 60 s. */
 export const getForumTags = unstable_cache(
-  async (): Promise<ForumTagWithCount[]> =>
-    getAppDb()
-      .select({
-        id: forumTags.id,
-        slug: forumTags.slug,
-        name: forumTags.name,
-        thread_count: sql<number>`(select count(*)::int from ${forumThreadTags} where ${forumThreadTags.tag_id} = ${forumTags.id})`,
-      })
-      .from(forumTags)
-      .orderBy(asc(forumTags.name)),
+  async (): Promise<ForumTag[]> =>
+    getAppDb().select({ id: forumTags.id, name: forumTags.name }).from(forumTags).orderBy(asc(forumTags.name)),
   ['forum-tags'],
-  { tags: [TAGS.forumTags(), TAGS.forumTagThreads()], revalidate: 60 }
+  { revalidate: 60 }
 );
-
-// cache(): the tag page, its metadata and its breadcrumb share one lookup per request
-export const getForumTag = cache(async (slug: string): Promise<ForumTagWithCount | null> => {
-  const tags = await getForumTags();
-  return tags.find((tag) => tag.slug === slug) ?? null;
-});
-
-export interface ForumTagThread extends ForumThreadSummary {
-  category_slug: string;
-}
-
-/**
- * One page of the threads with a tag, from every category, by latest post.
- * Replies don't bust tag pages, so they refresh every 60 s.
- */
-export function getForumTagThreads(tagId: string, page: number): Promise<ForumTagThread[]> {
-  return unstable_cache(
-    async () =>
-      getAppDb()
-        .select({
-          ...THREAD_SUMMARY_COLUMNS,
-          like_count: sql<number>`coalesce(${openingPost.like_count}, 0)`,
-          category_slug: forumCategories.slug,
-        })
-        .from(forumThreads)
-        .innerJoin(forumThreadTags, and(eq(forumThreadTags.thread_id, forumThreads.id), eq(forumThreadTags.tag_id, tagId)))
-        .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
-        .leftJoin(author, eq(author.id, forumThreads.author_id))
-        .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
-        .leftJoin(openingPost, and(eq(openingPost.thread_id, forumThreads.id), eq(openingPost.post_number, 1)))
-        .orderBy(desc(forumThreads.last_post_at), desc(forumThreads.number))
-        .limit(FORUM_THREADS_PER_PAGE)
-        .offset((page - 1) * FORUM_THREADS_PER_PAGE),
-    ['forum-tag-threads', tagId, String(page)],
-    { tags: [TAGS.forumTags(), TAGS.forumTagThreads()], revalidate: 60 }
-  )();
-}
-
-/** /forum/tags/<slug> */
-export function forumTagPath(slug: string): string {
-  return `/forum/tags/${slug}`;
-}
-
-/** /articles?tag=<slug> */
-export function forumArticlesTagPath(slug: string): string {
-  return `/articles?tag=${slug}`;
-}
 
 export type ForumArticleSubmission = Pick<typeof forumArticleSubmissions.$inferSelect, 'status' | 'review_note'>;
 

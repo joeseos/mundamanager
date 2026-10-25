@@ -9,12 +9,9 @@ import {
   invalidateForumThread,
   invalidateForumThreadList,
   invalidateForumThreadPosts,
-  invalidateForumTagThreads,
-  invalidateForumTags,
 } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
-import { slugifyHeading } from '@/utils/user-guide-content';
 import { FORUM_THREAD_TAGS_MAX } from '@/components/forum/forum-tag-picker';
 import {
   FORUM_POSTS_PER_PAGE,
@@ -36,10 +33,9 @@ export interface ForumActionResult {
   path?: string;
 }
 
-// Same limits as the forum_threads, forum_posts and forum_tags check constraints
+// Same limits as the forum_threads and forum_posts check constraints
 const TITLE_MAX_LENGTH = 150;
 const CONTENT_MAX_LENGTH = 50000;
-const TAG_NAME_MAX_LENGTH = 40;
 
 // The thread and its category, for the post's URL and the cache tags, and its author for reply notifications
 const THREAD_SELECT = 'number, title, category_id, author_id, article_published_at, forum_categories(slug)';
@@ -165,7 +161,6 @@ export async function createForumThread(params: {
 
     after(() => notifyForumPost(supabase, { senderId: user.id, thread, postNumber: 1, content: params.content }));
     invalidateForumThreadList(thread.category_id, thread.number);
-    if (tagIds.length) invalidateForumTagThreads();
     return { success: true, path: postPath(thread, 1) };
   } catch (error) {
     console.error('Failed to start the thread', error);
@@ -400,7 +395,6 @@ export async function setForumThreadTags(params: { threadId: string; tagIds: str
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the tags') };
 
     invalidateForumThread(thread.category_id, thread.number, isArticle(thread));
-    invalidateForumTagThreads();
     return { success: true };
   } catch (error) {
     console.error('Failed to update the tags', error);
@@ -408,86 +402,9 @@ export async function setForumThreadTags(params: { threadId: string; tagIds: str
   }
 }
 
-const MODERATORS_ONLY_TAGS = 'Only moderators can change the tag list';
-
-function validateTagName(name: string): string | null {
-  if (!name) return 'Give the tag a name';
-  // The slug, its page's URL, is made of them
-  if (!/[a-z0-9]/i.test(name)) return 'Tag names need a letter or number';
-  if (name.length > TAG_NAME_MAX_LENGTH) return `Tag names can be at most ${TAG_NAME_MAX_LENGTH} characters`;
-  return null;
-}
-
-function tagErrorMessage(error: PostgrestError, fallback: string): string {
-  if (error.code === '23505') return 'A tag with that name already exists';
-  return writeErrorMessage(error, fallback, MODERATORS_ONLY_TAGS);
-}
-
-/** Adds a tag to the list (moderators only). Its slug, the tag page URL, comes from the name and never changes. */
-export async function createForumTag(name: string): Promise<ForumActionResult> {
-  const trimmed = name.trim();
-  const invalid = validateTagName(trimmed);
-  if (invalid) return { success: false, error: invalid };
-
-  try {
-    const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
-
-    const { error } = await supabase.from('forum_tags').insert({ slug: slugifyHeading(trimmed), name: trimmed });
-    if (error) return { success: false, error: tagErrorMessage(error, 'Failed to add the tag') };
-
-    invalidateForumTags();
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to add the tag', error);
-    return { success: false, error: 'Failed to add the tag' };
-  }
-}
-
-/** Renames a tag (moderators only). */
-export async function renameForumTag(params: { tagId: string; name: string }): Promise<ForumActionResult> {
-  const name = params.name.trim();
-  const invalid = validateTagName(name);
-  if (invalid) return { success: false, error: invalid };
-
-  try {
-    const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
-
-    // RLS hides the row from anyone else, so nothing comes back
-    const { data, error } = await supabase.from('forum_tags').update({ name }).eq('id', params.tagId).select('id').maybeSingle();
-    if (error) return { success: false, error: tagErrorMessage(error, 'Failed to rename the tag') };
-    if (!data) return { success: false, error: MODERATORS_ONLY_TAGS };
-
-    invalidateForumTags();
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to rename the tag', error);
-    return { success: false, error: 'Failed to rename the tag' };
-  }
-}
-
-/** Deletes a tag and takes it off every thread (moderators only). */
-export async function deleteForumTag(tagId: string): Promise<ForumActionResult> {
-  try {
-    const supabase = await createClient();
-    await getAuthenticatedUser(supabase);
-
-    const { data, error } = await supabase.from('forum_tags').delete().eq('id', tagId).select('id').maybeSingle();
-    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to delete the tag', MODERATORS_ONLY_TAGS) };
-    if (!data) return { success: false, error: MODERATORS_ONLY_TAGS };
-
-    invalidateForumTags();
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to delete the tag', error);
-    return { success: false, error: 'Failed to delete the tag' };
-  }
-}
-
 /** Every tag, loaded when the Edit tags dialog opens. */
 export async function getForumTagOptions(): Promise<ForumTag[]> {
-  return (await getForumTags()).map(({ id, slug, name }) => ({ id, slug, name }));
+  return getForumTags();
 }
 
 /** The categories a moderator can move a thread to, loaded when the Move dialog opens. */

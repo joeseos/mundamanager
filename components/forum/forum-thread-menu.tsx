@@ -85,7 +85,7 @@ export function ForumThreadMenu({
   const canSubmit = !loading && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
   // A locked thread's tags are the moderators', like its title
   const canEditTags = isModerator || (isAuthor && !isLocked);
-  if (!isModerator && !canSubmit && !canEditTags) return null;
+  if (!canSubmit && !canEditTags) return null;
 
   // Resolves false on a failure, so the note dialog stays open. Suggestions aren't
   // cached, so their actions refresh the page; the flag actions' cache invalidation already does.
