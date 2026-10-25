@@ -21,53 +21,23 @@ export const metadata: Metadata = {
   description: 'Stories, guides and battle reports from the Munda Manager community.',
 };
 
-interface ArticlesPageProps {
-  searchParams: Promise<{ category?: string | string[] }>;
-}
-
-export default async function ArticlesPage({ searchParams }: ArticlesPageProps) {
-  const [{ category }, articles, claims] = await Promise.all([
-    searchParams,
-    getForumArticles(),
-    createClient().then(getClaims),
-  ]);
+export default async function ArticlesPage() {
+  const [articles, claims] = await Promise.all([getForumArticles(), createClient().then(getClaims)]);
   const queue = claims && isForumModeratorRole(claims.profile?.user_role) ? await getForumArticleQueue(claims.userId) : null;
-
-  // The categories that have articles, in the order their newest article was published
-  const categories = [...new Map(articles.map((article) => [article.category.slug, article.category.name]))];
-  const shown = typeof category === 'string' ? articles.filter((article) => article.category.slug === category) : articles;
-  const [hero, ...latest] = shown;
+  const [hero, ...latest] = articles;
 
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-4">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h1 className="text-2xl font-bold">Articles</h1>
-              <p className="text-muted-foreground">Stories, guides and battle reports from the community.</p>
-            </div>
-            <Button asChild variant="outline" size="sm" className="shrink-0">
-              <Link href="/forum" prefetch={false}>Visit the forum</Link>
-            </Button>
-          </div>
-
-          {categories.length > 1 && (
-            <nav className="flex flex-wrap gap-1 mt-4" aria-label="Article categories">
-              <CategoryLink href="/articles" active={shown === articles} label="All articles" />
-              {categories.map(([slug, name]) => (
-                <CategoryLink key={slug} href={`/articles?category=${slug}`} active={category === slug} label={name} />
-              ))}
-            </nav>
-          )}
+          <h1 className="text-2xl font-bold">Articles</h1>
+          <p className="text-muted-foreground">Stories, guides and battle reports from the community.</p>
 
           <div className="mt-4">
             {hero ? (
               <ForumArticleCard article={hero} featured />
             ) : (
-              <p className="text-muted-foreground italic">
-                {shown === articles ? 'No articles yet.' : 'No articles in this category.'}
-              </p>
+              <p className="text-muted-foreground italic">No articles yet.</p>
             )}
           </div>
         </div>
@@ -98,21 +68,6 @@ export default async function ArticlesPage({ searchParams }: ArticlesPageProps) 
         </div>
       </div>
     </main>
-  );
-}
-
-function CategoryLink({ href, active, label }: { href: string; active: boolean; label: string }) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      aria-current={active ? 'page' : undefined}
-      className={`rounded-full border px-3 py-1 text-sm transition-colors ${
-        active ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      {label}
-    </Link>
   );
 }
 

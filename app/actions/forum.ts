@@ -492,4 +492,3 @@ export async function reviewForumArticle(params: {
     return { success: false, error: 'Failed to answer the suggestion' };
   }
 }
-
