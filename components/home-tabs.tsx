@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
@@ -39,6 +39,8 @@ interface HomeTabsProps {
   customTradingPosts: CustomTradingPost[];
   customCollections: CustomCollectionWithItems[];
   userCampaigns: UserCampaign[];
+  /** Shown under the tab bar on every tab. */
+  children: ReactNode;
 }
 
 export default function HomeTabs({
@@ -51,7 +53,8 @@ export default function HomeTabs({
   customGangTypes,
   customTradingPosts,
   customCollections,
-  userCampaigns
+  userCampaigns,
+  children
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
   // URL is the source of truth, so a fresh load of /?tab=... lands on the right tab.
@@ -160,6 +163,8 @@ export default function HomeTabs({
 
       {/* Tab Content */}
       <div className="space-y-4">
+        {children}
+
         {activeTab === 0 && <GangsTab gangs={gangs} />}
 
         {activeTab === 1 && <CampaignsTab campaigns={campaigns} />}

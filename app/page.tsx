@@ -66,43 +66,6 @@ export default async function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4">
-        <div className="bg-card shadow-md rounded-lg p-4 md:p-4">
-          <div className="mb-0">
-            <h1 className="text-xl md:text-2xl font-bold mb-2">Welcome to Munda Manager</h1>
-            <p className="text-muted-foreground mb-4">
-              Join our Discord to chat or get help with Necromunda and Munda Manager.
-            </p>
-            <div>
-              <div className="flex gap-1 justify-center">
-                <Link href="/user-guide" prefetch={false} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
-                  <GrHelpBook className="mr-1 size-4" />
-                  <span className="sm:hidden">Guide</span>
-                  <span className="hidden sm:inline">User Guide</span>
-                </Link>
-                <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
-                  <FaDiscord className="mr-1 size-4" />
-                  Discord
-                </a>
-                <a href="https://www.patreon.com/c/mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
-                  <FaPatreon className="mr-1 size-4" />
-                  Patreon
-                </a>
-                <PwaInstallButton />
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex flex-wrap gap-1">
-                <div className="flex-1 min-w-[135px] sm:w-auto w-full">
-                  <CreateGangButton />
-                </div>
-                <div className="flex-1 min-w-[135px] sm:w-auto w-full">
-                  <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={user.id} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
         <HomeTabs
           gangs={gangs}
           campaigns={campaigns}
@@ -114,7 +77,44 @@ export default async function Home() {
           customTradingPosts={customTradingPosts}
           customCollections={customCollections}
           userCampaigns={userCampaigns}
-        />
+        >
+          <div className="bg-card shadow-md rounded-lg p-4 md:p-4">
+            <div className="mb-0">
+              <h1 className="text-xl md:text-2xl font-bold mb-2">Welcome to Munda Manager</h1>
+              <p className="text-muted-foreground mb-4">
+                Join our Discord to chat or get help with Necromunda and Munda Manager.
+              </p>
+              <div>
+                <div className="flex gap-1 justify-center">
+                  <Link href="/user-guide" prefetch={false} className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full whitespace-nowrap">
+                    <GrHelpBook className="mr-1 size-4" />
+                    <span className="sm:hidden">Guide</span>
+                    <span className="hidden sm:inline">User Guide</span>
+                  </Link>
+                  <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
+                    <FaDiscord className="mr-1 size-4" />
+                    Discord
+                  </a>
+                  <a href="https://www.patreon.com/c/mundamanager" target="_blank" rel="noopener noreferrer" className="flex justify-center items-center px-2 py-1 text-sm rounded-md hover:bg-muted w-full">
+                    <FaPatreon className="mr-1 size-4" />
+                    Patreon
+                  </a>
+                  <PwaInstallButton />
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="flex flex-wrap gap-1">
+                  <div className="flex-1 min-w-[135px] sm:w-auto w-full">
+                    <CreateGangButton />
+                  </div>
+                  <div className="flex-1 min-w-[135px] sm:w-auto w-full">
+                    <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={user.id} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </HomeTabs>
       </div>
     </main>
   )
