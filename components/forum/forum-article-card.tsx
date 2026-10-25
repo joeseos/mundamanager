@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { LuMessageSquare, LuNewspaper } from 'react-icons/lu';
 import { UserAvatar } from '@/components/ui/user-avatar';
-import type { ForumArticle } from '@/app/lib/forum';
-import { formatForumDate, formatForumReplies, forumArticlePath, forumReplyCount } from '@/utils/forum';
+import { formatForumDate, formatForumReplies, forumArticlePath, forumReplyCount, type ForumArticle } from '@/app/lib/forum';
 
 interface ForumArticleCardProps {
   article: ForumArticle;

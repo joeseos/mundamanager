@@ -19,14 +19,13 @@ import { CustomiseFighters } from '@/components/customise/custom-fighters'
 import { CustomiseSkills } from '@/components/customise/custom-skills'
 import { GangsTab } from '@/components/home/gangs-tab'
 import { CampaignsTab } from '@/components/home/campaigns-tab'
-import { ArticlesTab, ForumTab } from '@/components/home/forum-tabs'
 import { sameEditionForDisplay } from '@/types/edition'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
+import { MainTabs, type HomeTabKey } from '@/components/home/main-tabs'
 
-type TabKey = 'gangs' | 'campaigns' | 'customassets' | 'articles' | 'forum'
-const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets', 'articles', 'forum']
-const tabIndexFromParam = (tab: string | null) => Math.max(TAB_KEYS.indexOf(tab as TabKey), 0);
+const TAB_KEYS: HomeTabKey[] = ['gangs', 'campaigns', 'customassets']
+const tabIndexFromParam = (tab: string | null) => Math.max(TAB_KEYS.indexOf(tab as HomeTabKey), 0);
 
 interface HomeTabsProps {
   gangs: Gang[];
@@ -110,7 +109,7 @@ export default function HomeTabs({
     setFighterTypes(previousFighters);
   }, []);
 
-  const updateUrlParam = useCallback((tab: TabKey) => {
+  const updateUrlParam = useCallback((tab: HomeTabKey) => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
     if (url.searchParams.get('tab') === tab) return;
@@ -124,7 +123,7 @@ export default function HomeTabs({
 
   useEffect(() => {
     const handleTabSwitch = (event: Event) => {
-      const customEvent = event as CustomEvent<TabKey>;
+      const customEvent = event as CustomEvent<HomeTabKey>;
       const tab = customEvent.detail;
       if (!tab) return;
 
@@ -140,26 +139,9 @@ export default function HomeTabs({
     };
   }, [handleTabChange]);
 
-  const tabTitles = ['Gangs', 'Campaigns', 'Custom Assets', 'Articles', 'Forum'];
-
   return (
-    <div className="w-full">
-      {/* Tab Navigation */}
-      <div className="bg-card shadow-md rounded-lg mb-4 flex justify-center">
-        {tabTitles.map((title, index) => (
-          <button
-            key={index}
-            onClick={() => handleTabChange(index)}
-            className={`md:[word-spacing:0vw] [word-spacing:100vw] flex-1 md:p-4 p-2 leading-none text-center transition-colors ${
-              activeTab === index
-                ? 'text-foreground font-medium border-b-0 border-primary'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {title}
-          </button>
-        ))}
-      </div>
+    <div className="w-full space-y-4">
+      <MainTabs active={TAB_KEYS[activeTab]} onHomeTab={updateUrlParam} />
 
       {/* Tab Content */}
       <div className="space-y-4">
@@ -233,10 +215,6 @@ export default function HomeTabs({
             />
           </div>
         )}
-
-        {activeTab === 3 && <ArticlesTab />}
-
-        {activeTab === 4 && <ForumTab />}
       </div>
     </div>
   );

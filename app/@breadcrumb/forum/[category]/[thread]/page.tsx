@@ -1,6 +1,5 @@
 import { BreadcrumbBar } from "@/components/breadcrumb-bar"
-import { getForumThread, parseForumThreadNumber } from "@/app/lib/forum"
-import { forumCategoryPath } from "@/utils/forum"
+import { forumCategoryPath, getForumThread, parseForumThreadNumber } from "@/app/lib/forum"
 
 export default async function ForumThreadBreadcrumb({
   params
