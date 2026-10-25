@@ -1073,7 +1073,6 @@ export const forumArticleSubmissions = pgTable('forum_article_submissions', {
 export const forumTags = pgTable('forum_tags', {
   id: uuid('id').defaultRandom().primaryKey(),
   name: text('name').notNull(),
-  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 });
 
 export const forumThreadTags = pgTable('forum_thread_tags', {

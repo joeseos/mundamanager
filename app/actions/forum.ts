@@ -12,7 +12,6 @@ import {
 } from '@/utils/cache-tags';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
-import { FORUM_THREAD_TAGS_MAX } from '@/components/forum/forum-tag-picker';
 import {
   FORUM_POSTS_PER_PAGE,
   type ForumArticleSubmission,
@@ -55,13 +54,6 @@ function validateTitle(title: string): string | null {
   if (!title) return 'Give the thread a title';
   if (title.length > TITLE_MAX_LENGTH) return `Titles can be at most ${TITLE_MAX_LENGTH} characters`;
   return null;
-}
-
-/** The thread's tags without repeats, or an error. */
-function validateTagIds(tagIds: string[] = []): { tagIds: string[]; error?: string } {
-  const unique = [...new Set(tagIds)];
-  if (unique.length > FORUM_THREAD_TAGS_MAX) return { tagIds: unique, error: `A thread can have at most ${FORUM_THREAD_TAGS_MAX} tags` };
-  return { tagIds: unique };
 }
 
 function validateContent(content: string): string | null {
@@ -136,11 +128,10 @@ export async function createForumThread(params: {
   categoryId: string;
   title: string;
   content: string;
-  tagIds?: string[];
+  tagIds: string[];
 }): Promise<ForumActionResult> {
   const title = params.title.trim();
-  const { tagIds, error: tagsError } = validateTagIds(params.tagIds);
-  const invalid = validateTitle(title) ?? validateContent(params.content) ?? tagsError;
+  const invalid = validateTitle(title) ?? validateContent(params.content);
   if (invalid) return { success: false, error: invalid };
 
   try {
@@ -153,7 +144,7 @@ export async function createForumThread(params: {
         p_category_id: params.categoryId,
         p_title: title,
         p_content: params.content,
-        p_tag_ids: tagIds,
+        p_tag_ids: params.tagIds,
       })
       .select(THREAD_SELECT)
       .single<ThreadRow>();
@@ -381,15 +372,12 @@ export async function moveForumThread(params: { threadId: string; categoryId: st
 
 /** Replaces a thread's tags (its author and moderators; on a locked thread only moderators). */
 export async function setForumThreadTags(params: { threadId: string; tagIds: string[] }): Promise<ForumActionResult> {
-  const { tagIds, error: invalid } = validateTagIds(params.tagIds);
-  if (invalid) return { success: false, error: invalid };
-
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
 
     const { data: thread, error } = await supabase
-      .rpc('set_forum_thread_tags', { p_thread_id: params.threadId, p_tag_ids: tagIds })
+      .rpc('set_forum_thread_tags', { p_thread_id: params.threadId, p_tag_ids: params.tagIds })
       .select(THREAD_SELECT)
       .single<ThreadRow>();
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to update the tags') };

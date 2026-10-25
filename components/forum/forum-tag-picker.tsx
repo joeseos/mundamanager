@@ -2,7 +2,7 @@ import { cn } from '@/app/lib/utils';
 import { badgeVariants } from '@/components/ui/badge';
 import type { ForumTag } from '@/app/lib/forum';
 
-// Same limit as the forum_thread_tags trigger
+// Same limit as set_forum_thread_tags()
 export const FORUM_THREAD_TAGS_MAX = 3;
 
 interface ForumTagPickerProps {
