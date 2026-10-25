@@ -59,7 +59,7 @@ export default async function ArticlesPage() {
           <div className="flex-1">
             <h2 className="font-bold">Have a story to share?</h2>
             <p className="text-sm text-muted-foreground">
-              Start a forum thread, then submit it for publication from the thread.
+              Start a forum thread, then submit it for publication from the ... menu on the thread.
             </p>
           </div>
           <Button asChild size="sm" className="shrink-0">

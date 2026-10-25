@@ -419,14 +419,10 @@ async function notifyArticleAuthor(supabase: SupabaseClient, senderId: string, t
   if (error) console.error('Failed to send the article notification', error);
 }
 
-export interface ForumArticleResult extends ForumActionResult {
-  submission?: ForumArticleSubmission;
-}
-
 const AUTHOR_ONLY = "Only the thread's author can suggest it";
 
 /** Suggests the thread as an article (its author only), or resubmits it after a moderator asked for changes. */
-export async function submitForumArticle(threadId: string): Promise<ForumArticleResult> {
+export async function submitForumArticle(threadId: string): Promise<ForumActionResult> {
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
@@ -446,7 +442,7 @@ export async function submitForumArticle(threadId: string): Promise<ForumArticle
       if (error?.code === '23505') return { success: false, error: 'This thread was already suggested' };
       if (error) return { success: false, error: writeErrorMessage(error, 'Failed to submit the thread', AUTHOR_ONLY) };
     }
-    return { success: true, submission: { status: 'submitted', review_note: null } };
+    return { success: true };
   } catch (error) {
     console.error('Failed to submit the thread', error);
     return { success: false, error: 'Failed to submit the thread' };
@@ -461,7 +457,7 @@ export async function reviewForumArticle(params: {
   threadId: string;
   status: 'changes_requested' | 'declined';
   note?: string;
-}): Promise<ForumArticleResult> {
+}): Promise<ForumActionResult> {
   // Server actions can be called with anything
   if (params.status !== 'changes_requested' && params.status !== 'declined') return { success: false, error: 'Unknown decision' };
   const note = params.note?.trim() || null;
@@ -486,7 +482,7 @@ export async function reviewForumArticle(params: {
     if (!data) return { success: false, error: 'This suggestion was already answered' };
 
     after(() => notifyArticleAuthor(supabase, user.id, data.forum_threads, params.status));
-    return { success: true, submission: { status: params.status, review_note: note } };
+    return { success: true };
   } catch (error) {
     console.error('Failed to answer the suggestion', error);
     return { success: false, error: 'Failed to answer the suggestion' };

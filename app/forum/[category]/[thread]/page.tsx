@@ -11,23 +11,29 @@ import {
   forumPageHref,
   forumThreadPath,
   getForumArticleSubmission,
+  type ForumArticleSubmission,
   getForumLikedPostIds,
   getForumPosts,
   getForumThread,
   parseForumPage,
   parseForumThreadNumber,
 } from '@/app/lib/forum';
-import { ForumArticleStatus } from '@/components/forum/forum-article-status';
 import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';
-import { ForumThreadModeration } from '@/components/forum/forum-thread-moderation';
+import { ForumThreadMenu } from '@/components/forum/forum-thread-menu';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { UserRoleBadge } from '@/components/ui/user-role-badge';
 import { createClient } from '@/utils/supabase/server';
 import { getClaims, isForumModeratorRole } from '@/utils/auth';
 import '@/components/ui/rich-text-editor.css';
+
+const SUGGESTION_TEXT: Record<ForumArticleSubmission['status'], string> = {
+  submitted: 'Submitted for publication as an article',
+  changes_requested: 'Changes were requested before publication',
+  declined: 'Not published as an article',
+};
 
 interface ForumThreadPageProps {
   params: Promise<{ category: string; thread: string }>;
@@ -62,10 +68,10 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
 
   const [posts, claims] = await Promise.all([getForumPosts(thread, page), createClient().then(getClaims)]);
   const userId = claims?.userId ?? null;
-  // Only the author and moderators can see a suggestion, and it shows on page 1 of a thread that isn't an article
+  const isAuthor = userId !== null && userId === thread.author_id;
+  // Only the author and moderators can see a suggestion, and publishing ends it
   const showSuggestion =
-    page === 1 && !thread.article_published_at && userId !== null &&
-    (userId === thread.author_id || isForumModeratorRole(claims?.profile?.user_role));
+    userId !== null && !thread.article_published_at && (isAuthor || isForumModeratorRole(claims?.profile?.user_role));
   const [likedPostIds, submission] = await Promise.all([
     userId ? getForumLikedPostIds(userId, posts.map((post) => post.id)) : new Set<string>(),
     showSuggestion ? getForumArticleSubmission(userId, thread.id) : null,
@@ -81,12 +87,14 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
             <span className="min-w-0 break-words">{thread.title}</span>
           </h1>
-          <ForumThreadModeration
+          <ForumThreadMenu
             threadId={thread.id}
             isPinned={thread.is_pinned}
             isLocked={thread.is_locked}
             isArticle={thread.article_published_at !== null}
             categoryId={thread.category.id}
+            isAuthor={isAuthor}
+            submissionStatus={submission?.status ?? null}
           />
         </div>
         <p className="text-sm text-muted-foreground">
@@ -100,8 +108,11 @@ export default async function ForumThreadPage({ params, searchParams }: ForumThr
             </>
           )}
         </p>
-        {showSuggestion && (
-          <ForumArticleStatus threadId={thread.id} isAuthor={userId === thread.author_id} submission={submission} />
+        {submission && (
+          <p className="text-sm text-muted-foreground whitespace-pre-line">
+            {SUGGESTION_TEXT[submission.status]}
+            {submission.review_note ? `: ${submission.review_note}` : '.'}
+          </p>
         )}
 
         <ForumReplyBox threadId={thread.id} path={pagePath} locked={thread.is_locked}>
