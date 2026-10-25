@@ -80,10 +80,7 @@ export function CreateGangButton() {
 
   return (
     <>
-      <Button 
-        onClick={() => setShowModal(true)}
-        className="w-full"
-      >
+      <Button onClick={() => setShowModal(true)}>
         Create Gang
       </Button>
 

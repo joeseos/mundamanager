@@ -40,10 +40,7 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
 
   return (
     <>
-      <Button 
-        onClick={() => setShowModal(true)}
-        className="w-full"
-      >
+      <Button onClick={() => setShowModal(true)}>
         Create Campaign
       </Button>
 

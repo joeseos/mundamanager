@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
@@ -10,7 +10,8 @@ import type { CustomFighterType } from '@/types/fighter'
 import type { CustomGangType } from '@/app/actions/customise/custom-gang-types'
 import type { CustomTradingPost } from '@/app/actions/customise/custom-trading-posts'
 import type { CustomCollectionWithItems } from '@/app/lib/customise/custom-collections'
-import type { UserCampaign } from '@/types/campaign'
+import type { CampaignType, UserCampaign } from '@/types/campaign'
+import type { TradingPostType } from '@/app/lib/reference-data'
 import { CustomiseGangTypes } from '@/components/customise/custom-gang-types'
 import { CustomiseTradingPosts } from '@/components/customise/custom-trading-posts'
 import { CustomiseCollections } from '@/components/customise/custom-collections'
@@ -38,8 +39,8 @@ interface HomeTabsProps {
   customTradingPosts: CustomTradingPost[];
   customCollections: CustomCollectionWithItems[];
   userCampaigns: UserCampaign[];
-  /** Shown under the tab bar on every tab. */
-  children: ReactNode;
+  campaignTypes: CampaignType[];
+  tradingPostTypes: TradingPostType[];
 }
 
 export default function HomeTabs({
@@ -53,7 +54,8 @@ export default function HomeTabs({
   customTradingPosts,
   customCollections,
   userCampaigns,
-  children
+  campaignTypes,
+  tradingPostTypes
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
   // URL is the source of truth, so a fresh load of /?tab=... lands on the right tab.
@@ -145,11 +147,9 @@ export default function HomeTabs({
 
       {/* Tab Content */}
       <div className="space-y-4">
-        {children}
-
         {activeTab === 0 && <GangsTab gangs={gangs} />}
 
-        {activeTab === 1 && <CampaignsTab campaigns={campaigns} />}
+        {activeTab === 1 && <CampaignsTab campaigns={campaigns} campaignTypes={campaignTypes} tradingPostTypes={tradingPostTypes} userId={userId} />}
 
         {activeTab === 2 && (
           <div className="bg-card shadow-md rounded-lg p-4 space-y-6">
