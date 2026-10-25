@@ -58,22 +58,20 @@ export default async function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="w-full space-y-4">
-        <HomeTabs
-          gangs={gangs}
-          campaigns={campaigns}
-          userId={user.id}
-          customEquipment={customEquipment}
-          customFighterTypes={customFighterTypes}
-          customSkills={customSkills}
-          customGangTypes={customGangTypes}
-          customTradingPosts={customTradingPosts}
-          customCollections={customCollections}
-          userCampaigns={userCampaigns}
-          campaignTypes={campaignTypes}
-          tradingPostTypes={tradingPostTypes}
-        />
-      </div>
+      <HomeTabs
+        gangs={gangs}
+        campaigns={campaigns}
+        userId={user.id}
+        customEquipment={customEquipment}
+        customFighterTypes={customFighterTypes}
+        customSkills={customSkills}
+        customGangTypes={customGangTypes}
+        customTradingPosts={customTradingPosts}
+        customCollections={customCollections}
+        userCampaigns={userCampaigns}
+        campaignTypes={campaignTypes}
+        tradingPostTypes={tradingPostTypes}
+      />
     </main>
   )
 }

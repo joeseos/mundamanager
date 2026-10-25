@@ -118,7 +118,7 @@ export function CampaignsTab({ campaigns, campaignTypes, tradingPostTypes, userI
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <MainTabHeader title="Campaigns">
+      <MainTabHeader title="Campaigns" className="mb-4">
         <EditionToggle value={editionSlug} onChange={setEditionSlug} />
         <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={userId} />
       </MainTabHeader>

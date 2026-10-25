@@ -24,7 +24,7 @@ export default async function ForumPage() {
     <main className="flex min-h-screen flex-col items-center gap-4">
       <MainTabs active="forum" />
       <div className="w-full bg-card shadow-md rounded-lg p-4">
-        <MainTabHeader title="Forum" as="h1" />
+        <MainTabHeader title="Forum" as="h1" className="mb-4" />
 
         <ul className="divide-y">
           {categories.map((category) => (

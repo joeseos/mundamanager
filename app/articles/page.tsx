@@ -32,7 +32,7 @@ export default async function ArticlesPage() {
       <div className="w-full space-y-4">
         <MainTabs active="articles" />
         <div className="bg-card shadow-md rounded-lg p-4">
-          <MainTabHeader title="Articles" as="h1" className="" />
+          <MainTabHeader title="Articles" as="h1" />
           <p className="text-muted-foreground">Stories, guides and battle reports from the community.</p>
 
           <div className="mt-4">

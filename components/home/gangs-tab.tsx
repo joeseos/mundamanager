@@ -112,7 +112,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <MainTabHeader title="Gangs">
+      <MainTabHeader title="Gangs" className="mb-4">
         <EditionToggle value={editionSlug} onChange={setEditionSlug} />
         <CreateGangButton />
       </MainTabHeader>

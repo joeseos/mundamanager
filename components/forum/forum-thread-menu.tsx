@@ -61,7 +61,7 @@ export function ForumThreadMenu({
   isAuthor,
   submissionStatus,
 }: ForumThreadMenuProps) {
-  const { isModerator } = useForumViewer();
+  const { isModerator, loading } = useForumViewer();
   const router = useRouter();
   const [updating, startUpdate] = useTransition();
   const [moveTo, setMoveTo] = useState<string | null>(null);
@@ -71,18 +71,19 @@ export function ForumThreadMenu({
   const [note, setNote] = useState('');
 
   // Moderators publish directly, so only other authors suggest
-  const canSubmit = isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
+  // Wait for the role, so a moderator's own thread never offers it
+  const canSubmit = !loading && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
   if (!isModerator && !canSubmit) return null;
 
-  // Resolves false on a failure, so the note dialog stays open
-  const run = (action: () => Promise<ForumActionResult>, fallback: string) =>
+  // Resolves false on a failure, so the note dialog stays open. Suggestions aren't
+  // cached, so their actions refresh the page; the flag actions' cache invalidation already does.
+  const run = (action: () => Promise<ForumActionResult>, fallback: string, refresh = true) =>
     new Promise<boolean>((resolve) =>
       startUpdate(async () => {
         try {
           const result = await action();
           if (!result.success) throw new Error(result.error);
-          // Suggestions aren't cached, so refresh to show the new one
-          router.refresh();
+          if (refresh) router.refresh();
           resolve(true);
         } catch (error) {
           toast.error(error instanceof Error ? error.message : fallback);
@@ -92,7 +93,7 @@ export function ForumThreadMenu({
     );
 
   const toggle = (flag: 'is_pinned' | 'is_locked' | 'is_article', value: boolean) =>
-    run(() => setForumThreadFlag({ threadId, flag, value }), 'Failed to update the thread');
+    run(() => setForumThreadFlag({ threadId, flag, value }), 'Failed to update the thread', false);
 
   const openMove = () =>
     startUpdate(async () => {
