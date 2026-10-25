@@ -2,6 +2,7 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ForumArticleCard } from '@/components/forum/forum-article-card';
+import { MainTabHeader, MainTabs } from '@/components/home/main-tabs';
 import {
   formatForumDate,
   forumThreadPath,
@@ -29,8 +30,9 @@ export default async function ArticlesPage() {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full space-y-4">
+        <MainTabs active="articles" />
         <div className="bg-card shadow-md rounded-lg p-4">
-          <h1 className="text-2xl font-bold">Articles</h1>
+          <MainTabHeader title="Articles" as="h1" />
           <p className="text-muted-foreground">Stories, guides and battle reports from the community.</p>
 
           <div className="mt-4">

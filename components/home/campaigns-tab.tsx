@@ -12,13 +12,21 @@ import { useIsMounted } from '@/hooks/use-is-mounted'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
+import { MainTabHeader } from '@/components/home/main-tabs'
+import { CreateCampaignButton } from '@/components/create-campaign'
+import type { CampaignType } from '@/types/campaign'
+import type { TradingPostType } from '@/app/lib/reference-data'
 import { CampaignCardContent, SortableCampaignCard } from '@/components/home/campaign-card'
 
 interface CampaignsTabProps {
   campaigns: Campaign[];
+  /** For the Create Campaign modal. */
+  campaignTypes: CampaignType[];
+  tradingPostTypes: TradingPostType[];
+  userId: string;
 }
 
-export function CampaignsTab({ campaigns }: CampaignsTabProps) {
+export function CampaignsTab({ campaigns, campaignTypes, tradingPostTypes, userId }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
   const isMounted = useIsMounted();
   const sensors = useDndSensorsConfig();
@@ -110,10 +118,10 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <div className="flex items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl md:text-2xl font-bold">Campaigns</h2>
+      <MainTabHeader title="Campaigns" className="mb-4">
         <EditionToggle value={editionSlug} onChange={setEditionSlug} />
-      </div>
+        <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={userId} />
+      </MainTabHeader>
       {editionCampaigns.length === 0 ? (
         <p className="text-center text-muted-foreground">No campaigns created yet.</p>
       ) : (
