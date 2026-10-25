@@ -23,7 +23,7 @@ import { CampaignsTab } from '@/components/home/campaigns-tab'
 import { sameEditionForDisplay } from '@/types/edition'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
-import { MainTabs, type HomeTabKey } from '@/components/home/main-tabs'
+import { MainTabHeader, MainTabs, type HomeTabKey } from '@/components/home/main-tabs'
 
 const TAB_KEYS: HomeTabKey[] = ['gangs', 'campaigns', 'customassets']
 const tabIndexFromParam = (tab: string | null) => Math.max(TAB_KEYS.indexOf(tab as HomeTabKey), 0);
@@ -154,10 +154,9 @@ export default function HomeTabs({
         {activeTab === 2 && (
           <div className="bg-card shadow-md rounded-lg p-4 space-y-6">
             <div>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <h2 className="text-xl md:text-2xl font-bold">Custom Assets</h2>
+              <MainTabHeader title="Custom Assets" className="mb-2">
                 <EditionToggle value={editionSlug} onChange={setEditionSlug} />
-              </div>
+              </MainTabHeader>
               <p className="text-muted-foreground">
                 Create your own Gang Types, Fighters, Equipment, Skills, Skill sets and Trading Posts and share them to campaigns you&apos;re an Arbitrator of. Bundle them into Asset Collections to apply a whole themed set to a campaign at once, or copy another arbitrator&apos;s asset collection into your account. Custom Territories and Scenarios are created in the campaign pages.
               </p>

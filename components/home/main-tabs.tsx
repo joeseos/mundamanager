@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 export type HomeTabKey = 'gangs' | 'campaigns' | 'customassets'
 export type MainTabKey = HomeTabKey | 'articles' | 'forum'
@@ -24,7 +25,7 @@ export function MainTabs({ active, onHomeTab }: MainTabsProps) {
   return (
     <div className="w-full bg-card shadow-md rounded-lg flex justify-center">
       {TABS.map(({ key, title, href }) => {
-        const className = `md:[word-spacing:0vw] [word-spacing:100vw] flex-1 md:p-4 p-2 leading-none text-center transition-colors ${
+        const className = `md:[word-spacing:0vw] [word-spacing:100vw] flex-1 md:p-4 p-2 leading-none md:leading-normal text-center transition-colors ${
           active === key ? 'text-foreground font-medium border-b-0 border-primary' : 'text-muted-foreground hover:text-foreground'
         }`
         return onHomeTab && isHomeTab(key) ? (
@@ -37,6 +38,25 @@ export function MainTabs({ active, onHomeTab }: MainTabsProps) {
           </Link>
         )
       })}
+    </div>
+  )
+}
+
+interface MainTabHeaderProps {
+  title: string;
+  /** h1 on the pages the tabs link to, h2 inside the home page. */
+  as?: 'h1' | 'h2';
+  /** Buttons and toggles on the right. */
+  children?: ReactNode;
+  className?: string;
+}
+
+/** A tab's title row, as tall as a button, so the title sits in the same place on every tab. */
+export function MainTabHeader({ title, as: Heading = 'h2', children, className = 'mb-4' }: MainTabHeaderProps) {
+  return (
+    <div className={`flex flex-wrap items-center justify-between gap-2 min-h-10 ${className}`}>
+      <Heading className="text-xl md:text-2xl font-bold">{title}</Heading>
+      {children && <div className="flex items-center gap-2">{children}</div>}
     </div>
   )
 }

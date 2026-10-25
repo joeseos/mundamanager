@@ -12,6 +12,7 @@ import { useIsMounted } from '@/hooks/use-is-mounted'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
+import { MainTabHeader } from '@/components/home/main-tabs'
 import { CreateCampaignButton } from '@/components/create-campaign'
 import type { CampaignType } from '@/types/campaign'
 import type { TradingPostType } from '@/app/lib/reference-data'
@@ -117,13 +118,10 @@ export function CampaignsTab({ campaigns, campaignTypes, tradingPostTypes, userI
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl md:text-2xl font-bold">Campaigns</h2>
-        <div className="flex items-center gap-2">
-          <EditionToggle value={editionSlug} onChange={setEditionSlug} />
-          <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={userId} />
-        </div>
-      </div>
+      <MainTabHeader title="Campaigns">
+        <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+        <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={userId} />
+      </MainTabHeader>
       {editionCampaigns.length === 0 ? (
         <p className="text-center text-muted-foreground">No campaigns created yet.</p>
       ) : (

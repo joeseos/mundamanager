@@ -12,6 +12,7 @@ import { useIsMounted } from '@/hooks/use-is-mounted'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
+import { MainTabHeader } from '@/components/home/main-tabs'
 import { CreateGangButton } from '@/components/create-gang-modal'
 import { GangCardContent, SortableGangCard } from '@/components/home/gang-card'
 
@@ -111,13 +112,10 @@ export function GangsTab({ gangs }: GangsTabProps) {
 
   return (
     <div className="bg-card shadow-md rounded-lg p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-        <h2 className="text-xl md:text-2xl font-bold">Gangs</h2>
-        <div className="flex items-center gap-2">
-          <EditionToggle value={editionSlug} onChange={setEditionSlug} />
-          <CreateGangButton />
-        </div>
-      </div>
+      <MainTabHeader title="Gangs">
+        <EditionToggle value={editionSlug} onChange={setEditionSlug} />
+        <CreateGangButton />
+      </MainTabHeader>
       {editionGangs.length === 0 ? (
         <p className="text-center text-muted-foreground">No gangs created yet.</p>
       ) : (
