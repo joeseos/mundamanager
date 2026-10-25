@@ -20,6 +20,11 @@ interface ArticlePageProps {
   params: Promise<{ article: string }>;
 }
 
+// None at build, which has no database: each renders on its first visit and is cached from then on
+export async function generateStaticParams() {
+  return [];
+}
+
 async function findArticle(segment: string) {
   const number = parseForumThreadNumber(segment);
   return number === null ? null : getForumArticle(number);

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
-import { useForumViewer } from '@/components/forum/forum-viewer';
+import { useForumThreadViewer, useForumViewer } from '@/components/forum/forum-viewer';
 import { useForumQuote } from '@/components/forum/forum-reply-box';
 import { deleteForumPost, editForumPost, setForumPostLike } from '@/app/actions/forum';
 
@@ -20,10 +20,6 @@ interface ForumPostContentProps {
     content: string;
     like_count: number;
   };
-  /** Whether the viewer has liked the post. */
-  liked: boolean;
-  /** Signed in, and not the post's author. */
-  canLike: boolean;
   /** Edited along with the opening post. */
   threadTitle: string;
   /** The page the post is on, which a quote links back to. */
@@ -57,11 +53,16 @@ function quoteHtml(post: ForumPostContentProps['post'], pagePath: string): strin
 }
 
 /** The post's likes, with a heart that likes it when the viewer can. */
-function ForumLikeButton({ post, liked: savedLiked, canLike }: Pick<ForumPostContentProps, 'post' | 'liked' | 'canLike'>) {
+function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
+  const { userId } = useForumViewer();
+  const { data: viewer, setLiked: saveLiked } = useForumThreadViewer();
+  const savedLiked = viewer?.likedPostIds.includes(post.id) ?? false;
+  // Not before the viewer's likes have loaded, so the heart starts from their saved like
+  const canLike = !!viewer && userId !== post.author_id;
   const [liked, setLiked] = useState(savedLiked);
   const [prevSavedLiked, setPrevSavedLiked] = useState(savedLiked);
   const [saving, setSaving] = useState(false);
-  // A refreshed page may bring a like changed elsewhere, e.g. in another tab
+  // The saved like loads after the page, and a reload may bring one changed in another tab
   if (savedLiked !== prevSavedLiked) {
     setPrevSavedLiked(savedLiked);
     setLiked(savedLiked);
@@ -87,7 +88,9 @@ function ForumLikeButton({ post, liked: savedLiked, canLike }: Pick<ForumPostCon
     setSaving(true);
     setLiked(!liked);
     const result = await setForumPostLike({ postId: post.id, liked: !liked });
-    if (!result.success) {
+    if (result.success) {
+      saveLiked(post.id, !liked);
+    } else {
       setLiked(liked);
       toast.error(result.error);
     }
@@ -110,7 +113,7 @@ function ForumLikeButton({ post, liked: savedLiked, canLike }: Pick<ForumPostCon
 }
 
 /** A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for moderators. */
-export function ForumPostContent({ post, liked, canLike, threadTitle, pagePath }: ForumPostContentProps) {
+export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
   const router = useRouter();
   const { userId, isModerator } = useForumViewer();
   const quote = useForumQuote();
@@ -153,7 +156,7 @@ export function ForumPostContent({ post, liked, canLike, threadTitle, pagePath }
         dangerouslySetInnerHTML={{ __html: post.content }}
       />
       <div className="flex justify-end gap-1 mt-2 empty:hidden">
-        <ForumLikeButton post={post} liked={liked} canLike={canLike} />
+        <ForumLikeButton post={post} />
         {userId !== null && quote && (
           <Button
             variant="ghost"

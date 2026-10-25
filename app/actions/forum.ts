@@ -3,7 +3,7 @@
 import { after } from 'next/server';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, getClaims } from '@/utils/auth';
 import {
   invalidateForumArticles,
   invalidateForumThread,
@@ -21,7 +21,9 @@ import {
   forumPageHref,
   type ForumTag,
   forumThreadPath,
+  getForumArticleSubmission,
   getForumCategories,
+  getForumLikedPostIds,
   getForumTags,
 } from '@/app/lib/forum';
 
@@ -396,6 +398,26 @@ export async function getForumTagOptions(): Promise<ForumTag[]> {
 }
 
 /** The categories a moderator can move a thread to, loaded when the Move dialog opens. */
+export interface ForumThreadViewerData {
+  likedPostIds: string[];
+  submission: ForumArticleSubmission | null;
+}
+
+/**
+ * The thread page's parts for the signed-in viewer alone, loaded by the browser
+ * so the page itself stays static: their likes on the page's posts, and the
+ * thread's article suggestion, which RLS shows only to its author and moderators.
+ */
+export async function getForumThreadViewer(params: { threadId: string; postIds: string[] }): Promise<ForumThreadViewerData | null> {
+  const claims = await createClient().then(getClaims);
+  if (!claims) return null;
+  const [likedPostIds, submission] = await Promise.all([
+    getForumLikedPostIds(claims.userId, params.postIds.slice(0, FORUM_POSTS_PER_PAGE)),
+    getForumArticleSubmission(claims.userId, params.threadId),
+  ]);
+  return { likedPostIds, submission };
+}
+
 export async function getForumMoveCategories(): Promise<{ id: string; name: string }[]> {
   return (await getForumCategories()).map(({ id, name }) => ({ id, name }));
 }
