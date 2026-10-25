@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight, LuMessageSquareText, LuMegaphone, LuAtSign, LuReply } from "react-icons/lu";
+import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight, LuMessageSquareText, LuMegaphone, LuAtSign, LuNewspaper, LuReply } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
@@ -353,6 +353,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuReply className="h-5 w-5 text-teal-500" />;
       case 'forum_mention':
         return <LuAtSign className="h-5 w-5 text-teal-500" />;
+      case 'forum_article':
+        return <LuNewspaper className="h-5 w-5 text-teal-500" />;
       default:
         return <ImInfo className="h-5 w-5 text-blue-500" />;
     }

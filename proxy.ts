@@ -95,9 +95,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/auth/callback');
 
-  // The forum is read by everyone; starting a thread (/forum/<category>/new) needs the sign-in check below
+  // The forum and its articles are read by everyone; starting a thread (/forum/<category>/new) needs the sign-in check below
   const isForum =
-    (pathname === '/forum' || pathname.startsWith('/forum/')) && !/^\/forum\/[^/]+\/new$/.test(pathname);
+    /^\/(forum|articles)(\/|$)/.test(pathname) && !/^\/forum\/[^/]+\/new$/.test(pathname);
 
   // Early return for public paths - avoid creating Supabase client unnecessarily
   if (publicPaths.includes(pathname) || isPasswordResetFlow || isForum) {
