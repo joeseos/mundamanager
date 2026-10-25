@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
 import type { Gang } from '@/app/lib/get-user-gangs'
@@ -23,8 +23,8 @@ import { sameEditionForDisplay } from '@/types/edition'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
 
-type TabKey = 'gangs' | 'campaigns' | 'customassets'
-const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets']
+type TabKey = 'gangs' | 'campaigns' | 'customassets' | 'articles' | 'forum'
+const TAB_KEYS: TabKey[] = ['gangs', 'campaigns', 'customassets', 'articles', 'forum']
 const tabIndexFromParam = (tab: string | null) => Math.max(TAB_KEYS.indexOf(tab as TabKey), 0);
 
 interface HomeTabsProps {
@@ -38,6 +38,9 @@ interface HomeTabsProps {
   customTradingPosts: CustomTradingPost[];
   customCollections: CustomCollectionWithItems[];
   userCampaigns: UserCampaign[];
+  /** Rendered on the server, as they read the forum's cached data. */
+  articlesTab: ReactNode;
+  forumTab: ReactNode;
 }
 
 export default function HomeTabs({
@@ -50,7 +53,9 @@ export default function HomeTabs({
   customGangTypes,
   customTradingPosts,
   customCollections,
-  userCampaigns
+  userCampaigns,
+  articlesTab,
+  forumTab
 }: HomeTabsProps) {
   const searchParams = useSearchParams();
   // URL is the source of truth, so a fresh load of /?tab=... lands on the right tab.
@@ -136,7 +141,7 @@ export default function HomeTabs({
     };
   }, [handleTabChange]);
 
-  const tabTitles = ['Gangs', 'Campaigns', 'Custom Assets'];
+  const tabTitles = ['Gangs', 'Campaigns', 'Custom Assets', 'Articles', 'Forum'];
 
   return (
     <div className="w-full">
@@ -227,6 +232,10 @@ export default function HomeTabs({
             />
           </div>
         )}
+
+        {activeTab === 3 && articlesTab}
+
+        {activeTab === 4 && forumTab}
       </div>
     </div>
   );

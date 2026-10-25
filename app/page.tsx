@@ -23,8 +23,16 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
 import type { UserCampaign } from "@/types/campaign";
-import { getForumArticles } from "@/app/lib/forum";
+import { getForumArticles, getForumCategories } from "@/app/lib/forum";
 import { ForumArticleCard } from "@/components/forum/forum-article-card";
+import { ForumCategoryList } from "@/components/forum/forum-category-list";
+
+// The articles and forum tabs are optional on this page, so a failed read empties the tab rather than failing the page
+const orEmpty = <T,>(promise: Promise<T[]>, what: string) =>
+  promise.catch((error): T[] => {
+    console.error(`Failed to load the ${what}`, error);
+    return [];
+  });
 
 export default async function Home() {
   const supabase = await createClient();
@@ -59,15 +67,12 @@ export default async function Home() {
   
   // Reference data for the create-campaign modal and the user's share-modal
   // campaigns — all cached (campaign-types / global / user-{id} tags).
-  const [campaignTypes, tradingPostTypes, userCampaigns, articles] = await Promise.all([
+  const [campaignTypes, tradingPostTypes, userCampaigns, articles, forumCategories] = await Promise.all([
     getCampaignTypes(),
     getTradingPostTypesCached(),
     getUserShareCampaigns(user.id),
-    // Optional on this page, so a failed read leaves the row out rather than the page
-    getForumArticles().catch((error) => {
-      console.error('Failed to load the articles', error);
-      return [];
-    })
+    orEmpty(getForumArticles(), 'articles'),
+    orEmpty(getForumCategories(), 'forum categories')
   ]);
 
   return (
@@ -110,22 +115,6 @@ export default async function Home() {
           </div>
         </div>
 
-        {articles.length > 0 && (
-          <div className="bg-card shadow-md rounded-lg p-4">
-            <div className="flex items-center justify-between gap-2 mb-4">
-              <h2 className="text-xl md:text-2xl font-bold">Latest articles</h2>
-              <Link href="/articles" prefetch={false} className="text-sm text-muted-foreground hover:text-foreground">
-                All articles
-              </Link>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {articles.slice(0, 3).map((article) => (
-                <ForumArticleCard key={article.number} article={article} />
-              ))}
-            </div>
-          </div>
-        )}
-
         <HomeTabs
           gangs={gangs}
           campaigns={campaigns}
@@ -137,6 +126,36 @@ export default async function Home() {
           customTradingPosts={customTradingPosts}
           customCollections={customCollections}
           userCampaigns={userCampaigns}
+          articlesTab={
+            <div className="bg-card shadow-md rounded-lg p-4">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h2 className="text-xl md:text-2xl font-bold">Articles</h2>
+                <Link href="/articles" prefetch={false} className="text-sm text-muted-foreground hover:text-foreground">
+                  All articles
+                </Link>
+              </div>
+              {articles.length ? (
+                <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  {articles.slice(0, 6).map((article) => (
+                    <ForumArticleCard key={article.number} article={article} />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-muted-foreground italic">No articles yet.</p>
+              )}
+            </div>
+          }
+          forumTab={
+            <div className="bg-card shadow-md rounded-lg p-4">
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <h2 className="text-xl md:text-2xl font-bold">Forum</h2>
+                <Link href="/forum" prefetch={false} className="text-sm text-muted-foreground hover:text-foreground">
+                  Visit the forum
+                </Link>
+              </div>
+              <ForumCategoryList categories={forumCategories} />
+            </div>
+          }
         />
       </div>
     </main>
