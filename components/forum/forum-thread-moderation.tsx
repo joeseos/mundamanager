@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuFolderInput, LuLock, LuLockOpen, LuPin, LuPinOff } from 'react-icons/lu';
+import { LuEllipsis, LuFolderInput, LuLock, LuLockOpen, LuPin, LuPinOff } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Modal from '@/components/ui/modal';
 import { useForumViewer } from '@/components/forum/forum-viewer';
 import { moveForumThread, setForumThreadFlag } from '@/app/actions/forum';
@@ -18,7 +19,7 @@ interface ForumThreadModerationProps {
   categories: { id: string; name: string }[];
 }
 
-/** Pin, lock and move buttons for moderators, in the thread's header on every page. */
+/** A menu for moderators to pin, lock and move the thread, in the thread's header on every page. */
 export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId, categories }: ForumThreadModerationProps) {
   const { isModerator } = useForumViewer();
   const router = useRouter();
@@ -40,42 +41,37 @@ export function ForumThreadModeration({ threadId, isPinned, isLocked, categoryId
     });
 
   return (
-    <div className="flex shrink-0 gap-1">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-9 p-0"
-        onClick={() => toggle('is_pinned', !isPinned)}
-        disabled={updating}
-        title={isPinned ? 'Unpin thread' : 'Pin thread'}
-        aria-label={isPinned ? 'Unpin thread' : 'Pin thread'}
-      >
-        {isPinned ? <LuPinOff className="h-4 w-4" /> : <LuPin className="h-4 w-4" />}
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="w-9 p-0"
-        onClick={() => toggle('is_locked', !isLocked)}
-        disabled={updating}
-        title={isLocked ? 'Unlock thread' : 'Lock thread'}
-        aria-label={isLocked ? 'Unlock thread' : 'Lock thread'}
-      >
-        {isLocked ? <LuLockOpen className="h-4 w-4" /> : <LuLock className="h-4 w-4" />}
-      </Button>
-      {otherCategories.length > 0 && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-9 p-0"
-          onClick={() => setMoveTo(otherCategories[0].id)}
-          disabled={updating}
-          title="Move thread"
-          aria-label="Move thread"
-        >
-          <LuFolderInput className="h-4 w-4" />
-        </Button>
-      )}
+    <div className="shrink-0">
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-9 p-0"
+            disabled={updating}
+            title="Moderate thread"
+            aria-label="Moderate thread"
+          >
+            <LuEllipsis className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => toggle('is_pinned', !isPinned)}>
+            {isPinned ? <LuPinOff className="mr-2 h-4 w-4" /> : <LuPin className="mr-2 h-4 w-4" />}
+            {isPinned ? 'Unpin thread' : 'Pin thread'}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggle('is_locked', !isLocked)}>
+            {isLocked ? <LuLockOpen className="mr-2 h-4 w-4" /> : <LuLock className="mr-2 h-4 w-4" />}
+            {isLocked ? 'Unlock thread' : 'Lock thread'}
+          </DropdownMenuItem>
+          {otherCategories.length > 0 && (
+            <DropdownMenuItem onClick={() => setMoveTo(otherCategories[0].id)}>
+              <LuFolderInput className="mr-2 h-4 w-4" />
+              Move thread
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
       {moveTo !== null && (
         <Modal
           title="Move Thread"
