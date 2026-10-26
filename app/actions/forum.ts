@@ -13,6 +13,7 @@ import {
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import {
+  FORUM_THREADS_PER_PAGE,
   type ForumArticleSubmission,
   forumArticlePath,
   forumCategoryPath,
@@ -27,6 +28,7 @@ import {
   getForumPosts,
   getForumTags,
   getForumThread,
+  getForumUnreadThreadNumbers,
 } from '@/app/lib/forum';
 
 export interface ForumActionResult {
@@ -426,6 +428,33 @@ export async function getForumThreadViewer(params: { threadNumber: number; page:
     showSuggestion ? getForumArticleSubmission(claims.userId, thread.id) : null,
   ]);
   return { likes, submission };
+}
+
+/**
+ * Records that the signed-in user has read the thread up to its last post as the
+ * page showed it, so a post the cached page didn't show stays unread.
+ */
+export async function markForumThreadRead(params: { threadId: string; lastPostAt: string }): Promise<void> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+    const { error } = await supabase
+      .from('forum_thread_reads')
+      .upsert({ user_id: user.id, thread_id: params.threadId, last_read_at: params.lastPostAt });
+    if (error) throw error;
+  } catch (error) {
+    console.error('Failed to mark the thread read', error);
+  }
+}
+
+/** Which of a category page's threads have posts the signed-in user hasn't read, loaded by the browser so the page stays static. */
+export async function getForumUnreadThreads(threadNumbers: number[]): Promise<number[]> {
+  // Server actions can be called with anything: at most a page of thread numbers
+  if (!Array.isArray(threadNumbers) || threadNumbers.length > FORUM_THREADS_PER_PAGE || !threadNumbers.every(Number.isInteger)) {
+    return [];
+  }
+  const claims = await createClient().then(getClaims);
+  return claims ? getForumUnreadThreadNumbers(claims.userId, threadNumbers) : [];
 }
 
 /** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */
