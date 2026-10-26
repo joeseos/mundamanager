@@ -1010,10 +1010,10 @@ COMMENT ON COLUMN public.forum_threads.article_published_at IS 'When a moderator
 
 
 --
--- Name: create_forum_thread(uuid, text, text); Type: FUNCTION; Schema: public; Owner: -
+-- Name: create_forum_thread(uuid, text, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.create_forum_thread(p_category_id uuid, p_title text, p_content text) RETURNS public.forum_threads
+CREATE FUNCTION public.create_forum_thread(p_category_id uuid, p_title text, p_content text, p_tag_ids uuid[] DEFAULT '{}'::uuid[]) RETURNS public.forum_threads
     LANGUAGE plpgsql
     SET search_path TO 'public'
     AS $$
@@ -1026,6 +1026,8 @@ BEGIN
 
   INSERT INTO forum_posts (thread_id, author_id, content)
   VALUES (thread.id, auth.uid(), p_content);
+
+  PERFORM set_forum_thread_tags(thread.id, p_tag_ids);
 
   RETURN thread;
 END;
@@ -5020,6 +5022,52 @@ COMMENT ON FUNCTION public.replace_gang_skill_set_ranks(p_gang_id uuid, p_ranks 
 
 
 --
+-- Name: set_forum_thread_tags(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_forum_thread_tags(p_thread_id uuid, p_tag_ids uuid[]) RETURNS public.forum_threads
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  max_tags constant integer := 3;
+  thread forum_threads%ROWTYPE;
+BEGIN
+  -- FOR UPDATE waits for a lock being set at the same moment
+  SELECT * INTO thread FROM forum_threads t WHERE t.id = p_thread_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This thread no longer exists'
+      USING ERRCODE = 'MM002';
+  END IF;
+  IF NOT private.is_forum_moderator() THEN
+    IF thread.author_id IS DISTINCT FROM auth.uid() THEN
+      RAISE EXCEPTION 'Only the thread''s author and moderators can change its tags'
+        USING ERRCODE = 'MM002';
+    END IF;
+    IF thread.is_locked THEN
+      RAISE EXCEPTION 'This thread is locked'
+        USING ERRCODE = 'MM002';
+    END IF;
+  END IF;
+  IF cardinality(p_tag_ids) > max_tags THEN
+    RAISE EXCEPTION 'A thread can have at most % tags', max_tags
+      USING ERRCODE = 'MM002';
+  END IF;
+
+  DELETE FROM forum_thread_tags tt
+  WHERE tt.thread_id = p_thread_id
+  AND tt.tag_id <> ALL (coalesce(p_tag_ids, '{}'));
+
+  INSERT INTO forum_thread_tags (thread_id, tag_id)
+  SELECT p_thread_id, tag.id FROM forum_tags tag WHERE tag.id = ANY (p_tag_ids)
+  ON CONFLICT DO NOTHING;
+
+  RETURN thread;
+END;
+$$;
+
+
+--
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6987,6 +7035,79 @@ COMMENT ON COLUMN public.forum_posts.updated_at IS 'Set when the content is edit
 
 
 --
+-- Name: forum_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_reports (
+    post_id uuid NOT NULL,
+    reporter_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    reason text NOT NULL,
+    CONSTRAINT forum_reports_reason_length CHECK (((char_length(btrim(reason)) >= 1) AND (char_length(btrim(reason)) <= 500)))
+);
+
+
+--
+-- Name: TABLE forum_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_reports IS 'Posts members reported to the moderators, one row per member and post, until a moderator dismisses them.';
+
+
+--
+-- Name: forum_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_tags (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    CONSTRAINT forum_tags_name_length CHECK (((char_length(btrim(name)) >= 1) AND (char_length(btrim(name)) <= 40)))
+);
+
+
+--
+-- Name: TABLE forum_tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_tags IS 'Tags for forum threads, edited in the database. Renaming one renames it on every thread.';
+
+
+--
+-- Name: forum_thread_reads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_thread_reads (
+    user_id uuid NOT NULL,
+    thread_id uuid NOT NULL,
+    last_read_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: TABLE forum_thread_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_thread_reads IS 'The time of the last post each user has read in each forum thread. A thread with a later post is unread.';
+
+
+--
+-- Name: forum_thread_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_thread_tags (
+    thread_id uuid NOT NULL,
+    tag_id uuid NOT NULL
+);
+
+
+--
+-- Name: TABLE forum_thread_tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_thread_tags IS 'The tags on each forum thread, at most 3.';
+
+
+--
 -- Name: forum_threads_number_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -8503,6 +8624,46 @@ ALTER TABLE ONLY public.forum_posts
 
 ALTER TABLE ONLY public.forum_posts
     ADD CONSTRAINT forum_posts_thread_number_key UNIQUE (thread_id, post_number);
+
+
+--
+-- Name: forum_reports forum_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_pkey PRIMARY KEY (post_id, reporter_id);
+
+
+--
+-- Name: forum_tags forum_tags_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_tags
+    ADD CONSTRAINT forum_tags_name_key UNIQUE (name);
+
+
+--
+-- Name: forum_tags forum_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_tags
+    ADD CONSTRAINT forum_tags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_pkey PRIMARY KEY (user_id, thread_id);
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_pkey PRIMARY KEY (thread_id, tag_id);
 
 
 --
@@ -10041,6 +10202,20 @@ CREATE INDEX forum_post_revisions_thread_id_idx ON public.forum_post_revisions U
 --
 
 CREATE INDEX forum_posts_author_created_idx ON public.forum_posts USING btree (author_id, created_at DESC);
+
+
+--
+-- Name: forum_reports_reporter_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_reports_reporter_idx ON public.forum_reports USING btree (reporter_id);
+
+
+--
+-- Name: forum_thread_reads_thread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_thread_reads_thread_idx ON public.forum_thread_reads USING btree (thread_id);
 
 
 --
@@ -12789,6 +12964,54 @@ ALTER TABLE ONLY public.forum_posts
 
 
 --
+-- Name: forum_reports forum_reports_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_reports forum_reports_reporter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.forum_tags(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
 -- Name: forum_threads forum_threads_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14355,6 +14578,20 @@ CREATE POLICY "Forum posts are viewable by everyone" ON public.forum_posts FOR S
 
 
 --
+-- Name: forum_tags Forum tags are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum tags are viewable by everyone" ON public.forum_tags FOR SELECT USING (true);
+
+
+--
+-- Name: forum_thread_tags Forum thread tags are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum thread tags are viewable by everyone" ON public.forum_thread_tags FOR SELECT USING (true);
+
+
+--
 -- Name: forum_threads Forum threads are viewable by everyone; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14462,6 +14699,13 @@ CREATE POLICY "Moderators can delete threads" ON public.forum_threads FOR DELETE
 
 
 --
+-- Name: forum_reports Moderators can dismiss reports; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can dismiss reports" ON public.forum_reports FOR DELETE TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
 -- Name: forum_posts Moderators can edit and remove posts; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14473,6 +14717,13 @@ CREATE POLICY "Moderators can edit and remove posts" ON public.forum_posts FOR U
 --
 
 CREATE POLICY "Moderators can view post revisions" ON public.forum_post_revisions FOR SELECT TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_reports Moderators can view reports; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can view reports" ON public.forum_reports FOR SELECT TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
 
 
 --
@@ -15786,6 +16037,13 @@ CREATE POLICY "Users can like posts" ON public.forum_post_likes FOR INSERT TO au
 
 
 --
+-- Name: forum_thread_reads Users can mark threads read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can mark threads read" ON public.forum_thread_reads FOR INSERT TO authenticated WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: fighter_injuries Users can only create fighter_injuries for their own fighters; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -15848,6 +16106,15 @@ CREATE POLICY "Users can post" ON public.forum_posts FOR INSERT TO authenticated
 --
 
 CREATE POLICY "Users can remove their likes" ON public.forum_post_likes FOR DELETE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: forum_reports Users can report posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can report posts" ON public.forum_reports FOR INSERT TO authenticated WITH CHECK (((reporter_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.forum_posts p
+  WHERE ((p.id = forum_reports.post_id) AND (p.deleted_at IS NULL) AND (p.author_id IS DISTINCT FROM ( SELECT auth.uid() AS uid)))))));
 
 
 --
@@ -15961,6 +16228,13 @@ CREATE POLICY "Users can update their own notifications" ON public.notifications
 
 
 --
+-- Name: forum_thread_reads Users can update their reads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update their reads" ON public.forum_thread_reads FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: gang_logs Users can view logs for their gangs or campaigns they moderate; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -15997,6 +16271,13 @@ CREATE POLICY "Users can view their own notification preferences" ON public.user
 --
 
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT TO authenticated USING ((( SELECT auth.uid() AS uid) = receiver_id));
+
+
+--
+-- Name: forum_thread_reads Users can view their own reads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view their own reads" ON public.forum_thread_reads FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -16844,6 +17125,30 @@ ALTER TABLE public.forum_post_revisions ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.forum_posts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_reports; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_reports ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_thread_reads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_thread_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_thread_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_thread_tags ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: forum_threads; Type: ROW SECURITY; Schema: public; Owner: -
