@@ -64,7 +64,7 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
         {threads.length === 0 ? (
           <p className="text-muted-foreground italic text-center mt-4">No threads yet.</p>
         ) : (
-          <ForumUnreadThreadsProvider threadNumbers={threads.map((thread) => thread.number)}>
+          <ForumUnreadThreadsProvider threads={threads.map(({ number, last_post_at }) => ({ number, last_post_at }))}>
             <ul className="divide-y mt-4">
               {threads.map((thread) => (
                 <li

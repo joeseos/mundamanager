@@ -98,11 +98,18 @@ export const useForumThreadViewer = () => useContext(ForumThreadViewerContext);
 const ForumUnreadThreadsContext = createContext<number[]>([]);
 
 /** Which of a category page's threads the signed-in viewer hasn't read, loaded in the browser so the page itself is static. */
-export function ForumUnreadThreadsProvider({ threadNumbers, children }: { threadNumbers: number[]; children: ReactNode }) {
+export function ForumUnreadThreadsProvider({
+  threads,
+  children,
+}: {
+  threads: { number: number; last_post_at: string }[];
+  children: ReactNode;
+}) {
   const { userId } = useForumViewer();
   const { data } = useQuery({
-    queryKey: ['forum-unread-threads', userId, threadNumbers],
-    queryFn: () => getForumUnreadThreads(threadNumbers),
+    // With each thread's last post, so a new post loads it again
+    queryKey: ['forum-unread-threads', userId, threads],
+    queryFn: () => getForumUnreadThreads(threads.map((thread) => thread.number)),
     enabled: userId !== null,
   });
   return <ForumUnreadThreadsContext.Provider value={data ?? []}>{children}</ForumUnreadThreadsContext.Provider>;
@@ -122,15 +129,18 @@ export function ForumThreadTitleLink({ number, href, title }: { number: number; 
   );
 }
 
-/** Marks the thread read for the signed-in viewer. Rendered on its last page, so reading page 1 leaves later posts unread. */
-export function ForumMarkThreadRead({ threadId }: { threadId: string }) {
+/**
+ * Marks the thread read for the signed-in viewer, up to the last post the page shows.
+ * Rendered on its last page, so reading page 1 leaves later posts unread.
+ */
+export function ForumMarkThreadRead({ threadId, lastPostAt }: { threadId: string; lastPostAt: string }) {
   const { userId } = useForumViewer();
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!userId) return;
-    markForumThreadRead(threadId).then((result) => {
-      if (result.success) queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] });
-    });
-  }, [userId, threadId, queryClient]);
+    markForumThreadRead({ threadId, lastPostAt }).then(() =>
+      queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] }),
+    );
+  }, [userId, threadId, lastPostAt, queryClient]);
   return null;
 }

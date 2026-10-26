@@ -1090,7 +1090,7 @@ export const forumThreadTags = pgTable('forum_thread_tags', {
 export const forumThreadReads = pgTable('forum_thread_reads', {
   user_id: uuid('user_id').notNull(),
   thread_id: uuid('thread_id').notNull(),
-  last_read_at: timestamp('last_read_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  last_read_at: timestamp('last_read_at', { withTimezone: true, mode: 'string' }).notNull(),
 }, (table) => [primaryKey({ columns: [table.user_id, table.thread_id] })]);
 
 // A one() that names its join columns (fields/references) needs nothing more.

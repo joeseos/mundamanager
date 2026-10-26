@@ -66,7 +66,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
   return (
     <main className="flex min-h-screen flex-col items-center">
       <ForumThreadViewerProvider threadNumber={thread.number} page={page} authorId={thread.author_id}>
-        {page === pageCount && <ForumMarkThreadRead threadId={thread.id} />}
+        {page === pageCount && <ForumMarkThreadRead threadId={thread.id} lastPostAt={thread.last_post_at} />}
         <div className="w-full bg-card shadow-md rounded-lg p-4">
           <div className="flex items-start justify-between gap-2">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">

@@ -430,19 +430,20 @@ export async function getForumThreadViewer(params: { threadNumber: number; page:
   return { likes, submission };
 }
 
-/** Records that the signed-in user has read the thread up to now, when they open its last page. */
-export async function markForumThreadRead(threadId: string): Promise<ForumActionResult> {
+/**
+ * Records that the signed-in user has read the thread up to its last post as the
+ * page showed it, so a post the cached page didn't show stays unread.
+ */
+export async function markForumThreadRead(params: { threadId: string; lastPostAt: string }): Promise<void> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
     const { error } = await supabase
       .from('forum_thread_reads')
-      .upsert({ user_id: user.id, thread_id: threadId, last_read_at: new Date().toISOString() });
+      .upsert({ user_id: user.id, thread_id: params.threadId, last_read_at: params.lastPostAt });
     if (error) throw error;
-    return { success: true };
   } catch (error) {
     console.error('Failed to mark the thread read', error);
-    return { success: false, error: 'Failed to mark the thread read' };
   }
 }
 

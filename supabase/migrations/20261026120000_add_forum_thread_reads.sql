@@ -1,6 +1,6 @@
--- Forum read state: when each user last reached the end of each thread (its last
--- page), so the thread list can show threads with posts they haven't seen in
--- bold. Private to the user.
+-- Forum read state: the last post each user has read in each thread (when they
+-- reached its last page), so the thread list can show threads with posts they
+-- haven't seen in bold. Private to the user.
 --
 -- DEPLOY ORDER: apply after 20261026100000_add_forum_reports.sql.
 
@@ -9,12 +9,12 @@ BEGIN;
 CREATE TABLE public.forum_thread_reads (
   user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   thread_id uuid NOT NULL REFERENCES public.forum_threads(id) ON DELETE CASCADE,
-  last_read_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_read_at timestamp with time zone NOT NULL,
   PRIMARY KEY (user_id, thread_id)
 );
 
 COMMENT ON TABLE public.forum_thread_reads IS
-  'When each user last read each forum thread to its end. A thread with a post after it is unread.';
+  'The time of the last post each user has read in each forum thread. A thread with a later post is unread.';
 
 CREATE INDEX forum_thread_reads_thread_idx
   ON public.forum_thread_reads (thread_id);
