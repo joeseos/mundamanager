@@ -462,8 +462,9 @@ export default function PostCycleActions({
           : undefined,
         assignments: queue,
       });
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Applying the Post-cycle Sequence failed.');
+    } catch {
+      // Some steps may have landed before the request failed, so a blind retry could repeat them.
+      toast.error('The Post-cycle Sequence may be partly applied. Reload the page before trying again.');
       return;
     } finally {
       setApplying(false);
