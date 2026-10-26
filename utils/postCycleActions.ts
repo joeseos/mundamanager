@@ -108,11 +108,10 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
   "luther pattern excavation automata ('ambot')": ['work_territory'],
   // Agitate the Masses: a Hanger-on
   agitator: ['work_territory'],
-  // Hangers-on who trade for the gang
-  fixer: ['visit_trading_post'],
-  scabber: ['visit_trading_post'],
-  'underhive trader': ['visit_trading_post'],
 };
+
+/** Hangers-on whose only Post-cycle Action is Visit Trading Post, keyed like OWN_RULE_ACTIONS. */
+const TRADING_POST_ONLY = ['fixer', 'scabber', 'underhive trader'];
 
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
   (OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false) ||
@@ -341,6 +340,9 @@ export function canPerformPostCycleAction(
   availability: PostCycleAvailability
 ): boolean {
   if (!canActInPostCycle(fighter)) return false;
+  if (TRADING_POST_ONLY.includes(fighter.fighter_type?.toLowerCase() ?? '')) {
+    return actionId === 'visit_trading_post';
+  }
 
   const { performer, openToSpyrers, requires } = POST_CYCLE_ACTIONS[actionId];
   if (requires && !availability[requires]) return false;
