@@ -31,7 +31,7 @@ import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp, hasSpyrerPowerBoosts } from '@/types/edition';
-import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
+import { openAdvancementsFor, xpTowardNextTier } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 
 // Loads its code on first open, not with the page. ssr: false also gives it
@@ -650,8 +650,7 @@ export default function FighterPage({
       const xpSuffix = (() => {
         if (f.xp === undefined || f.xp === null) return '';
         if (isCumulativeXp) {
-          const nextTierStart = nextTierStartFor(editionSlug, currentXp);
-          return ` (${currentXp}/${nextTierStart ?? '–'} XP)`;
+          return ` (${xpTowardNextTier(editionSlug, currentXp)} XP)`;
         }
         return ` (${currentXp} XP)`;
       })();

@@ -14,7 +14,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
 import { XP_CASES, xpAwardsFor, type XpCaseDef, type XpCaseId } from '@/utils/xpCases';
 import { hasCumulativeXp } from '@/types/edition';
-import { nextTierStartFor } from '@/utils/advancementRanks';
+import { xpTowardNextTier } from '@/utils/advancementRanks';
 import { XpLadderTooltip } from '@/components/ui/xp-ladder-tooltip';
 import { toast } from 'sonner';
 
@@ -376,7 +376,7 @@ export function FighterXpModal({
               >
                 <span className="mr-2 text-sm text-muted-foreground">XP</span>
                 <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-                  {`${currentXp}/${nextTierStartFor(editionSlug, currentXp) ?? '–'}`}
+                  {xpTowardNextTier(editionSlug, currentXp)}
                 </span>
               </div>
               <XpLadderTooltip
