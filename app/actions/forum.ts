@@ -16,11 +16,13 @@ import {
   FORUM_POSTS_PER_PAGE,
   type ForumArticleSubmission,
   forumArticlePath,
+  formatForumDate,
   forumCategoryPath,
   forumMentionIds,
   forumPageHref,
   type ForumTag,
   forumThreadPath,
+  getForumArticleQueue,
   getForumArticleSubmission,
   getForumCategories,
   type ForumPostLikes,
@@ -428,6 +430,27 @@ export async function getForumThreadViewer(params: { threadNumber: number; page:
     showSuggestion ? getForumArticleSubmission(claims.userId, thread.id) : null,
   ]);
   return { likes, submission };
+}
+
+export interface ForumArticleQueueEntry {
+  number: number;
+  title: string;
+  path: string;
+  author: string | null;
+  submitted: string;
+}
+
+/** The suggestions awaiting review, for moderators on /articles, loaded by the browser so the page stays static. */
+export async function getForumArticleQueueEntries(): Promise<ForumArticleQueueEntry[]> {
+  const claims = await createClient().then(getClaims);
+  if (!claims || !isForumModeratorRole(claims.profile?.user_role)) return [];
+  return (await getForumArticleQueue(claims.userId)).map((item) => ({
+    number: item.number,
+    title: item.title,
+    path: forumThreadPath(item.category_slug, item.number, item.title),
+    author: item.author,
+    submitted: formatForumDate(item.submitted_at),
+  }));
 }
 
 /** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */

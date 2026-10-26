@@ -20,7 +20,7 @@ interface ArticlePageProps {
   params: Promise<{ article: string }>;
 }
 
-// None at build (it has no database): rendered on first visit, then cached
+// None at build: each renders on its first visit, then is cached
 export async function generateStaticParams() {
   return [];
 }
