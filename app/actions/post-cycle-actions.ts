@@ -436,7 +436,7 @@ async function runHandler(
  * calls, and a failure partway leaves the earlier ones removed. The outcome
  * reports what landed and bills only that.
  */
-export async function resolvePostCycleAction(
+async function resolvePostCycleAction(
   params: ResolvePostCycleActionParams
 ): Promise<ResolvePostCycleActionResult> {
   try {
@@ -565,7 +565,7 @@ export interface CollectIncomeResult {
 }
 
 /** Collect Income: adds the picked Reputation and territory credits to the gang. */
-export async function collectIncome({
+async function collectIncome({
   gangId,
   reputation,
   territoryIds,
@@ -627,4 +627,22 @@ export async function collectIncome({
       error: error instanceof Error ? error.message : 'Failed to collect income',
     };
   }
+}
+
+/** Collect Income first, so the actions can spend it, then each action in turn, in one request. */
+export async function applyPostCycleSequence({
+  gangId,
+  income,
+  assignments,
+}: {
+  gangId: string;
+  income?: Omit<CollectIncomeParams, 'gangId'>;
+  assignments: PostCycleAssignment[];
+}) {
+  const incomeResult = income && (await collectIncome({ gangId, ...income }));
+  const actions: ResolvePostCycleActionResult[] = [];
+  for (const assignment of assignments) {
+    actions.push(await resolvePostCycleAction({ gangId, assignment }));
+  }
+  return { income: incomeResult, actions };
 }
