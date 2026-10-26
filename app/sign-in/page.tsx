@@ -224,7 +224,7 @@ function SignInContent() {
       </div>
 
       {/* Presentation of the app */}
-      <div className="container mx-auto max-w-4xl w-full space-y-4 mt-6">
+      <div className="w-full space-y-4 mt-6">
 
         {/* Tabs navigation */}
         <div className="bg-card rounded-lg mb-4 flex">
