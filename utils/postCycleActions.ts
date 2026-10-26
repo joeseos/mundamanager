@@ -108,10 +108,16 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
   "luther pattern excavation automata ('ambot')": ['work_territory'],
   // Agitate the Masses: a Hanger-on
   agitator: ['work_territory'],
+  // Hangers-on who trade for the gang
+  fixer: ['visit_trading_post'],
+  scabber: ['visit_trading_post'],
+  'underhive trader': ['visit_trading_post'],
 };
 
+/** The Connected skill opens Visit Trading Post to any fighter who has it. */
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
-  OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false;
+  (OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false) ||
+  (action === 'visit_trading_post' && fighter.skills?.Connected !== undefined);
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
@@ -163,7 +169,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_trading_post: {
     id: 'visit_trading_post',
     label: 'Visit Trading Post',
-    summary: 'Logged only',
+    summary: 'Gain Trade Points',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   lead_ritual: {
@@ -271,6 +277,8 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
+  /** Keyed by skill name. */
+  skills?: Record<string, unknown>;
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
@@ -287,6 +295,13 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
   const owned = (fighter.fighter_subtypes ?? []).map((s) => s.toLowerCase());
   return subtypes.some((wanted) => owned.includes(wanted));
 }
+
+/** Visit Trading Post: a Leader brings back 2 Trade Points, any other visitor 1. */
+export const tradingPostTradePoints = (performer: PostCycleFighter): number =>
+  hasSubtype(performer, LEADER) ? 2 : 1;
+
+export const tradePointsText = (points: number): string =>
+  `${points} Trade Point${points === 1 ? '' : 's'}`;
 
 /** What the gang has, beyond its fighters, that some actions depend on. */
 export interface PostCycleAvailability {

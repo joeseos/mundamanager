@@ -768,6 +768,7 @@ export default function GangPageContent({
               userPermissions={userPermissions}
               onFighterUpdate={handleFighterUpdate}
               onGangFinancialsUpdate={handleGangFinancialsUpdate}
+              onGangTradePointsUpdate={handleGangTradePointsUpdate}
               onTacticsCardAdded={handleTacticsCardAdded}
             />
           )}
