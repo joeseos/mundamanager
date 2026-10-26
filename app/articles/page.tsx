@@ -2,7 +2,6 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ForumArticleCard } from '@/components/forum/forum-article-card';
-import { ForumArticleQueue } from '@/components/forum/forum-article-queue';
 import { getForumArticles } from '@/app/lib/forum';
 
 export const metadata: Metadata = {
@@ -40,8 +39,6 @@ export default async function ArticlesPage() {
             </div>
           </div>
         )}
-
-        <ForumArticleQueue />
 
         <div className="bg-card shadow-md rounded-lg p-4 flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="flex-1">

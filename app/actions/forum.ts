@@ -13,16 +13,13 @@ import {
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import {
-  FORUM_POSTS_PER_PAGE,
   type ForumArticleSubmission,
   forumArticlePath,
-  formatForumDate,
   forumCategoryPath,
   forumMentionIds,
-  forumPageHref,
+  forumPostHref,
   type ForumTag,
   forumThreadPath,
-  getForumArticleQueue,
   getForumArticleSubmission,
   getForumCategories,
   type ForumPostLikes,
@@ -82,8 +79,7 @@ function writeErrorMessage(error: PostgrestError, fallback: string, refusal = "Y
 }
 
 function postPath(thread: ThreadRow, postNumber: number): string {
-  const path = forumThreadPath(thread.forum_categories?.slug ?? '', thread.number, thread.title);
-  return `${forumPageHref(path, Math.ceil(postNumber / FORUM_POSTS_PER_PAGE))}#post-${postNumber}`;
+  return forumPostHref(forumThreadPath(thread.forum_categories?.slug ?? '', thread.number, thread.title), postNumber);
 }
 
 // So one post can't notify a crowd
@@ -432,27 +428,6 @@ export async function getForumThreadViewer(params: { threadNumber: number; page:
   return { likes, submission };
 }
 
-export interface ForumArticleQueueEntry {
-  number: number;
-  title: string;
-  path: string;
-  author: string | null;
-  submitted: string;
-}
-
-/** The suggestions awaiting review, for moderators on /articles, loaded by the browser so the page stays static. */
-export async function getForumArticleQueueEntries(): Promise<ForumArticleQueueEntry[]> {
-  const claims = await createClient().then(getClaims);
-  if (!claims || !isForumModeratorRole(claims.profile?.user_role)) return [];
-  return (await getForumArticleQueue(claims.userId)).map((item) => ({
-    number: item.number,
-    title: item.title,
-    path: forumThreadPath(item.category_slug, item.number, item.title),
-    author: item.author,
-    submitted: formatForumDate(item.submitted_at),
-  }));
-}
-
 /** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */
 export async function setForumPostLike(params: { postId: string; liked: boolean }): Promise<ForumActionResult> {
   try {
@@ -477,6 +452,82 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
   } catch (error) {
     console.error('Failed to update the like', error);
     return { success: false, error: 'Failed to update the like' };
+  }
+}
+
+// Same limits as the forum_reports check constraint; the minimum asks for more than "not good"
+const REPORT_REASON_MIN_LENGTH = 50;
+const REPORT_REASON_MAX_LENGTH = 500;
+
+/**
+ * Reports a post to the moderators, or a thread through its opening post, saying why.
+ * RLS refuses your own posts and removed ones, and a post can be reported once.
+ */
+export async function reportForumPost(
+  params: { postId: string } | { threadId: string },
+  reason: string,
+): Promise<ForumActionResult> {
+  // Server actions can be called with anything
+  const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+  // In characters, as Postgres counts them, not UTF-16 units
+  const reasonLength = [...trimmedReason].length;
+  if (reasonLength < REPORT_REASON_MIN_LENGTH) {
+    return { success: false, error: `Say why you are reporting it in at least ${REPORT_REASON_MIN_LENGTH} characters` };
+  }
+  if (reasonLength > REPORT_REASON_MAX_LENGTH) {
+    return { success: false, error: `Reasons can be at most ${REPORT_REASON_MAX_LENGTH} characters` };
+  }
+
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    let postId: string;
+    if ('postId' in params) {
+      postId = params.postId;
+    } else {
+      const { data, error } = await supabase
+        .from('forum_posts')
+        .select('id')
+        .eq('thread_id', params.threadId)
+        .eq('post_number', 1)
+        .single();
+      if (error) throw error;
+      postId = data.id;
+    }
+
+    const { error } = await supabase.from('forum_reports').insert({ post_id: postId, reporter_id: user.id, reason: trimmedReason });
+    if (error?.code === '23505') return { success: false, error: 'You already reported this' };
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to report the post', "You can't report this post") };
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to report the post', error);
+    return { success: false, error: 'Failed to report the post' };
+  }
+}
+
+/**
+ * Deletes a post's reports up to the last one the moderator saw, leaving the post
+ * as it is (moderators only). Later reports stay for another look.
+ */
+export async function dismissForumPostReports(params: { postId: string; reportedUntil: string }): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    // RLS lets only moderators delete reports
+    const { data, error } = await supabase
+      .from('forum_reports')
+      .delete()
+      .eq('post_id', params.postId)
+      .lte('created_at', params.reportedUntil)
+      .select('post_id');
+    if (error) throw error;
+    if (!data.length) return { success: false, error: 'These reports were already handled' };
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to dismiss the reports', error);
+    return { success: false, error: 'Failed to dismiss the reports' };
   }
 }
 
