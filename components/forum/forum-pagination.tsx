@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { forumPageHref } from '@/app/lib/forum';
 
 interface ForumPaginationProps {
-  /** The page's path without ?page=. */
+  /** The path of the thread or category's first page. */
   path: string;
   page: number;
   pageCount: number;

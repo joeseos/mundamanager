@@ -3,7 +3,7 @@
 import { after } from 'next/server';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, getClaims, isForumModeratorRole } from '@/utils/auth';
 import {
   invalidateForumArticles,
   invalidateForumThread,
@@ -16,13 +16,20 @@ import {
   FORUM_POSTS_PER_PAGE,
   type ForumArticleSubmission,
   forumArticlePath,
+  formatForumDate,
   forumCategoryPath,
   forumMentionIds,
   forumPageHref,
   type ForumTag,
   forumThreadPath,
+  getForumArticleQueue,
+  getForumArticleSubmission,
   getForumCategories,
+  type ForumPostLikes,
+  getForumPostLikes,
+  getForumPosts,
   getForumTags,
+  getForumThread,
 } from '@/app/lib/forum';
 
 export interface ForumActionResult {
@@ -398,6 +405,52 @@ export async function getForumTagOptions(): Promise<ForumTag[]> {
 /** The categories a moderator can move a thread to, loaded when the Move dialog opens. */
 export async function getForumMoveCategories(): Promise<{ id: string; name: string }[]> {
   return (await getForumCategories()).map(({ id, name }) => ({ id, name }));
+}
+
+export interface ForumThreadViewerData {
+  /** By post id. */
+  likes: Record<string, ForumPostLikes>;
+  submission: ForumArticleSubmission | null;
+}
+
+/**
+ * The thread page's parts for the signed-in viewer alone, loaded by the browser
+ * so the page itself stays static: the page's likes, and the thread's article
+ * suggestion for its author and moderators.
+ */
+export async function getForumThreadViewer(params: { threadNumber: number; page: number }): Promise<ForumThreadViewerData | null> {
+  const [claims, thread] = await Promise.all([createClient().then(getClaims), getForumThread(params.threadNumber)]);
+  if (!claims || !thread) return null;
+  const posts = await getForumPosts(thread, params.page);
+  // Only the author and moderators can see a suggestion, and publishing ends it
+  const showSuggestion =
+    !thread.article_published_at && (claims.userId === thread.author_id || isForumModeratorRole(claims.profile?.user_role));
+  const [likes, submission] = await Promise.all([
+    getForumPostLikes(claims.userId, posts.map((post) => post.id)),
+    showSuggestion ? getForumArticleSubmission(claims.userId, thread.id) : null,
+  ]);
+  return { likes, submission };
+}
+
+export interface ForumArticleQueueEntry {
+  number: number;
+  title: string;
+  path: string;
+  author: string | null;
+  submitted: string;
+}
+
+/** The suggestions awaiting review, for moderators on /articles, loaded by the browser so the page stays static. */
+export async function getForumArticleQueueEntries(): Promise<ForumArticleQueueEntry[]> {
+  const claims = await createClient().then(getClaims);
+  if (!claims || !isForumModeratorRole(claims.profile?.user_role)) return [];
+  return (await getForumArticleQueue(claims.userId)).map((item) => ({
+    number: item.number,
+    title: item.title,
+    path: forumThreadPath(item.category_slug, item.number, item.title),
+    author: item.author,
+    submitted: formatForumDate(item.submitted_at),
+  }));
 }
 
 /** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */

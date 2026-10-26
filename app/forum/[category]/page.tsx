@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
 import {
   FORUM_THREADS_PER_PAGE,
@@ -17,9 +17,14 @@ import { ForumPagination } from '@/components/forum/forum-pagination';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 
+/** Also renders page/[page], the category's later pages. */
 interface ForumCategoryPageProps {
-  params: Promise<{ category: string }>;
-  searchParams: Promise<{ page?: string | string[] }>;
+  params: Promise<{ category: string; page?: string }>;
+}
+
+// None at build: each renders on its first visit, then is cached
+export async function generateStaticParams() {
+  return [];
 }
 
 export async function generateMetadata({ params }: ForumCategoryPageProps): Promise<Metadata> {
@@ -31,13 +36,15 @@ export async function generateMetadata({ params }: ForumCategoryPageProps): Prom
   };
 }
 
-export default async function ForumCategoryPage({ params, searchParams }: ForumCategoryPageProps) {
-  const [{ category: slug }, { page: pageParam }] = await Promise.all([params, searchParams]);
+export default async function ForumCategoryPage({ params }: ForumCategoryPageProps) {
+  const { category: slug, page: pageParam } = await params;
   const category = await getForumCategory(slug);
   const page = parseForumPage(pageParam);
   if (!category || page === null) notFound();
 
-  // Checked before the read so out-of-range pages add no cache entries
+  if (pageParam === '1') redirect(forumCategoryPath(category.slug));
+
+  // Checked before the read, so out-of-range pages add no data cache entries
   const pageCount = forumPageCount(category.thread_count, FORUM_THREADS_PER_PAGE);
   if (page > pageCount) notFound();
 

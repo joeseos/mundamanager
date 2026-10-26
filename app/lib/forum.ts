@@ -282,16 +282,22 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
   )();
 }
 
-/** Which of these posts the user has liked. Per viewer, so not cached; RLS shows a user only their own likes. */
-export async function getForumLikedPostIds(userId: string, postIds: string[]): Promise<Set<string>> {
-  if (!postIds.length) return new Set();
+export interface ForumPostLikes {
+  count: number;
+  liked: boolean;
+}
+
+/** These posts' likes as they are now, and whether the user has liked each. Per viewer, so not cached; RLS shows a user only their own likes. */
+export async function getForumPostLikes(userId: string, postIds: string[]): Promise<Record<string, ForumPostLikes>> {
+  if (!postIds.length) return {};
   const rows = await withUserClaims(userId, (tx) =>
     tx
-      .select({ post_id: forumPostLikes.post_id })
-      .from(forumPostLikes)
-      .where(and(eq(forumPostLikes.user_id, userId), inArray(forumPostLikes.post_id, postIds)))
+      .select({ id: forumPosts.id, count: forumPosts.like_count, liked: sql<boolean>`${forumPostLikes.user_id} is not null` })
+      .from(forumPosts)
+      .leftJoin(forumPostLikes, and(eq(forumPostLikes.post_id, forumPosts.id), eq(forumPostLikes.user_id, userId)))
+      .where(inArray(forumPosts.id, postIds))
   );
-  return new Set(rows.map((row) => row.post_id));
+  return Object.fromEntries(rows.map(({ id, ...likes }) => [id, likes]));
 }
 
 export function forumCategoryPath(categorySlug: string): string {
@@ -312,9 +318,9 @@ export function forumMentionIds(html: string): Set<string> {
   return new Set(Array.from(html.matchAll(MENTION), ([, tag]) => mentionId(tag)).filter((id) => id !== undefined));
 }
 
-/** A page of a thread or category: page 1 is the bare path, the others add ?page=. */
+/** A page of a thread or category: page 1 is the bare path, the others add /page/<n>. */
 export function forumPageHref(path: string, page: number): string {
-  return page === 1 ? path : `${path}?page=${page}`;
+  return page === 1 ? path : `${path}/page/${page}`;
 }
 
 /** The thread number from a `<number>-<title slug>` URL segment, or null. */
@@ -323,10 +329,10 @@ export function parseForumThreadNumber(segment: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** The page number from ?page=, or null when it isn't a whole number from 1. */
-export function parseForumPage(value: string | string[] | undefined): number | null {
+/** The page number from /page/<n>, or null when it isn't a whole number from 1. */
+export function parseForumPage(value: string | undefined): number | null {
   if (value === undefined) return 1;
-  return typeof value === 'string' && /^[1-9]\d{0,5}$/.test(value) ? Number(value) : null;
+  return /^[1-9]\d{0,5}$/.test(value) ? Number(value) : null;
 }
 
 export function forumPageCount(itemCount: number, perPage: number): number {

@@ -7,10 +7,6 @@ import {
   getForumCategories,
 } from '@/app/lib/forum';
 
-// Rendered per request: DATABASE_URL only exists at runtime, so the build can't
-// read the forum. getForumCategories() is cached, so a request doesn't hit the database.
-export const dynamic = 'force-dynamic';
-
 export const metadata: Metadata = {
   title: 'Forum - Munda Manager',
   description: 'Discuss Necromunda rules, gangs, miniatures and battles with the Munda Manager community.',

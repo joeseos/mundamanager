@@ -21,7 +21,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { ForumTagPicker } from '@/components/forum/forum-tag-picker';
-import { useForumViewer } from '@/components/forum/forum-viewer';
+import { useForumThreadViewer, useForumViewer } from '@/components/forum/forum-viewer';
 import {
   type ForumActionResult,
   getForumMoveCategories,
@@ -40,10 +40,25 @@ interface ForumThreadMenuProps {
   isLocked: boolean;
   isArticle: boolean;
   categoryId: string;
-  isAuthor: boolean;
-  /** The author's suggestion of the thread as an article, null when there is none or the viewer can't see it. */
-  submissionStatus: ForumArticleSubmission['status'] | null;
   tagIds: string[];
+}
+
+const SUGGESTION_TEXT: Record<ForumArticleSubmission['status'], string> = {
+  submitted: 'Submitted for publication as an article',
+  changes_requested: 'Changes were requested before publication',
+  declined: 'Not published as an article',
+};
+
+/** Where the author's suggestion of the thread as an article stands, for its author and moderators. */
+export function ForumArticleSuggestion() {
+  const submission = useForumThreadViewer().data?.submission;
+  if (!submission) return null;
+  return (
+    <p className="text-sm text-muted-foreground whitespace-pre-line">
+      {SUGGESTION_TEXT[submission.status]}
+      {submission.review_note ? `: ${submission.review_note}` : '.'}
+    </p>
+  );
 }
 
 type NoteDecision = 'changes_requested' | 'declined';
@@ -64,11 +79,11 @@ export function ForumThreadMenu({
   isLocked,
   isArticle,
   categoryId,
-  isAuthor,
-  submissionStatus,
   tagIds,
 }: ForumThreadMenuProps) {
-  const { isModerator, loading } = useForumViewer();
+  const { isModerator } = useForumViewer();
+  const { isAuthor, data: viewer, reload } = useForumThreadViewer();
+  const submissionStatus = viewer?.submission?.status ?? null;
   const router = useRouter();
   const [updating, startUpdate] = useTransition();
   const [moveTo, setMoveTo] = useState<string | null>(null);
@@ -81,21 +96,20 @@ export function ForumThreadMenu({
   const [editedTagIds, setEditedTagIds] = useState<string[] | null>(null);
 
   // Moderators publish directly, so only other authors suggest
-  // Wait for the role, so a moderator's own thread never offers it
-  const canSubmit = !loading && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
+  // Wait for the suggestion, and with it the role, so a pending suggestion or a moderator's own thread never offers it
+  const canSubmit = !!viewer && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
   // A locked thread's tags are the moderators', like its title
   const canEditTags = isModerator || (isAuthor && !isLocked);
   if (!canSubmit && !canEditTags) return null;
 
-  // Resolves false on a failure, so the note dialog stays open. Suggestions aren't
-  // cached, so their actions refresh the page; the flag actions' cache invalidation already does.
-  const run = (action: () => Promise<ForumActionResult>, fallback: string, refresh = true) =>
+  // Resolves false on a failure, so the note dialog stays open. The suggestion loads apart from the page, so it reloads too.
+  const run = (action: () => Promise<ForumActionResult>, fallback: string) =>
     new Promise<boolean>((resolve) =>
       startUpdate(async () => {
         try {
           const result = await action();
           if (!result.success) throw new Error(result.error);
-          if (refresh) router.refresh();
+          await reload();
           resolve(true);
         } catch (error) {
           toast.error(error instanceof Error ? error.message : fallback);
@@ -105,7 +119,7 @@ export function ForumThreadMenu({
     );
 
   const toggle = (flag: 'is_pinned' | 'is_locked' | 'is_article', value: boolean) =>
-    run(() => setForumThreadFlag({ threadId, flag, value }), 'Failed to update the thread', false);
+    run(() => setForumThreadFlag({ threadId, flag, value }), 'Failed to update the thread');
 
   const openMove = () =>
     startUpdate(async () => {
@@ -234,7 +248,7 @@ export function ForumThreadMenu({
           title="Edit Tags"
           content={<ForumTagPicker tags={allTags} selected={editedTagIds} onChange={setEditedTagIds} />}
           onClose={() => setEditedTagIds(null)}
-          onConfirm={() => run(() => setForumThreadTags({ threadId, tagIds: editedTagIds }), 'Failed to update the tags', false)}
+          onConfirm={() => run(() => setForumThreadTags({ threadId, tagIds: editedTagIds }), 'Failed to update the tags')}
           confirmText="Save"
         />
       )}
