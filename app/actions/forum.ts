@@ -455,11 +455,28 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
   }
 }
 
-/** Reports a post to the moderators. RLS refuses your own posts and removed ones; reporting twice changes nothing. */
-export async function reportForumPost(postId: string): Promise<ForumActionResult> {
+/**
+ * Reports a post to the moderators, or a thread through its opening post. RLS
+ * refuses your own posts and removed ones; reporting twice changes nothing.
+ */
+export async function reportForumPost(params: { postId: string } | { threadId: string }): Promise<ForumActionResult> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+
+    let postId: string;
+    if ('postId' in params) {
+      postId = params.postId;
+    } else {
+      const { data, error } = await supabase
+        .from('forum_posts')
+        .select('id')
+        .eq('thread_id', params.threadId)
+        .eq('post_number', 1)
+        .single();
+      if (error) throw error;
+      postId = data.id;
+    }
 
     const { error } = await supabase
       .from('forum_reports')

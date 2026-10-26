@@ -103,7 +103,7 @@ function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
 }
 
 /**
- * A post's text, with Quote for signed-in users, Report for members other than its author,
+ * A post's text, with Quote for signed-in users, Report on replies for members other than their author,
  * Edit for its author and moderators, and Delete for moderators.
  */
 export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
@@ -114,7 +114,6 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [confirmingReport, setConfirmingReport] = useState(false);
   const isOpeningPost = post.post_number === 1;
-  const reportLabel = isOpeningPost ? 'Report thread' : 'Report post';
 
   const handleDelete = async () => {
     try {
@@ -130,7 +129,7 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
 
   const handleReport = async () => {
     try {
-      const result = await reportForumPost(post.id);
+      const result = await reportForumPost({ postId: post.id });
       if (!result.success) throw new Error(result.error);
       toast.success('Reported to the moderators');
       return true;
@@ -176,14 +175,15 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
             <LuQuote className="h-4 w-4" />
           </Button>
         )}
-        {userId !== null && userId !== post.author_id && !isModerator && (
+        {/* The thread's ... menu reports the opening post, as the thread */}
+        {userId !== null && userId !== post.author_id && !isModerator && !isOpeningPost && (
           <Button
             variant="ghost"
             size="sm"
             className="w-9 p-0"
             onClick={() => setConfirmingReport(true)}
-            title={reportLabel}
-            aria-label={reportLabel}
+            title="Report post"
+            aria-label="Report post"
           >
             <LuFlag className="h-4 w-4" />
           </Button>
@@ -215,14 +215,8 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
       </div>
       {confirmingReport && (
         <Modal
-          title={reportLabel}
-          content={
-            <p>
-              {isOpeningPost
-                ? `Report the thread "${threadTitle}" to the moderators?`
-                : `Report this post by ${post.author ?? 'Unknown User'} to the moderators?`}
-            </p>
-          }
+          title="Report Post"
+          content={<p>Report this post by {post.author ?? 'Unknown User'} to the moderators?</p>}
           onClose={() => setConfirmingReport(false)}
           onConfirm={handleReport}
           confirmText="Report"

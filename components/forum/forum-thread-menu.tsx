@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LuEllipsis,
+  LuFlag,
   LuFolderInput,
   LuLock,
   LuLockOpen,
@@ -27,6 +28,7 @@ import {
   getForumMoveCategories,
   getForumTagOptions,
   moveForumThread,
+  reportForumPost,
   reviewForumArticle,
   setForumThreadFlag,
   setForumThreadTags,
@@ -71,7 +73,7 @@ const NOTE_DECISIONS: Record<NoteDecision, { title: string; confirmText: string;
 /**
  * The thread's ... menu, in its header on every page: moderators pin, lock, move
  * and publish the thread and answer its suggestion, its author suggests it as an
- * article, and both edit its tags.
+ * article, both edit its tags, and other members report it.
  */
 export function ForumThreadMenu({
   threadId,
@@ -81,7 +83,7 @@ export function ForumThreadMenu({
   categoryId,
   tagIds,
 }: ForumThreadMenuProps) {
-  const { isModerator } = useForumViewer();
+  const { userId, isModerator } = useForumViewer();
   const { isAuthor, data: viewer, reload } = useForumThreadViewer();
   const submissionStatus = viewer?.submission?.status ?? null;
   const router = useRouter();
@@ -94,13 +96,16 @@ export function ForumThreadMenu({
   // Loaded the first time the Edit tags dialog opens, like the categories
   const [allTags, setAllTags] = useState<ForumTag[] | null>(null);
   const [editedTagIds, setEditedTagIds] = useState<string[] | null>(null);
+  const [confirmingReport, setConfirmingReport] = useState(false);
 
   // Moderators publish directly, so only other authors suggest
   // Wait for the suggestion, and with it the role, so a pending suggestion or a moderator's own thread never offers it
   const canSubmit = !!viewer && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
   // A locked thread's tags are the moderators', like its title
   const canEditTags = isModerator || (isAuthor && !isLocked);
-  if (!canSubmit && !canEditTags) return null;
+  // Moderators handle reports, so they don't make them
+  const canReport = userId !== null && !isAuthor && !isModerator;
+  if (!canSubmit && !canEditTags && !canReport) return null;
 
   // Resolves false on a failure, so the note dialog stays open. The suggestion loads apart from the page, so it reloads too.
   const run = (action: () => Promise<ForumActionResult>, fallback: string) =>
@@ -172,6 +177,12 @@ export function ForumThreadMenu({
             <DropdownMenuItem onClick={openTags}>
               <LuTags className="mr-2 h-4 w-4" />
               Edit tags
+            </DropdownMenuItem>
+          )}
+          {canReport && (
+            <DropdownMenuItem onClick={() => setConfirmingReport(true)}>
+              <LuFlag className="mr-2 h-4 w-4" />
+              Report thread
             </DropdownMenuItem>
           )}
           {isModerator && (
@@ -250,6 +261,21 @@ export function ForumThreadMenu({
           onClose={() => setEditedTagIds(null)}
           onConfirm={() => run(() => setForumThreadTags({ threadId, tagIds: editedTagIds }), 'Failed to update the tags')}
           confirmText="Save"
+        />
+      )}
+      {confirmingReport && (
+        <Modal
+          title="Report Thread"
+          content={<p>Report this thread to the moderators?</p>}
+          onClose={() => setConfirmingReport(false)}
+          onConfirm={() =>
+            run(async () => {
+              const result = await reportForumPost({ threadId });
+              if (result.success) toast.success('Reported to the moderators');
+              return result;
+            }, 'Failed to report the thread')
+          }
+          confirmText="Report"
         />
       )}
       {noteDecision && (
