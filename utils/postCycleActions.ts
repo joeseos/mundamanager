@@ -114,9 +114,9 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
   'underhive trader': ['visit_trading_post'],
 };
 
-/** The Connected skill opens Visit Trading Post to any fighter who has it. */
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
   (OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false) ||
+  // The Connected skill opens Visit Trading Post to any fighter who has it.
   (action === 'visit_trading_post' && fighter.skills?.Connected !== undefined);
 
 /** Must match the seeded N26 effect_name exactly. */

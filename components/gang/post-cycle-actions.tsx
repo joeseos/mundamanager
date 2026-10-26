@@ -62,8 +62,7 @@ interface PostCycleActionsProps {
   tacticsCards: GangTacticsCard[];
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
-  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
-  onGangTradePointsUpdate?: (tradePoints: number) => void;
+  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number; trade_points?: number }) => void;
   onTacticsCardAdded?: (card: GangTacticsCard) => void;
 }
 
@@ -193,7 +192,6 @@ export default function PostCycleActions({
   userPermissions,
   onFighterUpdate,
   onGangFinancialsUpdate,
-  onGangTradePointsUpdate,
   onTacticsCardAdded,
 }: PostCycleActionsProps) {
   /** The actions picked so far; nothing is applied until Confirm. */
@@ -491,7 +489,6 @@ export default function PostCycleActions({
         if (current) onFighterUpdate?.(applyChange(current, change), true);
       }
       if (result.gang) onGangFinancialsUpdate?.(result.gang);
-      if (result.gang && result.outcome?.tradePointsDelta) onGangTradePointsUpdate?.(result.gang.trade_points);
       if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
 
       if (!result.success) {
