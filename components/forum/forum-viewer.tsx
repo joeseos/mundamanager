@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
+import { PERSISTED_QUERY_MAX_AGE } from '@/app/providers/query-client-provider';
 import { isForumModeratorRole } from '@/utils/auth';
 import {
   type ForumThreadViewerData,
@@ -97,72 +98,28 @@ export const useForumThreadViewer = () => useContext(ForumThreadViewerContext);
 
 const ForumUnreadThreadsContext = createContext<number[]>([]);
 
-// The last post the viewer is known to have read in each thread, by thread
-// number, so a later visit can show the bold titles before the server answers
-const readThreadsKey = (userId: string) => `forum-read-threads:${userId}`;
-// Enough for every thread a page shows many times over, so the entry stays small
-const READ_THREADS_LIMIT = 500;
-
-type ReadThreads = Record<string, string>;
-
-function loadReadThreads(userId: string): ReadThreads {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(readThreadsKey(userId)) ?? '{}');
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveReadThreads(userId: string, update: (read: ReadThreads) => void) {
-  const read = loadReadThreads(userId);
-  update(read);
-  // Keep the threads read most recently
-  const kept = Object.entries(read)
-    .sort(([, a], [, b]) => b.localeCompare(a))
-    .slice(0, READ_THREADS_LIMIT);
-  try {
-    localStorage.setItem(readThreadsKey(userId), JSON.stringify(Object.fromEntries(kept)));
-  } catch {
-    // Storage can be unavailable: the list then waits for the server
-  }
-}
-
-const isReadUpTo = (read: ReadThreads, thread: { number: number; last_post_at: string }) =>
-  read[thread.number] !== undefined && Date.parse(read[thread.number]) >= Date.parse(thread.last_post_at);
-
 /** Which of a category page's threads the signed-in viewer hasn't read, loaded in the browser so the page itself is static. */
 export function ForumUnreadThreadsProvider({
+  categoryId,
+  page,
   threads,
   children,
 }: {
+  categoryId: string;
+  page: number;
   threads: { number: number; last_post_at: string }[];
   children: ReactNode;
 }) {
   const { userId } = useForumViewer();
-  const { data, isPlaceholderData } = useQuery({
-    // With each thread's last post, so a new post loads it again
-    queryKey: ['forum-unread-threads', userId, threads],
+  const { data } = useQuery({
+    queryKey: ['forum-unread-threads', userId, categoryId, page],
     queryFn: () => getForumUnreadThreads(threads.map((thread) => thread.number)),
     enabled: userId !== null,
-    // What this browser last knew, shown until the server answers
-    placeholderData: () => {
-      if (!userId) return undefined;
-      const read = loadReadThreads(userId);
-      return threads.filter((thread) => !isReadUpTo(read, thread)).map((thread) => thread.number);
-    },
+    // Shows the last answer saved in this browser at once and asks the server on every visit
+    meta: { persist: true },
+    staleTime: 0,
+    gcTime: PERSISTED_QUERY_MAX_AGE,
   });
-
-  useEffect(() => {
-    if (!userId || !data || isPlaceholderData) return;
-    saveReadThreads(userId, (read) => {
-      for (const thread of threads) {
-        if (data.includes(thread.number)) delete read[thread.number];
-        else read[thread.number] = thread.last_post_at;
-      }
-    });
-  }, [userId, data, isPlaceholderData, threads]);
-
   return <ForumUnreadThreadsContext.Provider value={data ?? []}>{children}</ForumUnreadThreadsContext.Provider>;
 }
 
@@ -197,15 +154,12 @@ export function ForumMarkThreadRead({
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!userId) return;
-    markForumThreadRead({ threadId, lastPostAt }).then(() => {
-      saveReadThreads(userId, (read) => {
-        read[threadNumber] = lastPostAt;
-      });
-      // Lists already loaded this visit show it read at once
+    markForumThreadRead({ threadId, lastPostAt }).then(() =>
+      // Lists already loaded show it read before they ask the server again
       queryClient.setQueriesData<number[]>({ queryKey: ['forum-unread-threads'] }, (unread) =>
         unread?.filter((number) => number !== threadNumber),
-      );
-    });
+      ),
+    );
   }, [userId, threadId, threadNumber, lastPostAt, queryClient]);
   return null;
 }
