@@ -2,14 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LuHeart, LuPencil, LuQuote, LuTrash2 } from 'react-icons/lu';
+import { LuFlag, LuHeart, LuPencil, LuQuote, LuTrash2 } from 'react-icons/lu';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
 import { useForumThreadViewer, useForumViewer } from '@/components/forum/forum-viewer';
 import { useForumQuote } from '@/components/forum/forum-reply-box';
-import { deleteForumPost, editForumPost, setForumPostLike } from '@/app/actions/forum';
+import { deleteForumPost, editForumPost, reportForumPost, setForumPostLike } from '@/app/actions/forum';
 
 interface ForumPostContentProps {
   post: {
@@ -102,14 +102,19 @@ function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
   );
 }
 
-/** A post's text, with Quote for signed-in users, Edit for its author and moderators, and Delete for moderators. */
+/**
+ * A post's text, with Quote for signed-in users, Report for everyone but its author,
+ * Edit for its author and moderators, and Delete for moderators.
+ */
 export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
   const router = useRouter();
   const { userId, isModerator } = useForumViewer();
   const quote = useForumQuote();
   const [editing, setEditing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingReport, setConfirmingReport] = useState(false);
   const isOpeningPost = post.post_number === 1;
+  const reportLabel = isOpeningPost ? 'Report thread' : 'Report post';
 
   const handleDelete = async () => {
     try {
@@ -121,6 +126,16 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
       toast.error(error instanceof Error ? error.message : 'Failed to delete the post');
       return false;
     }
+  };
+
+  const handleReport = async () => {
+    const result = await reportForumPost(post.id);
+    if (!result.success) {
+      toast.error(result.error);
+      return false;
+    }
+    toast.success('Reported to the moderators');
+    return true;
   };
 
   if (editing) {
@@ -159,6 +174,18 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
             <LuQuote className="h-4 w-4" />
           </Button>
         )}
+        {userId !== null && userId !== post.author_id && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-9 p-0"
+            onClick={() => setConfirmingReport(true)}
+            title={reportLabel}
+            aria-label={reportLabel}
+          >
+            <LuFlag className="h-4 w-4" />
+          </Button>
+        )}
         {userId !== null && (userId === post.author_id || isModerator) && (
           <Button
             variant="ghost"
@@ -184,6 +211,21 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
           </Button>
         )}
       </div>
+      {confirmingReport && (
+        <Modal
+          title={reportLabel}
+          content={
+            <p>
+              {isOpeningPost
+                ? `Report the thread "${threadTitle}" to the moderators?`
+                : `Report this post by ${post.author ?? 'Unknown User'} to the moderators?`}
+            </p>
+          }
+          onClose={() => setConfirmingReport(false)}
+          onConfirm={handleReport}
+          confirmText="Report"
+        />
+      )}
       {confirmingDelete && (
         <Modal
           title={isOpeningPost ? 'Delete Thread' : 'Delete Post'}

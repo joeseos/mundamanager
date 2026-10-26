@@ -13,16 +13,13 @@ import {
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import {
-  FORUM_POSTS_PER_PAGE,
   type ForumArticleSubmission,
   forumArticlePath,
-  formatForumDate,
   forumCategoryPath,
   forumMentionIds,
-  forumPageHref,
+  forumPostHref,
   type ForumTag,
   forumThreadPath,
-  getForumArticleQueue,
   getForumArticleSubmission,
   getForumCategories,
   type ForumPostLikes,
@@ -82,8 +79,7 @@ function writeErrorMessage(error: PostgrestError, fallback: string, refusal = "Y
 }
 
 function postPath(thread: ThreadRow, postNumber: number): string {
-  const path = forumThreadPath(thread.forum_categories?.slug ?? '', thread.number, thread.title);
-  return `${forumPageHref(path, Math.ceil(postNumber / FORUM_POSTS_PER_PAGE))}#post-${postNumber}`;
+  return forumPostHref(forumThreadPath(thread.forum_categories?.slug ?? '', thread.number, thread.title), postNumber);
 }
 
 // So one post can't notify a crowd
@@ -292,6 +288,10 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to delete the post', MODERATORS_ONLY) };
     if (!removed.length) return { success: false, error: MODERATORS_ONLY };
 
+    // A removed post has nothing left to report
+    const { error: reportsError } = await supabase.from('forum_reports').delete().eq('post_id', postId);
+    if (reportsError) console.error("Failed to clear the post's reports", reportsError);
+
     // The thread list shows nothing of a reply but the count, which a removal keeps
     invalidateForumThreadPosts(thread.number);
     return { success: true, path: postPath(thread, post.post_number) };
@@ -432,27 +432,6 @@ export async function getForumThreadViewer(params: { threadNumber: number; page:
   return { likes, submission };
 }
 
-export interface ForumArticleQueueEntry {
-  number: number;
-  title: string;
-  path: string;
-  author: string | null;
-  submitted: string;
-}
-
-/** The suggestions awaiting review, for moderators on /articles, loaded by the browser so the page stays static. */
-export async function getForumArticleQueueEntries(): Promise<ForumArticleQueueEntry[]> {
-  const claims = await createClient().then(getClaims);
-  if (!claims || !isForumModeratorRole(claims.profile?.user_role)) return [];
-  return (await getForumArticleQueue(claims.userId)).map((item) => ({
-    number: item.number,
-    title: item.title,
-    path: forumThreadPath(item.category_slug, item.number, item.title),
-    author: item.author,
-    submitted: formatForumDate(item.submitted_at),
-  }));
-}
-
 /** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */
 export async function setForumPostLike(params: { postId: string; liked: boolean }): Promise<ForumActionResult> {
   try {
@@ -477,6 +456,40 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
   } catch (error) {
     console.error('Failed to update the like', error);
     return { success: false, error: 'Failed to update the like' };
+  }
+}
+
+/** Reports a post to the moderators. RLS refuses your own posts and removed ones; reporting twice changes nothing. */
+export async function reportForumPost(postId: string): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { error } = await supabase
+      .from('forum_reports')
+      .upsert({ post_id: postId, reporter_id: user.id }, { ignoreDuplicates: true });
+    if (error) return { success: false, error: writeErrorMessage(error, 'Failed to report the post', "You can't report this post") };
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to report the post', error);
+    return { success: false, error: 'Failed to report the post' };
+  }
+}
+
+/** Deletes a post's reports, leaving the post as it is (moderators only). */
+export async function dismissForumPostReports(postId: string): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    // RLS lets only moderators delete reports
+    const { data, error } = await supabase.from('forum_reports').delete().eq('post_id', postId).select('post_id');
+    if (error) throw error;
+    if (!data.length) return { success: false, error: 'These reports were already handled' };
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to dismiss the reports', error);
+    return { success: false, error: 'Failed to dismiss the reports' };
   }
 }
 

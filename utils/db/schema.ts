@@ -1061,6 +1061,12 @@ export const forumPostLikes = pgTable('forum_post_likes', {
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [primaryKey({ columns: [table.post_id, table.user_id] })]);
 
+export const forumReports = pgTable('forum_reports', {
+  post_id: uuid('post_id').notNull(),
+  reporter_id: uuid('reporter_id').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.post_id, table.reporter_id] })]);
+
 export const forumArticleSubmissions = pgTable('forum_article_submissions', {
   thread_id: uuid('thread_id').primaryKey(),
   status: text('status').$type<'submitted' | 'changes_requested' | 'declined'>().default('submitted').notNull(),

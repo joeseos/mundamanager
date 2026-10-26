@@ -1,12 +1,13 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { and, asc, between, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, between, count, desc, eq, inArray, isNotNull, max, min, sql } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getAppDb, withUserClaims } from '@/utils/db/client';
 import {
   forumArticleSubmissions,
   forumCategories,
   forumPostLikes,
+  forumReports,
   forumPosts,
   forumTags,
   forumThreads,
@@ -323,6 +324,11 @@ export function forumPageHref(path: string, page: number): string {
   return page === 1 ? path : `${path}/page/${page}`;
 }
 
+/** A post in its thread: the page it's on, scrolled to it. */
+export function forumPostHref(threadPath: string, postNumber: number): string {
+  return `${forumPageHref(threadPath, Math.ceil(postNumber / FORUM_POSTS_PER_PAGE))}#post-${postNumber}`;
+}
+
 /** The thread number from a `<number>-<title slug>` URL segment, or null. */
 export function parseForumThreadNumber(segment: string): number | null {
   const match = /^([1-9]\d{0,14})(?:-|$)/.exec(segment);
@@ -477,4 +483,39 @@ export function getForumArticleQueue(userId: string): Promise<ForumArticleQueueI
 /** /articles/<number>-<title slug>, numbered like the thread. */
 export function forumArticlePath(number: number, title: string): string {
   return `/articles/${number}-${slugifyHeading(title)}`;
+}
+
+export interface ForumReport {
+  post_id: string;
+  post_number: number;
+  thread_number: number;
+  thread_title: string;
+  category_slug: string;
+  author: string | null;
+  report_count: number;
+  last_reported_at: string;
+}
+
+/** Reported posts, longest waiting first. Moderators only and rarely read, so not cached. */
+export function getForumReports(userId: string): Promise<ForumReport[]> {
+  return withUserClaims(userId, (tx) =>
+    tx
+      .select({
+        post_id: forumPosts.id,
+        post_number: forumPosts.post_number,
+        thread_number: forumThreads.number,
+        thread_title: forumThreads.title,
+        category_slug: forumCategories.slug,
+        author: author.username,
+        report_count: count(),
+        last_reported_at: sql<string>`to_json(${max(forumReports.created_at)})`,
+      })
+      .from(forumReports)
+      .innerJoin(forumPosts, eq(forumPosts.id, forumReports.post_id))
+      .innerJoin(forumThreads, eq(forumThreads.id, forumPosts.thread_id))
+      .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
+      .leftJoin(author, eq(author.id, forumPosts.author_id))
+      .groupBy(forumPosts.id, forumThreads.id, forumCategories.slug, author.username)
+      .orderBy(min(forumReports.created_at))
+  );
 }
