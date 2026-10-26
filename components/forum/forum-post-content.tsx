@@ -104,7 +104,7 @@ function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
 }
 
 /**
- * A post's text, with Quote for signed-in users, Report on replies for members other than their author,
+ * A post's text, with Quote for signed-in users, Report on replies for everyone but their author,
  * Edit for its author and moderators, and Delete for moderators.
  */
 export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
@@ -165,7 +165,7 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
           </Button>
         )}
         {/* The thread's ... menu reports the opening post, as the thread */}
-        {userId !== null && userId !== post.author_id && !isModerator && !isOpeningPost && (
+        {userId !== null && userId !== post.author_id && !isOpeningPost && (
           <Button
             variant="ghost"
             size="sm"

@@ -73,7 +73,7 @@ const NOTE_DECISIONS: Record<NoteDecision, { title: string; confirmText: string;
 /**
  * The thread's ... menu, in its header on every page: moderators pin, lock, move
  * and publish the thread and answer its suggestion, its author suggests it as an
- * article, both edit its tags, and other members report it.
+ * article, both edit its tags, and anyone else signed in reports it.
  */
 export function ForumThreadMenu({
   threadId,
@@ -103,8 +103,7 @@ export function ForumThreadMenu({
   const canSubmit = !!viewer && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
   // A locked thread's tags are the moderators', like its title
   const canEditTags = isModerator || (isAuthor && !isLocked);
-  // Moderators handle reports, so they don't make them
-  const canReport = userId !== null && !isAuthor && !isModerator;
+  const canReport = userId !== null && !isAuthor;
   if (!canSubmit && !canEditTags && !canReport) return null;
 
   // Resolves false on a failure, so the note dialog stays open. The suggestion loads apart from the page, so it reloads too.
