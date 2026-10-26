@@ -154,12 +154,13 @@ export function ForumMarkThreadRead({
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!userId) return;
-    markForumThreadRead({ threadId, lastPostAt }).then(() =>
-      // Lists already loaded show it read before they ask the server again
+    markForumThreadRead({ threadId, lastPostAt }).then(() => {
+      // Lists already loaded show it read at once, then ask the server for the real state
       queryClient.setQueriesData<number[]>({ queryKey: ['forum-unread-threads'] }, (unread) =>
         unread?.filter((number) => number !== threadNumber),
-      ),
-    );
+      );
+      return queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] });
+    });
   }, [userId, threadId, threadNumber, lastPostAt, queryClient]);
   return null;
 }
