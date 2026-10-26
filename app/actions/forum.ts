@@ -13,6 +13,7 @@ import {
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
 import { sanitizeArticleHtml } from '@/utils/sanitize-notification-html';
 import {
+  FORUM_THREADS_PER_PAGE,
   type ForumArticleSubmission,
   forumArticlePath,
   forumCategoryPath,
@@ -27,6 +28,8 @@ import {
   getForumPosts,
   getForumTags,
   getForumThread,
+  getForumUnreadThreadNumbers,
+  markForumThreadRead,
 } from '@/app/lib/forum';
 
 export interface ForumActionResult {
@@ -412,7 +415,7 @@ export interface ForumThreadViewerData {
 /**
  * The thread page's parts for the signed-in viewer alone, loaded by the browser
  * so the page itself stays static: the page's likes, and the thread's article
- * suggestion for its author and moderators.
+ * suggestion for its author and moderators. Loading it marks the thread read.
  */
 export async function getForumThreadViewer(params: { threadNumber: number; page: number }): Promise<ForumThreadViewerData | null> {
   const [claims, thread] = await Promise.all([createClient().then(getClaims), getForumThread(params.threadNumber)]);
@@ -424,8 +427,19 @@ export async function getForumThreadViewer(params: { threadNumber: number; page:
   const [likes, submission] = await Promise.all([
     getForumPostLikes(claims.userId, posts.map((post) => post.id)),
     showSuggestion ? getForumArticleSubmission(claims.userId, thread.id) : null,
+    markForumThreadRead(claims.userId, thread.id),
   ]);
   return { likes, submission };
+}
+
+/** Which of a category page's threads have posts the signed-in user hasn't read, loaded by the browser so the page stays static. */
+export async function getForumUnreadThreads(threadNumbers: number[]): Promise<number[]> {
+  // Server actions can be called with anything: at most a page of thread numbers
+  if (!Array.isArray(threadNumbers) || threadNumbers.length > FORUM_THREADS_PER_PAGE || !threadNumbers.every(Number.isInteger)) {
+    return [];
+  }
+  const claims = await createClient().then(getClaims);
+  return claims ? getForumUnreadThreadNumbers(claims.userId, threadNumbers) : [];
 }
 
 /** Likes a post, or takes the like back. RLS refuses likes on your own posts and removed ones. */

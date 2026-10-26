@@ -1,10 +1,11 @@
 'use client';
 
 import { createContext, useContext, type ReactNode } from 'react';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
 import { isForumModeratorRole } from '@/utils/auth';
-import { type ForumThreadViewerData, getForumThreadViewer } from '@/app/actions/forum';
+import { type ForumThreadViewerData, getForumThreadViewer, getForumUnreadThreads } from '@/app/actions/forum';
 
 interface ForumViewer {
   /** null while loading and when signed out. */
@@ -88,3 +89,32 @@ export function ForumThreadViewerProvider({
 }
 
 export const useForumThreadViewer = () => useContext(ForumThreadViewerContext);
+
+const ForumUnreadThreadsContext = createContext<number[]>([]);
+
+/** Which of a category page's threads the signed-in viewer hasn't read, loaded in the browser so the page itself is static. */
+export function ForumUnreadThreadsProvider({ threadNumbers, children }: { threadNumbers: number[]; children: ReactNode }) {
+  const { userId } = useForumViewer();
+  const { data } = useQuery({
+    queryKey: ['forum-unread-threads', userId, threadNumbers],
+    queryFn: () => getForumUnreadThreads(threadNumbers),
+    enabled: userId !== null,
+    // Opening a thread marks it read, so coming back to the list loads it again
+    staleTime: 0,
+  });
+  return <ForumUnreadThreadsContext.Provider value={data ?? []}>{children}</ForumUnreadThreadsContext.Provider>;
+}
+
+/** A thread's title in the category list, in bold while it has posts the viewer hasn't read. */
+export function ForumThreadTitleLink({ number, href, title }: { number: number; href: string; title: string }) {
+  const unread = useContext(ForumUnreadThreadsContext).includes(number);
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={`${unread ? 'font-bold' : 'font-normal'} truncate group-hover:text-red-800 transition-colors after:absolute after:inset-0`}
+    >
+      {title}
+    </Link>
+  );
+}

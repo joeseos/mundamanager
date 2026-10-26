@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { and, asc, between, desc, eq, inArray, isNotNull, isNull, max, min, type SQL, sql } from 'drizzle-orm';
+import { and, asc, between, desc, eq, inArray, isNotNull, isNull, lt, max, min, ne, or, type SQL, sql } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getAppDb, withUserClaims } from '@/utils/db/client';
 import {
@@ -10,6 +10,7 @@ import {
   forumReports,
   forumPosts,
   forumTags,
+  forumThreadReads,
   forumThreads,
   forumThreadTags,
   profiles,
@@ -300,6 +301,38 @@ export async function getForumPostLikes(userId: string, postIds: string[]): Prom
       .where(inArray(forumPosts.id, postIds))
   );
   return Object.fromEntries(rows.map(({ id, ...likes }) => [id, likes]));
+}
+
+/** Records that the user has just read the thread. */
+export async function markForumThreadRead(userId: string, threadId: string): Promise<void> {
+  await withUserClaims(userId, (tx) =>
+    tx
+      .insert(forumThreadReads)
+      .values({ user_id: userId, thread_id: threadId })
+      .onConflictDoUpdate({ target: [forumThreadReads.user_id, forumThreadReads.thread_id], set: { last_read_at: sql`now()` } })
+  );
+}
+
+/**
+ * Of the given threads, the ones with a post the user hasn't read: never opened,
+ * or posted in since they last were. The user's own latest post doesn't count.
+ */
+export async function getForumUnreadThreadNumbers(userId: string, threadNumbers: number[]): Promise<number[]> {
+  if (!threadNumbers.length) return [];
+  const rows = await withUserClaims(userId, (tx) =>
+    tx
+      .select({ number: forumThreads.number })
+      .from(forumThreads)
+      .leftJoin(forumThreadReads, and(eq(forumThreadReads.thread_id, forumThreads.id), eq(forumThreadReads.user_id, userId)))
+      .where(
+        and(
+          inArray(forumThreads.number, threadNumbers),
+          or(isNull(forumThreads.last_post_author_id), ne(forumThreads.last_post_author_id, userId)),
+          or(isNull(forumThreadReads.last_read_at), lt(forumThreadReads.last_read_at, forumThreads.last_post_at))
+        )
+      )
+  );
+  return rows.map((row) => row.number);
 }
 
 export function forumCategoryPath(categorySlug: string): string {
