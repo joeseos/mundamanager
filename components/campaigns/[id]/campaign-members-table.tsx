@@ -18,7 +18,7 @@ import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-alle
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
-import { compactGangTypeLabel, joinedParentGangTypeName } from "@/utils/gang-type-label";
+import { compactGangTypeLabel, detailGangTypeLabel, joinedParentGangTypeName } from "@/utils/gang-type-label";
 import { gangEditionSlug, sameEditionForDisplay } from '@/types/edition';
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
@@ -648,23 +648,24 @@ export default function MembersTable({
             key={gang.id}
             onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
             disabled={gang.isInCampaign}
-            className={`w-full p-3 text-left border rounded-lg transition-colors ${
+            className={`w-full p-3 text-left rounded-lg transition-colors ${
               gang.isInCampaign
-                ? 'bg-muted cursor-not-allowed'
+                ? 'border bg-muted cursor-not-allowed'
                 : selectedGang?.id === gang.id
-                  ? 'border-gray-400 bg-muted'
-                  : 'hover:border-gray-400'
+                  ? 'border-2 border-gray-400 bg-muted'
+                  : 'border hover:border-gray-400'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <div>
+            <div>
+              <div className="flex items-baseline justify-between gap-3">
                 <p className={`font-medium ${gang.isInCampaign ? 'text-muted-foreground' : ''}`}>{gang.name}</p>
-                <p className="text-sm text-muted-foreground">{compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name) || "-"}</p>
+                <p className="shrink-0 text-xs text-muted-foreground">Rating: {gang.rating ?? 0}</p>
               </div>
-              <div className="w-20 flex-none text-right">
-              {gang.isInCampaign && (
-                <p className="text-xs text-muted-foreground italic font-light">Already in a campaign</p>
-              )}
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-xs text-muted-foreground">{detailGangTypeLabel(gang.gang_type, gang.parent_gang_type_name) || "-"}</p>
+                {gang.isInCampaign && (
+                  <p className="shrink-0 text-xs text-muted-foreground italic font-light text-right">Already in a campaign</p>
+                )}
               </div>
             </div>
           </button>
