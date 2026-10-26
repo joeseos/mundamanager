@@ -585,7 +585,7 @@ export default function FighterPage({
 
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-6">
           Loading...
         </div>
@@ -595,7 +595,7 @@ export default function FighterPage({
 
   if (uiState.error || !fighterData.fighter || !fighterData.gang) return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-6">
           Error: {uiState.error || 'Data not found'}
         </div>
@@ -692,7 +692,7 @@ export default function FighterPage({
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-4">
           <div className="mb-4">
             <Combobox
