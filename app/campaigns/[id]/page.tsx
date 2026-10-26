@@ -210,7 +210,7 @@ export default async function CampaignPage(props: {
     }
     return (
       <main className="flex min-h-screen flex-col items-center">
-        <div className="container mx-auto max-w-4xl w-full space-y-4">
+        <div className="w-full space-y-4">
           <div className="text-red-500">Error loading campaign data</div>
         </div>
       </main>

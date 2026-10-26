@@ -39,7 +39,7 @@ export default async function AccountPage() {
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4 mt-2">
+      <div className="w-full space-y-4 mt-2">
         <div className="bg-card shadow-md rounded-lg p-4 md:p-4">
           <div className="flex items-center gap-4 mb-4">
             <AvatarChange
