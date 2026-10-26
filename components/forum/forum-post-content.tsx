@@ -9,7 +9,8 @@ import Modal from '@/components/ui/modal';
 import { ForumPostForm } from '@/components/forum/forum-post-form';
 import { useForumThreadViewer, useForumViewer } from '@/components/forum/forum-viewer';
 import { useForumQuote } from '@/components/forum/forum-reply-box';
-import { deleteForumPost, editForumPost, reportForumPost, setForumPostLike } from '@/app/actions/forum';
+import { ForumReportDialog } from '@/components/forum/forum-reports';
+import { deleteForumPost, editForumPost, setForumPostLike } from '@/app/actions/forum';
 
 interface ForumPostContentProps {
   post: {
@@ -127,18 +128,6 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
     }
   };
 
-  const handleReport = async () => {
-    try {
-      const result = await reportForumPost({ postId: post.id });
-      if (!result.success) throw new Error(result.error);
-      toast.success('Reported to the moderators');
-      return true;
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to report the post');
-      return false;
-    }
-  };
-
   if (editing) {
     return (
       <ForumPostForm
@@ -214,12 +203,11 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
         )}
       </div>
       {confirmingReport && (
-        <Modal
+        <ForumReportDialog
+          target={{ postId: post.id }}
           title="Report Post"
-          content={<p>Report this post by {post.author ?? 'Unknown User'} to the moderators?</p>}
+          question={`Report this post by ${post.author ?? 'Unknown User'} to the moderators?`}
           onClose={() => setConfirmingReport(false)}
-          onConfirm={handleReport}
-          confirmText="Report"
         />
       )}
       {confirmingDelete && (

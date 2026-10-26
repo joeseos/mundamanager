@@ -10,7 +10,7 @@ import {
   getForumArticleQueue,
   getForumReports,
 } from '@/app/lib/forum';
-import { ForumDismissReportsButton } from '@/components/forum/forum-dismiss-reports';
+import { ForumDismissReportsButton } from '@/components/forum/forum-reports';
 
 export const metadata: Metadata = {
   title: 'Moderation - Forum - Munda Manager',
@@ -52,7 +52,7 @@ export default async function ForumModerationPage() {
                       {report.report_count === 1 ? 'report' : 'reports'}, last {formatForumDate(report.last_reported_at)}
                     </p>
                   </div>
-                  <ForumDismissReportsButton postId={report.post_id} />
+                  <ForumDismissReportsButton postId={report.post_id} reportedUntil={report.last_reported_at} />
                 </li>
               ))
             ) : (

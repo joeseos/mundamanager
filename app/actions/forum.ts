@@ -489,14 +489,22 @@ export async function reportForumPost(params: { postId: string } | { threadId: s
   }
 }
 
-/** Deletes a post's reports, leaving the post as it is (moderators only). */
-export async function dismissForumPostReports(postId: string): Promise<ForumActionResult> {
+/**
+ * Deletes a post's reports up to the last one the moderator saw, leaving the post
+ * as it is (moderators only). Later reports stay for another look.
+ */
+export async function dismissForumPostReports(params: { postId: string; reportedUntil: string }): Promise<ForumActionResult> {
   try {
     const supabase = await createClient();
     await getAuthenticatedUser(supabase);
 
     // RLS lets only moderators delete reports
-    const { data, error } = await supabase.from('forum_reports').delete().eq('post_id', postId).select('post_id');
+    const { data, error } = await supabase
+      .from('forum_reports')
+      .delete()
+      .eq('post_id', params.postId)
+      .lte('created_at', params.reportedUntil)
+      .select('post_id');
     if (error) throw error;
     if (!data.length) return { success: false, error: 'These reports were already handled' };
     return { success: true };

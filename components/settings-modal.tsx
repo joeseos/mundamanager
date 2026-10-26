@@ -193,24 +193,24 @@ export default function SettingsModal({ user, isAdmin, isForumModerator, usernam
             </div>
           </div>
 
+          {(isForumModerator || isAdmin) && <DropdownMenuSeparator />}
+
           {isForumModerator && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild onClick={handleLinkClick}>
-                <Link href="/forum/moderation" prefetch={false} className="w-full cursor-pointer">
-                  <LuFlag className="mr-2 h-4 w-4" />
-                  Moderation
-                </Link>
-              </DropdownMenuItem>
-              {isAdmin && (
-                <DropdownMenuItem asChild onClick={handleLinkClick}>
-                  <Link href="/admin" prefetch={false} className="w-full cursor-pointer">
-                    <LuSettings className="mr-2 h-4 w-4" />
-                    Admin
-                  </Link>
-                </DropdownMenuItem>
-              )}
-            </>
+            <DropdownMenuItem asChild onClick={handleLinkClick}>
+              <Link href="/forum/moderation" prefetch={false} className="w-full cursor-pointer">
+                <LuFlag className="mr-2 h-4 w-4" />
+                Moderation
+              </Link>
+            </DropdownMenuItem>
+          )}
+
+          {isAdmin && (
+            <DropdownMenuItem asChild onClick={handleLinkClick}>
+              <Link href="/admin" prefetch={false} className="w-full cursor-pointer">
+                <LuSettings className="mr-2 h-4 w-4" />
+                Admin
+              </Link>
+            </DropdownMenuItem>
           )}
 
           <DropdownMenuSeparator />

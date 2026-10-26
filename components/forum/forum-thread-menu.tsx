@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
+import { ForumReportDialog } from '@/components/forum/forum-reports';
 import { ForumTagPicker } from '@/components/forum/forum-tag-picker';
 import { useForumThreadViewer, useForumViewer } from '@/components/forum/forum-viewer';
 import {
@@ -28,7 +29,6 @@ import {
   getForumMoveCategories,
   getForumTagOptions,
   moveForumThread,
-  reportForumPost,
   reviewForumArticle,
   setForumThreadFlag,
   setForumThreadTags,
@@ -264,18 +264,11 @@ export function ForumThreadMenu({
         />
       )}
       {confirmingReport && (
-        <Modal
+        <ForumReportDialog
+          target={{ threadId }}
           title="Report Thread"
-          content={<p>Report this thread to the moderators?</p>}
+          question="Report this thread to the moderators?"
           onClose={() => setConfirmingReport(false)}
-          onConfirm={() =>
-            run(async () => {
-              const result = await reportForumPost({ threadId });
-              if (result.success) toast.success('Reported to the moderators');
-              return result;
-            }, 'Failed to report the thread')
-          }
-          confirmText="Report"
         />
       )}
       {noteDecision && (

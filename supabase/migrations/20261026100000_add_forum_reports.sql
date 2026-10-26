@@ -1,6 +1,6 @@
 -- Forum reports: members flag a post for the moderators (a thread is reported
 -- through its opening post), and moderators handle them on /forum/moderation.
--- Reports are private: members see only their own, moderators see and dismiss all.
+-- Reports are private: members can only add them, moderators see and dismiss them.
 --
 -- DEPLOY ORDER: apply after 20261025140000_add_forum_tags.sql.
 
@@ -21,10 +21,10 @@ CREATE INDEX forum_reports_reporter_idx
 
 ALTER TABLE public.forum_reports ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users and moderators can view reports"
+CREATE POLICY "Moderators can view reports"
   ON public.forum_reports FOR SELECT
   TO authenticated
-  USING (reporter_id = (SELECT auth.uid()) OR (SELECT private.is_forum_moderator()));
+  USING ((SELECT private.is_forum_moderator()));
 
 -- Not your own posts, nor removed ones
 CREATE POLICY "Users can report posts"
