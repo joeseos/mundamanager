@@ -25,6 +25,7 @@ import {
   getForumCategories,
   type ForumPostLikes,
   getForumPostLikes,
+  getForumPosts,
   getForumTags,
   getForumThread,
 } from '@/app/lib/forum';
@@ -415,14 +416,15 @@ export interface ForumThreadViewerData {
  * so the page itself stays static: the page's likes, and the thread's article
  * suggestion for its author and moderators.
  */
-export async function getForumThreadViewer(params: { threadNumber: number; postIds: string[] }): Promise<ForumThreadViewerData | null> {
+export async function getForumThreadViewer(params: { threadNumber: number; page: number }): Promise<ForumThreadViewerData | null> {
   const [claims, thread] = await Promise.all([createClient().then(getClaims), getForumThread(params.threadNumber)]);
   if (!claims || !thread) return null;
+  const posts = await getForumPosts(thread, params.page);
   // Only the author and moderators can see a suggestion, and publishing ends it
   const showSuggestion =
     !thread.article_published_at && (claims.userId === thread.author_id || isForumModeratorRole(claims.profile?.user_role));
   const [likes, submission] = await Promise.all([
-    getForumPostLikes(claims.userId, params.postIds.slice(0, FORUM_POSTS_PER_PAGE)),
+    getForumPostLikes(claims.userId, posts.map((post) => post.id)),
     showSuggestion ? getForumArticleSubmission(claims.userId, thread.id) : null,
   ]);
   return { likes, submission };

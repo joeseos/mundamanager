@@ -318,10 +318,7 @@ export function forumMentionIds(html: string): Set<string> {
   return new Set(Array.from(html.matchAll(MENTION), ([, tag]) => mentionId(tag)).filter((id) => id !== undefined));
 }
 
-/**
- * A page of a thread or category: page 1 is the bare path, the others add /page/<n>.
- * In the path rather than ?page=, so every page can be a static page.
- */
+/** A page of a thread or category: page 1 is the bare path, the others add /page/<n>. */
 export function forumPageHref(path: string, page: number): string {
   return page === 1 ? path : `${path}/page/${page}`;
 }

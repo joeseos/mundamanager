@@ -58,11 +58,11 @@ export async function proxy(request: NextRequest) {
   }
 
   // Forum pages moved from ?page=<n> to /page/<n>, so links from before (e.g. in notifications) still work
-  const oldForumPage = /^\/forum\/[^/]+(\/[^/]+)?$/.test(pathname) && request.nextUrl.searchParams.get('page');
-  if (oldForumPage) {
+  const oldForumPage = request.nextUrl.searchParams.get('page');
+  if (oldForumPage && /^\/forum\/[^/]+(?:\/[^/]+)?$/.test(pathname)) {
     const pageUrl = request.nextUrl.clone();
     pageUrl.searchParams.delete('page');
-    if (oldForumPage !== '1') pageUrl.pathname = `${pathname}/page/${oldForumPage}`;
+    pageUrl.pathname = `${pathname}/page/${oldForumPage}`;
     return NextResponse.redirect(pageUrl, 308);
   }
 

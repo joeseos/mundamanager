@@ -31,7 +31,7 @@ interface ForumThreadPageProps {
   params: Promise<{ category: string; thread: string; page?: string }>;
 }
 
-// None at build, which has no database: each renders on its first visit and is cached from then on
+// None at build (it has no database): rendered on first visit, then cached
 export async function generateStaticParams() {
   return [];
 }
@@ -56,7 +56,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
   // A moved or renamed thread keeps its number, so old links land on the current URL (and /page/1 on the bare path)
   const path = forumThreadPath(thread.category.slug, thread.number, thread.title);
   const pagePath = forumPageHref(path, page);
-  if (pagePath !== `/forum/${categorySlug}/${segment}${pageParam ? `/page/${pageParam}` : ''}`) redirect(pagePath);
+  if (path !== `/forum/${categorySlug}/${segment}` || pageParam === '1') redirect(pagePath);
 
   const pageCount = forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE);
   if (page > pageCount) notFound();
@@ -65,7 +65,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <ForumThreadViewerProvider threadNumber={thread.number} authorId={thread.author_id} postIds={posts.map((post) => post.id)}>
+      <ForumThreadViewerProvider threadNumber={thread.number} page={page} authorId={thread.author_id}>
         <div className="w-full bg-card shadow-md rounded-lg p-4">
           <div className="flex items-start justify-between gap-2">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">

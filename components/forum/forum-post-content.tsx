@@ -57,7 +57,6 @@ function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
   const { userId } = useForumViewer();
   const { data: viewer, setLiked } = useForumThreadViewer();
   const [saving, setSaving] = useState(false);
-  // The signed-in viewer's likes load as they are now, so the count and their heart change together
   const likes = viewer?.likes[post.id];
   const liked = likes?.liked ?? false;
   const count = likes?.count ?? post.like_count;

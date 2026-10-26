@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, type ReactNode } from 'react';
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
 import { isForumModeratorRole } from '@/utils/auth';
 import { type ForumThreadViewerData, getForumThreadViewer } from '@/app/actions/forum';
@@ -48,25 +48,22 @@ const ForumThreadViewerContext = createContext<ForumThreadViewer>({
 /** What a thread page shows only to the signed-in viewer, loaded in the browser so the page itself is static. */
 export function ForumThreadViewerProvider({
   threadNumber,
+  page,
   authorId,
-  postIds,
   children,
 }: {
   threadNumber: number;
+  page: number;
   authorId: string | null;
-  /** The page's posts. */
-  postIds: string[];
   children: ReactNode;
 }) {
   const { userId } = useForumViewer();
   const queryClient = useQueryClient();
-  const queryKey = ['forum-thread-viewer', userId, threadNumber, postIds];
+  const queryKey = ['forum-thread-viewer', userId, threadNumber, page];
   const { data } = useQuery({
     queryKey,
-    queryFn: () => getForumThreadViewer({ threadNumber, postIds }),
+    queryFn: () => getForumThreadViewer({ threadNumber, page }),
     enabled: userId !== null,
-    // A reply adds a post to the page: the likes shown stay until the new ones load
-    placeholderData: keepPreviousData,
   });
 
   const setLiked = (postId: string, liked: boolean) =>
