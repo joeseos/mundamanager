@@ -109,8 +109,7 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
   "luther pattern excavation automata ('ambot')": ['work_territory'],
   // Agitate the Masses: a Hanger-on
   agitator: ['work_territory'],
-  // Friends In Low Places and The Finest Merchandise: Hangers-on
-  scabber: ['visit_trading_post'],
+  // The Finest Merchandise: a Hanger-on
   'underhive trader': ['visit_trading_post'],
 };
 
