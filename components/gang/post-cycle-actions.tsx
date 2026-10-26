@@ -38,7 +38,6 @@ import {
 } from '@/utils/postCycleActions';
 import {
   applyPostCycleSequence,
-  type ApplyPostCycleSequenceResult,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
 
@@ -434,10 +433,9 @@ export default function PostCycleActions({
   };
 
   /**
-   * Collects the picked income, then applies every picked action, in one request.
-   * The server takes the actions in roster order, so each is checked against what
-   * the ones before it saved. Applied rows are cleared; a failure does not stop
-   * the rest, and its row keeps its pick and shows why.
+   * Applies every picked action in one server call, in roster order, so each
+   * is checked against what the ones before it saved. An applied row is cleared.
+   * A failure does not stop the rest; its row keeps its pick and shows why.
    */
   const handleApply = async () => {
     const queue = actors.flatMap((f) => {
@@ -449,25 +447,20 @@ export default function PostCycleActions({
     setApplying(true);
     setFailures({});
     setIncomeFailure(null);
-
-    let sequence: ApplyPostCycleSequenceResult;
-    try {
-      sequence = await applyPostCycleSequence({
-        gangId,
-        income: collecting
-          ? {
-              reputation: collectReputation,
-              territoryIds: pickedTerritories.map((territory) => territory.id),
-            }
-          : undefined,
-        assignments: queue,
-      });
-    } catch {
-      // Some steps may have landed before the request failed, so a blind retry could repeat them.
+    const sequence = await applyPostCycleSequence({
+      gangId,
+      income: collecting
+        ? {
+            reputation: collectReputation,
+            territoryIds: pickedTerritories.map((territory) => territory.id),
+          }
+        : undefined,
+      assignments: queue,
+    }).catch(() => null);
+    setApplying(false);
+    if (!sequence) {
       toast.error('The Post-cycle Sequence may be partly applied. Reload the page before trying again.');
       return;
-    } finally {
-      setApplying(false);
     }
     let failed = 0;
 

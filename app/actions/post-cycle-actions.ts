@@ -419,13 +419,13 @@ async function runHandler(
 }
 
 // =============================================================================
-// Steps
+// Entry point
 // =============================================================================
 
 /**
  * Resolve one fighter's Post-cycle Action.
  *
- * One action at a time rather than a whole plan: once an action lands, the
+ * One action per call rather than a whole sequence: once an action lands, the
  * saved rows carry the consequence — the patient's Critical Injury is gone — so
  * the next action is validated against real state instead of against the other
  * rows of a plan. The cross-fighter rules a single call cannot see (one action
@@ -629,33 +629,16 @@ async function collectIncome({
   }
 }
 
-// =============================================================================
-// Entry point
-// =============================================================================
-
-export interface ApplyPostCycleSequenceParams {
-  gangId: string;
-  /** Collected first, so the actions can spend it. */
-  income?: Omit<CollectIncomeParams, 'gangId'>;
-  /** Applied in this order. */
-  assignments: PostCycleAssignment[];
-}
-
-export interface ApplyPostCycleSequenceResult {
-  income?: CollectIncomeResult;
-  /** One per assignment, in the same order. */
-  actions: ResolvePostCycleActionResult[];
-}
-
-/**
- * Apply a Post-cycle Sequence in one request: Collect Income, then each action
- * in turn. A failed step does not stop the rest.
- */
+/** Collect Income first, so the actions can spend it, then each action in turn, in one request. */
 export async function applyPostCycleSequence({
   gangId,
   income,
   assignments,
-}: ApplyPostCycleSequenceParams): Promise<ApplyPostCycleSequenceResult> {
+}: {
+  gangId: string;
+  income?: Omit<CollectIncomeParams, 'gangId'>;
+  assignments: PostCycleAssignment[];
+}) {
   const incomeResult = income && (await collectIncome({ gangId, ...income }));
   const actions: ResolvePostCycleActionResult[] = [];
   for (const assignment of assignments) {
