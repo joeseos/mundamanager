@@ -109,8 +109,6 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
   "luther pattern excavation automata ('ambot')": ['work_territory'],
   // Agitate the Masses: a Hanger-on
   agitator: ['work_territory'],
-  // The Finest Merchandise: a Hanger-on
-  'underhive trader': ['visit_trading_post'],
 };
 
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
