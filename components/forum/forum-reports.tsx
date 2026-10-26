@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import { dismissForumPostReports, reportForumPost } from '@/app/actions/forum';
 
 /** Asks before reporting a post, or a thread through its opening post, to the moderators. */
@@ -19,9 +20,11 @@ export function ForumReportDialog({
   question: string;
   onClose: () => void;
 }) {
+  const [reason, setReason] = useState('');
+
   const report = async () => {
     try {
-      const result = await reportForumPost(target);
+      const result = await reportForumPost(target, reason);
       if (!result.success) throw new Error(result.error);
       toast.success('Reported to the moderators');
       return true;
@@ -31,7 +34,24 @@ export function ForumReportDialog({
     }
   };
 
-  return <Modal title={title} content={<p>{question}</p>} onClose={onClose} onConfirm={report} confirmText="Report" />;
+  return (
+    <Modal
+      title={title}
+      content={
+        <div className="space-y-2">
+          <p>{question}</p>
+          <label htmlFor="forum-report-reason" className="block text-sm font-medium text-muted-foreground">
+            Why are you reporting it?
+          </label>
+          <Textarea id="forum-report-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} rows={3} />
+        </div>
+      }
+      onClose={onClose}
+      onConfirm={report}
+      confirmText="Report"
+      confirmDisabled={!reason.trim()}
+    />
+  );
 }
 
 /** Clears a post's reports when a moderator decides the post can stay. */

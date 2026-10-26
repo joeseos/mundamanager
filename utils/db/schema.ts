@@ -1064,6 +1064,7 @@ export const forumPostLikes = pgTable('forum_post_likes', {
 export const forumReports = pgTable('forum_reports', {
   post_id: uuid('post_id').notNull(),
   reporter_id: uuid('reporter_id').notNull(),
+  reason: text('reason').notNull(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [primaryKey({ columns: [table.post_id, table.reporter_id] })]);
 

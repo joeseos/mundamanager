@@ -1,5 +1,5 @@
--- Forum reports: members flag a post for the moderators (a thread is reported
--- through its opening post), and moderators handle them on /forum/moderation.
+-- Forum reports: members flag a post for the moderators with a reason (a thread
+-- is reported through its opening post), and moderators handle them on /forum/moderation.
 -- Reports are private: members can only add them, moderators see and dismiss them.
 --
 -- DEPLOY ORDER: apply after 20261025140000_add_forum_tags.sql.
@@ -9,8 +9,10 @@ BEGIN;
 CREATE TABLE public.forum_reports (
   post_id uuid NOT NULL REFERENCES public.forum_posts(id) ON DELETE CASCADE,
   reporter_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  reason text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
-  PRIMARY KEY (post_id, reporter_id)
+  PRIMARY KEY (post_id, reporter_id),
+  CONSTRAINT forum_reports_reason_length CHECK (char_length(btrim(reason)) BETWEEN 1 AND 500)
 );
 
 COMMENT ON TABLE public.forum_reports IS
@@ -48,7 +50,7 @@ CREATE POLICY "Moderators can dismiss reports"
 
 REVOKE ALL ON public.forum_reports FROM PUBLIC, anon, authenticated;
 GRANT SELECT, DELETE ON public.forum_reports TO authenticated;
-GRANT INSERT (post_id, reporter_id) ON public.forum_reports TO authenticated;
+GRANT INSERT (post_id, reporter_id, reason) ON public.forum_reports TO authenticated;
 GRANT ALL ON public.forum_reports TO service_role;
 
 COMMIT;

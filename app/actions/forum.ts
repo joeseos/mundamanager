@@ -455,11 +455,23 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
   }
 }
 
+const REPORT_REASON_MAX_LENGTH = 500;
+
 /**
- * Reports a post to the moderators, or a thread through its opening post. RLS
- * refuses your own posts and removed ones; reporting twice changes nothing.
+ * Reports a post to the moderators, or a thread through its opening post, saying why.
+ * RLS refuses your own posts and removed ones; reporting twice changes nothing.
  */
-export async function reportForumPost(params: { postId: string } | { threadId: string }): Promise<ForumActionResult> {
+export async function reportForumPost(
+  params: { postId: string } | { threadId: string },
+  reason: string,
+): Promise<ForumActionResult> {
+  // Server actions can be called with anything
+  const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
+  if (!trimmedReason) return { success: false, error: 'Say why you are reporting it' };
+  if (trimmedReason.length > REPORT_REASON_MAX_LENGTH) {
+    return { success: false, error: `Reasons can be at most ${REPORT_REASON_MAX_LENGTH} characters` };
+  }
+
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
@@ -480,7 +492,7 @@ export async function reportForumPost(params: { postId: string } | { threadId: s
 
     const { error } = await supabase
       .from('forum_reports')
-      .upsert({ post_id: postId, reporter_id: user.id }, { ignoreDuplicates: true });
+      .upsert({ post_id: postId, reporter_id: user.id, reason: trimmedReason }, { ignoreDuplicates: true });
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to report the post', "You can't report this post") };
     return { success: true };
   } catch (error) {

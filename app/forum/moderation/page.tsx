@@ -48,9 +48,15 @@ export default async function ForumModerationPage() {
                     </Link>
                     <p className="text-muted-foreground">
                       {report.post_number === 1 ? 'Thread' : `Post #${report.post_number}`} by{' '}
-                      {report.author ?? 'Unknown User'} · reported by {report.reporters.join(', ')}, last{' '}
-                      {formatForumDate(report.last_reported_at)}
+                      {report.author ?? 'Unknown User'} · last reported {formatForumDate(report.last_reported_at)}
                     </p>
+                    <ul>
+                      {report.reports.map(({ reporter, reason }) => (
+                        <li key={reporter} className="break-words">
+                          <span className="font-medium">{reporter}</span>: {reason}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                   <ForumDismissReportsButton postId={report.post_id} reportedUntil={report.last_reported_at} />
                 </li>

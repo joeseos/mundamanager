@@ -493,8 +493,8 @@ export interface ForumReport {
   thread_title: string;
   category_slug: string;
   author: string | null;
-  /** Who reported it, first report first. */
-  reporters: string[];
+  /** First report first. */
+  reports: { reporter: string; reason: string }[];
   last_reported_at: string;
 }
 
@@ -509,7 +509,7 @@ export function getForumReports(userId: string): Promise<ForumReport[]> {
         thread_title: forumThreads.title,
         category_slug: forumCategories.slug,
         author: author.username,
-        reporters: sql<string[]>`array_agg(${reporter.username} order by ${forumReports.created_at})`,
+        reports: sql<ForumReport['reports']>`json_agg(json_build_object('reporter', ${reporter.username}, 'reason', ${forumReports.reason}) order by ${forumReports.created_at})`,
         last_reported_at: iso(max(forumReports.created_at)),
       })
       .from(forumReports)
