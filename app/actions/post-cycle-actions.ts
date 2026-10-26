@@ -419,13 +419,13 @@ async function runHandler(
 }
 
 // =============================================================================
-// Entry point
+// Steps
 // =============================================================================
 
 /**
  * Resolve one fighter's Post-cycle Action.
  *
- * One action per call rather than a whole sequence: once an action lands, the
+ * One action at a time rather than a whole plan: once an action lands, the
  * saved rows carry the consequence — the patient's Critical Injury is gone — so
  * the next action is validated against real state instead of against the other
  * rows of a plan. The cross-fighter rules a single call cannot see (one action
@@ -436,7 +436,7 @@ async function runHandler(
  * calls, and a failure partway leaves the earlier ones removed. The outcome
  * reports what landed and bills only that.
  */
-export async function resolvePostCycleAction(
+async function resolvePostCycleAction(
   params: ResolvePostCycleActionParams
 ): Promise<ResolvePostCycleActionResult> {
   try {
@@ -565,7 +565,7 @@ export interface CollectIncomeResult {
 }
 
 /** Collect Income: adds the picked Reputation and territory credits to the gang. */
-export async function collectIncome({
+async function collectIncome({
   gangId,
   reputation,
   territoryIds,
@@ -627,4 +627,39 @@ export async function collectIncome({
       error: error instanceof Error ? error.message : 'Failed to collect income',
     };
   }
+}
+
+// =============================================================================
+// Entry point
+// =============================================================================
+
+export interface ApplyPostCycleSequenceParams {
+  gangId: string;
+  /** Collected first, so the actions can spend it. */
+  income?: Omit<CollectIncomeParams, 'gangId'>;
+  /** Applied in this order. */
+  assignments: PostCycleAssignment[];
+}
+
+export interface ApplyPostCycleSequenceResult {
+  income?: CollectIncomeResult;
+  /** One per assignment, in the same order. */
+  actions: ResolvePostCycleActionResult[];
+}
+
+/**
+ * Apply a Post-cycle Sequence in one request: Collect Income, then each action
+ * in turn. A failed step does not stop the rest.
+ */
+export async function applyPostCycleSequence({
+  gangId,
+  income,
+  assignments,
+}: ApplyPostCycleSequenceParams): Promise<ApplyPostCycleSequenceResult> {
+  const incomeResult = income && (await collectIncome({ gangId, ...income }));
+  const actions: ResolvePostCycleActionResult[] = [];
+  for (const assignment of assignments) {
+    actions.push(await resolvePostCycleAction({ gangId, assignment }));
+  }
+  return { income: incomeResult, actions };
 }

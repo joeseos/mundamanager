@@ -37,8 +37,8 @@ import {
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
 import {
-  collectIncome,
-  resolvePostCycleAction,
+  applyPostCycleSequence,
+  type ApplyPostCycleSequenceResult,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
 
@@ -434,9 +434,10 @@ export default function PostCycleActions({
   };
 
   /**
-   * Applies every picked action. One server call each, in roster order, so each
-   * is checked against what the ones before it saved. An applied row is cleared.
-   * A failure does not stop the rest; its row keeps its pick and shows why.
+   * Collects the picked income, then applies every picked action, in one request.
+   * The server takes the actions in roster order, so each is checked against what
+   * the ones before it saved. Applied rows are cleared; a failure does not stop
+   * the rest, and its row keeps its pick and shows why.
    */
   const handleApply = async () => {
     const queue = actors.flatMap((f) => {
@@ -448,65 +449,63 @@ export default function PostCycleActions({
     setApplying(true);
     setFailures({});
     setIncomeFailure(null);
+
+    let sequence: ApplyPostCycleSequenceResult;
+    try {
+      sequence = await applyPostCycleSequence({
+        gangId,
+        income: collecting
+          ? {
+              reputation: collectReputation,
+              territoryIds: pickedTerritories.map((territory) => territory.id),
+            }
+          : undefined,
+        assignments: queue,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Applying the Post-cycle Sequence failed.');
+      return;
+    } finally {
+      setApplying(false);
+    }
     let failed = 0;
 
-    // First, so the actions can spend the income.
-    if (collecting) {
-      try {
-        const result = await collectIncome({
-          gangId,
-          reputation: collectReputation,
-          territoryIds: pickedTerritories.map((territory) => territory.id),
+    if (sequence.income) {
+      if (sequence.income.gang) onGangFinancialsUpdate?.(sequence.income.gang);
+      if (sequence.income.success) {
+        setCollectReputation(false);
+        setCollectTerritoryIds([]);
+      } else {
+        failed++;
+        setIncomeFailure(sequence.income.error || 'Collecting income failed.');
+      }
+    }
+
+    for (const [i, result] of sequence.actions.entries()) {
+      const { fighterId } = queue[i];
+
+      // skipRatingUpdate: the authoritative rating arrives with the gang below.
+      for (const change of result.outcome?.changes ?? []) {
+        const current = fighterById.get(change.fighterId);
+        if (current) onFighterUpdate?.(applyChange(current, change), true);
+      }
+      if (result.gang) onGangFinancialsUpdate?.(result.gang);
+      if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
+
+      if (!result.success) {
+        failed++;
+        setFailures((prev) => ({ ...prev, [fighterId]: result.error || 'The action failed.' }));
+      }
+
+      // A partial failure still spent the action, so its row is cleared too.
+      if (result.landed) {
+        setRows((prev) => {
+          const { [fighterId]: _done, ...rest } = prev;
+          return rest;
         });
-        if (result.gang) onGangFinancialsUpdate?.(result.gang);
-        if (result.success) {
-          setCollectReputation(false);
-          setCollectTerritoryIds([]);
-        } else {
-          failed++;
-          setIncomeFailure(result.error || 'Collecting income failed.');
-        }
-      } catch (error) {
-        failed++;
-        setIncomeFailure(error instanceof Error ? error.message : 'Collecting income failed.');
       }
     }
 
-    for (const assignment of queue) {
-      const { fighterId } = assignment;
-      try {
-        const result = await resolvePostCycleAction({ gangId, assignment });
-
-        // skipRatingUpdate: the authoritative rating arrives with the gang below.
-        for (const change of result.outcome?.changes ?? []) {
-          const current = fighterById.get(change.fighterId);
-          if (current) onFighterUpdate?.(applyChange(current, change), true);
-        }
-        if (result.gang) onGangFinancialsUpdate?.(result.gang);
-        if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
-
-        if (!result.success) {
-          failed++;
-          setFailures((prev) => ({ ...prev, [fighterId]: result.error || 'The action failed.' }));
-        }
-
-        // A partial failure still spent the action, so its row is cleared too.
-        if (result.landed) {
-          setRows((prev) => {
-            const { [fighterId]: _done, ...rest } = prev;
-            return rest;
-          });
-        }
-      } catch (error) {
-        failed++;
-        setFailures((prev) => ({
-          ...prev,
-          [fighterId]: error instanceof Error ? error.message : 'The action failed.',
-        }));
-      }
-    }
-
-    setApplying(false);
     if (failed > 0) {
       const total = queue.length + (collecting ? 1 : 0);
       toast.error(`${failed} of ${total} Post-cycle steps failed. See the marked rows.`);
