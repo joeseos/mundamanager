@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
@@ -97,32 +97,39 @@ export const useForumThreadViewer = () => useContext(ForumThreadViewerContext);
 
 const ForumUnreadThreadsContext = createContext<number[]>([]);
 
-/**
- * The last post the viewer is known to have read in each thread, by thread
- * number, kept in the browser so a thread list shows its bold titles at once
- * and the server's answer only corrects it.
- */
-const READ_THREADS_KEY = 'forum-read-threads';
+// The last post the viewer is known to have read in each thread, by thread
+// number, so a later visit can show the bold titles before the server answers
+const readThreadsKey = (userId: string) => `forum-read-threads:${userId}`;
+// Enough for every thread a page shows many times over, so the entry stays small
+const READ_THREADS_LIMIT = 500;
 
-function storedReadThreads(): Record<number, string> {
+type ReadThreads = Record<string, string>;
+
+function loadReadThreads(userId: string): ReadThreads {
   try {
-    return JSON.parse(localStorage.getItem(READ_THREADS_KEY) ?? '{}');
+    const parsed = JSON.parse(localStorage.getItem(readThreadsKey(userId)) ?? '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
   }
 }
 
-function storeReadThreads(update: (read: Record<number, string>) => void) {
-  const read = storedReadThreads();
+function saveReadThreads(userId: string, update: (read: ReadThreads) => void) {
+  const read = loadReadThreads(userId);
   update(read);
+  // Keep the threads read most recently
+  const kept = Object.entries(read)
+    .sort(([, a], [, b]) => b.localeCompare(a))
+    .slice(0, READ_THREADS_LIMIT);
   try {
-    localStorage.setItem(READ_THREADS_KEY, JSON.stringify(read));
+    localStorage.setItem(readThreadsKey(userId), JSON.stringify(Object.fromEntries(kept)));
   } catch {
-    // Storage full or blocked: the list just waits for the server
+    // Storage can be unavailable: the list then waits for the server
   }
 }
 
-const noSubscribe = () => () => {};
+const isReadUpTo = (read: ReadThreads, thread: { number: number; last_post_at: string }) =>
+  read[thread.number] !== undefined && Date.parse(read[thread.number]) >= Date.parse(thread.last_post_at);
 
 /** Which of a category page's threads the signed-in viewer hasn't read, loaded in the browser so the page itself is static. */
 export function ForumUnreadThreadsProvider({
@@ -132,32 +139,31 @@ export function ForumUnreadThreadsProvider({
   threads: { number: number; last_post_at: string }[];
   children: ReactNode;
 }) {
-  const { userId, loading } = useForumViewer();
-  const { data } = useQuery({
+  const { userId } = useForumViewer();
+  const { data, isPlaceholderData } = useQuery({
     // With each thread's last post, so a new post loads it again
     queryKey: ['forum-unread-threads', userId, threads],
-    queryFn: async () => {
-      const unread = await getForumUnreadThreads(threads.map((thread) => thread.number));
-      storeReadThreads((read) => {
-        for (const thread of threads) {
-          if (unread.includes(thread.number)) delete read[thread.number];
-          else read[thread.number] = thread.last_post_at;
-        }
-      });
-      return unread;
-    },
+    queryFn: () => getForumUnreadThreads(threads.map((thread) => thread.number)),
     enabled: userId !== null,
+    // What this browser last knew, shown until the server answers
+    placeholderData: () => {
+      if (!userId) return undefined;
+      const read = loadReadThreads(userId);
+      return threads.filter((thread) => !isReadUpTo(read, thread)).map((thread) => thread.number);
+    },
   });
 
-  // Until the server answers: unread unless read up to the post the list shows. Null while hydrating.
-  const stored = useSyncExternalStore(noSubscribe, () => localStorage.getItem(READ_THREADS_KEY), () => null);
-  const guess = useMemo(() => {
-    if (!stored || (!loading && userId === null)) return [];
-    const read = storedReadThreads();
-    return threads.filter((thread) => read[thread.number] !== thread.last_post_at).map((thread) => thread.number);
-  }, [stored, loading, userId, threads]);
+  useEffect(() => {
+    if (!userId || !data || isPlaceholderData) return;
+    saveReadThreads(userId, (read) => {
+      for (const thread of threads) {
+        if (data.includes(thread.number)) delete read[thread.number];
+        else read[thread.number] = thread.last_post_at;
+      }
+    });
+  }, [userId, data, isPlaceholderData, threads]);
 
-  return <ForumUnreadThreadsContext.Provider value={data ?? guess}>{children}</ForumUnreadThreadsContext.Provider>;
+  return <ForumUnreadThreadsContext.Provider value={data ?? []}>{children}</ForumUnreadThreadsContext.Provider>;
 }
 
 /** A thread's title in the category list, in bold while it has posts the viewer hasn't read. */
@@ -191,12 +197,15 @@ export function ForumMarkThreadRead({
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!userId) return;
-    storeReadThreads((read) => {
-      read[threadNumber] = lastPostAt;
+    markForumThreadRead({ threadId, lastPostAt }).then(() => {
+      saveReadThreads(userId, (read) => {
+        read[threadNumber] = lastPostAt;
+      });
+      // Lists already loaded this visit show it read at once
+      queryClient.setQueriesData<number[]>({ queryKey: ['forum-unread-threads'] }, (unread) =>
+        unread?.filter((number) => number !== threadNumber),
+      );
     });
-    markForumThreadRead({ threadId, lastPostAt }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] }),
-    );
   }, [userId, threadId, threadNumber, lastPostAt, queryClient]);
   return null;
 }
