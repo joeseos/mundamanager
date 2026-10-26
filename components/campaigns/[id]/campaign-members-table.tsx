@@ -648,25 +648,23 @@ export default function MembersTable({
             key={gang.id}
             onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
             disabled={gang.isInCampaign}
-            className={`w-full p-3 text-left rounded-lg transition-colors ${
+            className={`w-full p-3 text-left border rounded-lg transition-colors ${
               gang.isInCampaign
-                ? 'border bg-muted cursor-not-allowed'
+                ? 'bg-muted cursor-not-allowed'
                 : selectedGang?.id === gang.id
-                  ? 'border-2 border-gray-400 bg-muted'
-                  : 'border hover:border-gray-400'
+                  ? 'border-gray-400 ring-1 ring-gray-400 bg-muted'
+                  : 'hover:border-gray-400'
             }`}
           >
-            <div>
-              <div className="flex items-baseline justify-between gap-3">
-                <p className={`font-medium ${gang.isInCampaign ? 'text-muted-foreground' : ''}`}>{gang.name}</p>
-                <p className="shrink-0 text-xs text-muted-foreground">Rating: {gang.rating ?? 0}</p>
-              </div>
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-xs text-muted-foreground">{detailGangTypeLabel(gang.gang_type, gang.parent_gang_type_name) || "-"}</p>
-                {gang.isInCampaign && (
-                  <p className="shrink-0 text-xs text-muted-foreground italic font-light text-right">Already in a campaign</p>
-                )}
-              </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className={`font-medium ${gang.isInCampaign ? 'text-muted-foreground' : ''}`}>{gang.name}</p>
+              <p className="shrink-0 text-xs text-muted-foreground">Rating: {gang.rating || "-"}</p>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-xs text-muted-foreground">{detailGangTypeLabel(gang.gang_type, gang.parent_gang_type_name) || "-"}</p>
+              {gang.isInCampaign && (
+                <p className="shrink-0 text-xs text-muted-foreground italic font-light text-right">Already in a campaign</p>
+              )}
             </div>
           </button>
         ))}
