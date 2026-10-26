@@ -169,7 +169,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_trading_post: {
     id: 'visit_trading_post',
     label: 'Visit Trading Post',
-    summary: 'Gain Trade Points',
+    summary: 'Logged only',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   lead_ritual: {
@@ -295,13 +295,6 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
   const owned = (fighter.fighter_subtypes ?? []).map((s) => s.toLowerCase());
   return subtypes.some((wanted) => owned.includes(wanted));
 }
-
-/** Visit Trading Post: a Leader brings back 2 Trade Points, any other visitor 1. */
-export const tradingPostTradePoints = (performer: PostCycleFighter): number =>
-  hasSubtype(performer, LEADER) ? 2 : 1;
-
-export const tradePointsText = (points: number): string =>
-  `${points} Trade Point${points === 1 ? '' : 's'}`;
 
 /** What the gang has, beyond its fighters, that some actions depend on. */
 export interface PostCycleAvailability {

@@ -155,7 +155,7 @@ export default function GangPageContent({
   }, []);
 
   const handleGangFinancialsUpdate = useCallback(
-    (financials: { credits: number; rating: number; wealth: number; trade_points?: number }) => {
+    (financials: { credits: number; rating: number; wealth: number }) => {
       setGangData((prev: GangDataState) => ({
         ...prev,
         processedData: {
@@ -163,7 +163,6 @@ export default function GangPageContent({
           credits: financials.credits,
           rating: financials.rating,
           wealth: financials.wealth,
-          trade_points: financials.trade_points ?? prev.processedData.trade_points,
         },
       }));
     },

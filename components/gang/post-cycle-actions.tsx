@@ -32,8 +32,6 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
-  tradePointsText,
-  tradingPostTradePoints,
   validatePostCycleAssignment,
   type PostCycleActionId,
   type PostCycleAssignment,
@@ -62,7 +60,7 @@ interface PostCycleActionsProps {
   tacticsCards: GangTacticsCard[];
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
-  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number; trade_points?: number }) => void;
+  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
   onTacticsCardAdded?: (card: GangTacticsCard) => void;
 }
 
@@ -404,9 +402,6 @@ export default function PostCycleActions({
   const effectOf = (assignment: PostCycleAssignment | null) => {
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
-    if (assignment.action === 'visit_trading_post') {
-      return `+${tradePointsText(tradingPostTradePoints(fighterById.get(assignment.fighterId)!))}`;
-    }
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
     const delta = assignmentCreditsDelta(assignment, fighterById.get(assignment.fighterId)!);
     // A Doc discount can make an action free, which is still worth saying.
