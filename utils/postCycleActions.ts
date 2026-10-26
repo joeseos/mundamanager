@@ -4,6 +4,7 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
+import type { FighterSkills } from '@/types/fighter';
 import { hasGangTacticsCards } from '@/types/edition';
 import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -108,16 +109,24 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
   "luther pattern excavation automata ('ambot')": ['work_territory'],
   // Agitate the Masses: a Hanger-on
   agitator: ['work_territory'],
-  // Old For New, Friends In Low Places and The Finest Merchandise: Hangers-on
-  fixer: ['visit_trading_post'],
-  scabber: ['visit_trading_post'],
-  'underhive trader': ['visit_trading_post'],
 };
+
+/** Special rules and skills that open Visit Trading Post to any fighter who has them. */
+const TRADING_POST_RULES = new Set([
+  // The Fixer's, Scabber's and Underhive Trader's special rules
+  'old for new',
+  'friends in low places',
+  'the finest merchandise',
+  // Skill
+  'connected',
+]);
 
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
   (OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false) ||
-  // The Connected skill opens Visit Trading Post to any fighter who has it.
-  (action === 'visit_trading_post' && fighter.skills?.Connected !== undefined);
+  (action === 'visit_trading_post' &&
+    [...(fighter.special_rules ?? []), ...Object.keys(fighter.skills ?? {})].some((name) =>
+      TRADING_POST_RULES.has(name.toLowerCase())
+    ));
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
@@ -277,8 +286,8 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
-  /** Keyed by skill name. */
-  skills?: Record<string, unknown>;
+  special_rules?: string[];
+  skills?: FighterSkills;
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
