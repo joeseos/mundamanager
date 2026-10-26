@@ -20,7 +20,7 @@ import { ForumPostContent } from '@/components/forum/forum-post-content';
 import { ForumReplyBox } from '@/components/forum/forum-reply-box';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import { ForumArticleSuggestion, ForumThreadMenu } from '@/components/forum/forum-thread-menu';
-import { ForumThreadViewerProvider } from '@/components/forum/forum-viewer';
+import { ForumMarkThreadRead, ForumThreadViewerProvider } from '@/components/forum/forum-viewer';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { UserRoleBadge } from '@/components/ui/user-role-badge';
@@ -66,6 +66,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
   return (
     <main className="flex min-h-screen flex-col items-center">
       <ForumThreadViewerProvider threadNumber={thread.number} page={page} authorId={thread.author_id}>
+        {page === pageCount && <ForumMarkThreadRead threadId={thread.id} />}
         <div className="w-full bg-card shadow-md rounded-lg p-4">
           <div className="flex items-start justify-between gap-2">
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">

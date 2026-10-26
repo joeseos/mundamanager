@@ -1,5 +1,6 @@
--- Forum read state: when each user last opened each thread, so the thread list
--- can show threads with posts they haven't seen in bold. Private to the user.
+-- Forum read state: when each user last reached the end of each thread (its last
+-- page), so the thread list can show threads with posts they haven't seen in
+-- bold. Private to the user.
 --
 -- DEPLOY ORDER: apply after 20261026100000_add_forum_reports.sql.
 
@@ -13,7 +14,7 @@ CREATE TABLE public.forum_thread_reads (
 );
 
 COMMENT ON TABLE public.forum_thread_reads IS
-  'When each user last opened each forum thread. A thread with a post after it is unread.';
+  'When each user last read each forum thread to its end. A thread with a post after it is unread.';
 
 CREATE INDEX forum_thread_reads_thread_idx
   ON public.forum_thread_reads (thread_id);

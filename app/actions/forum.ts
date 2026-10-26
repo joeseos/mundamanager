@@ -29,7 +29,6 @@ import {
   getForumTags,
   getForumThread,
   getForumUnreadThreadNumbers,
-  markForumThreadRead,
 } from '@/app/lib/forum';
 
 export interface ForumActionResult {
@@ -415,7 +414,7 @@ export interface ForumThreadViewerData {
 /**
  * The thread page's parts for the signed-in viewer alone, loaded by the browser
  * so the page itself stays static: the page's likes, and the thread's article
- * suggestion for its author and moderators. Loading it marks the thread read.
+ * suggestion for its author and moderators.
  */
 export async function getForumThreadViewer(params: { threadNumber: number; page: number }): Promise<ForumThreadViewerData | null> {
   const [claims, thread] = await Promise.all([createClient().then(getClaims), getForumThread(params.threadNumber)]);
@@ -427,9 +426,24 @@ export async function getForumThreadViewer(params: { threadNumber: number; page:
   const [likes, submission] = await Promise.all([
     getForumPostLikes(claims.userId, posts.map((post) => post.id)),
     showSuggestion ? getForumArticleSubmission(claims.userId, thread.id) : null,
-    markForumThreadRead(claims.userId, thread.id),
   ]);
   return { likes, submission };
+}
+
+/** Records that the signed-in user has read the thread up to now, when they open its last page. */
+export async function markForumThreadRead(threadId: string): Promise<ForumActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+    const { error } = await supabase
+      .from('forum_thread_reads')
+      .upsert({ user_id: user.id, thread_id: threadId, last_read_at: new Date().toISOString() });
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to mark the thread read', error);
+    return { success: false, error: 'Failed to mark the thread read' };
+  }
 }
 
 /** Which of a category page's threads have posts the signed-in user hasn't read, loaded by the browser so the page stays static. */

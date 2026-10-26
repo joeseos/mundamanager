@@ -303,16 +303,6 @@ export async function getForumPostLikes(userId: string, postIds: string[]): Prom
   return Object.fromEntries(rows.map(({ id, ...likes }) => [id, likes]));
 }
 
-/** Records that the user has just read the thread. */
-export async function markForumThreadRead(userId: string, threadId: string): Promise<void> {
-  await withUserClaims(userId, (tx) =>
-    tx
-      .insert(forumThreadReads)
-      .values({ user_id: userId, thread_id: threadId })
-      .onConflictDoUpdate({ target: [forumThreadReads.user_id, forumThreadReads.thread_id], set: { last_read_at: sql`now()` } })
-  );
-}
-
 /**
  * Of the given threads, the ones with a post the user hasn't read: never opened,
  * or posted in since they last were. The user's own latest post doesn't count.

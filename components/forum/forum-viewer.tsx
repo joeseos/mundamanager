@@ -1,11 +1,16 @@
 'use client';
 
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
 import { isForumModeratorRole } from '@/utils/auth';
-import { type ForumThreadViewerData, getForumThreadViewer, getForumUnreadThreads } from '@/app/actions/forum';
+import {
+  type ForumThreadViewerData,
+  getForumThreadViewer,
+  getForumUnreadThreads,
+  markForumThreadRead,
+} from '@/app/actions/forum';
 
 interface ForumViewer {
   /** null while loading and when signed out. */
@@ -99,8 +104,6 @@ export function ForumUnreadThreadsProvider({ threadNumbers, children }: { thread
     queryKey: ['forum-unread-threads', userId, threadNumbers],
     queryFn: () => getForumUnreadThreads(threadNumbers),
     enabled: userId !== null,
-    // Opening a thread marks it read, so coming back to the list loads it again
-    staleTime: 0,
   });
   return <ForumUnreadThreadsContext.Provider value={data ?? []}>{children}</ForumUnreadThreadsContext.Provider>;
 }
@@ -112,9 +115,22 @@ export function ForumThreadTitleLink({ number, href, title }: { number: number; 
     <Link
       href={href}
       prefetch={false}
-      className={`${unread ? 'font-bold' : 'font-normal'} truncate group-hover:text-red-800 transition-colors after:absolute after:inset-0`}
+      className={`${unread ? 'font-bold' : 'font-medium'} truncate group-hover:text-red-800 transition-colors after:absolute after:inset-0`}
     >
       {title}
     </Link>
   );
+}
+
+/** Marks the thread read for the signed-in viewer. Rendered on its last page, so reading page 1 leaves later posts unread. */
+export function ForumMarkThreadRead({ threadId }: { threadId: string }) {
+  const { userId } = useForumViewer();
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (!userId) return;
+    markForumThreadRead(threadId).then((result) => {
+      if (result.success) queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] });
+    });
+  }, [userId, threadId, queryClient]);
+  return null;
 }
