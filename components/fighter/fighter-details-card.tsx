@@ -11,7 +11,7 @@ import {
 } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { memo } from 'react';
-import { nextTierStartFor } from '@/utils/advancementRanks';
+import { xpTowardNextTier } from '@/utils/advancementRanks';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
@@ -417,8 +417,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
     if (starting_xp == null && !xp) return 'N/A';
     const currentXp = xp ?? 0;
     if (hasCumulativeXp(edition_slug)) {
-      const nextTierStart = nextTierStartFor(edition_slug, currentXp);
-      return `${currentXp}/${nextTierStart ?? '–'}`;
+      return xpTowardNextTier(edition_slug, currentXp);
     }
     return currentXp;
   })();

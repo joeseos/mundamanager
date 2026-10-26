@@ -167,11 +167,19 @@ export function xpAfterStartingXpChange(
  * none: a Legend of the Underhive has nothing above it, and an edition without
  * tiers has nothing to reach.
  */
-export function nextTierStartFor(
+function nextTierStartFor(
   editionSlug: string | null | undefined,
   currentXp: number,
 ): number | null {
   return tierStartsFor(editionSlug).find((tierStart) => tierStart > currentXp) ?? null;
+}
+
+/** A model's XP against the start of its next tier, "71/73", or "120/–" with none above. */
+export function xpTowardNextTier(
+  editionSlug: string | null | undefined,
+  currentXp: number,
+): string {
+  return `${currentXp}/${nextTierStartFor(editionSlug, currentXp) ?? '–'}`;
 }
 
 /**
