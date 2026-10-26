@@ -11,7 +11,7 @@ import {
 } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { memo } from 'react';
-import { xpTowardNextTier } from '@/utils/advancementRanks';
+import { tracksXp, xpTowardNextTier } from '@/utils/advancementRanks';
 import { calculateAdjustedStats } from '@/utils/effect-modifiers';
 import { FighterProps, FighterEffect, Vehicle } from '@/types/fighter';
 import { TbMeatOff } from "react-icons/tb";
@@ -409,12 +409,9 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
 
   const initiativeAndMentalSuffix = initiativeAndMentalCharacteristicSuffix(edition_slug);
 
-  // A model whose type cannot gain XP has no recruitment value, and reads N/A.
-  // The number takes over the moment the model actually holds XP, so a group
-  // house-ruling XP onto it still sees it.
   // Rank-based editions show progress toward the next Advancement tier.
   const xpDisplay = (() => {
-    if (starting_xp == null && !xp) return 'N/A';
+    if (!tracksXp(starting_xp, xp)) return 'N/A';
     const currentXp = xp ?? 0;
     if (hasCumulativeXp(edition_slug)) {
       return xpTowardNextTier(edition_slug, currentXp);

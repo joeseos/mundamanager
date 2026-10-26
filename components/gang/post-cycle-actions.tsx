@@ -13,7 +13,7 @@ import type { GangTacticsCard, TacticsCard } from '@/types/tactics-card';
 import { UserPermissions } from '@/types/user-permissions';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { xpTowardNextTier } from '@/utils/advancementRanks';
+import { tracksXp, xpTowardNextTier } from '@/utils/advancementRanks';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
@@ -594,11 +594,13 @@ export default function PostCycleActions({
                   >
                     <div className="flex items-start justify-between gap-3 mb-2 md:mb-0 md:pt-2 min-w-0">
                       <div className="min-w-0">
-                        <div className="font-medium truncate">
-                          {fighter.fighter_name}
-                          <span className="ml-2 text-sm font-normal text-muted-foreground">
-                            ({xpTowardNextTier(editionSlug, fighter.xp)} XP)
-                          </span>
+                        <div className="flex items-baseline gap-2 min-w-0">
+                          <span className="font-medium truncate">{fighter.fighter_name}</span>
+                          {tracksXp(fighter.starting_xp, fighter.xp) && (
+                            <span className="shrink-0 text-sm text-muted-foreground">
+                              ({xpTowardNextTier(editionSlug, fighter.xp)} XP)
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {`${fighter.fighter_type} (${formatFighterSubtypeDisplay(
