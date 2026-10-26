@@ -14,7 +14,7 @@ CREATE TABLE public.forum_reports (
 );
 
 COMMENT ON TABLE public.forum_reports IS
-  'Posts members reported to the moderators, one row per member and post. Dismissing or removing the post deletes them.';
+  'Posts members reported to the moderators, one row per member and post, until a moderator dismisses them.';
 
 CREATE INDEX forum_reports_reporter_idx
   ON public.forum_reports (reporter_id);

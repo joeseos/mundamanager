@@ -288,10 +288,6 @@ export async function deleteForumPost(postId: string): Promise<ForumActionResult
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to delete the post', MODERATORS_ONLY) };
     if (!removed.length) return { success: false, error: MODERATORS_ONLY };
 
-    // A removed post has nothing left to report
-    const { error: reportsError } = await supabase.from('forum_reports').delete().eq('post_id', postId);
-    if (reportsError) console.error("Failed to clear the post's reports", reportsError);
-
     // The thread list shows nothing of a reply but the count, which a removal keeps
     invalidateForumThreadPosts(thread.number);
     return { success: true, path: postPath(thread, post.post_number) };

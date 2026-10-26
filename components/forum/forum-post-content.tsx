@@ -103,7 +103,7 @@ function ForumLikeButton({ post }: Pick<ForumPostContentProps, 'post'>) {
 }
 
 /**
- * A post's text, with Quote for signed-in users, Report for everyone but its author,
+ * A post's text, with Quote for signed-in users, Report for members other than its author,
  * Edit for its author and moderators, and Delete for moderators.
  */
 export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostContentProps) {
@@ -129,13 +129,15 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
   };
 
   const handleReport = async () => {
-    const result = await reportForumPost(post.id);
-    if (!result.success) {
-      toast.error(result.error);
+    try {
+      const result = await reportForumPost(post.id);
+      if (!result.success) throw new Error(result.error);
+      toast.success('Reported to the moderators');
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to report the post');
       return false;
     }
-    toast.success('Reported to the moderators');
-    return true;
   };
 
   if (editing) {
@@ -174,7 +176,7 @@ export function ForumPostContent({ post, threadTitle, pagePath }: ForumPostConte
             <LuQuote className="h-4 w-4" />
           </Button>
         )}
-        {userId !== null && userId !== post.author_id && (
+        {userId !== null && userId !== post.author_id && !isModerator && (
           <Button
             variant="ghost"
             size="sm"

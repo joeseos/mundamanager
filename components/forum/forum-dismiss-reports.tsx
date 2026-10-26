@@ -13,10 +13,15 @@ export function ForumDismissReportsButton({ postId }: { postId: string }) {
 
   const dismiss = async () => {
     setSaving(true);
-    const result = await dismissForumPostReports(postId);
-    if (result.success) router.refresh();
-    else toast.error(result.error);
-    setSaving(false);
+    try {
+      const result = await dismissForumPostReports(postId);
+      if (!result.success) throw new Error(result.error);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to dismiss the reports');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

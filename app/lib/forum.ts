@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { and, asc, between, count, desc, eq, inArray, isNotNull, max, min, sql } from 'drizzle-orm';
+import { and, asc, between, count, desc, eq, inArray, isNotNull, isNull, max, min, type SQL, sql } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getAppDb, withUserClaims } from '@/utils/db/client';
 import {
@@ -92,7 +92,7 @@ export interface ForumPost {
  *
  * Timestamps go through to_json so they come back as ISO strings.
  */
-const iso = (column: AnyPgColumn) => sql<string>`to_json(${column})`;
+const iso = (column: AnyPgColumn | SQL) => sql<string>`to_json(${column})`;
 
 const author = alias(profiles, 'author');
 const lastPostAuthor = alias(profiles, 'last_post_author');
@@ -496,7 +496,7 @@ export interface ForumReport {
   last_reported_at: string;
 }
 
-/** Reported posts, longest waiting first. Moderators only and rarely read, so not cached. */
+/** Reported posts still up, longest waiting first. Moderators only and rarely read, so not cached. */
 export function getForumReports(userId: string): Promise<ForumReport[]> {
   return withUserClaims(userId, (tx) =>
     tx
@@ -508,13 +508,15 @@ export function getForumReports(userId: string): Promise<ForumReport[]> {
         category_slug: forumCategories.slug,
         author: author.username,
         report_count: count(),
-        last_reported_at: sql<string>`to_json(${max(forumReports.created_at)})`,
+        last_reported_at: iso(max(forumReports.created_at)),
       })
       .from(forumReports)
       .innerJoin(forumPosts, eq(forumPosts.id, forumReports.post_id))
       .innerJoin(forumThreads, eq(forumThreads.id, forumPosts.thread_id))
       .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
       .leftJoin(author, eq(author.id, forumPosts.author_id))
+      // A removed post has been dealt with
+      .where(isNull(forumPosts.deleted_at))
       .groupBy(forumPosts.id, forumThreads.id, forumCategories.slug, author.username)
       .orderBy(min(forumReports.created_at))
   );
