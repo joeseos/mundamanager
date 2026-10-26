@@ -8,6 +8,10 @@ import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
 import { dismissForumPostReports, reportForumPost } from '@/app/actions/forum';
 
+// Same limits as reportForumPost
+const REASON_MIN_LENGTH = 50;
+const REASON_MAX_LENGTH = 500;
+
 /** Asks before reporting a post, or a thread through its opening post, to the moderators. */
 export function ForumReportDialog({
   target,
@@ -21,6 +25,7 @@ export function ForumReportDialog({
   onClose: () => void;
 }) {
   const [reason, setReason] = useState('');
+  const reasonLength = reason.trim().length;
 
   const report = async () => {
     try {
@@ -43,13 +48,22 @@ export function ForumReportDialog({
           <label htmlFor="forum-report-reason" className="block text-sm font-medium text-muted-foreground">
             Why are you reporting it?
           </label>
-          <Textarea id="forum-report-reason" value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} rows={3} />
+          <Textarea
+            id="forum-report-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            maxLength={REASON_MAX_LENGTH}
+            rows={3}
+          />
+          <p className="text-xs text-muted-foreground text-right">
+            {reasonLength < REASON_MIN_LENGTH ? `${reasonLength}/${REASON_MIN_LENGTH} characters minimum` : `${reasonLength}/${REASON_MAX_LENGTH}`}
+          </p>
         </div>
       }
       onClose={onClose}
       onConfirm={report}
       confirmText="Report"
-      confirmDisabled={!reason.trim()}
+      confirmDisabled={reasonLength < REASON_MIN_LENGTH}
     />
   );
 }

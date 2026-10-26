@@ -12,7 +12,7 @@ CREATE TABLE public.forum_reports (
   reason text NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   PRIMARY KEY (post_id, reporter_id),
-  CONSTRAINT forum_reports_reason_length CHECK (char_length(btrim(reason)) BETWEEN 1 AND 500)
+  CONSTRAINT forum_reports_reason_length CHECK (char_length(btrim(reason)) BETWEEN 50 AND 500)
 );
 
 COMMENT ON TABLE public.forum_reports IS

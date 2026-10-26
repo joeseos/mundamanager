@@ -455,6 +455,8 @@ export async function setForumPostLike(params: { postId: string; liked: boolean 
   }
 }
 
+// Same limits as the forum_reports check constraint; the minimum asks for more than "not good"
+const REPORT_REASON_MIN_LENGTH = 50;
 const REPORT_REASON_MAX_LENGTH = 500;
 
 /**
@@ -467,7 +469,9 @@ export async function reportForumPost(
 ): Promise<ForumActionResult> {
   // Server actions can be called with anything
   const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-  if (!trimmedReason) return { success: false, error: 'Say why you are reporting it' };
+  if (trimmedReason.length < REPORT_REASON_MIN_LENGTH) {
+    return { success: false, error: `Say why you are reporting it in at least ${REPORT_REASON_MIN_LENGTH} characters` };
+  }
   if (trimmedReason.length > REPORT_REASON_MAX_LENGTH) {
     return { success: false, error: `Reasons can be at most ${REPORT_REASON_MAX_LENGTH} characters` };
   }
