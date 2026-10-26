@@ -596,7 +596,7 @@ export default function PostCycleActions({
                       <div className="min-w-0">
                         <div className="font-medium truncate">
                           {fighter.fighter_name}
-                          <span className="ml-2 font-normal text-muted-foreground">
+                          <span className="ml-2 text-sm font-normal text-muted-foreground">
                             ({xpTowardNextTier(editionSlug, fighter.xp)} XP)
                           </span>
                         </div>
