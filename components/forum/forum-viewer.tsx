@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
@@ -97,6 +97,33 @@ export const useForumThreadViewer = () => useContext(ForumThreadViewerContext);
 
 const ForumUnreadThreadsContext = createContext<number[]>([]);
 
+/**
+ * The last post the viewer is known to have read in each thread, by thread
+ * number, kept in the browser so a thread list shows its bold titles at once
+ * and the server's answer only corrects it.
+ */
+const READ_THREADS_KEY = 'forum-read-threads';
+
+function storedReadThreads(): Record<number, string> {
+  try {
+    return JSON.parse(localStorage.getItem(READ_THREADS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+function storeReadThreads(update: (read: Record<number, string>) => void) {
+  const read = storedReadThreads();
+  update(read);
+  try {
+    localStorage.setItem(READ_THREADS_KEY, JSON.stringify(read));
+  } catch {
+    // Storage full or blocked: the list just waits for the server
+  }
+}
+
+const noSubscribe = () => () => {};
+
 /** Which of a category page's threads the signed-in viewer hasn't read, loaded in the browser so the page itself is static. */
 export function ForumUnreadThreadsProvider({
   threads,
@@ -105,14 +132,32 @@ export function ForumUnreadThreadsProvider({
   threads: { number: number; last_post_at: string }[];
   children: ReactNode;
 }) {
-  const { userId } = useForumViewer();
+  const { userId, loading } = useForumViewer();
   const { data } = useQuery({
     // With each thread's last post, so a new post loads it again
     queryKey: ['forum-unread-threads', userId, threads],
-    queryFn: () => getForumUnreadThreads(threads.map((thread) => thread.number)),
+    queryFn: async () => {
+      const unread = await getForumUnreadThreads(threads.map((thread) => thread.number));
+      storeReadThreads((read) => {
+        for (const thread of threads) {
+          if (unread.includes(thread.number)) delete read[thread.number];
+          else read[thread.number] = thread.last_post_at;
+        }
+      });
+      return unread;
+    },
     enabled: userId !== null,
   });
-  return <ForumUnreadThreadsContext.Provider value={data ?? []}>{children}</ForumUnreadThreadsContext.Provider>;
+
+  // Until the server answers: unread unless read up to the post the list shows. Null while hydrating.
+  const stored = useSyncExternalStore(noSubscribe, () => localStorage.getItem(READ_THREADS_KEY), () => null);
+  const guess = useMemo(() => {
+    if (!stored || (!loading && userId === null)) return [];
+    const read = storedReadThreads();
+    return threads.filter((thread) => read[thread.number] !== thread.last_post_at).map((thread) => thread.number);
+  }, [stored, loading, userId, threads]);
+
+  return <ForumUnreadThreadsContext.Provider value={data ?? guess}>{children}</ForumUnreadThreadsContext.Provider>;
 }
 
 /** A thread's title in the category list, in bold while it has posts the viewer hasn't read. */
@@ -133,14 +178,25 @@ export function ForumThreadTitleLink({ number, href, title }: { number: number; 
  * Marks the thread read for the signed-in viewer, up to the last post the page shows.
  * Rendered on its last page, so reading page 1 leaves later posts unread.
  */
-export function ForumMarkThreadRead({ threadId, lastPostAt }: { threadId: string; lastPostAt: string }) {
+export function ForumMarkThreadRead({
+  threadId,
+  threadNumber,
+  lastPostAt,
+}: {
+  threadId: string;
+  threadNumber: number;
+  lastPostAt: string;
+}) {
   const { userId } = useForumViewer();
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!userId) return;
+    storeReadThreads((read) => {
+      read[threadNumber] = lastPostAt;
+    });
     markForumThreadRead({ threadId, lastPostAt }).then(() =>
       queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] }),
     );
-  }, [userId, threadId, lastPostAt, queryClient]);
+  }, [userId, threadId, threadNumber, lastPostAt, queryClient]);
   return null;
 }
