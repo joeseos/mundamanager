@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useClaims } from '@/hooks/use-claims';
+import { PERSISTED_QUERY_MAX_AGE } from '@/app/providers/query-client-provider';
 import { isForumModeratorRole } from '@/utils/auth';
 import {
   type ForumThreadViewerData,
@@ -99,18 +100,25 @@ const ForumUnreadThreadsContext = createContext<number[]>([]);
 
 /** Which of a category page's threads the signed-in viewer hasn't read, loaded in the browser so the page itself is static. */
 export function ForumUnreadThreadsProvider({
+  categoryId,
+  page,
   threads,
   children,
 }: {
+  categoryId: string;
+  page: number;
   threads: { number: number; last_post_at: string }[];
   children: ReactNode;
 }) {
   const { userId } = useForumViewer();
   const { data } = useQuery({
-    // With each thread's last post, so a new post loads it again
-    queryKey: ['forum-unread-threads', userId, threads],
+    queryKey: ['forum-unread-threads', userId, categoryId, page],
     queryFn: () => getForumUnreadThreads(threads.map((thread) => thread.number)),
     enabled: userId !== null,
+    // Shows the last answer saved in this browser at once and asks the server on every visit
+    meta: { persist: true },
+    staleTime: 0,
+    gcTime: PERSISTED_QUERY_MAX_AGE,
   });
   return <ForumUnreadThreadsContext.Provider value={data ?? []}>{children}</ForumUnreadThreadsContext.Provider>;
 }
@@ -133,14 +141,26 @@ export function ForumThreadTitleLink({ number, href, title }: { number: number; 
  * Marks the thread read for the signed-in viewer, up to the last post the page shows.
  * Rendered on its last page, so reading page 1 leaves later posts unread.
  */
-export function ForumMarkThreadRead({ threadId, lastPostAt }: { threadId: string; lastPostAt: string }) {
+export function ForumMarkThreadRead({
+  threadId,
+  threadNumber,
+  lastPostAt,
+}: {
+  threadId: string;
+  threadNumber: number;
+  lastPostAt: string;
+}) {
   const { userId } = useForumViewer();
   const queryClient = useQueryClient();
   useEffect(() => {
     if (!userId) return;
-    markForumThreadRead({ threadId, lastPostAt }).then(() =>
-      queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] }),
-    );
-  }, [userId, threadId, lastPostAt, queryClient]);
+    markForumThreadRead({ threadId, lastPostAt }).then(() => {
+      // Lists already loaded show it read at once, then ask the server for the real state
+      queryClient.setQueriesData<number[]>({ queryKey: ['forum-unread-threads'] }, (unread) =>
+        unread?.filter((number) => number !== threadNumber),
+      );
+      return queryClient.invalidateQueries({ queryKey: ['forum-unread-threads'] });
+    });
+  }, [userId, threadId, threadNumber, lastPostAt, queryClient]);
   return null;
 }
