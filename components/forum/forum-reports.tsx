@@ -25,7 +25,8 @@ export function ForumReportDialog({
   onClose: () => void;
 }) {
   const [reason, setReason] = useState('');
-  const reasonLength = reason.trim().length;
+  // In characters, as the server counts them
+  const reasonLength = [...reason.trim()].length;
 
   const report = async () => {
     try {

@@ -461,7 +461,7 @@ const REPORT_REASON_MAX_LENGTH = 500;
 
 /**
  * Reports a post to the moderators, or a thread through its opening post, saying why.
- * RLS refuses your own posts and removed ones; reporting twice changes nothing.
+ * RLS refuses your own posts and removed ones, and a post can be reported once.
  */
 export async function reportForumPost(
   params: { postId: string } | { threadId: string },
@@ -469,10 +469,12 @@ export async function reportForumPost(
 ): Promise<ForumActionResult> {
   // Server actions can be called with anything
   const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
-  if (trimmedReason.length < REPORT_REASON_MIN_LENGTH) {
+  // In characters, as Postgres counts them, not UTF-16 units
+  const reasonLength = [...trimmedReason].length;
+  if (reasonLength < REPORT_REASON_MIN_LENGTH) {
     return { success: false, error: `Say why you are reporting it in at least ${REPORT_REASON_MIN_LENGTH} characters` };
   }
-  if (trimmedReason.length > REPORT_REASON_MAX_LENGTH) {
+  if (reasonLength > REPORT_REASON_MAX_LENGTH) {
     return { success: false, error: `Reasons can be at most ${REPORT_REASON_MAX_LENGTH} characters` };
   }
 
@@ -494,9 +496,8 @@ export async function reportForumPost(
       postId = data.id;
     }
 
-    const { error } = await supabase
-      .from('forum_reports')
-      .upsert({ post_id: postId, reporter_id: user.id, reason: trimmedReason }, { ignoreDuplicates: true });
+    const { error } = await supabase.from('forum_reports').insert({ post_id: postId, reporter_id: user.id, reason: trimmedReason });
+    if (error?.code === '23505') return { success: false, error: 'You already reported this' };
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to report the post', "You can't report this post") };
     return { success: true };
   } catch (error) {
