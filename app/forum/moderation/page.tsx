@@ -48,8 +48,8 @@ export default async function ForumModerationPage() {
                     </Link>
                     <p className="text-muted-foreground">
                       {report.post_number === 1 ? 'Thread' : `Post #${report.post_number}`} by{' '}
-                      {report.author ?? 'Unknown User'} · {report.report_count}{' '}
-                      {report.report_count === 1 ? 'report' : 'reports'}, last {formatForumDate(report.last_reported_at)}
+                      {report.author ?? 'Unknown User'} · reported by {report.reporters.join(', ')}, last{' '}
+                      {formatForumDate(report.last_reported_at)}
                     </p>
                   </div>
                   <ForumDismissReportsButton postId={report.post_id} reportedUntil={report.last_reported_at} />

@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
-import { and, asc, between, count, desc, eq, inArray, isNotNull, isNull, max, min, type SQL, sql } from 'drizzle-orm';
+import { and, asc, between, desc, eq, inArray, isNotNull, isNull, max, min, type SQL, sql } from 'drizzle-orm';
 import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getAppDb, withUserClaims } from '@/utils/db/client';
 import {
@@ -97,6 +97,7 @@ const iso = (column: AnyPgColumn | SQL) => sql<string>`to_json(${column})`;
 const author = alias(profiles, 'author');
 const lastPostAuthor = alias(profiles, 'last_post_author');
 const openingPost = alias(forumPosts, 'opening_post');
+const reporter = alias(profiles, 'reporter');
 
 /** Categories in index order, each with its most recently active thread. */
 export const getForumCategories = unstable_cache(
@@ -492,7 +493,8 @@ export interface ForumReport {
   thread_title: string;
   category_slug: string;
   author: string | null;
-  report_count: number;
+  /** Who reported it, first report first. */
+  reporters: string[];
   last_reported_at: string;
 }
 
@@ -507,10 +509,11 @@ export function getForumReports(userId: string): Promise<ForumReport[]> {
         thread_title: forumThreads.title,
         category_slug: forumCategories.slug,
         author: author.username,
-        report_count: count(),
+        reporters: sql<string[]>`array_agg(${reporter.username} order by ${forumReports.created_at})`,
         last_reported_at: iso(max(forumReports.created_at)),
       })
       .from(forumReports)
+      .innerJoin(reporter, eq(reporter.id, forumReports.reporter_id))
       .innerJoin(forumPosts, eq(forumPosts.id, forumReports.post_id))
       .innerJoin(forumThreads, eq(forumThreads.id, forumPosts.thread_id))
       .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
