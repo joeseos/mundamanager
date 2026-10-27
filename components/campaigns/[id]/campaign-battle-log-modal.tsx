@@ -582,6 +582,13 @@ const CampaignBattleLogModal = ({
       : ([] as BattleLogTerritory[]);
   }, [hasAnyWinnerSelected, isUnplayedChallenge, isNewChallenge, gangsInBattle, territories]);
 
+  // Territories another open challenge already stakes; still pickable, only labelled.
+  const stakedTerritoryIds = useMemo(() => new Set(
+    battles
+      .filter(battle => battle.id !== battleToEdit?.id && !['played', 'challenge_declined'].includes(battleStatusOf(battle)))
+      .map(battle => battle.campaign_territory_id)
+  ), [battles, battleToEdit]);
+
   // Clear selected territory when no territories are available (non-edit mode only)
   const [prevHasAvailable, setPrevHasAvailable] = useState(false);
   const hasAvailable = availableTerritories.length > 0;
@@ -1314,7 +1321,8 @@ const CampaignBattleLogModal = ({
                     .map((territory) => {
                       const displayName = territory.name ?? territory.territory_name ?? "";
                       const controlledBy = territory.controlled_by ? getGangName(territory.controlled_by) : null;
-                      const statusLabel = controlledBy ? ` (Held by ${controlledBy})` : " (Unclaimed)";
+                      const staked = stakedTerritoryIds.has(territory.id) ? ", staked" : "";
+                      const statusLabel = ` (${controlledBy ? `Held by ${controlledBy}` : "Unclaimed"}${staked})`;
 
                       return {
                         value: territory.id,
