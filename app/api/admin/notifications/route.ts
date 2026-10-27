@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server'
 import { checkAdmin, getUserIdFromClaims } from '@/utils/auth'
-import { ADMIN_NOTIFICATION_TYPES, isAdminNotificationType } from '@/utils/notifications'
+import { ADMIN_NOTIFICATION_TYPES, isAdminNotificationType, parseLoggedInSince } from '@/utils/notifications'
 import { loadNotificationSends } from '@/utils/sent-notification-history'
 import { postNotificationSend } from '@/utils/notification-send-request'
 
@@ -38,13 +38,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    return postNotificationSend(request, {
+    return await postNotificationSend(request, {
       senderId,
       campaignId: null,
       selectedAudience: 'users',
       recipientNoun: 'user',
       failureFallback: 'Failed to send notifications',
-      requireLoggedInSince: true,
+      loginCutoff: (value) => {
+        if (value == null || value === '') return null
+        const cutoff = parseLoggedInSince(value)
+        if (!cutoff) {
+          return NextResponse.json(
+            { error: 'Logged in on or after must be a real date that is not in the future' },
+            { status: 400 }
+          )
+        }
+        return cutoff
+      },
       type: (body) => {
         if (typeof body.type !== 'string' || !isAdminNotificationType(body.type)) {
           return NextResponse.json(

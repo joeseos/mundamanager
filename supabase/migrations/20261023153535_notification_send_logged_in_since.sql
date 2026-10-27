@@ -1,25 +1,15 @@
 -- Limit admin all-user notification sends to users who logged in on or after a date.
 --
--- Drops the 7-argument create_notification_send and replaces it with one that accepts
--- p_logged_in_since. The same definition lives in supabase/functions/create_notification_send.sql.
--- Insert one notification send and every recipient row in a single transaction.
---
--- The Sent lists read notification_sends. Recipient rows in notifications can expire
--- or be deleted without changing that history. Campaign messages email every current
--- campaign member (not only members with an accepted gang) and are capped at 5 sends
--- per campaign per UTC day, and at 10 campaign messages per sender per UTC day.
---
--- Admin all-user sends may pass p_logged_in_since. Those recipients are profiles
--- whose auth.users.last_sign_in_at is at or after that instant, the start of the
--- selected local calendar day. A null value keeps every profile. Campaign sends
--- ignore the parameter.
---
--- service_role only. The Next.js routes check the caller is an admin, or a campaign
--- owner, arbitrator, or app admin, before calling this.
---
--- Apply supabase/migrations/20261021234309_notification_sends.sql before this
--- file: the function inserts into notification_sends. The same definition lives
--- in supabase/functions/create_notification_send.sql.
+-- Adds notification_sends.logged_in_since and replaces create_notification_send.
+-- The same function definition lives in supabase/functions/create_notification_send.sql.
+-- Apply supabase/migrations/20261021234309_notification_sends.sql first: this function
+-- inserts into notification_sends.
+
+ALTER TABLE public.notification_sends
+  ADD COLUMN IF NOT EXISTS logged_in_since timestamptz;
+
+COMMENT ON COLUMN public.notification_sends.logged_in_since IS
+  'Login cutoff for an admin all-user send. Null means every profile, including people who never logged in.';
 
 DROP FUNCTION IF EXISTS public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]);
 
@@ -78,6 +68,11 @@ BEGIN
     WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
   END;
 
+  IF p_logged_in_since IS NOT NULL
+     AND (p_type = 'campaign_message' OR p_audience = 'selected') THEN
+    RAISE EXCEPTION 'logged_in_since only applies to all-user sends';
+  END IF;
+
   IF p_audience = 'all' AND p_type = 'campaign_message' THEN
     SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -85,14 +80,20 @@ BEGIN
     WHERE cm.campaign_id = p_campaign_id
       AND cm.user_id IS NOT NULL;
   ELSIF p_audience = 'all' THEN
-    -- p_logged_in_since limits admin broadcasts to users who logged in at or after
-    -- that instant. Null keeps every profile. Campaign sends do not reach here.
+    -- Null keeps every profile. Otherwise keep a login or a session refresh at or
+    -- after the cutoff. refreshed_at has no time zone and is stored as UTC.
     SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
     INTO v_receiver_ids
     FROM public.profiles p
     JOIN auth.users u ON u.id = p.id
     WHERE p_logged_in_since IS NULL
-       OR u.last_sign_in_at >= p_logged_in_since;
+       OR u.last_sign_in_at >= p_logged_in_since
+       OR EXISTS (
+         SELECT 1
+         FROM auth.sessions s
+         WHERE s.user_id = u.id
+           AND (s.refreshed_at AT TIME ZONE 'UTC') >= p_logged_in_since
+       );
   ELSE
     SELECT COALESCE(array_agg(DISTINCT receiver.receiver_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -173,14 +174,16 @@ BEGIN
     campaign_id,
     text,
     recipient_count,
-    sample_receiver_ids
+    sample_receiver_ids,
+    logged_in_since
   ) VALUES (
     p_sender_id,
     p_type,
     p_campaign_id,
     p_text,
     cardinality(v_receiver_ids),
-    v_sample
+    v_sample,
+    p_logged_in_since
   )
   RETURNING id INTO v_send_id;
 

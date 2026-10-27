@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createServiceRoleClient } from '@/utils/supabase/server'
-import { parseExpiresInDays, parseLoggedInSince, prepareNotificationHtml } from '@/utils/notifications'
+import { parseExpiresInDays, prepareNotificationHtml } from '@/utils/notifications'
 import { isUuid } from '@/utils/uuid'
 import { notificationSendFailure } from '@/utils/sent-notification-history'
 
@@ -18,6 +18,10 @@ type SendResult = {
   count?: number
 }
 
+function cutoffWasSent(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== ''
+}
+
 export async function postNotificationSend(
   request: Request,
   input: {
@@ -27,8 +31,11 @@ export async function postNotificationSend(
     recipientNoun: 'user' | 'player'
     failureFallback: string
     type: string | ((body: SendBody) => string | NextResponse)
-    /** Admin all-user sends must include a login cutoff. Other callers ignore the field. */
-    requireLoggedInSince?: boolean
+    /**
+     * Admin all-user sends. Absent or empty means every user. A date must parse.
+     * Other callers must not send a cutoff.
+     */
+    loginCutoff?: (value: unknown) => string | null | NextResponse
   }
 ): Promise<NextResponse> {
   const body = (await request.json()) as SendBody
@@ -65,15 +72,17 @@ export async function postNotificationSend(
     receiverIds = Array.from(new Set(ids))
   }
 
+  const allUserSend = audience === 'all' && resolvedType !== 'campaign_message'
   let loggedInSince: string | null = null
-  if (input.requireLoggedInSince && audience === 'all') {
-    loggedInSince = parseLoggedInSince(body.loggedInSince)
-    if (!loggedInSince) {
-      return NextResponse.json(
-        { error: 'Logged in on or after must be a real date that is not in the future' },
-        { status: 400 }
-      )
-    }
+  if (allUserSend && input.loginCutoff) {
+    const cutoff = input.loginCutoff(body.loggedInSince)
+    if (cutoff instanceof NextResponse) return cutoff
+    loggedInSince = cutoff
+  } else if (cutoffWasSent(body.loggedInSince)) {
+    return NextResponse.json(
+      { error: 'A login cutoff only applies to an all-user send' },
+      { status: 400 }
+    )
   }
 
   const { data, error } = await createServiceRoleClient().rpc('create_notification_send', {
@@ -84,7 +93,7 @@ export async function postNotificationSend(
     p_expires_in_days: expiresInDays,
     p_audience: audience === 'all' ? 'all' : 'selected',
     p_receiver_ids: receiverIds,
-    p_logged_in_since: loggedInSince,
+    ...(loggedInSince ? { p_logged_in_since: loggedInSince } : {}),
   })
 
   if (error) {

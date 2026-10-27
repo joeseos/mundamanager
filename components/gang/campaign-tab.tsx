@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
+import { formatLocalDate } from '@/utils/local-date';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { createClient } from "@/utils/supabase/client";
@@ -95,7 +96,7 @@ const getRoleTitle = (role: MemberRole | string | undefined): string => {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
 export default function GangTerritories({ gangId, campaigns = [], editionSlug = null }: GangTerritoriesProps) {
