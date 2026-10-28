@@ -12,7 +12,7 @@ import { dismissForumPostReports, reportForumPost } from '@/app/actions/forum';
 const REASON_MIN_LENGTH = 50;
 const REASON_MAX_LENGTH = 500;
 
-/** Asks before reporting a post, or a thread through its opening post, to the moderators. */
+/** Asks before reporting a post to the moderators. */
 export function ForumReportDialog({
   target,
   title,

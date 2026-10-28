@@ -1,18 +1,23 @@
 import { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { LuHeart, LuLock, LuPin } from 'react-icons/lu';
 import {
+  FORUM_POSTS_PER_PAGE,
   FORUM_THREADS_PER_PAGE,
   formatForumDate,
-  formatForumReplies,
   forumCategoryPath,
   forumPageCount,
+  forumPostHref,
+  forumReplyCount,
   forumThreadPath,
   getForumCategory,
   getForumThreads,
   parseForumPage,
 } from '@/app/lib/forum';
-import { ForumPagination } from '@/components/forum/forum-pagination';
+import { ForumPagination, ForumThreadPageLinks } from '@/components/forum/forum-pagination';
+import { ForumRelativeTime } from '@/components/forum/forum-relative-time';
+import { UserAvatar } from '@/components/ui/user-avatar';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import { ForumThreadTitleLink, ForumUnreadThreadsProvider } from '@/components/forum/forum-viewer';
@@ -57,6 +62,9 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
           <div className="min-w-0">
             <h1 className="text-2xl font-bold">{category.name}</h1>
             {category.description && <p className="text-muted-foreground">{category.description}</p>}
+            <p className="text-sm text-muted-foreground">
+              {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
+            </p>
           </div>
           <ForumNewThreadButton category={category} categoryPath={forumCategoryPath(category.slug)} />
         </div>
@@ -68,45 +76,71 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
             categoryId={category.id}
             page={page}
             threads={threads.map(({ number, last_post_at }) => ({ number, last_post_at }))}>
-            <ul className="divide-y mt-4">
+            <div className="mt-4 hidden sm:flex items-center gap-4 border-b pb-2 text-sm font-medium">
+              <div className="flex flex-1 min-w-0 items-center gap-3">
+                <div className="w-14 shrink-0" />
+                <div className="min-w-0">Thread</div>
+              </div>
+              <div className="w-24 text-center shrink-0">Replies</div>
+              <div className="w-48 min-w-0 shrink-0">Last Activity</div>
+            </div>
+            <ul className="divide-y mt-4 sm:mt-0">
               {threads.map((thread) => (
                 <li
                   key={thread.number}
-                  className="group relative py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
+                  className="py-1.5 first:pt-0 sm:first:pt-1.5 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      {thread.is_pinned && <LuPin className="h-4 w-4 shrink-0 text-red-800" aria-label="Pinned" />}
-                      {thread.is_locked && <LuLock className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Locked" />}
-                      <ForumThreadTitleLink
-                        number={thread.number}
-                        href={forumThreadPath(category.slug, thread.number, thread.title)}
-                        title={thread.title}
-                      />
+                  <div className="group relative flex flex-1 min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
+                    <div className="flex flex-1 min-w-0 items-center gap-3">
+                      <UserAvatar username={thread.author} avatarUrl={thread.author_avatar_url} className="size-14 text-base" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          {thread.is_pinned && <LuPin className="h-4 w-4 shrink-0 text-red-800" aria-label="Pinned" />}
+                          {thread.is_locked && <LuLock className="h-4 w-4 shrink-0 text-muted-foreground" aria-label="Locked" />}
+                          <ForumThreadTitleLink
+                            number={thread.number}
+                            href={forumThreadPath(category.slug, thread.number, thread.title)}
+                            title={thread.title}
+                          />
+                          <ForumThreadPageLinks
+                            path={forumThreadPath(category.slug, thread.number, thread.title)}
+                            pageCount={forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE)}
+                          />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                          <span>
+                            {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at, true)}
+                            {thread.like_count > 0 && (
+                              <>
+                                {' '}· <LuHeart className="inline h-3.5 w-3.5 align-[-2px]" aria-label="Likes" /> {thread.like_count}
+                              </>
+                            )}
+                          </span>
+                          <ForumTagChips tags={thread.tags} className="contents" />
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)}
-                      {thread.like_count > 0 && (
-                        <>
-                          {' '}· <LuHeart className="inline h-3.5 w-3.5 align-[-2px]" aria-label="Likes" /> {thread.like_count}
-                        </>
-                      )}
-                    </p>
-                    <ForumTagChips tags={thread.tags} className="mt-1" />
+                    <div className="text-sm text-muted-foreground sm:w-24 sm:text-center shrink-0">
+                      {forumReplyCount(thread.post_count)}
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0">
-                    {formatForumReplies(thread.post_count)}
-                  </div>
-                  <div className="text-sm text-muted-foreground sm:w-48 min-w-0 shrink-0 truncate">
-                    Last post by {thread.last_post_author ?? 'Unknown User'} · {formatForumDate(thread.last_post_at)}
-                  </div>
+                  <Link
+                    href={forumPostHref(forumThreadPath(category.slug, thread.number, thread.title), thread.post_count)}
+                    prefetch={false}
+                    className="group/activity block text-sm text-muted-foreground sm:w-48 min-w-0 shrink-0"
+                  >
+                    <span className="block transition-colors group-hover/activity:text-red-800">
+                      <ForumRelativeTime date={thread.last_post_at}>{formatForumDate(thread.last_post_at, true)}</ForumRelativeTime>
+                    </span>
+                    <p className="truncate">by {thread.last_post_author ?? 'Unknown User'}</p>
+                  </Link>
                 </li>
               ))}
             </ul>
           </ForumUnreadThreadsProvider>
         )}
 
-        <ForumPagination path={forumCategoryPath(category.slug)} page={page} pageCount={pageCount} />
+        <ForumPagination path={forumCategoryPath(category.slug)} page={page} pageCount={pageCount} className="border-t pt-4" />
       </div>
     </main>
   );

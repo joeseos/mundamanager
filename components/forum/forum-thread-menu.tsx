@@ -4,7 +4,6 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LuEllipsis,
-  LuFlag,
   LuFolderInput,
   LuLock,
   LuLockOpen,
@@ -21,7 +20,6 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
-import { ForumReportDialog } from '@/components/forum/forum-reports';
 import { ForumTagPicker } from '@/components/forum/forum-tag-picker';
 import { useForumThreadViewer, useForumViewer } from '@/components/forum/forum-viewer';
 import {
@@ -73,7 +71,7 @@ const NOTE_DECISIONS: Record<NoteDecision, { title: string; confirmText: string;
 /**
  * The thread's ... menu, in its header on every page: moderators pin, lock, move
  * and publish the thread and answer its suggestion, its author suggests it as an
- * article, both edit its tags, and anyone else signed in reports it.
+ * article, and both edit its tags. The opening post is reported from its own buttons.
  */
 export function ForumThreadMenu({
   threadId,
@@ -83,7 +81,7 @@ export function ForumThreadMenu({
   categoryId,
   tagIds,
 }: ForumThreadMenuProps) {
-  const { userId, isModerator } = useForumViewer();
+  const { isModerator } = useForumViewer();
   const { isAuthor, data: viewer, reload } = useForumThreadViewer();
   const submissionStatus = viewer?.submission?.status ?? null;
   const router = useRouter();
@@ -96,15 +94,13 @@ export function ForumThreadMenu({
   // Loaded the first time the Edit tags dialog opens, like the categories
   const [allTags, setAllTags] = useState<ForumTag[] | null>(null);
   const [editedTagIds, setEditedTagIds] = useState<string[] | null>(null);
-  const [confirmingReport, setConfirmingReport] = useState(false);
 
   // Moderators publish directly, so only other authors suggest
   // Wait for the suggestion, and with it the role, so a pending suggestion or a moderator's own thread never offers it
   const canSubmit = !!viewer && isAuthor && !isModerator && !isArticle && (submissionStatus === null || submissionStatus === 'changes_requested');
   // A locked thread's tags are the moderators', like its title
   const canEditTags = isModerator || (isAuthor && !isLocked);
-  const canReport = userId !== null && !isAuthor;
-  if (!canSubmit && !canEditTags && !canReport) return null;
+  if (!canSubmit && !canEditTags) return null;
 
   // Resolves false on a failure, so the note dialog stays open. The suggestion loads apart from the page, so it reloads too.
   const run = (action: () => Promise<ForumActionResult>, fallback: string) =>
@@ -178,25 +174,19 @@ export function ForumThreadMenu({
               Edit tags
             </DropdownMenuItem>
           )}
-          {canReport && (
-            <DropdownMenuItem onClick={() => setConfirmingReport(true)}>
-              <LuFlag className="mr-2 h-4 w-4" />
-              Report thread
-            </DropdownMenuItem>
-          )}
           {isModerator && (
             <>
               <DropdownMenuItem onClick={() => toggle('is_pinned', !isPinned)}>
                 {isPinned ? <LuPinOff className="mr-2 h-4 w-4" /> : <LuPin className="mr-2 h-4 w-4" />}
-                {isPinned ? 'Unpin thread' : 'Pin thread'}
+                {isPinned ? 'Unpin' : 'Pin'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => toggle('is_locked', !isLocked)}>
                 {isLocked ? <LuLockOpen className="mr-2 h-4 w-4" /> : <LuLock className="mr-2 h-4 w-4" />}
-                {isLocked ? 'Unlock thread' : 'Lock thread'}
+                {isLocked ? 'Unlock' : 'Lock'}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => toggle('is_article', !isArticle)}>
                 <LuNewspaper className="mr-2 h-4 w-4" />
-                {isArticle ? 'Remove from articles' : 'Publish as article'}
+                {isArticle ? 'Unpublish' : 'Publish'}
               </DropdownMenuItem>
               {submissionStatus === 'submitted' && (
                 <>
@@ -212,7 +202,7 @@ export function ForumThreadMenu({
               )}
               <DropdownMenuItem onClick={openMove}>
                 <LuFolderInput className="mr-2 h-4 w-4" />
-                Move thread
+                Move
               </DropdownMenuItem>
             </>
           )}
@@ -260,14 +250,6 @@ export function ForumThreadMenu({
           onClose={() => setEditedTagIds(null)}
           onConfirm={() => run(() => setForumThreadTags({ threadId, tagIds: editedTagIds }), 'Failed to update the tags')}
           confirmText="Save"
-        />
-      )}
-      {confirmingReport && (
-        <ForumReportDialog
-          target={{ threadId }}
-          title="Report Thread"
-          question="Report this thread to the moderators?"
-          onClose={() => setConfirmingReport(false)}
         />
       )}
       {noteDecision && (
