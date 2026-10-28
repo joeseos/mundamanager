@@ -1035,10 +1035,10 @@ $$;
 
 
 --
--- Name: create_notification_send(uuid, text, uuid, text, integer, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+-- Name: create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.create_notification_send(p_sender_id uuid, p_type text, p_campaign_id uuid, p_text text, p_expires_in_days integer, p_audience text, p_receiver_ids uuid[]) RETURNS jsonb
+CREATE FUNCTION public.create_notification_send(p_sender_id uuid, p_type text, p_campaign_id uuid, p_text text, p_expires_in_days integer, p_audience text, p_receiver_ids uuid[], p_logged_in_since timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1083,6 +1083,11 @@ BEGIN
     WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
   END;
 
+  IF p_logged_in_since IS NOT NULL
+     AND (p_type = 'campaign_message' OR p_audience = 'selected') THEN
+    RAISE EXCEPTION 'logged_in_since only applies to all-user sends';
+  END IF;
+
   IF p_audience = 'all' AND p_type = 'campaign_message' THEN
     SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -1090,9 +1095,20 @@ BEGIN
     WHERE cm.campaign_id = p_campaign_id
       AND cm.user_id IS NOT NULL;
   ELSIF p_audience = 'all' THEN
+    -- Null keeps every profile. Otherwise keep a login or a session refresh at or
+    -- after the cutoff. refreshed_at has no time zone and is stored as UTC.
     SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
     INTO v_receiver_ids
-    FROM public.profiles p;
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p_logged_in_since IS NULL
+       OR u.last_sign_in_at >= p_logged_in_since
+       OR EXISTS (
+         SELECT 1
+         FROM auth.sessions s
+         WHERE s.user_id = u.id
+           AND (s.refreshed_at AT TIME ZONE 'UTC') >= p_logged_in_since
+       );
   ELSE
     SELECT COALESCE(array_agg(DISTINCT receiver.receiver_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -1173,14 +1189,16 @@ BEGIN
     campaign_id,
     text,
     recipient_count,
-    sample_receiver_ids
+    sample_receiver_ids,
+    logged_in_since
   ) VALUES (
     p_sender_id,
     p_type,
     p_campaign_id,
     p_text,
     cardinality(v_receiver_ids),
-    v_sample
+    v_sample,
+    p_logged_in_since
   )
   RETURNING id INTO v_send_id;
 
@@ -7468,6 +7486,7 @@ CREATE TABLE public.notification_sends (
     recipient_count integer NOT NULL,
     sample_receiver_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    logged_in_since timestamp with time zone,
     CONSTRAINT notification_sends_recipient_count_check CHECK ((recipient_count >= 0)),
     CONSTRAINT notification_sends_type_check CHECK ((type = ANY (ARRAY['mm_announcement'::text, 'mm_staff_message'::text, 'campaign_message'::text])))
 );
@@ -7478,6 +7497,13 @@ CREATE TABLE public.notification_sends (
 --
 
 COMMENT ON TABLE public.notification_sends IS 'One composed notification send. Sent history reads this table, not the per-recipient notification rows.';
+
+
+--
+-- Name: COLUMN notification_sends.logged_in_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notification_sends.logged_in_since IS 'Login cutoff for an admin all-user send. Null means every profile, including people who never logged in.';
 
 
 --
@@ -9768,6 +9794,13 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 --
 
 CREATE INDEX fighter_effects_fighter_skill_id_idx ON public.fighter_effects USING btree (fighter_skill_id) WHERE (fighter_skill_id IS NOT NULL);
+
+
+--
+-- Name: fighter_equipment_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_created_at_idx ON public.fighter_equipment USING btree (created_at);
 
 
 --
