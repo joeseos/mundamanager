@@ -289,6 +289,12 @@ export default function Gang({
     setWealth(initialWealth ?? 0);
   }
 
+  const [prevInitialTradePoints, setPrevInitialTradePoints] = useState(initialTradePoints);
+  if (initialTradePoints !== prevInitialTradePoints) {
+    setPrevInitialTradePoints(initialTradePoints);
+    setTradePoints(initialTradePoints ?? 0);
+  }
+
   const [prevPortraitUrl, setPrevPortraitUrl] = useState(gang_portrait_url);
   if (gang_portrait_url !== prevPortraitUrl) {
     setPrevPortraitUrl(gang_portrait_url);
