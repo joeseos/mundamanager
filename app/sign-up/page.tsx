@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
+import TurnstileWidget, { type TurnstileHandle } from "@/components/turnstile-widget";
 import {
   EMPTY_PASSWORD_REQUIREMENTS,
   PASSWORD_ERROR_MESSAGE,
@@ -33,6 +34,8 @@ function SignUpContent() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   const message = searchParams.get('message');
   const urlError = searchParams.get('error');
@@ -120,6 +123,8 @@ function SignUpContent() {
       if (result?.message) {
         router.push(`/sign-up?message=${encodeURIComponent(result.message)}`);
       } else if (result?.error) {
+        // This attempt may have consumed the token, so a retry needs a fresh one.
+        turnstileRef.current?.reset();
         if (result.error.includes("email is already registered")) {
           setEmailError("This email is already registered. Please sign in instead");
         } else if (result.error.includes("Username already taken")) {
@@ -130,6 +135,7 @@ function SignUpContent() {
       }
     } catch (error: any) {
       if (!error.digest?.includes('NEXT_REDIRECT')) {
+        turnstileRef.current?.reset();
         router.push('/sign-up?error=Something went wrong. Please try again');
       }
     } finally {
@@ -248,8 +254,16 @@ function SignUpContent() {
               </div>
             </div>
 
-            <button 
-              type="submit" 
+            <input
+              type="hidden"
+              name="cf-turnstile-response"
+              value={turnstileToken ?? ''}
+            />
+            <div className="mt-2 flex justify-center">
+              <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
+            </div>
+            <button
+              type="submit"
               className="bg-neutral-900 text-white px-4 py-2 rounded-sm hover:bg-gray-800 transition-colors mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isSubmitting}
             >

@@ -10,7 +10,7 @@ import { ValidatedEmailField } from "@/components/ui/validated-email-field";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState, useEffect, useRef } from 'react';
-import TurnstileWidget, { type TurnstileHandle } from './TurnstileWidget';
+import TurnstileWidget, { type TurnstileHandle } from '@/components/turnstile-widget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
 import { LuEye, LuEyeOff } from "react-icons/lu";
