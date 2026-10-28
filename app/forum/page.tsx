@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import { forumCategoryPath, forumThreadPath, getForumCategories } from '@/app/lib/forum';
-import { ForumLastActivityDate } from '@/components/forum/forum-last-activity-date';
+import { formatForumDate, forumCategoryPath, forumThreadPath, getForumCategories } from '@/app/lib/forum';
+import { ForumRelativeTime } from '@/components/forum/forum-relative-time';
 
 export const metadata: Metadata = {
   title: 'Forum - Munda Manager',
@@ -60,7 +60,7 @@ export default async function ForumPage() {
                     <p className="text-muted-foreground truncate">
                       {category.latest_thread.last_post_author ?? 'Unknown User'}
                       {' · '}
-                      <ForumLastActivityDate date={category.latest_thread.last_post_at} />
+                      <ForumRelativeTime date={category.latest_thread.last_post_at}>{formatForumDate(category.latest_thread.last_post_at, true)}</ForumRelativeTime>
                     </p>
                   </>
                 ) : (

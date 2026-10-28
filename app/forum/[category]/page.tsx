@@ -8,7 +8,6 @@ import {
   formatForumDate,
   forumCategoryPath,
   forumPageCount,
-  forumPageHref,
   forumPostHref,
   forumReplyCount,
   forumThreadPath,
@@ -16,8 +15,8 @@ import {
   getForumThreads,
   parseForumPage,
 } from '@/app/lib/forum';
-import { ForumLastActivityDate } from '@/components/forum/forum-last-activity-date';
-import { ForumPagination, forumPageWindow } from '@/components/forum/forum-pagination';
+import { ForumPagination, ForumThreadPageLinks } from '@/components/forum/forum-pagination';
+import { ForumRelativeTime } from '@/components/forum/forum-relative-time';
 import { UserAvatar } from '@/components/ui/user-avatar';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
@@ -103,25 +102,10 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
                             href={forumThreadPath(category.slug, thread.number, thread.title)}
                             title={thread.title}
                           />
-                          {forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE) > 1 && (
-                            <span className="relative z-10 flex shrink-0 items-center gap-1">
-                              {forumPageWindow(1, forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE)).map((slot) =>
-                                slot.kind === 'ellipsis' ? (
-                                  <span key={slot.key} className="px-0.5 text-xs text-muted-foreground">...</span>
-                                ) : (
-                                  <Link
-                                    key={slot.page}
-                                    href={forumPageHref(forumThreadPath(category.slug, thread.number, thread.title), slot.page)}
-                                    prefetch={false}
-                                    aria-label={`Page ${slot.page}`}
-                                    className="inline-flex h-5 min-w-5 items-center justify-center rounded border px-1 text-xs tabular-nums hover:text-red-800 hover:border-red-800"
-                                  >
-                                    {slot.page}
-                                  </Link>
-                                ),
-                              )}
-                            </span>
-                          )}
+                          <ForumThreadPageLinks
+                            path={forumThreadPath(category.slug, thread.number, thread.title)}
+                            pageCount={forumPageCount(thread.post_count, FORUM_POSTS_PER_PAGE)}
+                          />
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                           <span>
@@ -146,7 +130,7 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
                     className="group/activity block text-sm text-muted-foreground sm:w-48 min-w-0 shrink-0"
                   >
                     <span className="block transition-colors group-hover/activity:text-red-800">
-                      <ForumLastActivityDate date={thread.last_post_at} />
+                      <ForumRelativeTime date={thread.last_post_at}>{formatForumDate(thread.last_post_at, true)}</ForumRelativeTime>
                     </span>
                     <p className="truncate">by {thread.last_post_author ?? 'Unknown User'}</p>
                   </Link>
