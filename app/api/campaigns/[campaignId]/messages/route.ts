@@ -61,7 +61,7 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    return postNotificationSend(request, {
+    return await postNotificationSend(request, {
       senderId,
       campaignId,
       selectedAudience: 'players',
