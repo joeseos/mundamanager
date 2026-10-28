@@ -14,7 +14,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, customPartNames, neededScenarioPart, participantSideJob } from '@/types/campaign';
-import { battleStatusLabels, battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
+import { battleStatusLabels, battleStatusOf, challengeAnswerStatuses, isPlayedBattle } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
 import { hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
@@ -585,7 +585,7 @@ const CampaignBattleLogModal = ({
   // Territories another open challenge already stakes; still pickable, only labelled.
   const stakedTerritoryIds = useMemo(() => new Set(
     battles
-      .filter(battle => battle.id !== battleToEdit?.id && !['played', 'challenge_declined'].includes(battleStatusOf(battle)))
+      .filter(battle => battle.id !== battleToEdit?.id && !isPlayedBattle(battle) && battleStatusOf(battle) !== 'challenge_declined')
       .map(battle => battle.campaign_territory_id)
   ), [battles, battleToEdit]);
 
@@ -1321,8 +1321,8 @@ const CampaignBattleLogModal = ({
                     .map((territory) => {
                       const displayName = territory.name ?? territory.territory_name ?? "";
                       const controlledBy = territory.controlled_by ? getGangName(territory.controlled_by) : null;
-                      const staked = stakedTerritoryIds.has(territory.id) ? ", staked" : "";
-                      const statusLabel = ` (${controlledBy ? `Held by ${controlledBy}` : "Unclaimed"}${staked})`;
+                      const holder = controlledBy ? `Held by ${controlledBy}` : "Unclaimed";
+                      const statusLabel = stakedTerritoryIds.has(territory.id) ? ` (${holder}, staked)` : ` (${holder})`;
 
                       return {
                         value: territory.id,
