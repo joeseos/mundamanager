@@ -686,6 +686,7 @@ export default function GangPageContent({
             onGangWealthUpdate={handleGangWealthUpdate}
             onGangRatingUpdate={handleGangRatingUpdate}
             onGangReputationUpdate={handleGangReputationUpdate}
+            onGangTradePointsUpdate={handleGangTradePointsUpdate}
             gang_subtypes={gangData.processedData.gang_subtypes}
             vehicles={gangData.processedData.vehicles || []}
             userPermissions={userPermissions}
