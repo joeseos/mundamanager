@@ -42,7 +42,10 @@ export function CampaignMessageModal({
       typeLabel={() => 'Campaign message'}
       typeIcon={() => <LuMessageSquareText className="h-4 w-4 text-green-500" />}
       allLabel="All players"
-      allWarning="This will send the message to every player in this campaign. Double-check the message before sending."
+      allAudience={{
+        warning:
+          'This will send the message to every player in this campaign. Double-check the message before sending.',
+      }}
       allToggleDisabled={campaignPlayers.length === 0}
       allowSendAll={campaignPlayers.length > 0}
       picker={({ disabled, excludeIds, onSelect }) => (
