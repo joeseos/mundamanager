@@ -121,7 +121,7 @@ export function FighterXpModal({
   // ---------------------------------------------------------------------------
   // Optional OOA / Wreck target selectors
   // ---------------------------------------------------------------------------
-  const showTargets = !!gangId;
+  const showTargets = !!gangId && targetGangIds?.length !== 0;
 
   const [expandedTargets, setExpandedTargets] = useState<Record<string, boolean>>({
     outOfAction: false,
