@@ -34,7 +34,6 @@ function SignUpContent() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const [passwordRequirements, setPasswordRequirements] = useState(EMPTY_PASSWORD_REQUIREMENTS);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   const message = searchParams.get('message');
@@ -254,13 +253,8 @@ function SignUpContent() {
               </div>
             </div>
 
-            <input
-              type="hidden"
-              name="cf-turnstile-response"
-              value={turnstileToken ?? ''}
-            />
             <div className="mt-2 flex justify-center">
-              <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
+              <TurnstileWidget ref={turnstileRef} />
             </div>
             <button
               type="submit"

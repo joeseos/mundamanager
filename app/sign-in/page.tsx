@@ -36,7 +36,6 @@ function SignInContent() {
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   useEffect(() => {
@@ -197,13 +196,8 @@ function SignInContent() {
             >
               Forgot your password?
             </Link>
-            <input
-              type="hidden"
-              name="cf-turnstile-response"
-              value={turnstileToken ?? ''}
-            />
             <div className="mt-2 flex justify-center">
-              <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
+              <TurnstileWidget ref={turnstileRef} />
             </div>
             <SubmitButton pendingText="Signing In..." className="mt-2">
               Sign In

@@ -1,17 +1,30 @@
 "use server";
 
 import { invalidateUserCount, invalidateUserPermissions } from '@/utils/cache-tags';
-import { createClient } from "@/utils/supabase/server";
+import { createClient, findAuthUserIdByEmail } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { cookies } from 'next/headers';
 import { safePostSignInPath } from '@/utils/auth';
+import type { AuthError } from '@supabase/supabase-js';
 
 // Returned instead of calling redirect(), so the caller can do a full document
 // load - a client-side navigation leaves the browser Supabase client stale.
 type AuthRedirect = { redirectTo: string };
 type AuthActionResult = { error: string } | AuthRedirect;
 
-const CAPTCHA_FAILED_ERROR = "Security verification failed. Please try again.";
+/**
+ * Auth's error message, or a generic one when Auth rejected the CAPTCHA token.
+ * That rejection names its cause (e.g. a wrong secret in the dashboard), so it
+ * is logged rather than shown.
+ */
+function authErrorMessage(error: AuthError): string {
+  if (error.code !== 'captcha_failed') {
+    return error.message;
+  }
+
+  console.error('Supabase Auth rejected the CAPTCHA token:', error.message);
+  return "Security verification failed. Please try again.";
+}
 
 /**
  * The form's Turnstile token, for Supabase Auth to verify (Authentication > Bot and
@@ -59,26 +72,14 @@ export const signUpAction = async (formData: FormData) => {
     }
 
     // Check if email is already registered before signUp to prevent confirmation email.
-    // We use a direct GoTrue API call with the filter param since the JS client
-    // doesn't expose email filtering on listUsers, and fetching all users won't scale.
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const userLookup = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&per_page=1`,
-      {
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          apikey: serviceRoleKey,
-        },
-      }
-    );
-    if (userLookup.ok) {
-      const { users } = await userLookup.json();
-      if (users?.some((u: { email?: string }) => u.email === email)) {
-        return { error: "This email is already registered. Please sign in instead" };
-      }
-    } else {
-      console.error('GoTrue admin user lookup failed:', userLookup.status, await userLookup.text());
+    // A failed lookup is not fatal: signUp never creates a second account for an email.
+    const existingUserId = await findAuthUserIdByEmail(email).catch((error) => {
+      console.error('GoTrue admin user lookup failed:', error);
+      return null;
+    });
+
+    if (existingUserId) {
+      return { error: "This email is already registered. Please sign in instead" };
     }
 
     // Sign up the user with metadata
@@ -96,8 +97,6 @@ export const signUpAction = async (formData: FormData) => {
 
     if (signUpError) {
       switch (signUpError.code) {
-        case 'captcha_failed':
-          return { error: CAPTCHA_FAILED_ERROR };
         case 'over_email_send_rate_limit':
           return { error: "Too many attempts. Please wait a few minutes before trying again" };
         case 'invalid_email':
@@ -107,7 +106,7 @@ export const signUpAction = async (formData: FormData) => {
         case 'email_taken':
           return { error: "This email is already registered. Please sign in instead" };
         default:
-          return { error: signUpError.message || 'Failed to create account' };
+          return { error: authErrorMessage(signUpError) || 'Failed to create account' };
       }
     }
 
@@ -144,7 +143,7 @@ export const signInAction = async (formData: FormData): Promise<AuthActionResult
   });
 
   if (error) {
-    return { error: error.code === 'captcha_failed' ? CAPTCHA_FAILED_ERROR : error.message };
+    return { error: authErrorMessage(error) };
   }
 
   // Clear this user's permission entries - they are cached with revalidate: false.
@@ -184,7 +183,7 @@ export const forgotPasswordAction = async (formData: FormData) => {
 
   if (error) {
     console.error('Error sending password reset email:', error);
-    return { error: error.code === 'captcha_failed' ? CAPTCHA_FAILED_ERROR : error.message };
+    return { error: authErrorMessage(error) };
   }
 
   // Redirect to the reset-password page with a success message

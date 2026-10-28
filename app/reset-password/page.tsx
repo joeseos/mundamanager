@@ -22,7 +22,6 @@ function ResetPasswordContent() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   // Get search params safely
@@ -76,13 +75,8 @@ function ResetPasswordContent() {
               </p>
               <div className="flex flex-col gap-4">
                 <ValidatedEmailField id="email" />
-                <input
-                  type="hidden"
-                  name="cf-turnstile-response"
-                  value={turnstileToken ?? ''}
-                />
                 <div className="mt-2 flex justify-center">
-                  <TurnstileWidget ref={turnstileRef} onToken={setTurnstileToken} />
+                  <TurnstileWidget ref={turnstileRef} />
                 </div>
                 <SubmitButton
                   pendingText="Sending..." 
