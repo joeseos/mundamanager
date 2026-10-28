@@ -515,7 +515,7 @@ async function resolvePostCycleAction(
     });
 
     // What landed is still logged, so a failed charge leaves a record to fix by hand.
-    const creditsLine = !financials.success
+    const financialsLine = !financials.success
       ? `Updating the gang's ${outcome.tradePointsDelta ? 'Trade Points' : 'credits'} failed: ${financials.error}.`
       : outcome.creditsDelta > 0
         ? `Gained ${outcome.creditsDelta} credits.`
@@ -526,7 +526,7 @@ async function resolvePostCycleAction(
       financials.success && outcome.tradePointsDelta
         ? `Gained ${tradePointsText(outcome.tradePointsDelta)}.`
         : '';
-    outcome.outcome = [outcome.outcome, creditsLine, tradePointsLine].filter(Boolean).join(' ');
+    outcome.outcome = [outcome.outcome, financialsLine, tradePointsLine].filter(Boolean).join(' ');
     if (!financials.success) outcome.failed = true;
 
     if (landed) {
