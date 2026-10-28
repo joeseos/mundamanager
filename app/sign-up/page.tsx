@@ -122,13 +122,14 @@ function SignUpContent() {
       if (result?.message) {
         router.push(`/sign-up?message=${encodeURIComponent(result.message)}`);
       } else if (result?.error) {
-        // This attempt may have consumed the token, so a retry needs a fresh one.
-        turnstileRef.current?.reset();
+        // The taken username and email checks run before Supabase sees the token, so it is still usable
         if (result.error.includes("email is already registered")) {
           setEmailError("This email is already registered. Please sign in instead");
         } else if (result.error.includes("Username already taken")) {
           setUsernameError(result.error);
         } else {
+          // This attempt may have consumed the token, so a retry needs a fresh one.
+          turnstileRef.current?.reset();
           router.push(`/sign-up?error=${encodeURIComponent(result.error)}`);
         }
       }
