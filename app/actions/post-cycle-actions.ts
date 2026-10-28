@@ -516,7 +516,7 @@ async function resolvePostCycleAction(
 
     // What landed is still logged, so a failed charge leaves a record to fix by hand.
     const creditsLine = !financials.success
-      ? `Updating the gang's credits failed: ${financials.error}.`
+      ? `Updating the gang's ${outcome.tradePointsDelta ? 'Trade Points' : 'credits'} failed: ${financials.error}.`
       : outcome.creditsDelta > 0
         ? `Gained ${outcome.creditsDelta} credits.`
         : outcome.creditsDelta < 0
