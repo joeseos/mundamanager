@@ -1446,7 +1446,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           {showXPBoxes && (
                             <div className="mt-1 flex items-start gap-1">
                               <span className="text-[12px] font-semibold whitespace-nowrap">XP:</span>
-                              <div className="grid grid-cols-5 gap-x-2 gap-y-1">
+                              <div className="flex flex-wrap gap-x-2 gap-y-1">
                               {[
                                 { label: 'SI', count: 6, key: 'si' },
                                 { label: 'OOA', count: 6, key: 'ooa' },
