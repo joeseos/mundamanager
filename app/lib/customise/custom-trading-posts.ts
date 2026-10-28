@@ -1,24 +1,24 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { getAppDb } from '@/utils/db/client';
 import { CustomTradingPost } from "@/app/actions/customise/custom-trading-posts";
 import { withEditionSlug } from "@/types/edition";
-import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getUserCustomTradingPosts(userId: string, supabase: SupabaseClient): Promise<CustomTradingPost[]> {
+export async function getUserCustomTradingPosts(userId: string): Promise<CustomTradingPost[]> {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('custom_trading_posts')
-        .select('*, editions:edition_id (slug)')
-        .eq('user_id', userId)
-        .order('custom_trading_post_name', { ascending: true });
+      const tradingPosts = await getAppDb().query.customTradingPosts.findMany({
+        columns: { created_at: false, updated_at: false },
+        extras: (tradingPost, { sql }) => ({
+          created_at: sql<string>`to_json(${tradingPost.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${tradingPost.updated_at})`.as('updated_at'),
+        }),
+        where: (tradingPost, { eq }) => eq(tradingPost.user_id, userId),
+        orderBy: (tradingPost, { asc }) => asc(tradingPost.custom_trading_post_name),
+        with: { editions: { columns: { slug: true } } },
+      });
 
-      if (error) {
-        console.error('Error fetching custom trading posts:', error);
-        throw new Error(`Failed to fetch custom trading posts: ${error.message}`);
-      }
-
-      return (data || []).map(withEditionSlug);
+      return tradingPosts.map(withEditionSlug);
     },
     [`user-custom-trading-posts-v3-${userId}`],
     {

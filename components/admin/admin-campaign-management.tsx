@@ -24,6 +24,7 @@ interface Territory {
   territory_name: string;
   campaign_type_id?: string | null;
   playing_card?: string | null;
+  credits?: number | null;
   edition_id?: string | null;
 }
 
@@ -140,6 +141,7 @@ export function AdminCampaignManagementModal({
   const [territoryName, setTerritoryName] = useState('');
   const [territoryCampaignTypeId, setTerritoryCampaignTypeId] = useState('');
   const [territoryCardValue, setTerritoryCardValue] = useState('');
+  const [territoryCredits, setTerritoryCredits] = useState('');
   const [territoryEditionId, setTerritoryEditionId] = useState('');
   const [isCreateModeTerritory, setIsCreateModeTerritory] = useState(false);
   
@@ -167,6 +169,7 @@ export function AdminCampaignManagementModal({
     setTerritoryName('');
     setTerritoryCampaignTypeId('');
     setTerritoryCardValue('');
+    setTerritoryCredits('');
     setIsCreateModeTerritory(false);
 
     setSelectedTriumphId('');
@@ -226,6 +229,7 @@ export function AdminCampaignManagementModal({
         setTerritoryName('');
         setTerritoryCampaignTypeId('');
         setTerritoryCardValue('');
+        setTerritoryCredits('');
         setIsCreateModeTerritory(false);
       }
     }
@@ -243,7 +247,7 @@ export function AdminCampaignManagementModal({
     setIsCreateModeCampaignType(false);
     const selected = campaignTypes.find(ct => ct.id === id);
     if (selected) {
-      setCampaignTypeName(selected.campaign_type_name);
+      setCampaignTypeName(selected.campaign_type_name ?? '');
       setImageUrl(selected.image_url || '');
       setCampaignTypeEditionId(selected.edition_id ?? '');
       setRelatedTradingPostIds(selected.trading_posts || []);
@@ -435,6 +439,7 @@ export function AdminCampaignManagementModal({
       setTerritoryName(selected.territory_name);
       setTerritoryCampaignTypeId(selected.campaign_type_id || '');
       setTerritoryCardValue(selected.playing_card || '');
+      setTerritoryCredits(selected.credits?.toString() ?? '');
       setTerritoryEditionId(selected.edition_id ?? '');
     }
   };
@@ -444,6 +449,7 @@ export function AdminCampaignManagementModal({
     setTerritoryName('');
     setTerritoryCampaignTypeId('');
     setTerritoryCardValue('');
+    setTerritoryCredits('');
     setIsCreateModeTerritory(true);
   };
 
@@ -466,6 +472,7 @@ export function AdminCampaignManagementModal({
             territory_name: territoryName.trim(),
             campaign_type_id: territoryCampaignTypeId || null,
             playing_card: territoryCardValue.trim() || null,
+            credits: territoryCredits.trim() === '' ? null : Number(territoryCredits),
             edition_id: territoryEditionId || null
           });
           break;
@@ -476,6 +483,7 @@ export function AdminCampaignManagementModal({
             territory_name: territoryName.trim(),
             campaign_type_id: territoryCampaignTypeId || null,
             playing_card: territoryCardValue.trim() || null,
+            credits: territoryCredits.trim() === '' ? null : Number(territoryCredits),
             edition_id: territoryEditionId || null
           });
           break;
@@ -504,6 +512,7 @@ export function AdminCampaignManagementModal({
       setTerritoryName('');
       setTerritoryCampaignTypeId('');
       setTerritoryCardValue('');
+      setTerritoryCredits('');
       setIsCreateModeTerritory(false);
 
       if (onSubmit) {
@@ -1065,6 +1074,20 @@ export function AdminCampaignManagementModal({
                     placeholder="Select or enter a card value"
                     allowCustom
                     clearable
+                    disabled={!isCreateModeTerritory && !selectedTerritoryId}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    Credits
+                  </label>
+                  <Input
+                    type="number"
+                    value={territoryCredits}
+                    onChange={(e) => setTerritoryCredits(e.target.value)}
+                    placeholder="e.g. 20"
+                    className="w-full"
                     disabled={!isCreateModeTerritory && !selectedTerritoryId}
                   />
                 </div>

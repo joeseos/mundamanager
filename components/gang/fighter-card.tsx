@@ -7,7 +7,7 @@ import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills }
 import { hasSaveCharacteristic } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
-import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
+import { countAdvancementsTaken, openAdvancementsFor, tracksXp } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 import { injuryAggregationLabel } from '@/utils/injuryTarget';
 import { TbMeatOff } from "react-icons/tb";
@@ -419,10 +419,7 @@ const FighterCard = memo(function FighterCard({
 
   // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
-    // A model whose type cannot gain XP has no recruitment value, and the
-    // roster reads N/A for it. The number takes over the moment the model
-    // actually holds XP, so a group house-ruling XP onto it still sees it.
-    const xpDisplay = starting_xp == null && !xp ? 'N/A' : xp;
+    const xpDisplay = tracksXp(starting_xp, xp) ? xp : 'N/A';
 
     if (isCrew) {
       return {

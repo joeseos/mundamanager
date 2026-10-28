@@ -37,10 +37,12 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'fighter_captured': 'Fighter captured',
   'fighter_released': 'Fighter released',
   'fighter_copied': 'Fighter copied',
+  'fighter_promoted': 'Fighter promoted',
 
   // Fighter stats
   'fighter_xp_changed': 'XP changed',
   'fighter_total_xp_changed': 'Total XP changed',
+  'fighter_starting_xp_changed': 'Starting XP changed',
   'fighter_kills_changed': 'OOA count changed',
   'fighter_OOA_changed': 'OOA count changed',
   'fighter_kill_count_changed': 'Kill count changed',

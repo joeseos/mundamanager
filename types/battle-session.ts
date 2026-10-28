@@ -82,7 +82,7 @@ export interface BattleSessionParticipant {
   gang_rating_snapshot: number | null;
   credits_earned: number;
   reputation_change: number;
-  ready: boolean;
+  ready: boolean | null;
   /**
    * Multi-winner support: any number of participants in a session may be flagged
    * as a winner. Defaults to `false`. Draws have no participants with
@@ -104,17 +104,17 @@ export interface BattleSessionParticipant {
   created_at: string;
   gang?: {
     id: string;
-    name: string;
+    name: string | null;
     /** Picks the house Side Jobs an N26 gang may roll on. */
     gang_type_id?: string | null;
     gang_type_name?: string;
-    gang_colour?: string;
-    rating?: number;
+    gang_colour?: string | null;
+    rating?: number | null;
   };
   profile?: {
     username: string;
-    patreon_tier_id?: string;
-    patreon_tier_title?: string;
+    patreon_tier_id?: string | null;
+    patreon_tier_title?: string | null;
   };
 }
 
@@ -194,15 +194,15 @@ export interface BattleSessionFighter {
   battle_session_id: string;
   participant_id: string;
   fighter_id: string;
-  loadout_id?: string;
+  loadout_id?: string | null;
   session_record: SessionRecord;
   created_at: string;
   fighter?: {
     id: string;
-    fighter_name: string;
+    fighter_name: string | null;
     fighter_type?: string;
-    credits?: number;
-    special_rules?: string[];
+    credits?: number | null;
+    special_rules?: string[] | null;
   };
 }
 
@@ -210,7 +210,7 @@ export interface BattleSessionFull extends BattleSession {
   participants: (BattleSessionParticipant & {
     fighters: BattleSessionFighter[];
   })[];
-  campaign_name?: string;
+  campaign_name?: string | null;
   /** The challenge this session plays, which its completion files. */
   linked_battle?: { campaign_territory_id: string | null; cycle: number | null; note: string | null } | null;
   campaign_resources?: CampaignResource[];

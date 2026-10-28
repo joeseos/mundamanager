@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight } from "react-icons/lu";
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight, LuMessageSquareText, LuMegaphone, LuAtSign, LuNewspaper, LuReply } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
@@ -16,7 +17,10 @@ import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
-import { notificationTextToHtml, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
+import { notificationTextToHtml, isMessageNotificationType, MM_ANNOUNCEMENT_FROM, MM_ANNOUNCEMENT_FROM_PATH, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription, campaignIdFromNotificationLink } from '@/utils/notifications';
+import { createClient } from '@/utils/supabase/client';
+import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html';
+import '@/components/ui/rich-text-editor.css';
 
 type NotificationActionResult = { success: boolean; error?: string };
 
@@ -136,6 +140,27 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   // Toasts run here as well: this page has the user id immediately, so arrivals
   // are announced before the mark-read effect below dismisses them.
   const { notifications, refetch } = useNotifications(userId);
+  const campaignIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const notification of notifications) {
+      if (!notification.link) continue;
+      const id = campaignIdFromNotificationLink(notification.link);
+      if (id) ids.add(id);
+    }
+    return Array.from(ids).sort();
+  }, [notifications]);
+  const { data: campaignNames } = useQuery({
+    queryKey: ['notification-campaign-names', campaignIds],
+    enabled: campaignIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from('campaigns')
+        .select('id, campaign_name')
+        .in('id', campaignIds);
+      if (error) throw error;
+      return new Map((data ?? []).map((campaign) => [campaign.id, campaign.campaign_name]));
+    },
+  });
   useNotificationToasts(userId);
   const { mutate: markRead } = useMarkNotificationsRead(userId);
   const { mutateAsync: deleteNotification } = useDeleteNotification(userId);
@@ -226,9 +251,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     return `${months}mo ago`;
   };
 
-  // Render notification text with **bold** support (escapes HTML for XSS safety).
-  // Shared with the email worker via utils/notifications/render so both channels match.
-  const renderNotificationText = (text: string) => notificationTextToHtml(text);
+  // Plain-text notifications (invites, friend requests) escape HTML and apply **bold**.
+  // Rows with is_html are TipTap HTML. They are sanitized again here because any
+  // signed-in user can insert a notification row, not only the admin API.
+  const renderNotificationText = (notification: Notification) =>
+    notification.is_html ? sanitizeNotificationHtml(notification.text) : notificationTextToHtml(notification.text);
 
   // The link navigates by itself (external links in a new tab), so this only
   // marks the notification as read
@@ -249,7 +276,11 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     }
 
     const { href, isExternal } = resolved;
-    const label = getNotificationLinkLabel(notification.link);
+    const campaignId = campaignIdFromNotificationLink(notification.link);
+    const label = getNotificationLinkLabel(
+      notification.link,
+      campaignId ? campaignNames?.get(campaignId) : null
+    );
     const description = getNotificationLinkDescription(notification.link);
 
     const attachmentContent = (
@@ -312,6 +343,18 @@ export default function NotificationsContent({ userId }: { userId: string }) {
         return <LuUserPlus className="h-5 w-5 text-orange-500" />;
       case 'campaign_join_request':
         return <LuUserPlus className="h-5 w-5 text-sky-500" />;
+      case 'mm_announcement':
+        return <LuMegaphone className="h-5 w-5 text-violet-500" />;
+      case 'user_message':
+      case 'campaign_message':
+      case 'mm_staff_message':
+        return <LuMessageSquareText className="h-5 w-5 text-green-500" />;
+      case 'forum_reply':
+        return <LuReply className="h-5 w-5 text-teal-500" />;
+      case 'forum_mention':
+        return <LuAtSign className="h-5 w-5 text-teal-500" />;
+      case 'forum_article':
+        return <LuNewspaper className="h-5 w-5 text-teal-500" />;
       default:
         return <ImInfo className="h-5 w-5 text-blue-500" />;
     }
@@ -341,11 +384,40 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                     {getNotificationIcon(notification.type)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p
-                      className="text-sm mb-1 whitespace-pre-line"
-                      dangerouslySetInnerHTML={{ __html: renderNotificationText(notification.text) }}
+                    <div
+                      className={
+                        notification.is_html
+                          ? "notification-html prose prose-sm max-w-none break-words mb-1 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+                          : "text-sm mb-1 whitespace-pre-line"
+                      }
+                      dangerouslySetInnerHTML={{ __html: renderNotificationText(notification) }}
                     />
                     <p className="text-xs text-muted-foreground">
+                      {notification.type === 'mm_announcement' ? (
+                        <>
+                          From{' '}
+                          <Link
+                            href={MM_ANNOUNCEMENT_FROM_PATH}
+                            prefetch={false}
+                            className="font-medium text-foreground hover:underline"
+                          >
+                            {MM_ANNOUNCEMENT_FROM}
+                          </Link>
+                          {' · '}
+                        </>
+                      ) : isMessageNotificationType(notification.type) && notification.sender_username && notification.sender_id ? (
+                        <>
+                          From{' '}
+                          <Link
+                            href={`/user/${notification.sender_id}`}
+                            prefetch={false}
+                            className="font-medium text-foreground hover:underline"
+                          >
+                            {notification.sender_username}
+                          </Link>
+                          {' · '}
+                        </>
+                      ) : null}
                       {timeAgo(notification.created_at)}
                     </p>
                   </div>
@@ -356,7 +428,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
                       onDecline={() => handleNotificationAction(notification, 'decline')}
                     />
                   )}
-                  {!isActionableNotification(notification.type) && (
+                  {!getNotificationAction(notification) && (
                     <Button
                       onClick={() => setNotificationToDelete(notification.id)}
                       variant="ghost"

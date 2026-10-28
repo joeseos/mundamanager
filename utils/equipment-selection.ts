@@ -1,6 +1,8 @@
 import {
   EquipmentOption,
   DefaultEquipment,
+  EquipmentSelectionDataModel,
+  EquipmentSelectionItem,
   NormalizedEquipmentSelection,
   FighterType,
 } from '@/types/fighter-type';
@@ -24,21 +26,11 @@ export interface SelectedEquipmentItem {
 
 /**
  * Normalize the RPC `equipment_selection` payload (nested array format) into the
- * UI-keyed map the fighter-add equipment picker renders from. Idempotent: if the
- * value is already in the keyed `select_type` format it is returned as-is.
+ * UI-keyed map the fighter-add equipment picker renders from.
  */
-export function normalizeEquipmentSelection(equipmentSelection: any): NormalizedEquipmentSelection {
-  // If already in old format (dynamic keys with select_type), return as is
-  if (
-    equipmentSelection &&
-    Object.values(equipmentSelection).some(
-      (cat: any) => cat && typeof cat === 'object' && 'select_type' in cat
-    )
-  ) {
-    return equipmentSelection as NormalizedEquipmentSelection;
-  }
-
-  // If in new nested array format (current SQL output), convert to old format
+export function normalizeEquipmentSelection(
+  equipmentSelection: EquipmentSelectionDataModel | null | undefined
+): NormalizedEquipmentSelection {
   if (
     equipmentSelection &&
     typeof equipmentSelection === 'object' &&
@@ -53,18 +45,14 @@ export function normalizeEquipmentSelection(equipmentSelection: any): Normalized
         (['weapons', 'wargear'] as const).forEach(categoryName => {
           const categoryData = typeGroup[categoryName];
           if (Array.isArray(categoryData) && categoryData.length > 0) {
-
-            // Check if this is nested arrays (groups) or flat array
-            const isNestedArrays = categoryData.length > 0 && Array.isArray(categoryData[0]);
-
-            const buildOptional = (source: any[], name: string) => {
-              const defaults = source.filter((item: any) => item.is_default);
+            const buildOptional = (source: EquipmentSelectionItem[], name: string) => {
+              const defaults = source.filter(item => item.is_default);
               const allReplacements: EquipmentOption[] = [];
 
               // Collect all replacements from all defaults (deduplicated by id)
-              defaults.forEach((defaultItem: any) => {
+              defaults.forEach(defaultItem => {
                 if (defaultItem.replacements && Array.isArray(defaultItem.replacements)) {
-                  defaultItem.replacements.forEach((replacement: any) => {
+                  defaultItem.replacements.forEach(replacement => {
                     const existing = allReplacements.find(r => r.id === replacement.id);
                     if (existing) {
                       existing.max_quantity = Math.max(existing.max_quantity, replacement.max_quantity || 1);
@@ -83,12 +71,12 @@ export function normalizeEquipmentSelection(equipmentSelection: any): Normalized
                 }
               });
 
-              const replacement_mode = defaults.find((item: any) => item.replacement_mode)?.replacement_mode as 'flexible' | 'strict' | undefined;
+              const replacement_mode = defaults.find(item => item.replacement_mode)?.replacement_mode;
 
               return {
                 name,
                 select_type: selectType,
-                default: defaults.map((item: any) => ({
+                default: defaults.map(item => ({
                   id: item.id,
                   equipment_name: item.equipment_name,
                   equipment_type: item.equipment_type,
@@ -101,11 +89,11 @@ export function normalizeEquipmentSelection(equipmentSelection: any): Normalized
               };
             };
 
-            const buildChoice = (source: any[], name: string) => ({
+            const buildChoice = (source: EquipmentSelectionItem[], name: string) => ({
               name,
               select_type: selectType,
               default: [] as DefaultEquipment[],
-              options: source.map((item: any) => ({
+              options: source.map(item => ({
                 id: item.id,
                 equipment_name: item.equipment_name,
                 equipment_type: item.equipment_type,
@@ -119,20 +107,14 @@ export function normalizeEquipmentSelection(equipmentSelection: any): Normalized
             const capitalized = categoryName.charAt(0).toUpperCase() + categoryName.slice(1);
             const isOptionalType = selectType === 'optional' || selectType === 'optional_single';
 
-            if (isNestedArrays) {
-              // Each inner array is a separate group
-              categoryData.forEach((group: any[], groupIndex: number) => {
-                if (Array.isArray(group) && group.length > 0) {
-                  const key = `${categoryName}_${selectType}_${idCounter++}`;
-                  const name = `${capitalized} ${groupIndex + 1}`;
-                  result[key] = isOptionalType ? buildOptional(group, name) : buildChoice(group, name);
-                }
-              });
-            } else {
-              // Flat array (backward compatibility)
-              const key = `${categoryName}_${selectType}_${idCounter++}`;
-              result[key] = isOptionalType ? buildOptional(categoryData, capitalized) : buildChoice(categoryData, capitalized);
-            }
+            // Each inner array is a separate group
+            categoryData.forEach((group, groupIndex) => {
+              if (Array.isArray(group) && group.length > 0) {
+                const key = `${categoryName}_${selectType}_${idCounter++}`;
+                const name = `${capitalized} ${groupIndex + 1}`;
+                result[key] = isOptionalType ? buildOptional(group, name) : buildChoice(group, name);
+              }
+            });
           }
         });
       }
@@ -177,7 +159,9 @@ export function inferCategoryFromEquipmentName(name: string): string {
 }
 
 /** Extract the cost-0 default equipment from a fighter type's equipment_selection. */
-export function getDefaultEquipmentFromSelection(equipmentSelection: any): SelectedEquipmentItem[] {
+export function getDefaultEquipmentFromSelection(
+  equipmentSelection: EquipmentSelectionDataModel | null | undefined
+): SelectedEquipmentItem[] {
   const defaults: SelectedEquipmentItem[] = [];
   if (!equipmentSelection) return defaults;
 

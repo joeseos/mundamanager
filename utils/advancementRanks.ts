@@ -167,11 +167,31 @@ export function xpAfterStartingXpChange(
  * none: a Legend of the Underhive has nothing above it, and an edition without
  * tiers has nothing to reach.
  */
-export function nextTierStartFor(
+function nextTierStartFor(
   editionSlug: string | null | undefined,
   currentXp: number,
 ): number | null {
   return tierStartsFor(editionSlug).find((tierStart) => tierStart > currentXp) ?? null;
+}
+
+/** A model's XP against the start of its next tier, "71/73", or "229/–" past the top tier. */
+export function xpTowardNextTier(
+  editionSlug: string | null | undefined,
+  currentXp: number,
+): string {
+  return `${currentXp}/${nextTierStartFor(editionSlug, currentXp) ?? '–'}`;
+}
+
+/**
+ * Whether a model has XP to show. A model whose type cannot gain XP has no
+ * recruitment value and reads N/A, until it actually holds XP, so a group
+ * house-ruling XP onto it still sees it.
+ */
+export function tracksXp(
+  startingXp: number | null | undefined,
+  xp: number | null | undefined,
+): boolean {
+  return startingXp != null || !!xp;
 }
 
 /**

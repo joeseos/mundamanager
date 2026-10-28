@@ -5,7 +5,7 @@ import { getPatreonTierColor } from "@/utils/patreon";
 
 interface PatreonSupporterIconProps {
   patreonTierId: string;
-  patreonTierTitle?: string;
+  patreonTierTitle?: string | null;
   size?: number;
 }
 

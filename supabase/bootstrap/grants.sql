@@ -14,6 +14,12 @@ grant all on all tables    in schema public to anon, authenticated, service_role
 grant all on all routines  in schema public to anon, authenticated, service_role;
 grant all on all sequences in schema public to anon, authenticated, service_role;
 
+-- profiles: users may only write their own username, never user_role.
+-- Same as supabase/migrations/20261023110000_restrict_profiles_column_grants.sql.
+revoke insert, update, truncate, references, trigger on table public.profiles from public, anon, authenticated;
+grant update (username, updated_at) on table public.profiles to authenticated;
+grant insert (id, username) on table public.profiles to authenticated;
+
 alter default privileges in schema public grant all on tables    to anon, authenticated, service_role;
 alter default privileges in schema public grant all on routines  to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;

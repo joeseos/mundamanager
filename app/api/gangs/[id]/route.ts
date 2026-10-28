@@ -3,6 +3,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
 import { getUserIdFromClaims } from "@/utils/auth";
+import { isUuidArray } from "@/utils/uuid";
 
 enum GangAlignment {
   LAW_ABIDING = 'Law Abiding',
@@ -117,6 +118,13 @@ export async function PATCH(request: Request, props: { params: Promise<{ id: str
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    if (gang_subtypes !== undefined && !isUuidArray(gang_subtypes)) {
+      return NextResponse.json(
+        { error: 'Invalid gang subtypes' },
+        { status: 400 }
       );
     }
 

@@ -31,7 +31,7 @@ import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp, hasSpyrerPowerBoosts } from '@/types/edition';
-import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
+import { openAdvancementsFor, xpTowardNextTier } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 
 // Loads its code on first open, not with the page. ssr: false also gives it
@@ -585,7 +585,7 @@ export default function FighterPage({
 
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-6">
           Loading...
         </div>
@@ -595,7 +595,7 @@ export default function FighterPage({
 
   if (uiState.error || !fighterData.fighter || !fighterData.gang) return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-6">
           Error: {uiState.error || 'Data not found'}
         </div>
@@ -650,8 +650,7 @@ export default function FighterPage({
       const xpSuffix = (() => {
         if (f.xp === undefined || f.xp === null) return '';
         if (isCumulativeXp) {
-          const nextTierStart = nextTierStartFor(editionSlug, currentXp);
-          return ` (${currentXp}/${nextTierStart ?? '–'} XP)`;
+          return ` (${xpTowardNextTier(editionSlug, currentXp)} XP)`;
         }
         return ` (${currentXp} XP)`;
       })();
@@ -692,7 +691,7 @@ export default function FighterPage({
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-4">
           <div className="mb-4">
             <Combobox
@@ -949,6 +948,7 @@ export default function FighterPage({
             venatorRanksIncomplete={fighterData.gang?.venator_ranks_incomplete}
             gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
+            owningGangTypeId={fighterData.gang?.gang_type_id || ''}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
@@ -964,6 +964,8 @@ export default function FighterPage({
                       fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
                       promoted_from_prospect: patch.promoted_from_prospect ?? prev.fighter.promoted_from_prospect,
+                      xp: patch.xp ?? prev.fighter.xp,
+                      starting_xp: patch.starting_xp !== undefined ? patch.starting_xp : prev.fighter.starting_xp,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
                           ? {
@@ -1438,6 +1440,7 @@ export default function FighterPage({
               gangId={fighterData.gang?.id || ''}
               gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id}
               customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id}
+              owningGangTypeId={fighterData.gang?.gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {

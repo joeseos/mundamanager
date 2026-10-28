@@ -35,7 +35,7 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
         {imageUrl ? (
           <Image
             src={imageUrl}
-            alt={gang.name}
+            alt={gang.name ?? ''}
             width={60}
             height={60}
             className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
@@ -47,7 +47,7 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
           />
         ) : (
           <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
-            {gang.name.charAt(0)}
+            {gang.name?.charAt(0)}
           </div>
         )}
         <Image

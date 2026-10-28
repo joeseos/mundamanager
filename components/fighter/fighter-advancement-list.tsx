@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 import { FighterSkills, FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
-import { countAdvancementsTaken, openAdvancementsFor } from "@/utils/advancementRanks";
+import { countAdvancementsTaken, openAdvancementsFor, xpAfterStartingXpChange } from "@/utils/advancementRanks";
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -14,15 +14,17 @@ import {
   applyN26ProspectPromotion,
   applyN26GangerChampionPromotion,
   applyN26ChampionLeaderPromotion,
+  applyN26OutcastLeaderPromotion,
+  applyPromotionWithSkillAdvancement,
   deleteAdvancement,
 } from '@/app/actions/fighter-advancement';
-import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuUndo2 } from 'react-icons/lu';
 import type { FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
 import { hasCumulativeXp } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
+  canPromoteToN26OutcastLeader,
   getN26ProspectSpecialisation,
   hasN26ProspectPromotionOccurred,
 } from '@/utils/keepTypePromotionN26';
@@ -53,6 +55,8 @@ interface AdvancementsListProps {
   venatorRanksIncomplete?: boolean;
   gangTypeId?: string;
   customGangTypeId?: string;
+  /** The owning gang's type; gangTypeId is the fighter type's. Gates Outcast Leader. */
+  owningGangTypeId?: string;
   fighterSpecialRules?: string[];
   fighterTypeName?: string;
   fighterTypeId?: string;
@@ -79,6 +83,7 @@ export function AdvancementsList({
   venatorRanksIncomplete,
   gangTypeId = '',
   customGangTypeId = '',
+  owningGangTypeId = '',
   fighterSpecialRules = [],
   fighterTypeName = '',
   fighterTypeId = '',
@@ -95,7 +100,15 @@ export function AdvancementsList({
   // cost to list and nothing to refund when one is undone.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
 
-  const showPromoteButton = fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
+  const canPromoteToOutcastLeader = canPromoteToN26OutcastLeader({
+    owningGangTypeId,
+    fighterTypeGangTypeId: gangTypeId,
+    subtypes: fighterSubtypes,
+  });
+
+  const showPromoteButton =
+    canPromoteToOutcastLeader ||
+    fighterSubtypes.some(c => ['Ganger', 'Juve', 'Prospect', 'Champion', 'Specialist', 'Exotic Beast', 'Exotic Beast Specialist'].includes(c));
 
   const { data: preFetchedFighterTypes = [] } = useQuery({
     queryKey: ['fighter-types-edit', gangId, gangTypeId, customGangTypeId, false],
@@ -152,6 +165,17 @@ export function AdvancementsList({
         return result;
       }
 
+      if (promotion.kind === 'n26_outcast_leader') {
+        const result = await applyN26OutcastLeaderPromotion({
+          fighter_id: fighterId,
+          special_rules: promotion.special_rules,
+        });
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to promote fighter');
+        }
+        return result;
+      }
+
       if (promotion.kind === 'n26_champion_leader') {
         if (!promotion.fighter_type_id) {
           throw new Error('A Leader fighter type is required');
@@ -167,14 +191,11 @@ export function AdvancementsList({
         return result;
       }
 
-      const result = await updateFighterDetails({
+      const result = await applyPromotionWithSkillAdvancement({
         fighter_id: fighterId,
-        fighter_subtypes: promotion.fighter_subtypes,
-        fighter_type: promotion.fighter_type,
-        fighter_type_id: promotion.fighter_type_id,
-        fighter_specialisation: promotion.fighter_specialisation ?? null,
-        fighter_specialisation_id: promotion.fighter_specialisation_id ?? null,
-        special_rules: promotion.special_rules,
+        xp_cost: 0,
+        credits_increase: 0,
+        promotion,
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to promote fighter');
@@ -182,6 +203,7 @@ export function AdvancementsList({
       return result;
     },
     onMutate: async (promotion) => {
+      const isOutcastLeader = promotion.kind === 'n26_outcast_leader';
       const previousPatch = {
         fighter_subtypes: fighterSubtypes,
         fighter_type: fighterTypeName,
@@ -189,6 +211,7 @@ export function AdvancementsList({
         special_rules: fighterSpecialRules,
         promoted_from_prospect: promotedFromProspect,
         ...currentPromotionSpecialisation,
+        ...(isOutcastLeader ? { xp: fighterXp, starting_xp: fighterStartingXp } : {}),
       };
       const previousSkills = { ...skills };
       const creditsIncrease =
@@ -202,7 +225,15 @@ export function AdvancementsList({
             ? N26_CHAMPION_PROMOTION_SKILL_NAME
             : undefined;
 
-      onFighterDetailsUpdate?.(promotion);
+      // Outcast Leader moves XP with Starting XP, as the server does.
+      onFighterDetailsUpdate?.(
+        isOutcastLeader && promotion.starting_xp !== undefined
+          ? {
+              ...promotion,
+              xp: xpAfterStartingXpChange(fighterXp, fighterStartingXp, promotion.starting_xp),
+            }
+          : promotion
+      );
 
       // Grant is not an Advancement (is_advance: false) — lands in Skills.
       // Champion→Leader skips optimistic grant when Inspiring is already present.
@@ -266,6 +297,16 @@ export function AdvancementsList({
         });
       }
       setIsStandalonePromotionOpen(false);
+
+      const { fighter: promoted, warning } = result;
+      if (promotion.kind === 'n26_outcast_leader' && promoted) {
+        // Settle the optimistic XP on what the server wrote.
+        onFighterDetailsUpdate?.({ xp: promoted.xp, starting_xp: promoted.starting_xp ?? null });
+      }
+      if (warning) {
+        toast.error(warning);
+        return;
+      }
       toast.success('Fighter promoted successfully');
     },
     onError: (error, _promotion, context) => {
@@ -557,6 +598,11 @@ export function AdvancementsList({
           editionSlug={editionSlug}
           onClose={() => setIsStandalonePromotionOpen(false)}
           showXpPromotionHint
+          outcastLeader={
+            canPromoteToOutcastLeader
+              ? { currentXp: fighterXp, currentStartingXp: fighterStartingXp }
+              : undefined
+          }
           onPromoted={(data) => {
             standalonePromotionMutation.mutate(data);
           }}

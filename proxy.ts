@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims, safePostSignInPath, signInPath } from './utils/auth'
+import { lowerCaseUuids } from './utils/uuid'
 
 function createSupabaseProxyClient(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -47,6 +48,24 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // An upper-case id would find the row in Postgres but miss lower-case
+  // lookups, cache keys and cache tags, so redirect to the canonical URL
+  const canonicalPath = lowerCaseUuids(pathname);
+  if (canonicalPath !== pathname) {
+    const canonicalUrl = request.nextUrl.clone();
+    canonicalUrl.pathname = canonicalPath;
+    return NextResponse.redirect(canonicalUrl, 308);
+  }
+
+  // Forum pages moved from ?page=<n> to /page/<n>, so links from before (e.g. in notifications) still work
+  const oldForumPage = request.nextUrl.searchParams.get('page');
+  if (oldForumPage && /^\/forum\/[^/]+(?:\/[^/]+)?$/.test(pathname)) {
+    const pageUrl = request.nextUrl.clone();
+    pageUrl.searchParams.delete('page');
+    pageUrl.pathname = `${pathname}/page/${oldForumPage}`;
+    return NextResponse.redirect(pageUrl, 308);
+  }
+
   // Auth pages - check if user is already logged in and redirect away
   const authPages = ['/sign-in', '/sign-up'];
 
@@ -85,8 +104,12 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith('/reset-password') ||
     pathname.startsWith('/auth/callback');
 
+  // The forum and its articles are read by everyone; starting a thread (/forum/<category>/new) needs the sign-in check below
+  const isForum =
+    /^\/(forum|articles)(\/|$)/.test(pathname) && !/^\/forum\/[^/]+\/new$/.test(pathname);
+
   // Early return for public paths - avoid creating Supabase client unnecessarily
-  if (publicPaths.includes(pathname) || isPasswordResetFlow) {
+  if (publicPaths.includes(pathname) || isPasswordResetFlow || isForum) {
     return NextResponse.next({ request });
   }
 

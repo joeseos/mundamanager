@@ -8,6 +8,7 @@ import { Color } from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import { UserMention } from '@/components/ui/rich-text-mention';
 
 // On mobile the toolbar is fixed to the top of the screen instead of sitting above the text.
 const isMobileViewport = () =>
@@ -90,9 +91,11 @@ export interface RichTextEditorHandle {
   discardAssets: () => Promise<void>;
   /** Replace editor HTML without emitting onChange (caller owns draft state). */
   setContent: (html: string) => void;
+  /** Add HTML after the document's last block, emitting onChange. */
+  appendContent: (html: string) => void;
 }
 
-interface RichTextEditorProps {
+export interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
   placeholder?: string;
@@ -104,7 +107,10 @@ interface RichTextEditorProps {
   filePrefix?: string; // Final file name prefix for promoted uploads; defaults to 'pack'
   maxImages?: number | null; // Max hosted images; null = unlimited; defaults to 5
   enableImages?: boolean; // When false, hide all image upload/hotlink UI
+  enableMentions?: boolean; // When true, typing @ suggests users to mention
   stickyWithinScrollContainer?: boolean; // When true, sticky toolbar follows nearest scrollable parent
+  // Matches the notification sanitizer: headings 1–3, no code, no horizontal rule.
+  notificationFormatting?: boolean;
 }
 
 const colors = [
@@ -135,7 +141,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     filePrefix,
     maxImages,
     enableImages,
+    enableMentions = false,
     stickyWithinScrollContainer = false,
+    notificationFormatting = false,
   }: RichTextEditorProps,
   ref
 ) {
@@ -205,7 +213,17 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: false }),
+      StarterKit.configure(
+        notificationFormatting
+          ? {
+              link: false,
+              heading: { levels: [1, 2, 3] as [1, 2, 3] },
+              code: false,
+              codeBlock: false,
+              horizontalRule: false,
+            }
+          : { link: false },
+      ),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -225,6 +243,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           class: 'max-w-full h-auto rounded-md my-2',
         },
       }),
+      ...(enableMentions ? [UserMention] : []),
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -543,6 +562,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     setContent: (html: string) => {
       editor?.commands.setContent(html || '', { emitUpdate: false });
     },
+    appendContent: (html: string) => {
+      editor?.chain().insertContentAt(editor.state.doc.content.size, html).focus('end').run();
+    },
   }));
 
   if (!editor) {
@@ -563,6 +585,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     className?: string;
   }) => (
     <Button
+      type="button"
       variant={isActive ? "default" : "outline"}
       size="sm"
       onClick={onClick}
@@ -727,6 +750,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
               <div className="grid grid-cols-3 gap-2 justify-items-center">
                 {colors.map((color) => (
                   <button
+                    type="button"
                     key={color.value}
                     onClick={() => setColor(color.value)}
                     className="w-8 h-8 rounded-sm border-2 border-border hover:border-gray-400 hover:scale-110 transition-all duration-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
@@ -847,12 +871,13 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault();
                     addLink();
                   }
                 }}
               />
-              <Button size="sm" onClick={addLink}>Add</Button>
-              <Button size="sm" variant="outline" onClick={() => setShowLinkInput(false)}>Cancel</Button>
+              <Button type="button" size="sm" onClick={addLink}>Add</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowLinkInput(false)}>Cancel</Button>
             </div>
           </div>
         )}
@@ -879,6 +904,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       <div className="flex flex-wrap gap-1">
                         {IMAGE_WIDTH_PRESETS.map((preset) => (
                           <Button
+                            type="button"
                             key={preset.width}
                             size="sm"
                             variant={imageWidth === String(preset.width) ? 'default' : 'outline'}
@@ -890,6 +916,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                           </Button>
                         ))}
                         <Button
+                          type="button"
                           size="sm"
                           variant={imageWidth === '' ? 'default' : 'outline'}
                           onClick={() => applyImageWidth('')}
@@ -909,6 +936,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                           onBlur={(e) => applyImageWidth(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
+                              e.preventDefault();
                               applyImageWidth((e.target as HTMLInputElement).value);
                             }
                           }}
@@ -935,6 +963,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                   </p>
                   <div className="flex gap-2 justify-end">
                     <Button
+                      type="button"
                       size="sm"
                       variant="outline"
                       onClick={() => {
@@ -948,6 +977,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       Cancel
                     </Button>
                     <Button
+                      type="button"
                       size="sm"
                       variant="destructive"
                       onClick={() => {
@@ -979,6 +1009,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                         disabled={isUploadingImage || imageLimitReached}
                       />
                       <Button
+                        type="button"
                         size="sm"
                         variant="outline"
                         onClick={() => fileInputRef.current?.click()}
@@ -1013,6 +1044,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                     className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
+                        e.preventDefault();
                         addImage();
                       }
                       if (e.key === 'Escape') {
@@ -1026,7 +1058,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                   />
                   <div className="flex justify-between gap-2">
                     {isEditingImage && (
-                      <Button 
+                      <Button
+                        type="button"
                         size="sm" 
                         variant="destructive" 
                         onClick={removeImage}
@@ -1036,7 +1069,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       </Button>
                     )}
                     <div className="flex gap-2 ml-auto">
-                      <Button 
+                      <Button
+                        type="button"
                         size="sm" 
                         variant="outline" 
                         onClick={() => {
@@ -1048,7 +1082,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       >
                         Cancel
                       </Button>
-                      <Button 
+                      <Button
+                        type="button"
                         size="sm" 
                         onClick={addImage}
                         disabled={isUploadingImage || !imageUrl}

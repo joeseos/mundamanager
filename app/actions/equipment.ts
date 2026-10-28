@@ -778,13 +778,13 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Name for beast creation — from the fighter row read in the opening batch.
     const fighterName: string | null = fighterRow?.fighter_name ?? null;
 
-    // Handle beast creation for fighter equipment purchases
-    let createdBeasts: any[] = [];
-    let createdBeastsRatingDelta = 0;
+    // Handle familiar creation for fighter equipment purchases
+    let createdFamiliars: any[] = [];
+    let createdFamiliarsRatingDelta = 0;
 
     if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
       try {
-        const beastResult = await createExoticBeastsForEquipment({
+        const familiarResult = await createExoticBeastsForEquipment({
           equipmentId: params.equipment_id,
           ownerFighterId: params.fighter_id,
           ownerFighterName: fighterName,
@@ -793,12 +793,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           fighterEquipmentId: newEquipmentId
         });
 
-        if (beastResult.success && beastResult.createdBeasts.length > 0) {
-          createdBeasts = beastResult.createdBeasts;
+        if (familiarResult.success && familiarResult.createdFamiliars.length > 0) {
+          createdFamiliars = familiarResult.createdFamiliars;
 
-          // Calculate rating delta from beast costs
-          createdBeastsRatingDelta = createdBeasts.reduce(
-            (sum, beast) => sum + (beast.credits || 0),
+          // Calculate rating delta from familiar costs
+          createdFamiliarsRatingDelta = createdFamiliars.reduce(
+            (sum, familiar) => sum + (familiar.credits || 0),
             0
           );
         }
@@ -810,7 +810,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate deltas for gang updates
-    const totalRatingDelta = ratingDelta + createdBeastsRatingDelta + grantsRatingDelta;
+    const totalRatingDelta = ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
     // Update gang credits, rating, wealth and Trade Points using centralized helper.
@@ -901,7 +901,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     if (params.fighter_id) {
       // Always invalidate fighter equipment/credits/rating for a purchase on a fighter
       invalidateFighter(params.fighter_id, params.gang_id);
-      (createdBeasts.length > 0 ? createdBeasts : undefined)?.forEach(beast => invalidateFighter(beast.id, params.gang_id));
+      (createdFamiliars.length > 0 ? createdFamiliars : undefined)?.forEach(familiar => invalidateFighter(familiar.id, params.gang_id));
       // If effects were applied to the fighter, also invalidate effects + derived data
       if (appliedEffects.length > 0) {
         invalidateFighter(params.fighter_id, params.gang_id);
@@ -1101,13 +1101,13 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // Equipment-to-equipment upgrades are detected before purchase and target is selected atomically
     }
 
-    // Add beast info if created (custom addition beyond RPC)
-    if (createdBeasts.length > 0) {
-      responseData.created_beasts = createdBeasts;
-      responseData.created_beasts_info = {
-        count: createdBeasts.length,
+    // Add familiar info if created (custom addition beyond RPC)
+    if (createdFamiliars.length > 0) {
+      responseData.created_familiars = createdFamiliars;
+      responseData.created_familiars_info = {
+        count: createdFamiliars.length,
         owner_fighter_id: params.fighter_id,
-        beasts: createdBeasts
+        familiars: createdFamiliars
       };
     }
 
@@ -1275,7 +1275,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // Get fresh fighter total cost after deletion for accurate response
     let freshFighterTotalCost = null;
     try {
-      freshFighterTotalCost = await getFighterTotalCost(params.fighter_id, supabase);
+      freshFighterTotalCost = await getFighterTotalCost(params.fighter_id);
     } catch (fighterRefreshError) {
       console.warn('Could not refresh fighter total cost:', fighterRefreshError);
     }

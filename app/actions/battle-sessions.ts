@@ -4,7 +4,7 @@ import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidate
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { formatXpBreakdown } from '@/app/actions/logs/log-helpers';
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
-import { getAuthenticatedUser } from '@/utils/auth';
+import { getAuthenticatedUser, getUserIdFromClaims } from '@/utils/auth';
 
 import { after } from 'next/server';
 import { updateGang } from '@/app/actions/update-gang';
@@ -46,9 +46,12 @@ const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 // Data Fetching
 // =============================================================================
 
+// The direct connection doesn't check who is asking, so only signed-in users
+// get a session, as RLS on the Data API allowed.
 export async function fetchBattleSession(sessionId: string): Promise<BattleSessionFull | null> {
   const supabase = await createClient();
-  return fetchBattleSessionDirect(sessionId, supabase);
+  if (!(await getUserIdFromClaims(supabase))) return null;
+  return fetchBattleSessionDirect(sessionId);
 }
 
 // =============================================================================

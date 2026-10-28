@@ -1,0 +1,264 @@
+-- Let a fighter's skill access override point at a custom skill set, the same
+-- way fighter_type_skill_access does. skill_type_id references skill_types, so
+-- saving an override for a custom skill set failed the foreign key.
+ALTER TABLE public.fighter_skill_access_override
+  ADD COLUMN custom_skill_type_id uuid REFERENCES public.custom_skill_types(id) ON DELETE CASCADE,
+  ALTER COLUMN skill_type_id DROP NOT NULL;
+
+CREATE INDEX idx_fsao_custom_skill_type_id ON public.fighter_skill_access_override(custom_skill_type_id);
+
+ALTER TABLE public.fighter_skill_access_override
+  ADD CONSTRAINT chk_fsao_skill_type_xor
+  CHECK (
+    (skill_type_id IS NOT NULL AND custom_skill_type_id IS NULL)
+    OR (skill_type_id IS NULL AND custom_skill_type_id IS NOT NULL)
+  );
+
+ALTER TABLE public.fighter_skill_access_override
+  ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_key
+  UNIQUE (fighter_id, custom_skill_type_id);
+
+-- Match custom skill set overrides on the new column
+CREATE OR REPLACE FUNCTION public.get_available_skills(
+    fighter_id UUID
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_result jsonb;
+    v_fighter_subtypes jsonb;
+    v_gang_origin_id uuid;
+    v_gang_id uuid;
+    v_fighter_type_id uuid;
+    v_custom_fighter_type_id uuid;
+    v_origin_skill_type_id uuid;
+    v_edition_id uuid;
+    v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
+BEGIN
+    -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, the gang's
+    -- edition, and verify fighter exists
+    SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id,
+           COALESCE(gt.edition_id, cgt.edition_id)
+    INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id,
+         v_edition_id
+    FROM fighters f
+    JOIN gangs g ON g.id = f.gang_id
+    LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
+    LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
+    WHERE f.id = get_available_skills.fighter_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Fighter not found with ID %', get_available_skills.fighter_id;
+    END IF;
+
+    -- Resolved once here, as get_fighter_available_advancements does.
+    v_cumulative_xp := v_edition_id IS NOT NULL
+        AND v_edition_id = (SELECT id FROM editions WHERE slug = 'n26');
+
+    -- Skill Set whose name matches the gang Origin (e.g. "Trocken Mining Clan")
+    SELECT st.id
+    INTO v_origin_skill_type_id
+    FROM gang_origins go
+    JOIN skill_types st ON lower(trim(st.name)) = lower(trim(go.origin_name))
+    WHERE go.id = v_gang_origin_id;
+
+    -- Build the result as JSON using CTEs to combine standard + custom skills
+    WITH standard_skills AS (
+        SELECT
+            s.id AS skill_id,
+            s.name AS skill_name,
+            false AS is_custom,
+            s.skill_type_id,
+            st.name AS skill_type_name,
+            st.legendary_name,
+            COALESCE(
+                sao.access_level,
+                ftsa.access_level,
+                CASE
+                    WHEN s.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                    ELSE NULL
+                END
+            ) AS effective_access_level,
+            NOT EXISTS (
+                SELECT 1 FROM fighter_skills fs
+                WHERE fs.fighter_id = get_available_skills.fighter_id
+                AND fs.skill_id = s.id
+            ) AS available,
+            COALESCE(skill_effect.skill_cost, 0) AS skill_cost
+        FROM skills s
+        JOIN skill_types st ON st.id = s.skill_type_id
+        LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = s.skill_type_id
+            AND (
+                (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
+                OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
+            )
+        LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
+            AND sao.skill_type_id = s.skill_type_id
+        LEFT JOIN LATERAL (
+            SELECT COALESCE((fet.type_specific_data->>'cost')::int, 0) AS skill_cost
+            FROM fighter_effect_types fet
+            WHERE (fet.type_specific_data->>'skill_id')::uuid = s.id
+            LIMIT 1
+        ) skill_effect ON true
+        WHERE (s.gang_origin_id IS NULL OR s.gang_origin_id = v_gang_origin_id)
+        AND COALESCE(
+            sao.access_level,
+            ftsa.access_level,
+            CASE
+                WHEN s.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                ELSE 'none'
+            END,
+            'none'
+        ) != 'denied'
+    ),
+    visible_custom_skills AS (
+        SELECT
+            cs.id AS skill_id,
+            cs.skill_name AS skill_name,
+            true AS is_custom,
+            COALESCE(cs.skill_type_id, cs.custom_skill_type_id) AS skill_type_id,
+            COALESCE(st.name, cst.name) AS skill_type_name,
+            COALESCE(st.legendary_name, false) AS legendary_name,
+            COALESCE(
+                sao.access_level,
+                ftsa.access_level,
+                -- Origin grants apply to standard skill_types only, not custom_skill_type_id
+                CASE
+                    WHEN cs.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                    ELSE NULL
+                END
+            ) AS effective_access_level,
+            NOT EXISTS (
+                SELECT 1 FROM fighter_skills fs
+                WHERE fs.fighter_id = get_available_skills.fighter_id
+                AND fs.custom_skill_id = cs.id
+            ) AS available,
+            0 AS skill_cost
+        FROM custom_skills cs
+        LEFT JOIN skill_types st ON st.id = cs.skill_type_id
+        LEFT JOIN custom_skill_types cst ON cst.id = cs.custom_skill_type_id
+        -- Visibility: owned by current user OR shared to fighter's gang's campaign
+        LEFT JOIN (
+            SELECT DISTINCT csh.custom_skill_id
+            FROM custom_shared csh
+            JOIN campaign_gangs cg ON cg.campaign_id = csh.campaign_id
+            WHERE cg.gang_id = v_gang_id
+        ) shared ON shared.custom_skill_id = cs.id
+        -- Access level joins: match on skill_type_id OR custom_skill_type_id
+        LEFT JOIN fighter_type_skill_access ftsa ON (
+                (ftsa.skill_type_id IS NOT NULL AND ftsa.skill_type_id = cs.skill_type_id)
+                OR (ftsa.custom_skill_type_id IS NOT NULL AND ftsa.custom_skill_type_id = cs.custom_skill_type_id)
+            )
+            AND (
+                (v_custom_fighter_type_id IS NOT NULL AND ftsa.custom_fighter_type_id = v_custom_fighter_type_id)
+                OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
+            )
+        LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
+            AND (sao.skill_type_id = cs.skill_type_id OR sao.custom_skill_type_id = cs.custom_skill_type_id)
+        WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
+        AND COALESCE(
+            sao.access_level,
+            ftsa.access_level,
+            -- Origin grants apply to standard skill_types only, not custom_skill_type_id
+            CASE
+                WHEN cs.skill_type_id = v_origin_skill_type_id THEN 'primary'
+                ELSE 'none'
+            END,
+            'none'
+        ) != 'denied'
+    ),
+    all_skills AS (
+        SELECT * FROM standard_skills
+        UNION ALL
+        SELECT * FROM visible_custom_skills
+    )
+    SELECT jsonb_build_object(
+        'fighter_id', get_available_skills.fighter_id,
+        'fighter_subtypes', v_fighter_subtypes,
+        'skills', COALESCE(
+            jsonb_agg(
+                jsonb_build_object(
+                    'skill_id', a.skill_id,
+                    'skill_name', a.skill_name,
+                    'is_custom', a.is_custom,
+                    'skill_type_id', a.skill_type_id,
+                    'skill_type_name', a.skill_type_name,
+                    'effective_access_level', a.effective_access_level,
+                    'available', a.available,
+                    'cost', a.skill_cost,
+                    'available_acquisition_types', CASE
+                        -- Special costs for Legendary Names
+                        WHEN a.legendary_name = TRUE THEN
+                            jsonb_build_array(
+                                jsonb_build_object(
+                                    'type_id', 'selected',
+                                    'name', 'Selected',
+                                    'xp_cost', 6,
+                                    'credit_cost', 5
+                                ),
+                                jsonb_build_object(
+                                    'type_id', 'random',
+                                    'name', 'Random',
+                                    'xp_cost', 3,
+                                    'credit_cost', 5
+                                )
+                            )
+                        -- Regular skill costs. The subtype list is an N23 rule — it omits
+                        -- Gangers and Exotic Beasts, who buy at flat cost off their own
+                        -- table. A rank-based edition has no such split.
+                        WHEN v_cumulative_xp
+                          OR v_fighter_subtypes ?| array['Leader', 'Champion', 'Juve', 'Specialist', 'Crew', 'Prospect', 'Brute', 'Exotic Beast Specialist']
+                        THEN jsonb_build_array(
+                            jsonb_build_object(
+                                'type_id', 'primary_selected',
+                                'name', 'Selected Primary',
+                                'xp_cost', 9,
+                                'credit_cost', 20
+                            ),
+                            jsonb_build_object(
+                                'type_id', 'primary_random',
+                                'name', 'Random Primary',
+                                'xp_cost', 6,
+                                'credit_cost', 20
+                            ),
+                            jsonb_build_object(
+                                'type_id', 'secondary_selected',
+                                'name', 'Selected Secondary',
+                                'xp_cost', 12,
+                                'credit_cost', 35
+                            ),
+                            jsonb_build_object(
+                                'type_id', 'secondary_random',
+                                'name', 'Random Secondary',
+                                'xp_cost', 9,
+                                'credit_cost', 35
+                            ),
+                            jsonb_build_object(
+                                'type_id', 'any_random',
+                                'name', 'Random Any',
+                                'xp_cost', 15,
+                                'credit_cost', 50
+                            )
+                        )
+                        ELSE '[]'::jsonb
+                    END
+                )
+                ORDER BY a.skill_type_name, a.skill_name
+            ),
+            '[]'::jsonb
+        )
+    )
+    INTO v_result
+    FROM all_skills a;
+
+    RETURN v_result;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.get_available_skills(UUID) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_available_skills(UUID) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_available_skills(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_available_skills(UUID) TO service_role;

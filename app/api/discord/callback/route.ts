@@ -3,6 +3,9 @@ import { createClient } from '@/utils/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserIdFromClaims, signInPath } from "@/utils/auth"
 
+// state is <campaign id>.<nonce>; /api/discord/connect keeps the nonce in a cookie
+const STATE = /^([0-9a-f-]{36})\.([0-9a-f-]{36})$/
+
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
 
@@ -10,7 +13,10 @@ export async function GET(request: NextRequest) {
   console.log('[Discord Callback] Incoming params:', Object.fromEntries(searchParams.entries()))
 
   const guildId = searchParams.get('guild_id')
-  const state = searchParams.get('state') // campaignId
+  const [, campaignIdFromState, nonce] = STATE.exec(searchParams.get('state') ?? '') ?? []
+  // Only the flow this browser started passes, so other pages can't call this callback
+  const state =
+    nonce && nonce === request.cookies.get(`discord_oauth_state_${campaignIdFromState}`)?.value ? campaignIdFromState : null
 
   if (!guildId || !state) {
     // 2. Log which param is missing
@@ -101,9 +107,12 @@ export async function GET(request: NextRequest) {
 
     console.log('[Discord Callback] Success — returning HTML. guildId:', guildId, 'campaignId:', campaignId)
 
-    return new Response(html, {
+    const response = new NextResponse(html, {
       headers: { 'Content-Type': 'text/html' },
     })
+    // The nonce is single use
+    response.cookies.delete({ name: `discord_oauth_state_${campaignId}`, path: '/api/discord/callback' })
+    return response
   } catch (error) {
     console.error('Discord callback error:', error)
     return NextResponse.redirect(new URL(`/campaigns/${campaignId}?error=unexpected`, request.url))

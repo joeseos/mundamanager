@@ -14,7 +14,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
 import { XP_CASES, xpAwardsFor, type XpCaseDef, type XpCaseId } from '@/utils/xpCases';
 import { hasCumulativeXp } from '@/types/edition';
-import { nextTierStartFor } from '@/utils/advancementRanks';
+import { xpTowardNextTier } from '@/utils/advancementRanks';
 import { XpLadderTooltip } from '@/components/ui/xp-ladder-tooltip';
 import { toast } from 'sonner';
 
@@ -52,8 +52,8 @@ interface FighterXpModalProps {
    * null for custom fighter types. Unset/unknown → manual XP entry only.
    */
   editionSlug?: string | null;
-  /** Awards the caller handles itself, left out of the list. */
-  excludeAwards?: readonly XpCaseId[];
+  /** Battle sessions award participation XP from the post-battle view instead. */
+  hideBattleParticipation?: boolean;
   onClose: () => void;
   onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;
 }
@@ -69,7 +69,7 @@ export function FighterXpModal({
   gangId,
   campaignId,
   editionSlug,
-  excludeAwards,
+  hideBattleParticipation = false,
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
@@ -89,9 +89,9 @@ export function FighterXpModal({
   const awards = useMemo(
     () =>
       xpAwardsFor(editionSlug)
-        .filter((id) => !excludeAwards?.includes(id))
+        .filter((id) => !(hideBattleParticipation && id === 'battleParticipation'))
         .map((id): XpCase => ({ id, ...XP_CASES[id] })),
-    [editionSlug, excludeAwards]
+    [editionSlug, hideBattleParticipation]
   );
 
   // Repeatable awards render with -/+ steppers, once-only ones as checkboxes.
@@ -376,7 +376,7 @@ export function FighterXpModal({
               >
                 <span className="mr-2 text-sm text-muted-foreground">XP</span>
                 <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-                  {`${currentXp}/${nextTierStartFor(editionSlug, currentXp) ?? '–'}`}
+                  {xpTowardNextTier(editionSlug, currentXp)}
                 </span>
               </div>
               <XpLadderTooltip

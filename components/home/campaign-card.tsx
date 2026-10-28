@@ -28,7 +28,7 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
         {campaign.image_url || campaign.campaign_type_image_url ? (
           <Image
             src={campaign.image_url || campaign.campaign_type_image_url}
-            alt={campaign.campaign_name}
+            alt={campaign.campaign_name ?? ''}
             width={60}
             height={60}
             className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
@@ -40,7 +40,7 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
           />
         ) : (
           <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
-            {campaign.campaign_name.charAt(0)}
+            {campaign.campaign_name?.charAt(0)}
           </div>
         )}
         <Image
@@ -64,7 +64,7 @@ export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners
                 : 'Your Gangs: '}
               {campaign.user_gangs
                 .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
+                .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
                 .map(gang => gang.name)
                 .join(', ')}
             </span>

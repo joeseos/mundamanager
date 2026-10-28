@@ -7,7 +7,6 @@ import { initializePositioningIfNeeded } from "@/utils/fighter-positioning";
 import {
   getGangCore,
   getGangPositioning,
-  getGangType,
   getGangTypeConfig,
   getGangFightersBundle,
   getGangStash,
@@ -35,7 +34,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
   let pageProps;
   try {
     // Fetch the gang core first to check if gang exists
-    const gangBasic = await getGangCore(params.id, supabase);
+    const gangBasic = await getGangCore(params.id);
 
     if (!gangBasic) {
       notFound();
@@ -58,7 +57,6 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     // Fetch all related data in parallel
     const [
       gangPositioning,
-      gangType,
       roster,
       stash,
       campaigns,
@@ -68,25 +66,27 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       battleSessions,
       tacticsCards
     ] = await Promise.all([
-      getGangPositioning(params.id, supabase),
-      getGangType(gangBasic, supabase),
+      getGangPositioning(params.id),
       // Assembled inside the batch so the CPU pass overlaps the remaining
-      // queries rather than landing on the critical path after all ten resolve.
-      getGangFightersBundle(params.id, supabase).then((bundle) => ({
+      // queries rather than landing on the critical path after they all resolve.
+      getGangFightersBundle(params.id).then((bundle) => ({
         fighters: assembleGangFighters(bundle, {
-          gangEditionSlug: gangBasic.edition_slug ?? null
+          gangEditionSlug: gangBasic.edition_slug ?? null,
+          gangTypeId: gangBasic.gang_type_id,
+          gangOriginId: gangBasic.gang_origin_id ?? null,
+          gangSubtypeIds: gangBasic.gang_subtypes ?? [],
         }),
         vehicles: assembleGangVehicles(bundle)
       })),
-      getGangStash(params.id, supabase),
-      getGangCampaigns(params.id, supabase),
-      getGangSubtypes(gangBasic.gang_subtypes || [], supabase),
-      getUserProfile(gangBasic.user_id, supabase),
+      getGangStash(params.id),
+      getGangCampaigns(params.id),
+      getGangSubtypes(gangBasic.gang_subtypes || []),
+      getUserProfile(gangBasic.user_id),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
-      getGangBattleSessionsCached(params.id, supabase),
+      getGangBattleSessionsCached(params.id),
       // Editions without Gang Tactics never render the section.
       hasGangTacticsCards(gangBasic.edition_slug)
-        ? getGangTacticsCards(params.id, supabase)
+        ? getGangTacticsCards(params.id)
         : Promise.resolve([])
     ]);
 
@@ -112,7 +112,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       image_url: gangBasic.image_url,
       gang_portrait_id: gangBasic.gang_portrait_id ?? null,
       gang_portrait_url: gangBasic.gang_portrait_url ?? null,
-      parent_gang_type_name: gangType.parent_gang_type_name ?? null,
+      parent_gang_type_name: gangTypeConfig?.parent_gang_type_name ?? null,
       gang_colour: gangBasic.gang_colour,
       credits: gangBasic.credits,
       reputation: gangBasic.reputation,

@@ -49,12 +49,16 @@ export interface ExoticBeastCreationParams {
   fighterEquipmentId: string; // The equipment that grants the beast
 }
 
-export interface CreatedBeast {
+export interface CreatedFamiliar {
   id: string;
   fighter_name: string;
   fighter_type: string;
   fighter_subtypes: string[];
   fighter_type_id: string;
+  /** fighter_types.gang_type_id, so composition can see the beast before the roster reloads. */
+  fighter_gang_type_id: string | null;
+  /** Exotic beasts are catalog fighter types, so this stays null. */
+  fighter_custom_gang_type_id: null;
   credits: number;
   equipment_source: string;
   created_at: string;
@@ -99,7 +103,7 @@ export interface CreatedBeast {
 
 export interface ExoticBeastCreationResult {
   success: boolean;
-  createdBeasts: CreatedBeast[];
+  createdFamiliars: CreatedFamiliar[];
   error?: string;
 }
 
@@ -108,14 +112,14 @@ export interface ExoticBeastCreationResult {
  * Used when equipment is purchased, moved from stash, or added as default equipment to a fighter
  * 
  * @param params - The parameters needed to create the exotic beast
- * @returns Promise containing success status and array of created beasts with complete data
+ * @returns Promise containing success status and the created familiars with complete data
  */
 export async function createExoticBeastsForEquipment(
   params: ExoticBeastCreationParams
 ): Promise<ExoticBeastCreationResult> {
   try {
     const supabase = await createClient();
-    const createdBeasts: CreatedBeast[] = [];
+    const createdFamiliars: CreatedFamiliar[] = [];
 
     // Check if this equipment can grant exotic beasts
     const { data: beastConfigs } = await supabase
@@ -141,13 +145,14 @@ export async function createExoticBeastsForEquipment(
           intelligence,
           save,
           special_rules,
-          starting_xp
+          starting_xp,
+          gang_type_id
         )
       `)
       .eq('equipment_id', params.equipmentId);
 
     if (!beastConfigs || beastConfigs.length === 0) {
-      return { success: true, createdBeasts: [] };
+      return { success: true, createdFamiliars: [] };
     }
 
     
@@ -237,12 +242,14 @@ export async function createExoticBeastsForEquipment(
       }
 
       // Use the equipment and skills data we just created (no need to fetch again)
-      const beastData = {
+      const familiarData = {
         id: newFighter.id,
         fighter_name: newFighter.fighter_name,
         fighter_type: newFighter.fighter_type,
         fighter_subtypes: newFighter.fighter_subtypes || [],
         fighter_type_id: beastConfig.fighter_type_id,
+        fighter_gang_type_id: fighterType.gang_type_id ?? null,
+        fighter_custom_gang_type_id: null,
         credits: fighterType.cost || 0,
         equipment_source: 'Granted by equipment',
         created_at: newFighter.created_at,
@@ -273,10 +280,10 @@ export async function createExoticBeastsForEquipment(
         skills: skills
       };
 
-      createdBeasts.push(beastData);
+      createdFamiliars.push(familiarData);
     }
 
-    return { success: true, createdBeasts };
+    return { success: true, createdFamiliars };
   } catch (error) {
     console.error('Error in exotic beast creation process:', error);
     throw error;
