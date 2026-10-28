@@ -68,38 +68,111 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
       <ForumThreadViewerProvider threadNumber={thread.number} page={page} authorId={thread.author_id}>
         {page === pageCount && <ForumMarkThreadRead threadId={thread.id} threadNumber={thread.number} lastPostAt={thread.last_post_at} />}
         <div className="w-full bg-card shadow-md rounded-lg p-4">
-          <div className="flex items-start justify-between gap-2">
-            <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">
-              {thread.is_pinned && <LuPin className="h-5 w-5 shrink-0 text-red-800" aria-label="Pinned" />}
-              {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
-              <span className="min-w-0 break-words">{thread.title}</span>
-            </h1>
-            <ForumThreadMenu
-              threadId={thread.id}
-              isPinned={thread.is_pinned}
-              isLocked={thread.is_locked}
-              isArticle={thread.article_published_at !== null}
-              categoryId={thread.category.id}
-              tagIds={thread.tags.map((tag) => tag.id)}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}
-            {thread.article_published_at && (
-              <>
-                {' '}·{' '}
-                <Link href={forumArticlePath(thread.number, thread.title)} prefetch={false} className="hover:text-red-800 transition-colors">
-                  Read as an article
-                </Link>
-              </>
-            )}
-          </p>
-          <ForumTagChips tags={thread.tags} className="mt-1" />
-          <ForumArticleSuggestion />
+          {posts[0]?.post_number !== 1 && (
+            <>
+              <div className="flex items-start justify-between gap-2">
+                <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">
+                  {thread.is_pinned && <LuPin className="h-5 w-5 shrink-0 text-red-800" aria-label="Pinned" />}
+                  {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
+                  <span className="min-w-0 break-words">{thread.title}</span>
+                </h1>
+                <ForumThreadMenu
+                  threadId={thread.id}
+                  isPinned={thread.is_pinned}
+                  isLocked={thread.is_locked}
+                  isArticle={thread.article_published_at !== null}
+                  categoryId={thread.category.id}
+                  tagIds={thread.tags.map((tag) => tag.id)}
+                />
+              </div>
+              <ForumTagChips tags={thread.tags} className="mt-1" badgeClassName="px-2 py-0.5 text-xs" />
+              <p className="text-sm text-muted-foreground">
+                {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}
+                {thread.article_published_at && (
+                  <>
+                    {' '}·{' '}
+                    <Link href={forumArticlePath(thread.number, thread.title)} prefetch={false} className="hover:text-red-800 transition-colors">
+                      Read as an article
+                    </Link>
+                  </>
+                )}
+              </p>
+              <ForumArticleSuggestion />
+            </>
+          )}
 
-          <ForumReplyBox threadId={thread.id} path={pagePath} locked={thread.is_locked}>
-            <ol className="divide-y mt-4">
-              {posts.map((post) => (
+          <ForumReplyBox threadId={thread.id} path={pagePath} locked={thread.is_locked} divider={pageCount <= 1}>
+            {posts[0]?.post_number !== 1 && <ForumPagination path={path} page={page} pageCount={pageCount} className="border-b pb-4" />}
+            <ol className={`divide-y ${posts[0]?.post_number === 1 ? '' : 'mt-4'}`}>
+              {posts.map((post) => post.post_number === 1 ? (
+                <li key={post.id} id={`post-${post.post_number}`} className="py-4 first:pt-0 last:pb-0 scroll-mt-24">
+                  <div className="flex items-start justify-between gap-2">
+                    <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 min-w-0">
+                      {thread.is_pinned && <LuPin className="h-5 w-5 shrink-0 text-red-800" aria-label="Pinned" />}
+                      {thread.is_locked && <LuLock className="h-5 w-5 shrink-0 text-muted-foreground" aria-label="Locked" />}
+                      <span className="min-w-0 break-words">{thread.title}</span>
+                    </h1>
+                    <ForumThreadMenu
+                      threadId={thread.id}
+                      isPinned={thread.is_pinned}
+                      isLocked={thread.is_locked}
+                      isArticle={thread.article_published_at !== null}
+                      categoryId={thread.category.id}
+                      tagIds={thread.tags.map((tag) => tag.id)}
+                    />
+                  </div>
+                  <div className="mt-1 flex items-start justify-between gap-2 text-sm text-muted-foreground">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                      <ForumTagChips tags={thread.tags} className="contents" badgeClassName="px-2 py-0.5 text-xs" />
+                      <span>{formatForumReplies(thread.post_count)}</span>
+                    </div>
+                    {thread.article_published_at && (
+                      <Link href={forumArticlePath(thread.number, thread.title)} prefetch={false} className="shrink-0 hover:text-red-800 transition-colors">
+                        Read as an article
+                      </Link>
+                    )}
+                  </div>
+                  <ForumPagination path={path} page={page} pageCount={pageCount} className="border-b pb-4" />
+                  <div className="mt-2 flex items-center gap-3">
+                    <UserAvatar username={post.author} avatarUrl={post.author_avatar_url} className="size-18 text-lg" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                          {post.author_id && post.author ? (
+                            <Link href={`/user/${post.author_id}`} prefetch={false} className="font-semibold hover:text-red-800 transition-colors">
+                              {post.author}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold">Unknown User</span>
+                          )}
+                          {post.author_patreon_tier_id && (
+                            <PatreonSupporterIcon
+                              patreonTierId={post.author_patreon_tier_id}
+                              patreonTierTitle={post.author_patreon_tier_title}
+                            />
+                          )}
+                          <UserRoleBadge role={post.author_role} className="px-1.5 py-0 text-[10px]" />
+                        </p>
+                        <a href={`#post-${post.post_number}`} className="w-9 text-center text-sm text-muted-foreground hover:text-red-800 shrink-0">
+                          #{post.post_number}
+                        </a>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {formatForumDate(post.created_at, true)}
+                        {post.updated_at && !post.is_removed && ' · edited'}
+                      </p>
+                    </div>
+                  </div>
+                  <ForumArticleSuggestion />
+                  <div className="min-w-0 mt-2">
+                    {post.is_removed ? (
+                      <p className="text-sm text-muted-foreground italic">This post was removed.</p>
+                    ) : (
+                      <ForumPostContent post={post} threadTitle={thread.title} pagePath={pagePath} />
+                    )}
+                  </div>
+                </li>
+              ) : (
                 <li
                   key={post.id}
                   id={`post-${post.post_number}`}
@@ -109,7 +182,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
                   <UserAvatar
                     username={post.author}
                     avatarUrl={post.author_avatar_url}
-                    className="size-8 text-xs self-center sm:size-12 sm:text-base sm:self-start sm:row-span-2"
+                    className="size-12 text-sm self-center sm:size-16 sm:text-lg sm:self-start sm:row-span-2"
                   />
                   <div className="flex items-baseline justify-between gap-2 text-sm self-center sm:self-start">
                     <span className="min-w-0 truncate">
@@ -134,13 +207,13 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
                         {post.updated_at && !post.is_removed && ' · edited'}
                       </span>
                     </span>
-                    <a href={`#post-${post.post_number}`} className="text-muted-foreground hover:text-red-800 shrink-0">
+                    <a href={`#post-${post.post_number}`} className="w-9 text-center text-muted-foreground hover:text-red-800 shrink-0">
                       #{post.post_number}
                     </a>
                   </div>
                   <div className="col-span-2 sm:col-span-1 sm:col-start-2 min-w-0 mt-2">
                     {post.is_removed ? (
-                      <p className="text-muted-foreground italic">This post was removed.</p>
+                      <p className="text-sm text-muted-foreground italic">This post was removed.</p>
                     ) : (
                       <ForumPostContent
                         post={post}
@@ -153,7 +226,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
               ))}
             </ol>
 
-            <ForumPagination path={path} page={page} pageCount={pageCount} />
+            <ForumPagination path={path} page={page} pageCount={pageCount} className="border-t pt-4" />
           </ForumReplyBox>
         </div>
       </ForumThreadViewerProvider>
