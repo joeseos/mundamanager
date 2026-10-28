@@ -78,7 +78,7 @@ function ForumPostByline({ post, opening = false }: { post: ForumPost; opening?:
   const number = (
     <a
       href={`#post-${post.post_number}`}
-      className={`w-9 text-center shrink-0 hover:text-red-800 ${opening ? 'text-sm text-muted-foreground' : 'text-muted-foreground'}`}
+      className={`min-w-9 text-center shrink-0 hover:text-red-800 ${opening ? 'text-sm text-muted-foreground' : 'text-muted-foreground'}`}
     >
       #{post.post_number}
     </a>
