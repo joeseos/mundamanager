@@ -109,7 +109,9 @@ function SignInContent() {
 
     // Full document load, not a client-side navigation: it's what rebuilds the
     // browser Supabase client and useClaims from the newly-set cookies. Still
-    // submitting until then, so the button keeps showing progress.
+    // submitting until then, so the button keeps showing progress, but not once
+    // the page is left: Back can restore it from the back/forward cache.
+    window.addEventListener('pagehide', () => setIsSubmitting(false), { once: true });
     window.location.assign(result.redirectTo);
   }
 
