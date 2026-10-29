@@ -6,6 +6,9 @@ import {
   getCampaignBattles,
   getCampaignResources
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { getGangCore, getGangFightersBundle, getGangPositioning } from "@/app/lib/shared/gang-data";
+import { sortFightersByPositioning } from "@/utils/fighter-positioning";
+import { isUuid } from "@/utils/uuid";
 
 // IP-based rate limiting storage
 interface RateLimitEntry {
@@ -190,6 +193,21 @@ interface DataTerritory {
   owning_gangs: DataGangReference[];
 }
 
+interface DataFighter {
+  id: string;
+  name: string;
+  type: string;
+  subtypes: string[];
+  xp: number;
+  is_vehicle: boolean;
+  killed: boolean;
+  retired: boolean;
+  enslaved: boolean;
+  recovery: boolean;
+  captured: boolean;
+  starved: boolean;
+}
+
 interface DataGang {
   id: string;
   name: string;
@@ -203,6 +221,7 @@ interface DataGang {
   territory_count: number;
   territories: DataTerritory[];
   resources: Array<{ resource_id: string; resource_name: string; quantity: number; is_custom: boolean }>;
+  fighters: DataFighter[];
 }
 
 interface DataBattle {
@@ -257,8 +276,50 @@ function transformGangForData(gang: any): DataGang {
     reputation: gang.reputation,
     territory_count: gang.territory_count,
     territories: (gang.territories ?? []).map((t: any) => transformTerritoryForData(t, true)),
-    resources: gang.resources ?? []
+    resources: gang.resources ?? [],
+    fighters: gang.fighters ?? []
   };
+}
+
+/**
+ * Transform a fighter row from the gang fighters bundle for data endpoint
+ */
+function transformFighterForData(fighter: any): DataFighter {
+  return {
+    id: fighter.id,
+    name: fighter.fighter_name ?? '',
+    type: fighter.fighter_type || fighter.fighter_types?.fighter_type || 'Unknown',
+    subtypes: fighter.fighter_subtypes ?? [],
+    xp: fighter.xp ?? 0,
+    is_vehicle: fighter.is_vehicle ?? false,
+    killed: fighter.killed ?? false,
+    retired: fighter.retired ?? false,
+    enslaved: fighter.enslaved ?? false,
+    recovery: fighter.recovery ?? false,
+    captured: fighter.captured ?? false,
+    starved: fighter.starved ?? false
+  };
+}
+
+/**
+ * A gang's fighters in its saved display order, read from the gang page's
+ * existing caches. Hidden gangs publish no roster.
+ */
+async function getGangDataFighters(gangId: string): Promise<DataFighter[]> {
+  const gangCore = await getGangCore(gangId);
+  if (!gangCore || gangCore.hidden) return [];
+
+  const [bundle, positioning] = await Promise.all([
+    getGangFightersBundle(gangId),
+    getGangPositioning(gangId)
+  ]);
+
+  // Alphabetical without a saved order matches initializePositioningIfNeeded
+  // without writing during a public read; it also orders unpositioned fighters
+  const byName = (a: any, b: any) => (a.fighter_name ?? '').localeCompare(b.fighter_name ?? '');
+  const fighters = sortFightersByPositioning(bundle.fighters, positioning, byName);
+
+  return fighters.map(transformFighterForData);
 }
 
 /**
@@ -415,7 +476,22 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     // SECURITY NOTE: This endpoint is intentionally public - any campaign ID can be viewed
     // Rate limiting (10 req/min per IP) provides abuse protection
 
-    // Fetch all campaign data using existing cached functions
+    const notFound = () => format === 'xml'
+      ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
+          status: 404,
+          headers: { 'Content-Type': 'application/xml', ...rateLimitHeaders, ...corsHeaders }
+        })
+      : NextResponse.json(
+          { error: 'Campaign not found' },
+          { status: 404, headers: { ...rateLimitHeaders, ...corsHeaders } }
+        );
+
+    // Reject malformed UUIDs before starting any database-backed reads.
+    if (!isUuid(campaignId)) {
+      return notFound();
+    }
+
+    // Fetch all campaign data in parallel using existing cached functions
     const [
       campaignBasic,
       campaignMembers,
@@ -430,20 +506,19 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       getCampaignResources(campaignId)
     ]);
 
-    // Return 404 if campaign not found
     if (!campaignBasic) {
-      return format === 'xml'
-        ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
-            status: 404,
-            headers: { 'Content-Type': 'application/xml', ...rateLimitHeaders, ...corsHeaders }
-          })
-        : NextResponse.json(
-            { error: 'Campaign not found' },
-            { status: 404, headers: { ...rateLimitHeaders, ...corsHeaders } }
-          );
+      return notFound();
     }
 
-    // Transform members data to include territories under their gangs
+    // Only ACCEPTED gangs publish a roster; an invitation alone must not
+    const acceptedGangIds = [...new Set(campaignMembers.flatMap(member =>
+      member.gangs.flatMap(gang => (gang.status === 'ACCEPTED' && gang.id ? [gang.id] : []))
+    ))];
+    const gangFighters = new Map(await Promise.all(
+      acceptedGangIds.map(async gangId => [gangId, await getGangDataFighters(gangId)] as const)
+    ));
+
+    // Transform members data to include territories and fighters under their gangs
     // Note: We exclude auth user IDs for privacy, only include campaign-scoped IDs
     const membersWithTerritories = campaignMembers.map(member => {
       const gangsWithTerritories = member.gangs.map(gang => {
@@ -454,7 +529,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
 
         return transformGangForData({
           ...gang,
-          territories: gangTerritories
+          territories: gangTerritories,
+          fighters: (gang.id && gangFighters.get(gang.id)) || []
         });
       });
 
@@ -519,4 +595,3 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
         );
   }
 }
-
