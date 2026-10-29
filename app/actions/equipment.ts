@@ -1223,25 +1223,14 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       // Only count if vehicle assigned to an active fighter
       const { data: veh } = await supabase
         .from('vehicles')
-        .select('fighter_id')
+        .select('fighters (killed, retired, enslaved, captured)')
         .eq('id', equipmentBefore.vehicle_id)
         .single();
 
-      if (veh?.fighter_id) {
-        // Check if the assigned fighter is active
-        const { data: vehicleFighter } = await supabase
-          .from('fighters')
-          .select('killed, retired, enslaved, captured')
-          .eq('id', veh.fighter_id)
-          .single();
-
-        const vehicleFighterIsActive = countsTowardRating(vehicleFighter);
-
-        if (vehicleFighterIsActive) {
-          ratingDelta -= (equipmentBefore.purchase_cost || 0);
-          const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-          ratingDelta -= effectsCredits;
-        }
+      if (countsTowardRating(veh?.fighters as FighterStatus | null | undefined)) {
+        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+        ratingDelta -= effectsCredits;
       }
     }
 

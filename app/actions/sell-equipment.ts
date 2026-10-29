@@ -6,7 +6,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
-import { costCountsTowardRating, countsTowardRating, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
@@ -109,7 +109,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       // Get gang_id from vehicle and whether vehicle is assigned
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('gang_id, fighter_id')
+        .select('gang_id, fighter_id, fighters (killed, retired, enslaved, captured)')
         .eq('id', equipmentData.vehicle_id)
         .single();
         
@@ -120,16 +120,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       vehicleAssigned = !!vehicle.fighter_id;
 
       // If vehicle is assigned to a fighter, check if that fighter is active
-      if (vehicleAssigned && vehicle.fighter_id) {
-        const { data: vehicleFighter, error: vehicleFighterError } = await supabase
-          .from('fighters')
-          .select('killed, retired, enslaved, captured')
-          .eq('id', vehicle.fighter_id)
-          .single();
-
-        if (!vehicleFighterError && vehicleFighter) {
-          fighterIsActive = countsTowardRating(vehicleFighter);
-        }
+      if (vehicleAssigned) {
+        fighterIsActive = countsTowardRating(vehicle.fighters as FighterStatus | null);
       }
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
