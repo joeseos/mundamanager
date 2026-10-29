@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse, LuShieldCheck } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { TbCards } from "react-icons/tb";
@@ -25,6 +25,7 @@ import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-
 import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
 import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
 import { AdminUserGuidesModal } from "@/components/admin/admin-user-guides-modal";
+import { AdminUserRolesModal } from "@/components/admin/admin-user-roles-modal";
 
 export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,6 +47,7 @@ export default function AdminPage() {
   const [showSupportTools, setShowSupportTools] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserGuides, setShowUserGuides] = useState(false);
+  const [showUserRoles, setShowUserRoles] = useState(false);
 
   const coreSections = [
     {
@@ -154,6 +156,13 @@ export default function AdminPage() {
     icon: LuSearch
   };
 
+  const userRolesSection = {
+    title: "User Roles",
+    description: "See the Admin and Moderator teams and edit user roles",
+    action: () => setShowUserRoles(true),
+    icon: LuShieldCheck
+  };
+
   const notificationsSection = {
     title: "Notifications",
     description: "Send a message to one or more users",
@@ -198,7 +207,7 @@ export default function AdminPage() {
             <hr className="my-6 border-t border-border" />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[supportToolsSection, notificationsSection, userGuidesSection, statsSection].map((section) => (
+              {[supportToolsSection, userRolesSection, notificationsSection, userGuidesSection, statsSection].map((section) => (
                 <button
                   key={section.title}
                   onClick={section.action}
@@ -350,6 +359,12 @@ export default function AdminPage() {
         {showUserGuides && (
           <AdminUserGuidesModal
             onClose={() => setShowUserGuides(false)}
+          />
+        )}
+
+        {showUserRoles && (
+          <AdminUserRolesModal
+            onClose={() => setShowUserRoles(false)}
           />
         )}
       </main>
