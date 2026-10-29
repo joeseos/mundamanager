@@ -34,7 +34,9 @@ export default async function Home() {
     redirect(signInPath("/"));
   }
 
-  // Single invocation that gets gangs, campaigns, and customise data
+  // Single invocation that gets gangs, campaigns, and customise data, plus the
+  // reference data for the create-campaign modal and the user's share-modal
+  // campaigns — all cached (campaign-types / global / user-{id} tags).
   const [
     gangs,
     campaigns,
@@ -43,7 +45,10 @@ export default async function Home() {
     customSkills,
     customGangTypes,
     customTradingPosts,
-    customCollections
+    customCollections,
+    campaignTypes,
+    tradingPostTypes,
+    userCampaigns
   ] = await Promise.all([
     getUserGangs(user.id),
     getUserCampaigns(user.id),
@@ -52,12 +57,7 @@ export default async function Home() {
     getUserCustomSkills(user.id),
     getUserCustomGangTypes(user.id),
     getUserCustomTradingPosts(user.id),
-    getUserCustomCollections(user.id)
-  ]);
-  
-  // Reference data for the create-campaign modal and the user's share-modal
-  // campaigns — all cached (campaign-types / global / user-{id} tags).
-  const [campaignTypes, tradingPostTypes, userCampaigns] = await Promise.all([
+    getUserCustomCollections(user.id),
     getCampaignTypes(),
     getTradingPostTypesCached(),
     getUserShareCampaigns(user.id)
