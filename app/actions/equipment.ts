@@ -7,7 +7,7 @@ import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-ratin
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { countsTowardRating, FighterStatus } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -341,19 +341,20 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       (params.vehicle_id && !params.buy_for_gang_stash)
         ? supabase
             .from('vehicles')
-            .select('fighter_id')
+            .select('fighter_id, fighters (killed, retired, enslaved, captured)')
             .eq('id', params.vehicle_id)
             .single()
         : Promise.resolve({ data: null }),
 
       // Fighter row: fighter_name feeds beast creation, fighter_pet_id lets the
       // owner-cache invalidation below skip its lookup for the 97% of fighters
-      // that are not pets. Fetched here so it overlaps the gang read instead of
+      // that are not pets, and the status decides whether the purchase counts
+      // toward rating. Fetched here so it overlaps the gang read instead of
       // costing a serial round trip later.
       (params.fighter_id && !params.buy_for_gang_stash)
         ? supabase
             .from('fighters')
-            .select('fighter_name, fighter_pet_id')
+            .select('fighter_name, fighter_pet_id, killed, retired, enslaved, captured')
             .eq('id', params.fighter_id)
             .maybeSingle()
         : Promise.resolve({ data: null })
@@ -368,7 +369,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
     // Shape must match the fighters select in the Promise.all above; the cast is
     // unavoidable there, so keep the two in step by hand.
-    const fighterRow = fighterResult.data as { fighter_name: string | null; fighter_pet_id: string | null } | null;
+    const fighterRow = fighterResult.data as (FighterStatus & { fighter_name: string | null; fighter_pet_id: string | null }) | null;
+    // Only gear on an active fighter (or a vehicle assigned to one) counts toward
+    // rating; an inactive fighter's cost is added back when they return.
+    const ownerIsActive = params.fighter_id
+      ? countsTowardRating(fighterRow)
+      : countsTowardRating(vehicleResult.data?.fighters as FighterStatus | null | undefined);
     /**
      * null only when the row was actually read and says this fighter is not a
      * pet. A missing/failed read stays undefined so the helper falls back to
@@ -810,7 +816,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate deltas for gang updates
-    const totalRatingDelta = ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta;
+    const totalRatingDelta = ownerIsActive ? ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta : 0;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
     // Update gang credits, rating, wealth and Trade Points using centralized helper.
