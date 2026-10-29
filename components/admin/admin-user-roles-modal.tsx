@@ -26,8 +26,8 @@ async function fetchRoleHolders(): Promise<RoleHolder[]> {
 
 export function AdminUserRolesModal({ onClose }: { onClose: () => void }) {
   const queryClient = useQueryClient();
-  const { userId } = useClaims();
-  const { data: roleHolders = [], isLoading, isError } = useQuery({
+  const { userId, loading: claimsLoading } = useClaims();
+  const { data: roleHolders = [], isLoading, isError, isSuccess } = useQuery({
     queryKey: ROLES_QUERY_KEY,
     queryFn: fetchRoleHolders,
   });
@@ -68,6 +68,7 @@ export function AdminUserRolesModal({ onClose }: { onClose: () => void }) {
     >
       <UserSearchBar
         placeholder="Search a user to edit their role"
+        disabled={!isSuccess || claimsLoading}
         excludeIds={userId ? [userId] : []}
         onSelect={(user) =>
           startEditing({
