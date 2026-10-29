@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/sonner"
 import { NOTIFICATION_TOASTER_ID } from "@/utils/notification-toast"
 import { WebsiteStructuredData, OrganizationStructuredData } from "@/components/structured-data";
 import { QueryClientProviderWrapper } from "@/app/providers/query-client-provider";
-import { ClientThemeProvider } from "@/components/client-theme-provider";
+import { ClientThemeProvider, ThemeBootScript } from "@/components/client-theme-provider";
 import HeaderAuth from "@/components/header-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,29 +100,10 @@ export default function RootLayout({
         <link rel="preload" as="image" href="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif" fetchPriority="high" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  const theme = localStorage.getItem('mundamanager-theme');
-                  const isDark = theme === 'dark' || ((theme === 'system' || !theme) && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                  const currentClass = document.documentElement.className;
-                  document.documentElement.className = currentClass + (isDark ? ' dark' : '');
-                } catch (_) {}
-              })();
-            `,
-          }}
-        />
+        <ThemeBootScript />
       </head>
       <body className="bg-background text-foreground" suppressHydrationWarning>
-        <ClientThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-          storageKey="mundamanager-theme"
-        >
+        <ClientThemeProvider>
           <QueryClientProviderWrapper>
           <header className="fixed top-0 left-0 right-0 bg-background border-b border-border shadow-md z-50 print:hidden">
           <div className="flex justify-between items-center h-14 px-2">
