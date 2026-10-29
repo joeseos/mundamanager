@@ -29,8 +29,8 @@ export interface ForumCategory {
   slug: string;
   name: string;
   description: string | null;
-  /** Public URL of the icon shown beside the category. Null hides it. */
-  icon_url: string | null;
+  /** Public URL of the image shown beside the category. Null hides it. */
+  image_url: string | null;
   moderators_only: boolean;
   thread_count: number;
   latest_thread: {

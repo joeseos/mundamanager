@@ -1019,7 +1019,7 @@ export const forumCategories = pgTable('forum_categories', {
   slug: text('slug').notNull(),
   name: text('name').notNull(),
   description: text('description'),
-  icon_url: text('icon_url'),
+  image_url: text('image_url'),
   position: integer('position').default(0).notNull(),
   moderators_only: boolean('moderators_only').default(false).notNull(),
   thread_count: integer('thread_count').default(0).notNull(),

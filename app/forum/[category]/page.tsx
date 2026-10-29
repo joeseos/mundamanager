@@ -18,6 +18,7 @@ import {
 import { ForumPagination, ForumThreadPageLinks } from '@/components/forum/forum-pagination';
 import { ForumRelativeTime } from '@/components/forum/forum-relative-time';
 import { UserAvatar } from '@/components/ui/user-avatar';
+import { ForumCategoryImage } from '@/components/forum/forum-category-image';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import { ForumThreadTitleLink, ForumUnreadThreadsProvider } from '@/components/forum/forum-viewer';
@@ -60,10 +61,8 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
       <div className="w-full bg-card shadow-md rounded-lg p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-start gap-3">
-            {category.icon_url && (
-              // A category icon can be hosted anywhere, so not next/image
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={category.icon_url} alt="" className="mt-1 size-10 shrink-0 object-contain" />
+            {category.image_url && (
+              <ForumCategoryImage url={category.image_url} className="mt-1 size-10 shrink-0 object-contain" />
             )}
             <div className="min-w-0">
               <h1 className="text-2xl font-bold">{category.name}</h1>

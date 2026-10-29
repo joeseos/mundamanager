@@ -1,6 +1,7 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
 import { formatForumDate, forumCategoryPath, forumThreadPath, getForumCategories } from '@/app/lib/forum';
+import { ForumCategoryImage } from '@/components/forum/forum-category-image';
 import { ForumRelativeTime } from '@/components/forum/forum-relative-time';
 
 export const metadata: Metadata = {
@@ -26,14 +27,12 @@ export default async function ForumPage() {
               className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
             >
               <div className="group relative flex min-w-0 flex-1 items-start gap-3 sm:items-center">
-                {category.icon_url && (
-                  // A category icon can be hosted anywhere, so not next/image
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={category.icon_url} alt="" className="mt-0.5 size-10 shrink-0 object-contain sm:mt-0" />
+                {category.image_url && (
+                  <ForumCategoryImage url={category.image_url} className="mt-0.5 size-10 shrink-0 object-contain sm:mt-0" />
                 )}
                 <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
                   <div className="flex-1 min-w-0">
-                    {/* Stretched over the category icon, name and thread count, not the latest post */}
+                    {/* Stretched over the category image, name and thread count, not the latest post */}
                     <Link
                       href={forumCategoryPath(category.slug)}
                       prefetch={false}
