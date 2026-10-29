@@ -344,20 +344,25 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             .select('fighter_id, fighters (killed, retired, enslaved, captured)')
             .eq('id', params.vehicle_id)
             .single()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
 
       // Fighter row: fighter_name feeds beast creation, fighter_pet_id lets the
       // owner-cache invalidation below skip its lookup for the 97% of fighters
-      // that are not pets, and the status decides whether the purchase counts
-      // toward rating. Fetched here so it overlaps the gang read instead of
-      // costing a serial round trip later.
+      // that are not pets, and its status (or an exotic beast's owner's) decides
+      // whether the purchase counts toward rating. Fetched here so it overlaps
+      // the gang read instead of costing a serial round trip later.
       (params.fighter_id && !params.buy_for_gang_stash)
         ? supabase
             .from('fighters')
-            .select('fighter_name, fighter_pet_id, killed, retired, enslaved, captured')
+            .select(`
+              fighter_name, fighter_pet_id, killed, retired, enslaved, captured,
+              beast_link:fighter_exotic_beasts!fk_fighter_pet_ownership (
+                owner:fighters!fighter_exotic_beasts_fighter_owner_id_fkey (killed, retired, enslaved, captured)
+              )
+            `)
             .eq('id', params.fighter_id)
             .maybeSingle()
-        : Promise.resolve({ data: null })
+        : Promise.resolve({ data: null, error: null })
     ]);
 
     const { data: gang, error: gangError } = gangResult;
@@ -365,15 +370,24 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error('Gang not found');
     }
 
+    if (vehicleResult.error || fighterResult.error) {
+      throw new Error('Failed to load the fighter or vehicle');
+    }
+
     // Extract parallel query results
     const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
     // Shape must match the fighters select in the Promise.all above; the cast is
     // unavoidable there, so keep the two in step by hand.
-    const fighterRow = fighterResult.data as (FighterStatus & { fighter_name: string | null; fighter_pet_id: string | null }) | null;
-    // Only gear on an active fighter (or a vehicle assigned to one) counts toward
-    // rating; an inactive fighter's cost is added back when they return.
+    const fighterRow = fighterResult.data as (FighterStatus & {
+      fighter_name: string | null;
+      fighter_pet_id: string | null;
+      beast_link: { owner: FighterStatus | null } | null;
+    }) | null;
+    // Only gear on an active fighter counts toward rating: a beast's gear rolls
+    // into its owner and a vehicle's into its assigned fighter. An inactive
+    // fighter's whole cost is added back when they return.
     const ownerIsActive = params.fighter_id
-      ? countsTowardRating(fighterRow)
+      ? countsTowardRating(fighterRow) && (!fighterRow?.beast_link || countsTowardRating(fighterRow.beast_link.owner))
       : countsTowardRating(vehicleResult.data?.fighters as FighterStatus | null | undefined);
     /**
      * null only when the row was actually read and says this fighter is not a
