@@ -27,6 +27,14 @@ import { detailGangTypeLabel } from "@/utils/gang-type-label";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
+const XP_BOX_GROUPS = [
+  { label: 'SI', count: 6 },
+  { label: 'OOA', count: 6 },
+  { label: 'R/A', count: 5 },
+  { label: 'Ld/Ch', count: 5 },
+  { label: 'Misc', count: 6 },
+];
+
 function PrintGangPortrait({
   src,
   name,
@@ -990,55 +998,19 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          {!wargearText && !vehicleEquipmentText && !vehicleLastingDamagesText && !rigGlitchesText && !skillsText && !injuriesText && !specialRulesText && !vehicleRulesText && !fighterNotePreview && (
                            <div>—</div>
                          )}
-                         {/* XP boxes */}
+                         {/* XP boxes, sized in px so a larger browser font size can't make them overlap */}
                          {showXPBoxes && (
-                           <div className="mt-4 grid gap-x-1 grid-cols-3 text-[9px]">
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">SI</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`si-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
+                           <div className="mt-4 grid gap-x-[4px] grid-cols-3 text-[9px]">
+                             {[...XP_BOX_GROUPS, { label: 'Participation', count: 1 }].map((group) => (
+                               <div key={group.label} className="flex items-center gap-[4px] min-w-0">
+                                 <span className="font-semibold whitespace-nowrap shrink-0">{group.label}</span>
+                                 <div className="flex items-center gap-[2px] shrink-0">
+                                   {Array.from({ length: group.count }).map((_, i) => (
+                                     <MdCheckBoxOutlineBlank key={i} className="text-black w-[8px] h-[8px] shrink-0" />
+                                   ))}
+                                 </div>
                                </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">OOA</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`ooa-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">R/A</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 5 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`rally-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">Ld/Ch</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 5 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`leader-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">Misc</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`misc-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">Participation</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 <MdCheckBoxOutlineBlank key="xp-fielded" className="text-black w-2 h-2 shrink-0" />
-                               </div>
-                             </div>
+                             ))}
                            </div>
                          )}
                        </div>
@@ -1442,28 +1414,22 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             </div>
                           )}
 
-                          {/* XP boxes */}
+                          {/* XP boxes, sized in px so a larger browser font size can't make them overlap */}
                           {showXPBoxes && (
-                            <div className="mt-1 flex items-start gap-1">
+                            <div className="mt-1 flex items-start gap-[4px]">
                               <span className="text-[12px] font-semibold whitespace-nowrap">XP:</span>
-                              <div className="flex flex-wrap gap-x-2 gap-y-1">
-                              {[
-                                { label: 'SI', count: 6, key: 'si' },
-                                { label: 'OOA', count: 6, key: 'ooa' },
-                                { label: 'R/A', count: 5, key: 'ra' },
-                                { label: 'Ld/Ch', count: 5, key: 'ldch' },
-                                { label: 'Misc', count: 6, key: 'misc' },
-                              ].map((group) => (
-                                <div key={group.key} className="flex items-center gap-1 min-w-0">
-                                  <span className="text-[12px] font-semibold whitespace-nowrap shrink-0">{group.label}</span>
-                                  <div className="flex items-center gap-0.5 shrink-0">
-                                    {Array.from({ length: group.count }).map((_, i) => (
-                                      <MdCheckBoxOutlineBlank key={`${group.key}-${fighter.id}-${i}`} className="w-3 h-3 shrink-0" />
-                                    ))}
+                              <div className="flex flex-1 justify-between gap-x-[8px]">
+                                {XP_BOX_GROUPS.map((group) => (
+                                  <div key={group.label} className="flex items-center gap-[4px]">
+                                    <span className="text-[12px] font-semibold whitespace-nowrap">{group.label}</span>
+                                    <div className="flex items-center gap-[2px]">
+                                      {Array.from({ length: group.count }).map((_, i) => (
+                                        <MdCheckBoxOutlineBlank key={i} className="w-[12px] h-[12px] shrink-0" />
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
