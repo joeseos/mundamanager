@@ -25,26 +25,33 @@ export default async function ForumPage() {
               key={category.id}
               className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
             >
-              <div className="group relative flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
-                <div className="flex-1 min-w-0">
-                  {/* Stretched over the category name and thread count, not the latest post */}
-                  <Link
-                    href={forumCategoryPath(category.slug)}
-                    prefetch={false}
-                    className="text-lg font-semibold group-hover:text-red-800 transition-colors after:absolute after:inset-0"
-                  >
-                    {category.name}
-                  </Link>
-                  {category.description && (
-                    <p className="text-sm text-muted-foreground">{category.description}</p>
-                  )}
-                </div>
-                <div className={`text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0 ${category.thread_count > 0 ? '' : 'hidden sm:block'}`}>
-                  {category.thread_count > 0 && (
-                    <>
-                      {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
-                    </>
-                  )}
+              <div className="group relative flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+                {category.icon_url && (
+                  // A category icon can be hosted anywhere, so not next/image
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={category.icon_url} alt="" className="mt-0.5 size-10 shrink-0 object-contain sm:mt-0" />
+                )}
+                <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex-1 min-w-0">
+                    {/* Stretched over the category icon, name and thread count, not the latest post */}
+                    <Link
+                      href={forumCategoryPath(category.slug)}
+                      prefetch={false}
+                      className="text-lg font-semibold group-hover:text-red-800 transition-colors after:absolute after:inset-0"
+                    >
+                      {category.name}
+                    </Link>
+                    {category.description && (
+                      <p className="text-sm text-muted-foreground">{category.description}</p>
+                    )}
+                  </div>
+                  <div className={`text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0 ${category.thread_count > 0 ? '' : 'hidden sm:block'}`}>
+                    {category.thread_count > 0 && (
+                      <>
+                        {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="text-sm sm:w-72 min-w-0 shrink-0">

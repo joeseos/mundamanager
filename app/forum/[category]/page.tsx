@@ -59,12 +59,19 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full bg-card shadow-md rounded-lg p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold">{category.name}</h1>
-            {category.description && <p className="text-muted-foreground">{category.description}</p>}
-            <p className="text-sm text-muted-foreground">
-              {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
-            </p>
+          <div className="flex min-w-0 items-start gap-3">
+            {category.icon_url && (
+              // A category icon can be hosted anywhere, so not next/image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={category.icon_url} alt="" className="mt-1 size-10 shrink-0 object-contain" />
+            )}
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold">{category.name}</h1>
+              {category.description && <p className="text-muted-foreground">{category.description}</p>}
+              <p className="text-sm text-muted-foreground">
+                {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
+              </p>
+            </div>
           </div>
           <ForumNewThreadButton category={category} categoryPath={forumCategoryPath(category.slug)} />
         </div>
