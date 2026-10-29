@@ -51,7 +51,7 @@ export function AdminUserRolesModal({ onClose }: { onClose: () => void }) {
       if (!response.ok) throw new Error(data.error || 'Failed to update user role');
 
       await queryClient.invalidateQueries({ queryKey: ROLES_QUERY_KEY });
-      toast.success(`${editing.username} is now ${ROLE_LABELS[role]}`);
+      toast.success(`${editing.username} is now ${role === 'admin' ? 'an' : 'a'} ${ROLE_LABELS[role]}`);
       return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update user role');
