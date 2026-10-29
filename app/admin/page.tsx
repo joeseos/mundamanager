@@ -158,7 +158,7 @@ export default function AdminPage() {
 
   const userRolesSection = {
     title: "User Roles",
-    description: "See the Admin and Moderator teams and edit user roles",
+    description: "Manage admin and moderator roles",
     action: () => setShowUserRoles(true),
     icon: LuShieldCheck
   };
