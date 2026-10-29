@@ -36,6 +36,32 @@ export function countsTowardRating(fighter: FighterStatus | null | undefined): b
   return !fighter.killed && !fighter.retired && !fighter.enslaved && !fighter.captured;
 }
 
+/**
+ * Columns to select on `fighters` for costCountsTowardRating: the fighter's
+ * status and, for an exotic beast, its owner's status.
+ */
+export const RATING_STATUS_COLUMNS = `
+  killed, retired, enslaved, captured,
+  beast_link:fighter_exotic_beasts!fk_fighter_pet_ownership (
+    owner:fighters!fighter_exotic_beasts_fighter_owner_id_fkey (killed, retired, enslaved, captured)
+  )
+`;
+
+/** A fighters row selected with RATING_STATUS_COLUMNS. */
+export type FighterRatingStatus = FighterStatus & { beast_link?: unknown };
+
+/**
+ * Whether costs added to this fighter (equipment, effects) count toward gang
+ * rating. An exotic beast's cost rolls into its owner, so the owner must count
+ * too.
+ */
+export function costCountsTowardRating(fighter: FighterRatingStatus | null | undefined): boolean {
+  // A many-to-one embed, so PostgREST returns an object; without generated
+  // types supabase-js types it as an array.
+  const beastLink = fighter?.beast_link as { owner: FighterStatus | null } | null | undefined;
+  return countsTowardRating(fighter) && (!beastLink || countsTowardRating(beastLink.owner));
+}
+
 export function hasKilledStatusFlag(typeSpecificData: any): boolean {
   return typeSpecificData?.killed === 'true' || typeSpecificData?.killed === true;
 }

@@ -7,7 +7,7 @@ import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-ratin
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { countsTowardRating, FighterStatus } from '@/utils/fighter-status';
+import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -354,12 +354,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       (params.fighter_id && !params.buy_for_gang_stash)
         ? supabase
             .from('fighters')
-            .select(`
-              fighter_name, fighter_pet_id, killed, retired, enslaved, captured,
-              beast_link:fighter_exotic_beasts!fk_fighter_pet_ownership (
-                owner:fighters!fighter_exotic_beasts_fighter_owner_id_fkey (killed, retired, enslaved, captured)
-              )
-            `)
+            .select(`fighter_name, fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
             .eq('id', params.fighter_id)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null })
@@ -378,16 +373,15 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
     // Shape must match the fighters select in the Promise.all above; the cast is
     // unavoidable there, so keep the two in step by hand.
-    const fighterRow = fighterResult.data as (FighterStatus & {
+    const fighterRow = fighterResult.data as (FighterRatingStatus & {
       fighter_name: string | null;
       fighter_pet_id: string | null;
-      beast_link: { owner: FighterStatus | null } | null;
     }) | null;
     // Only gear on an active fighter counts toward rating: a beast's gear rolls
     // into its owner and a vehicle's into its assigned fighter. An inactive
     // fighter's whole cost is added back when they return.
     const ownerIsActive = params.fighter_id
-      ? countsTowardRating(fighterRow) && (!fighterRow?.beast_link || countsTowardRating(fighterRow.beast_link.owner))
+      ? costCountsTowardRating(fighterRow)
       : countsTowardRating(vehicleResult.data?.fighters as FighterStatus | null | undefined);
     /**
      * null only when the row was actually read and says this fighter is not a
@@ -1207,11 +1201,11 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       // Check if the fighter is active before applying rating delta
       const { data: fighter } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured, fighter_pet_id')
+        .select(`fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
         .eq('id', equipmentBefore.fighter_id)
         .single();
 
-      const fighterIsActive = countsTowardRating(fighter);
+      const fighterIsActive = costCountsTowardRating(fighter);
       // Only a hint when the row was read AND belongs to the fighter the
       // invalidation below targets; otherwise leave undefined to force a lookup.
       fighterPetId =
@@ -1570,15 +1564,15 @@ export async function applySelfUpgradesToEquipment(params: {
       try {
         const { data: fighter } = await supabase
           .from('fighters')
-          .select('killed, retired, enslaved, captured')
+          .select(RATING_STATUS_COLUMNS)
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = fighter && countsTowardRating(fighter);
+        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: params.credits_increase,
-          applyToRating: fighterIsActive ?? false
+          applyToRating: fighterIsActive
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);
@@ -1646,15 +1640,15 @@ export async function deleteEquipmentEffect(
       try {
         const { data: fighter } = await supabase
           .from('fighters')
-          .select('killed, retired, enslaved, captured')
+          .select(RATING_STATUS_COLUMNS)
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = fighter && countsTowardRating(fighter);
+        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: -params.credits_increase,
-          applyToRating: fighterIsActive ?? false
+          applyToRating: fighterIsActive
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);
