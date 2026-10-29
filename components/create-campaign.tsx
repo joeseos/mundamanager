@@ -73,7 +73,6 @@ export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProp
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Fetched when the modal opens rather than with every home page
   // isPending also covers a fetch paused while offline; isLoadingError ignores
   // a failed background refetch while the earlier types are still shown
   const { data: types = NO_CAMPAIGN_TYPES, isPending: isLoadingTypes, isLoadingError: typesFailed } = useQuery({
@@ -277,7 +276,6 @@ export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProp
                   </option>
                 ))}
             </select>
-            {typesFailed && <p className="text-red-500 text-sm mt-1">Failed to load campaign types. Please try again.</p>}
           </div>
 
           {/* Trading Posts */}
@@ -346,7 +344,7 @@ export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProp
             />
           </div>
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {(error || typesFailed) && <p className="text-red-500 text-sm">{error ?? 'Failed to load campaign types. Please try again.'}</p>}
           <SubmitButton 
             onClick={handleCreateCampaign} 
             className="w-full" 
