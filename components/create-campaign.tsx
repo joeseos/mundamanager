@@ -14,15 +14,10 @@ import { getCampaignRank } from '@/utils/campaigns/campaignRank'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
 import React from "react"
 import type { CampaignType } from '@/types/campaign'
+import type { TradingPostType } from '@/app/lib/reference-data'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
-
-interface TradingPostType {
-  id: string;
-  trading_post_name: string | null;
-  edition_slug?: string | null;
-}
 
 interface CreateCampaignModalProps {
   onClose: () => void;
@@ -79,7 +74,9 @@ export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProp
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Fetched when the modal opens rather than with every home page
-  const { data: types = NO_CAMPAIGN_TYPES, isLoading: isLoadingTypes, isError: typesFailed } = useQuery({
+  // isPending also covers a fetch paused while offline; isLoadingError ignores
+  // a failed background refetch while the earlier types are still shown
+  const { data: types = NO_CAMPAIGN_TYPES, isPending: isLoadingTypes, isLoadingError: typesFailed } = useQuery({
     queryKey: ['campaign-types'],
     queryFn: fetchCampaignTypes,
   })
