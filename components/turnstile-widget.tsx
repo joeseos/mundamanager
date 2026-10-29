@@ -139,6 +139,8 @@ export default function TurnstileWidget({ ref }: TurnstileWidgetProps) {
     // Check if script is already loaded
     const existingScript = document.querySelector('script[src*="turnstile"]');
     if (existingScript || scriptLoadedRef.current) {
+      // An earlier widget's script may still be loading, and can yet fail
+      existingScript?.addEventListener('error', () => setHasError(true));
       attemptRender();
       return cleanUp;
     }

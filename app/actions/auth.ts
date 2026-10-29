@@ -1,7 +1,7 @@
 "use server";
 
 import { invalidateUserCount, invalidateUserPermissions } from '@/utils/cache-tags';
-import { createClient, findAuthUserIdByEmail } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { cookies } from 'next/headers';
 import { safePostSignInPath } from '@/utils/auth';
@@ -11,6 +11,8 @@ import type { AuthError } from '@supabase/supabase-js';
 // load - a client-side navigation leaves the browser Supabase client stale.
 type AuthRedirect = { redirectTo: string };
 type AuthActionResult = { error: string } | AuthRedirect;
+
+const EMAIL_TAKEN_ERROR = "This email is already registered. Please sign in instead";
 
 /**
  * Auth's error message, or a generic one when Auth rejected the CAPTCHA token.
@@ -71,18 +73,8 @@ export const signUpAction = async (formData: FormData) => {
       return { error: "Username already taken" };
     }
 
-    // Check if email is already registered before signUp to prevent confirmation email.
-    // A failed lookup is not fatal: signUp never creates a second account for an email.
-    const existingUserId = await findAuthUserIdByEmail(email).catch((error) => {
-      console.error('GoTrue admin user lookup failed:', error);
-      return null;
-    });
-
-    if (existingUserId) {
-      return { error: "This email is already registered. Please sign in instead" };
-    }
-
-    // Sign up the user with metadata
+    // Sign up the user with metadata. Whether the email is taken is read from the
+    // response, so it is only revealed once Supabase has verified the CAPTCHA token.
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -103,8 +95,9 @@ export const signUpAction = async (formData: FormData) => {
           return { error: "Please enter a valid email address" };
         case 'weak_password':
           return { error: "Password is too weak. Please use a stronger password" };
-        case 'email_taken':
-          return { error: "This email is already registered. Please sign in instead" };
+        // A registered email, when email confirmation is off
+        case 'user_already_exists':
+          return { error: EMAIL_TAKEN_ERROR };
         default:
           return { error: authErrorMessage(signUpError) || 'Failed to create account' };
       }
@@ -112,6 +105,12 @@ export const signUpAction = async (formData: FormData) => {
 
     if (!signUpData.user) {
       return { error: "Failed to create account. Please try again" };
+    }
+
+    // A registered email, when email confirmation is on: Supabase sends no email
+    // and returns a stand-in user with no identities
+    if (signUpData.user.identities?.length === 0) {
+      return { error: EMAIL_TAKEN_ERROR };
     }
 
     invalidateUserCount();
