@@ -9,7 +9,6 @@ import { getUserCampaigns, getUserShareCampaigns } from '@/app/lib/get-user-camp
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
-import { getCampaignTypes, getTradingPostTypesCached } from '@/app/lib/reference-data';
 import { GrHelpBook } from "react-icons/gr";
 import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
@@ -32,9 +31,7 @@ export default async function Home() {
   }
 
   // Single invocation that gets gangs, campaigns, and customise data, plus the
-  // reference data for the create-campaign modal and the user's share-modal
-  // campaigns (those last three cached under the campaign-types / global /
-  // user-{id} tags).
+  // user's share-modal campaigns (cached under the user-{id} tag).
   const [
     gangs,
     campaigns,
@@ -44,8 +41,6 @@ export default async function Home() {
     customGangTypes,
     customTradingPosts,
     customCollections,
-    campaignTypes,
-    tradingPostTypes,
     userCampaigns
   ] = await Promise.all([
     getUserGangs(user.id),
@@ -56,8 +51,6 @@ export default async function Home() {
     getUserCustomGangTypes(user.id),
     getUserCustomTradingPosts(user.id),
     getUserCustomCollections(user.id),
-    getCampaignTypes(),
-    getTradingPostTypesCached(),
     getUserShareCampaigns(user.id)
   ]);
 
@@ -94,7 +87,7 @@ export default async function Home() {
                   <CreateGangButton />
                 </div>
                 <div className="flex-1 min-w-[135px] sm:w-auto w-full">
-                  <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={user.id} />
+                  <CreateCampaignButton userId={user.id} />
                 </div>
               </div>
             </div>

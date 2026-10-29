@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -25,13 +26,23 @@ interface TradingPostType {
 
 interface CreateCampaignModalProps {
   onClose: () => void;
-  initialCampaignTypes: CampaignType[] | null;
-  initialTradingPostTypes: TradingPostType[] | null;
   userId?: string;
 }
 
+type CampaignTypesData = { campaignTypes: CampaignType[]; tradingPostTypes: TradingPostType[] };
+
+const NO_CAMPAIGN_TYPES: CampaignTypesData = { campaignTypes: [], tradingPostTypes: [] };
+
+async function fetchCampaignTypes(): Promise<CampaignTypesData> {
+  const response = await fetch('/api/campaign-types');
+  if (!response.ok) {
+    throw new Error('Failed to fetch campaign types');
+  }
+  return response.json();
+}
+
 // Button component that opens the modal
-export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostTypes, userId }: { initialCampaignTypes: CampaignType[] | null; initialTradingPostTypes: TradingPostType[] | null; userId?: string }) {
+export function CreateCampaignButton({ userId }: { userId?: string }) {
   const [showModal, setShowModal] = useState(false);
 
   const handleClose = () => {
@@ -50,8 +61,6 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
       {showModal && (
         <CreateCampaignModal
           onClose={handleClose}
-          initialCampaignTypes={initialCampaignTypes}
-          initialTradingPostTypes={initialTradingPostTypes}
           userId={userId}
         />
       )}
@@ -60,7 +69,7 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
 }
 
 // Modal component
-export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTradingPostTypes, userId }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProps) {
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,8 +78,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
-  const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
+  // Fetched when the modal opens rather than with every home page
+  const { data: types = NO_CAMPAIGN_TYPES, isLoading: isLoadingTypes, isError: typesFailed } = useQuery({
+    queryKey: ['campaign-types'],
+    queryFn: fetchCampaignTypes,
+  })
+  const { campaignTypes, tradingPostTypes } = types
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
 
   const editionCampaignTypes = useMemo(
@@ -243,9 +256,10 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               id="campaign-type"
               value={campaignType}
               onChange={(e) => setCampaignType(e.target.value)}
+              disabled={isLoadingTypes}
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">Select campaign type</option>
+              <option value="">{isLoadingTypes ? "Loading campaign types..." : "Select campaign type"}</option>
               {editionCampaignTypes
                 .sort((a, b) => {
                   const typeA = (a.campaign_type_name ?? '').toLowerCase();
@@ -266,6 +280,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                   </option>
                 ))}
             </select>
+            {typesFailed && <p className="text-red-500 text-sm mt-1">Failed to load campaign types. Please try again.</p>}
           </div>
 
           {/* Trading Posts */}
