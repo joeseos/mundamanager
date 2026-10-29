@@ -11,7 +11,6 @@ import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
 import { getCampaignTypes, getTradingPostTypesCached } from '@/app/lib/reference-data';
 import { GrHelpBook } from "react-icons/gr";
-import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
@@ -21,8 +20,6 @@ import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-po
 import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
-import type { UserCampaign } from "@/types/campaign";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -36,7 +33,8 @@ export default async function Home() {
 
   // Single invocation that gets gangs, campaigns, and customise data, plus the
   // reference data for the create-campaign modal and the user's share-modal
-  // campaigns — all cached (campaign-types / global / user-{id} tags).
+  // campaigns (those last three cached under the campaign-types / global /
+  // user-{id} tags).
   const [
     gangs,
     campaigns,
