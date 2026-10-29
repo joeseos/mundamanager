@@ -288,7 +288,7 @@ function transformFighterForData(fighter: any): DataFighter {
   return {
     id: fighter.id,
     name: fighter.fighter_name ?? '',
-    type: fighter.fighter_type || fighter.fighter_types?.fighter_type || fighter.custom_fighter_type?.fighter_type || 'Unknown',
+    type: fighter.fighter_type || fighter.fighter_types?.fighter_type || 'Unknown',
     subtypes: fighter.fighter_subtypes ?? [],
     xp: fighter.xp ?? 0,
     is_vehicle: fighter.is_vehicle ?? false,
@@ -306,13 +306,13 @@ function transformFighterForData(fighter: any): DataFighter {
  * existing caches. Hidden gangs publish no roster.
  */
 async function getGangDataFighters(gangId: string): Promise<DataFighter[]> {
-  const [gangCore, bundle, positioning] = await Promise.all([
-    getGangCore(gangId),
+  const gangCore = await getGangCore(gangId);
+  if (!gangCore || gangCore.hidden) return [];
+
+  const [bundle, positioning] = await Promise.all([
     getGangFightersBundle(gangId),
     getGangPositioning(gangId)
   ]);
-
-  if (!gangCore || gangCore.hidden) return [];
 
   // Alphabetical without a saved order matches initializePositioningIfNeeded
   // without writing during a public read; it also orders unpositioned fighters
