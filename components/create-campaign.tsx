@@ -256,7 +256,7 @@ export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProp
               disabled={isLoadingTypes}
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
-              <option value="">{isLoadingTypes ? "Loading campaign types..." : "Select campaign type"}</option>
+              <option value="">Select campaign type</option>
               {editionCampaignTypes
                 .sort((a, b) => {
                   const typeA = (a.campaign_type_name ?? '').toLowerCase();
