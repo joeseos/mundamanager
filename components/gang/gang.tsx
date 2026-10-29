@@ -119,6 +119,7 @@ interface GangProps {
   onGangWealthUpdate?: (newWealth: number) => void;
   onGangRatingUpdate?: (newRating: number) => void;
   onGangReputationUpdate?: (newReputation: number) => void;
+  onGangTradePointsUpdate?: (newTradePoints: number) => void;
   positioning: Record<number, string>;
   gang_subtypes: Array<{id: string, subtype: string}> | null;
   vehicles?: VehicleProps[];
@@ -174,6 +175,7 @@ export default function Gang({
   onGangWealthUpdate,
   onGangRatingUpdate,
   onGangReputationUpdate,
+  onGangTradePointsUpdate,
   positioning,
   gang_subtypes,
   vehicles,
@@ -288,6 +290,12 @@ export default function Gang({
   if (initialWealth !== prevInitialWealth) {
     setPrevInitialWealth(initialWealth);
     setWealth(initialWealth ?? 0);
+  }
+
+  const [prevInitialTradePoints, setPrevInitialTradePoints] = useState(initialTradePoints);
+  if (initialTradePoints !== prevInitialTradePoints) {
+    setPrevInitialTradePoints(initialTradePoints);
+    setTradePoints(initialTradePoints ?? 0);
   }
 
   const [prevPortraitUrl, setPrevPortraitUrl] = useState(gang_portrait_url);
@@ -646,7 +654,9 @@ export default function Gang({
       }
 
       if (updates.trade_points !== undefined && updates.trade_points_operation) {
-        setTradePoints(snapshot.tradePoints + (updates.trade_points_operation === 'add' ? updates.trade_points : -updates.trade_points));
+        const newTradePoints = snapshot.tradePoints + (updates.trade_points_operation === 'add' ? updates.trade_points : -updates.trade_points);
+        setTradePoints(newTradePoints);
+        onGangTradePointsUpdate?.(newTradePoints);
       }
 
       if (updates.gang_subtypes !== undefined) {
@@ -697,6 +707,7 @@ export default function Gang({
         setReputation(s.reputation);
         onGangReputationUpdate?.(s.reputation);
         setTradePoints(s.tradePoints);
+        onGangTradePointsUpdate?.(s.tradePoints);
         setGangSubtypes(s.gangSubtypes);
         setGangHasSubtypes(s.gangHasSubtypes);
         setGangColour(s.gangColour);

@@ -32,6 +32,8 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  tradePointsText,
+  tradingPostTradePoints,
   validatePostCycleAssignment,
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
@@ -71,6 +73,8 @@ export interface PostCycleActionOutcome {
    * Maintenance, whose helpers charge the gang themselves.
    */
   creditsDelta: number;
+  /** Visit Trading Post: what it adds to the gang's Trade Points. */
+  tradePointsDelta?: number;
   changes?: PostCycleFighterChange[];
   /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
   addedTacticsCard?: GangTacticsCard;
@@ -86,7 +90,7 @@ export interface ResolvePostCycleActionResult {
    * is false: a Fit Bionics that removed two of three injuries, say.
    */
   landed?: boolean;
-  gang?: { credits: number; rating: number; wealth: number };
+  gang?: { credits: number; rating: number; wealth: number; trade_points: number };
 }
 
 /** A handler reports only what happened; the caller adds who and which action. */
@@ -411,6 +415,8 @@ async function runHandler(
       return handleVisitChopShop(ctx, assignment.damageIds);
     case 'suit_maintenance':
       return handleSuitMaintenance(ctx);
+    case 'visit_trading_post':
+      return { outcome: '', creditsDelta: 0, tradePointsDelta: tradingPostTradePoints(ctx.performer) };
     // The rest move their flat credits, if any, and leave a log line; anything
     // else they do is applied elsewhere on the page or by hand.
     default:
@@ -505,17 +511,22 @@ async function resolvePostCycleAction(
     const financials = await updateGangFinancials(supabase, {
       gangId,
       creditsDelta: outcome.creditsDelta,
+      tradePointsDelta: outcome.tradePointsDelta,
     });
 
     // What landed is still logged, so a failed charge leaves a record to fix by hand.
-    const creditsLine = !financials.success
-      ? `Updating the gang's credits failed: ${financials.error}.`
+    const financialsLine = !financials.success
+      ? `Updating the gang's ${outcome.tradePointsDelta ? 'Trade Points' : 'credits'} failed: ${financials.error}.`
       : outcome.creditsDelta > 0
         ? `Gained ${outcome.creditsDelta} credits.`
         : outcome.creditsDelta < 0
           ? `Cost ${-outcome.creditsDelta} credits.`
           : '';
-    outcome.outcome = [outcome.outcome, creditsLine].filter(Boolean).join(' ');
+    const tradePointsLine =
+      financials.success && outcome.tradePointsDelta
+        ? `Gained ${tradePointsText(outcome.tradePointsDelta)}.`
+        : '';
+    outcome.outcome = [outcome.outcome, financialsLine, tradePointsLine].filter(Boolean).join(' ');
     if (!financials.success) outcome.failed = true;
 
     if (landed) {
