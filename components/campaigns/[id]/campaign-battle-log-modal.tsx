@@ -210,7 +210,6 @@ const CampaignBattleLogModal = ({
         deployment_name: battleData.deployment_name,
         objective_name: battleData.objective_name,
         crew_selection_name: battleData.crew_selection_name,
-        winner_id: legacyWinnerId,
         note: battleData.note,
         participants: battleData.participants,
         campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -336,7 +335,6 @@ const CampaignBattleLogModal = ({
                     crew_selection_name: battleData.crew_selection_name,
                   }
                 : {}),
-              winner_id: legacyWinnerId,
               note: battleData.note,
               participants: battleData.participants,
               campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -557,9 +555,7 @@ const CampaignBattleLogModal = ({
       // A challenge has no result yet, so it is not a draw — only a played
       // battle with nobody flagged as a winner is.
       isDraw:
-        battleStatusOf(battleToEdit) === 'played' &&
-        battleToEdit.winner_id === null &&
-        winnerIds.length === 0,
+        battleStatusOf(battleToEdit) === 'played' && winnerIds.length === 0,
     });
 
     setNotes(battleToEdit.note || "");
@@ -789,9 +785,8 @@ const CampaignBattleLogModal = ({
       }
     }
 
-    // Prepare battle data for API.
-    // The server derives `winner_id` from participants[].is_winner /
-    // claimed_territory so we don't need to send it. `null` means "draw".
+    // Prepare battle data for API. Winners and the claimer travel as participants[].is_winner /
+    // claimed_territory; nobody flagged means a draw.
     const battleData: BattleLogParams = {
       scenario: usesScenarioTables ? scenarioNameToSave : scenarioName,
       ...(usesScenarioTables
@@ -802,7 +797,6 @@ const CampaignBattleLogModal = ({
             ...customPartNames(scenarioParts),
           }
         : {}),
-      winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),
       note: notes || null,
       participants: participants,
       claimed_territories: selectedTerritory

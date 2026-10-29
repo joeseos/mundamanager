@@ -112,7 +112,6 @@ export interface Battle {
   deployment_name?: string | null;
   objective_name?: string | null;
   crew_selection_name?: string | null;
-  winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string | null;
   campaign_territory_id?: string | null;
