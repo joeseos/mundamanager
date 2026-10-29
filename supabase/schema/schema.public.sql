@@ -6943,6 +6943,8 @@ CREATE TABLE public.forum_categories (
     moderators_only boolean DEFAULT false NOT NULL,
     thread_count integer DEFAULT 0 NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    image_url text,
+    CONSTRAINT forum_categories_image_url_https CHECK (((image_url IS NULL) OR (image_url ~ '^https://[^[:space:]]+$'::text))),
     CONSTRAINT forum_categories_slug_format CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
 );
 
@@ -6959,6 +6961,13 @@ COMMENT ON COLUMN public.forum_categories."position" IS 'Order on the forum inde
 --
 
 COMMENT ON COLUMN public.forum_categories.moderators_only IS 'Only moderators can start threads here (e.g. Announcements). Anyone can still reply.';
+
+
+--
+-- Name: COLUMN forum_categories.image_url; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_categories.image_url IS 'Public https URL of the image shown beside this category. Null hides the image.';
 
 
 --
