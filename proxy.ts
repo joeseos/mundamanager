@@ -117,13 +117,17 @@ export const config = {
      * Note: Query strings are automatically stripped by Next.js before matching
      */
     {
-      source: '/((?!api/|_next/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|(?:about|api-access|articles|auth/callback|confirm-email|contact|contributors|forum|join-the-team|merch|privacy-policy|reset-password|terms|user-guide)(?:[/.]|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
+      source: '/((?!api/|_next/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|(?:articles|auth/callback|forum|reset-password)(?:[/.]|$)|(?:about|api-access|confirm-email|contact|contributors|join-the-team|merch|privacy-policy|terms|user-guide)(?:\\.|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
       // Server actions check auth themselves
       missing: [{ type: 'header', key: 'next-action' }],
     },
     // Starting a forum thread needs the sign-in check
     { source: '/forum/:category/new', missing: [{ type: 'header', key: 'next-action' }] },
     // Forum links from before /page/<n>, for the redirect above
-    { source: '/forum/:category/:thread?', has: [{ type: 'query', key: 'page' }] },
+    {
+      source: '/forum/:category/:thread?',
+      has: [{ type: 'query', key: 'page' }],
+      missing: [{ type: 'header', key: 'next-action' }],
+    },
   ],
 };
