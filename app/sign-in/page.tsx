@@ -3,7 +3,7 @@
 import { signInAction } from "@/app/actions/auth";
 import { safePostSignInPath } from "@/utils/auth";
 import { FormMessage, Message } from "@/components/form-message";
-import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ValidatedEmailField } from "@/components/ui/validated-email-field";
@@ -37,6 +37,7 @@ function SignInContent() {
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
   const [isSigningIn, startSignIn] = useTransition();
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   useEffect(() => {
@@ -84,27 +85,34 @@ function SignInContent() {
   // A submit handler, not a form action: React resets a form once its action
   // finishes, which blanked the fields on a failed sign-in and while the next
   // page loaded after a successful one.
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    setErrorMessage(null);
 
     startSignIn(async () => {
-      const result = await signInAction(formData);
+      // There is no error boundary, so a failed request would replace the page
+      const result = await signInAction(formData).catch((error) => {
+        console.error('Sign-in request failed:', error);
+        return { error: "Something went wrong. Please try again." };
+      });
 
       if ('error' in result) {
         setErrorMessage(result.error);
-        // This attempt consumed the token, so a retry needs a fresh one.
-        turnstileRef.current?.reset();
+        // A submitted token was consumed, so a retry needs a fresh one. Without
+        // one, a reset would only restart a challenge still in progress.
+        if (formData.get('cf-turnstile-response')) {
+          turnstileRef.current?.reset();
+        }
         return;
       }
+
+      // Keeps the button showing progress while the next page loads
+      setIsRedirecting(true);
 
       // Full document load, not a client-side navigation: it's what rebuilds the
       // browser Supabase client and useClaims from the newly-set cookies.
       window.location.assign(result.redirectTo);
-
-      // Stay pending until the next page replaces this one, so the button keeps
-      // showing progress while it loads.
-      await new Promise<never>(() => {});
     });
   }
 
@@ -126,6 +134,8 @@ function SignInContent() {
         )}
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
+          // POST, so a submit before hydration keeps the password out of the URL
+          method="post"
           onSubmit={handleSubmit}
         >
           {/* Carry next through to the server action */}
@@ -212,9 +222,9 @@ function SignInContent() {
             <div className="mt-2 flex justify-center">
               <TurnstileWidget ref={turnstileRef} />
             </div>
-            <Button type="submit" className="mt-2" disabled={isSigningIn}>
-              {isSigningIn ? "Signing In..." : "Sign In"}
-            </Button>
+            <SubmitButton pendingText="Signing In..." className="mt-2" pending={isSigningIn || isRedirecting}>
+              Sign In
+            </SubmitButton>
           </div>
           <p className="text-sm text-white text-center mt-4">
             Having trouble?{" "}
