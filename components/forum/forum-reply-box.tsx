@@ -67,7 +67,7 @@ export function ForumReplyBox({ threadId, path, locked, divider = true, children
         <section ref={sectionRef} className={`mt-4 scroll-mt-24 ${divider ? 'border-t pt-4' : ''}`}>
           {!userId ? (
             <Button asChild variant="outline" className="flex w-fit ml-auto">
-              <Link href={signInPath(path)}>Sign in to reply</Link>
+              <Link href={signInPath(path)} prefetch={false}>Sign in to reply</Link>
             </Button>
           ) : replying ? (
             <ForumPostForm
