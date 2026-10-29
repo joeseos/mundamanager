@@ -47,7 +47,7 @@
     "heic2any": "^0.0.4",
     "html-to-image": "^1.11.13",
     "leaflet": "^1.9.4",
-    "next": "^16.3.3",
+    "next": "^16.4.3",
     "next-themes": "^0.4.6",
     "postgres": "^3.4.9",
     "react": "^19.2.7",
@@ -69,7 +69,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/sanitize-html": "^2.16.2",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^16.3.3",
+    "eslint-config-next": "^16.4.3",
     "postcss": "^8.5.15",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.1",
@@ -83,6 +83,9 @@
     "@types/react-dom": "$@types/react-dom",
     "@types/react": "$@types/react",
     "minimatch@>=9.0.0 <9.0.7": "9.0.7",
-    "markdown-it": "14.1.1"
+    "markdown-it": "14.1.1",
+    "@tailwindcss/typography": {
+      "postcss-selector-parser": "^6.1.5"
+    }
   }
 }
