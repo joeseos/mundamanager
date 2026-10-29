@@ -3,13 +3,13 @@
 import { signInAction } from "@/app/actions/auth";
 import { safePostSignInPath } from "@/utils/auth";
 import { FormMessage, Message } from "@/components/form-message";
-import { SubmitButton } from "@/components/submit-button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ValidatedEmailField } from "@/components/ui/validated-email-field";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect, useRef, useTransition } from 'react';
 import TurnstileWidget, { type TurnstileHandle } from '@/components/turnstile-widget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
@@ -36,6 +36,7 @@ function SignInContent() {
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSigningIn, startSignIn] = useTransition();
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   useEffect(() => {
@@ -80,19 +81,31 @@ function SignInContent() {
     topMessage = { message };
   }
 
-  async function clientAction(formData: FormData) {
-    const result = await signInAction(formData);
+  // A submit handler, not a form action: React resets a form once its action
+  // finishes, which blanked the fields on a failed sign-in and while the next
+  // page loaded after a successful one.
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
 
-    if ('error' in result) {
-      setErrorMessage(result.error);
-      // This attempt consumed the token, so a retry needs a fresh one.
-      turnstileRef.current?.reset();
-      return;
-    }
+    startSignIn(async () => {
+      const result = await signInAction(formData);
 
-    // Full document load, not a client-side navigation: it's what rebuilds the
-    // browser Supabase client and useClaims from the newly-set cookies.
-    window.location.assign(result.redirectTo);
+      if ('error' in result) {
+        setErrorMessage(result.error);
+        // This attempt consumed the token, so a retry needs a fresh one.
+        turnstileRef.current?.reset();
+        return;
+      }
+
+      // Full document load, not a client-side navigation: it's what rebuilds the
+      // browser Supabase client and useClaims from the newly-set cookies.
+      window.location.assign(result.redirectTo);
+
+      // Stay pending until the next page replaces this one, so the button keeps
+      // showing progress while it loads.
+      await new Promise<never>(() => {});
+    });
   }
 
   return (
@@ -113,7 +126,7 @@ function SignInContent() {
         )}
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
-          action={clientAction}
+          onSubmit={handleSubmit}
         >
           {/* Carry next through to the server action */}
           {(() => {
@@ -199,9 +212,9 @@ function SignInContent() {
             <div className="mt-2 flex justify-center">
               <TurnstileWidget ref={turnstileRef} />
             </div>
-            <SubmitButton pendingText="Signing In..." className="mt-2">
-              Sign In
-            </SubmitButton>
+            <Button type="submit" className="mt-2" disabled={isSigningIn}>
+              {isSigningIn ? "Signing In..." : "Sign In"}
+            </Button>
           </div>
           <p className="text-sm text-white text-center mt-4">
             Having trouble?{" "}
