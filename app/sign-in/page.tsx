@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { ValidatedEmailField } from "@/components/ui/validated-email-field";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState, useEffect, useRef, useTransition } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import TurnstileWidget, { type TurnstileHandle } from '@/components/turnstile-widget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
@@ -36,8 +36,7 @@ function SignInContent() {
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
-  const [isSigningIn, startSignIn] = useTransition();
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   useEffect(() => {
@@ -85,35 +84,33 @@ function SignInContent() {
   // A submit handler, not a form action: React resets a form once its action
   // finishes, which blanked the fields on a failed sign-in and while the next
   // page loaded after a successful one.
-  function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setErrorMessage(null);
+    setIsSubmitting(true);
 
-    startSignIn(async () => {
-      // There is no error boundary, so a failed request would replace the page
-      const result = await signInAction(formData).catch((error) => {
-        console.error('Sign-in request failed:', error);
-        return { error: "Something went wrong. Please try again." };
-      });
-
-      if ('error' in result) {
-        setErrorMessage(result.error);
-        // A submitted token was consumed, so a retry needs a fresh one. Without
-        // one, a reset would only restart a challenge still in progress.
-        if (formData.get('cf-turnstile-response')) {
-          turnstileRef.current?.reset();
-        }
-        return;
-      }
-
-      // Keeps the button showing progress while the next page loads
-      setIsRedirecting(true);
-
-      // Full document load, not a client-side navigation: it's what rebuilds the
-      // browser Supabase client and useClaims from the newly-set cookies.
-      window.location.assign(result.redirectTo);
+    // There is no error boundary, so a failed request would replace the page
+    const result = await signInAction(formData).catch((error) => {
+      console.error('Sign-in request failed:', error);
+      return { error: "Something went wrong. Please try again." };
     });
+
+    if ('error' in result) {
+      setErrorMessage(result.error);
+      // A submitted token was consumed, so a retry needs a fresh one. Without
+      // one, a reset would only restart a challenge still in progress.
+      if (formData.get('cf-turnstile-response')) {
+        turnstileRef.current?.reset();
+      }
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Full document load, not a client-side navigation: it's what rebuilds the
+    // browser Supabase client and useClaims from the newly-set cookies. Still
+    // submitting until then, so the button keeps showing progress.
+    window.location.assign(result.redirectTo);
   }
 
   return (
@@ -222,7 +219,7 @@ function SignInContent() {
             <div className="mt-2 flex justify-center">
               <TurnstileWidget ref={turnstileRef} />
             </div>
-            <SubmitButton pendingText="Signing In..." className="mt-2" pending={isSigningIn || isRedirecting}>
+            <SubmitButton pendingText="Signing In..." className="mt-2" pending={isSubmitting}>
               Sign In
             </SubmitButton>
           </div>
