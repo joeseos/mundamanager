@@ -43,11 +43,6 @@ function copyResponseCookies(source: NextResponse, target: NextResponse) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip proxy for server actions - they handle their own auth
-  if (request.headers.get('Next-Action')) {
-    return NextResponse.next();
-  }
-
   // An upper-case id would find the row in Postgres but miss lower-case
   // lookups, cache keys and cache tags, so redirect to the canonical URL
   const canonicalPath = lowerCaseUuids(pathname);
@@ -80,37 +75,6 @@ export async function proxy(request: NextRequest) {
       return copyResponseCookies(getResponse(), redirectResponse);
     }
     return getResponse();
-  }
-
-  // Public pages - accessible to everyone, no auth check
-  const publicPaths = [
-    '/auth/callback',
-    '/confirm-email',
-    '/reset-password',
-    '/reset-password/update',
-    '/user-guide',
-    '/api-access',
-    '/about',
-    '/contributors',
-    '/join-the-team',
-    '/terms',
-    '/contact',
-    '/privacy-policy',
-    '/merch'
-  ];
-
-  // Check for password reset flow
-  const isPasswordResetFlow =
-    pathname.startsWith('/reset-password') ||
-    pathname.startsWith('/auth/callback');
-
-  // The forum and its articles are read by everyone; starting a thread (/forum/<category>/new) needs the sign-in check below
-  const isForum =
-    /^\/(forum|articles)(\/|$)/.test(pathname) && !/^\/forum\/[^/]+\/new$/.test(pathname);
-
-  // Early return for public paths - avoid creating Supabase client unnecessarily
-  if (publicPaths.includes(pathname) || isPasswordResetFlow || isForum) {
-    return NextResponse.next({ request });
   }
 
   // Create response and Supabase client bound to the incoming request/response (Edge-safe)
@@ -147,9 +111,23 @@ export const config = {
      * - Static assets by file extension
      * - Common static files (favicon, robots, sitemap, etc.)
      * - Service workers and special paths
+     * - Public pages (and their .rsc requests) that need no auth check or session refresh:
+     *   the forum and its articles, the auth flow pages and the info pages
      *
      * Note: Query strings are automatically stripped by Next.js before matching
      */
-    '/((?!api/|_next/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
+    {
+      source: '/((?!api/|_next/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|(?:articles|auth/callback|forum|reset-password)(?:[/.]|$)|(?:about|api-access|confirm-email|contact|contributors|join-the-team|merch|privacy-policy|terms|user-guide)(?:\\.|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
+      // Server actions check auth themselves
+      missing: [{ type: 'header', key: 'next-action' }],
+    },
+    // Starting a forum thread needs the sign-in check
+    { source: '/forum/:category/new', missing: [{ type: 'header', key: 'next-action' }] },
+    // Forum links from before /page/<n>, for the redirect above
+    {
+      source: '/forum/:category/:thread?',
+      has: [{ type: 'query', key: 'page' }],
+      missing: [{ type: 'header', key: 'next-action' }],
+    },
   ],
 };
