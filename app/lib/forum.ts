@@ -125,7 +125,7 @@ export const getForumCategories = unstable_cache(
         slug: forumCategories.slug,
         name: forumCategories.name,
         description: forumCategories.description,
-        icon_url: forumCategories.icon_url,
+        image_url: forumCategories.image_url,
         moderators_only: forumCategories.moderators_only,
         thread_count: forumCategories.thread_count,
         latest_number: latest.number,
