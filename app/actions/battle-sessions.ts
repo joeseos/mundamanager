@@ -1580,7 +1580,7 @@ export async function completeBattleSession(
           winner_gang_id, created_at, campaign_battle_id,
           challenge:campaign_battle_id (
             scenario, deployment_id, objective_id, crew_selection_id, deployment_name, objective_name, crew_selection_name,
-            winner_id, note, participants,
+            note, participants,
             campaign_territory_id, cycle, status
           )
         `)
@@ -1626,8 +1626,6 @@ export async function completeBattleSession(
       allParticipants.find((p) => p.claimed_territory === true)?.gang_id
       ?? session.winner_gang_id
       ?? null;
-    const legacyWinnerId: string | null =
-      claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
     // --- Campaign battle log (inline write, no createBattleLog call) ---
     // A session played from a challenge files that challenge; any other inserts a new log.
@@ -1658,7 +1656,6 @@ export async function completeBattleSession(
       const battleLog = {
         scenario: session.scenario || null,
         ...scenarioParts,
-        winner_id: legacyWinnerId,
         note: options?.note || null,
         participants: JSON.stringify(battleParticipants),
         campaign_territory_id: options?.campaign_territory_id || null,

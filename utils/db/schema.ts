@@ -944,10 +944,7 @@ export const scenarios = pgTable('scenarios', {
 export const campaignBattles = pgTable('campaign_battles', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  attacker_id: uuid('attacker_id'),
-  defender_id: uuid('defender_id'),
   scenario_id: uuid('scenario_id'),
-  winner_id: uuid('winner_id'),
   note: text('note'),
   campaign_id: uuid('campaign_id'),
   participants: json('participants').$type<BattleParticipant[] | string>(),

@@ -5,7 +5,7 @@ import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import { campaignTerritories } from '@/utils/db/schema';
 import type { CampaignAllegiance } from '@/utils/campaigns/allegiances';
-import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
+import { getWinnerIds, getClaimerGangId } from '@/utils/battle-winners';
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_FIELDS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
 import { sumFighterKills } from '@/app/lib/shared/gang-data';
@@ -208,7 +208,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       deployment_name: true,
       objective_name: true,
       crew_selection_name: true,
-      winner_id: true,
       note: true,
       participants: true,
       campaign_territory_id: true,
@@ -234,9 +233,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
   const gangIdSet = new Set<string>();
   const parsedParticipantsMap = new Map<string, any[]>();
   battles.forEach(b => {
-    // Legacy winner_id is still added for back-compat (single-winner rows
-    // where no participant carries the is_winner flag).
-    if (b.winner_id) gangIdSet.add(b.winner_id);
     if (b.participants) {
       try {
         const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
@@ -266,15 +262,14 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
     const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
-    // Multi-winner enrichment: use the FromParsed overloads so the already-parsed
-    // participants array is passed directly — no re-parse of the raw JSON column.
+    // The already-parsed participants array is passed, so the raw JSON column isn't re-parsed.
     const parsed = parsedParticipants ?? [];
-    const effectiveWinnerIds = getWinnerIdsFromParsed(parsed, battle.winner_id);
+    const effectiveWinnerIds = getWinnerIds({ participants: parsed });
     const winners = effectiveWinnerIds.map((id) => ({
       id,
       name: gangMap.get(id)?.name || 'Unknown',
     }));
-    const claimerId = getClaimerGangIdFromParsed(parsed, battle.winner_id);
+    const claimerId = getClaimerGangId({ participants: parsed });
     const territory_claimer = claimerId
       ? { id: claimerId, name: gangMap.get(claimerId)?.name || 'Unknown' }
       : null;
@@ -292,7 +287,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       deployment_name: battle.deployment_name,
       objective_name: battle.objective_name,
       crew_selection_name: battle.crew_selection_name,
-      winner_id: battle.winner_id,
       note: battle.note,
       participants: battle.participants,
       campaign_territory_id: battle.campaign_territory_id,
@@ -310,10 +304,7 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
         id: defenderId,
         name: gangMap.get(defenderId)?.name || 'Unknown'
       } : undefined,
-      winner: battle.winner_id ? {
-        id: battle.winner_id,
-        name: gangMap.get(battle.winner_id)?.name || 'Unknown'
-      } : undefined,
+      winner: territory_claimer ?? winners[0],
       winners,
       territory_claimer,
     };
