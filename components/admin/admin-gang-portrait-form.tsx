@@ -4,8 +4,8 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Cropper from 'react-easy-crop';
 import { toast } from 'sonner';
-import Image from 'next/image';
 import { Button } from '@/components/ui/button';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { Combobox } from '@/components/ui/combobox';
 import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
 import { Input } from '@/components/ui/input';
@@ -25,8 +25,6 @@ import {
   validateImageFile,
 } from '@/utils/image-processing';
 
-const COGWHEEL_URL =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp';
 const PORTRAIT_BUCKET = 'gang-type-images';
 const PORTRAIT_PX = 512;
 const STYLES_SET = new Set<string>(GANG_PORTRAIT_STYLES);
@@ -527,33 +525,12 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
         <div className="flex flex-col items-center gap-3">
           {showPortraitPreview && (
             <div className="flex flex-col items-center">
-              <div className="relative flex size-[200px] md:size-[250px] items-center justify-center">
-                {previewUrl ? (
-                  <Image
-                    src={previewUrl}
-                    alt={groupLabel || 'Portrait'}
-                    width={180}
-                    height={180}
-                    className="absolute z-10 mt-1 size-[145px] rounded-full object-cover md:size-[180px]"
-                    quality={100}
-                  />
-                ) : (
-                  <div
-                    className="absolute z-10 size-[145px] rounded-full bg-muted md:size-[180px]"
-                    aria-hidden="true"
-                  />
-                )}
-                <div className="pointer-events-none absolute z-20 size-[200px] md:size-[250px]">
-                  <Image
-                    src={COGWHEEL_URL}
-                    alt=""
-                    width={250}
-                    height={250}
-                    className="absolute z-20"
-                    quality={100}
-                  />
-                </div>
-              </div>
+              <CogwheelPortrait
+                src={previewUrl}
+                alt={groupLabel || 'Portrait'}
+                fallback={null}
+                large
+              />
               <DefaultImageCreditLine credit={previewCredit} />
             </div>
           )}

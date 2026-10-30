@@ -4,6 +4,7 @@ import { useEffect, useState, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Modal from '@/components/ui/modal';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
 import { gangPortraitPublicUrl, UNKNOWN_GANG_IMAGE_URL, type DefaultImageCredit } from '@/types/gang';
 import {
@@ -13,9 +14,6 @@ import {
   type CatalogueSlot,
   type GangPortrait,
 } from '@/utils/gang-portraits';
-
-const COGWHEEL_URL =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp';
 
 interface CreateGangPortraitPickerProps {
   portraits: GangPortrait[];
@@ -77,35 +75,15 @@ export function CreateGangPortraitPicker({
     <div className="my-4" data-portrait-picker>
       <div className="flex items-start justify-center gap-6 md:gap-10">
         <div className="flex flex-col items-center shrink-0">
-          <div className="relative flex size-[200px] md:size-[250px] items-center justify-center">
-            {selectedUrl ? (
-              <Image
-                src={selectedUrl}
-                alt={gangTypeName || 'Gang portrait'}
-                width={180}
-                height={180}
-                className="absolute z-10 mt-1 size-[145px] rounded-full object-cover md:size-[180px]"
-                priority={false}
-                quality={100}
-                onError={handleImageError}
-              />
-            ) : (
-              <div className="absolute z-10 flex size-[180px] items-center justify-center rounded-full bg-secondary text-2xl">
-                {gangTypeName.charAt(0)}
-              </div>
-            )}
-            <div className="pointer-events-none absolute z-20 size-[200px] md:size-[250px]">
-              <Image
-                src={COGWHEEL_URL}
-                alt=""
-                width={250}
-                height={250}
-                className="absolute z-20"
-                priority
-                quality={100}
-              />
-            </div>
-          </div>
+          <CogwheelPortrait
+            src={selectedUrl}
+            alt={gangTypeName || 'Gang portrait'}
+            name={gangTypeName}
+            errorSrc={UNKNOWN_GANG_IMAGE_URL}
+            preload
+            large
+            className="text-2xl"
+          />
           <DefaultImageCreditLine credit={displayCredit} />
         </div>
 

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import Image from 'next/image';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
@@ -415,11 +415,6 @@ export default function CampaignPageContent({
     }
   };
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
-  };
-
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
 
   return (
@@ -503,37 +498,18 @@ export default function CampaignPageContent({
           {/* Campaign header with the Edit button */}
           <div id="campaign_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
             {/* Left Section: Campaign Image */}
-            <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
-              {campaignData.image_url || campaignData.campaign_type_image_url ? (
-                <Image
-                  src={campaignData.image_url || campaignData.campaign_type_image_url || ''}
-                  alt={campaignData.campaign_name}
-                  width={180}
-                  height={180}
-                  className="absolute rounded-full object-cover mt-1 z-10 w-[180px] h-auto"
-                  priority={false}
-                  quality={100}
-                  onError={handleImageError}
-                />
-              ) : (
-                <div className="absolute w-[180px] h-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                  <PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />
-                </div>
-              )}
-              <div
-                className={`absolute z-20 w-[250px] h-[250px] transition-opacity ${canEditImage ? 'cursor-pointer hover:opacity-80' : 'pointer-events-none'}`}
-                {...(canEditImage && { onClick: () => setShowImageModal(true) })}
-              >
-                <Image
-                  src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                  alt="Cogwheel"
-                  width={250}
-                  height={250}
-                  className="absolute z-20 w-[250px] h-auto"
-                  priority
-                  quality={100}
-                />
-              </div>
+            <div
+              className={`hidden sm:block mt-1 shrink-0 print:hidden transition-opacity ${canEditImage ? 'cursor-pointer hover:opacity-80' : ''}`}
+              {...(canEditImage && { onClick: () => setShowImageModal(true) })}
+            >
+              <CogwheelPortrait
+                src={campaignData.image_url || campaignData.campaign_type_image_url}
+                alt={campaignData.campaign_name}
+                fallback={<PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />}
+                errorSrc={UNKNOWN_GANG_IMAGE_URL}
+                preload
+                large
+              />
             </div>
 
             {/* Right Section: Content */}
