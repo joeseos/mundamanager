@@ -7,7 +7,9 @@ import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
 function parsePhases(phases: unknown): string[] | null | undefined {
   if (phases === null) return null;
   if (!Array.isArray(phases) || phases.some((phase) => typeof phase !== 'string')) return undefined;
-  const names = [...new Set(phases.map((phase: string) => phase.trim()).filter(Boolean))];
+  const names = phases
+    .map((phase: string) => phase.trim())
+    .filter((name, index, all) => name && all.findIndex((other) => other.toLowerCase() === name.toLowerCase()) === index);
   if (names.some((name) => name.length > 50)) return undefined;
   return names.length > 0 ? names : null;
 }

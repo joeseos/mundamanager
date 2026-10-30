@@ -19,7 +19,7 @@ COMMENT ON COLUMN public.campaigns.current_phase IS
   'Free-text name of the phase the campaign is in. Null when the campaign does not track phases.';
 
 ALTER TABLE public.campaign_types
-  ADD COLUMN phases json;
+  ADD COLUMN phases jsonb;
 
 COMMENT ON COLUMN public.campaign_types.phases IS
   'Ordered phase names suggested to arbitrators of this campaign type. Null when the type has none.';

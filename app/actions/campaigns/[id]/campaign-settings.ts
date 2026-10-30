@@ -173,14 +173,13 @@ export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
       .filter((gang) => credits > 0 || gang.trade_points > 0);
 
     const results = await Promise.all(gangs.map(async (gang): Promise<CampaignGangBalance | null> => {
-      const tradePointsDelta = clearTradePoints ? -gang.trade_points : 0;
-      const result = await updateGangFinancials(supabase, { gangId: gang.id, creditsDelta: credits, tradePointsDelta });
+      const result = await updateGangFinancials(supabase, { gangId: gang.id, creditsDelta: credits, clearTradePoints });
       if (!result.success || !result.oldValues || !result.newValues) return null;
       const { oldValues: from, newValues: to } = result;
 
       // Logs go to the gang owner, as for other arbitrator edits.
       await Promise.all([
-        tradePointsDelta !== 0 && createGangLog({
+        to.trade_points !== from.trade_points && createGangLog({
           gang_id: gang.id,
           user_id: gang.user_id,
           action_type: 'campaign_trade_points_cleared',
