@@ -15,12 +15,11 @@ export interface TurnstileHandle {
 }
 
 interface TurnstileWidgetProps {
-  /** Called with a fresh token, or null whenever the current one stops being usable. */
-  onToken: (token: string | null) => void;
   ref?: Ref<TurnstileHandle>;
 }
 
-export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) {
+/** The challenge, with its token as the enclosing form's cf-turnstile-response field. */
+export default function TurnstileWidget({ ref }: TurnstileWidgetProps) {
   const widgetRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const scriptLoadedRef = useRef(false);
@@ -28,20 +27,15 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
   const isRenderedRef = useRef(false);
 
   const [hasError, setHasError] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
 
   // Get sitekey once at component initialization
   const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '';
 
-  // In a ref so turnstile.render()'s callbacks never read a stale closure.
-  const onTokenRef = useRef(onToken);
-  useEffect(() => {
-    onTokenRef.current = onToken;
-  }, [onToken]);
-
   // Tokens are single-use and expire after ~300s, so a spent one must be
   // re-issued rather than resubmitted. Stable, so render()'s callbacks can hold it.
   const resetWidget = useCallback(() => {
-    onTokenRef.current(null);
+    setToken(null);
     if (window.turnstile && widgetIdRef.current) {
       try {
         window.turnstile.reset(widgetIdRef.current);
@@ -63,15 +57,17 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
       const widgetId = window.turnstile.render(widgetRef.current, {
         sitekey: siteKey,
         theme: 'dark',
-        callback: function(token: string) {
+        // The hidden input below carries the token, so Turnstile adds no field of its own
+        'response-field': false,
+        callback: function(issuedToken: string) {
           setHasError(false);
-          onTokenRef.current(token);
+          setToken(issuedToken);
         },
         'expired-callback': resetWidget,
         'timeout-callback': resetWidget,
         'error-callback': function(error: any) {
           console.error("Turnstile error:", error);
-          onTokenRef.current(null);
+          setToken(null);
           setHasError(true);
         }
       });
@@ -143,6 +139,8 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
     // Check if script is already loaded
     const existingScript = document.querySelector('script[src*="turnstile"]');
     if (existingScript || scriptLoadedRef.current) {
+      // An earlier widget's script may still be loading, and can yet fail
+      existingScript?.addEventListener('error', () => setHasError(true));
       attemptRender();
       return cleanUp;
     }
@@ -160,6 +158,8 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
 
     script.onerror = (e) => {
       console.error('Error loading Turnstile script:', e);
+      // Removed so a widget mounted later loads it again, instead of waiting on this one forever
+      script.remove();
       setHasError(true);
     };
 
@@ -171,6 +171,7 @@ export default function TurnstileWidget({ onToken, ref }: TurnstileWidgetProps) 
 
   return (
     <div className="w-full">
+      <input type="hidden" name="cf-turnstile-response" value={token ?? ''} />
       <div className="flex justify-center">
         <div ref={widgetRef} className="turnstile-widget"></div>
       </div>

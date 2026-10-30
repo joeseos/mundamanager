@@ -29,6 +29,8 @@ export interface ForumCategory {
   slug: string;
   name: string;
   description: string | null;
+  /** Public URL of the image shown beside the category. Null hides it. */
+  image_url: string | null;
   moderators_only: boolean;
   thread_count: number;
   latest_thread: {
@@ -123,6 +125,7 @@ export const getForumCategories = unstable_cache(
         slug: forumCategories.slug,
         name: forumCategories.name,
         description: forumCategories.description,
+        image_url: forumCategories.image_url,
         moderators_only: forumCategories.moderators_only,
         thread_count: forumCategories.thread_count,
         latest_number: latest.number,
