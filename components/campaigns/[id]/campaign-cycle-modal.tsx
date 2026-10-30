@@ -10,7 +10,6 @@ import { updateCampaignCycle, type CampaignGangBalance } from "@/app/actions/cam
 
 interface CampaignCycleModalProps {
   campaignId: string;
-  title: string;
   currentCycle: number | null;
   currentPhase: string | null;
   /** The highest logged cycle prefills the cycle when none is set yet. */
@@ -28,7 +27,6 @@ interface CampaignCycleModalProps {
 
 export default function CampaignCycleModal({
   campaignId,
-  title,
   currentCycle,
   currentPhase,
   battles,
@@ -42,11 +40,10 @@ export default function CampaignCycleModal({
     .filter((gang) => gang.status === 'ACCEPTED' && (gang.trade_points ?? 0) > 0);
 
   const [cycle, setCycle] = useState(() =>
-    String(currentCycle !== null ? currentCycle + 1 : Math.max(1, ...battles.flatMap((battle) => battle.cycle ?? [])))
+    String(currentCycle ?? Math.max(1, ...battles.flatMap((battle) => battle.cycle ?? [])))
   );
   const [phase, setPhase] = useState(currentPhase ?? '');
-  // Ending a cycle clears Trade Points by default; starting or setting one does not.
-  const [clearTradePoints, setClearTradePoints] = useState(currentCycle !== null && gangsWithTradePoints.length > 0);
+  const [clearTradePoints, setClearTradePoints] = useState(false);
   const [credits, setCredits] = useState('');
 
   const cycleValue = Number(cycle);
@@ -77,7 +74,7 @@ export default function CampaignCycleModal({
 
   return (
     <Modal
-      title={title}
+      title="Edit cycle"
       helper="Changes the cycle and phase shown to everyone in the campaign."
       onClose={onClose}
       onConfirm={handleConfirm}

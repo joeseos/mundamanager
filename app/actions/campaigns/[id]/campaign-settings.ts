@@ -144,7 +144,7 @@ export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
     }
 
     // Applies only while the cycle is still the one the modal opened with, so a
-    // stale page or a second arbitrator cannot end the same cycle twice.
+    // stale page cannot overwrite a cycle another arbitrator has changed since.
     const campaign = { current_cycle: cycle, current_phase: phase, updated_at: new Date().toISOString() };
     const update = supabase.from('campaigns').update(campaign).eq('id', campaignId);
     const { data: updated, error: updateError } = await (
@@ -183,13 +183,13 @@ export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
           gang_id: gang.id,
           user_id: gang.user_id,
           action_type: 'campaign_trade_points_cleared',
-          description: `Trade Points cleared as the campaign moved to cycle ${cycle}. Trade Points: ${from.trade_points} → ${to.trade_points}`,
+          description: `Trade Points cleared in cycle ${cycle}. Trade Points: ${from.trade_points} → ${to.trade_points}`,
         }),
         credits > 0 && createGangLog({
           gang_id: gang.id,
           user_id: gang.user_id,
           action_type: 'campaign_credits_granted',
-          description: `Granted ${credits} credits as the campaign moved to cycle ${cycle}. ${formatFinancialChanges(from.credits, to.credits, from.rating, to.rating, from.wealth, to.wealth)}`,
+          description: `Granted ${credits} credits in cycle ${cycle}. ${formatFinancialChanges(from.credits, to.credits, from.rating, to.rating, from.wealth, to.wealth)}`,
         }),
       ]);
       return { gangId: gang.id, wealth: to.wealth, trade_points: to.trade_points };

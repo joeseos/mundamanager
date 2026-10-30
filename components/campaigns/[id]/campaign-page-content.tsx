@@ -378,7 +378,6 @@ export default function CampaignPageContent({
   // Pre-campaign is not stored: it is a campaign with no cycle set and no battle logged.
   const isPreCampaign = currentCycle === null && (campaignData.battles || []).length === 0;
   const phaseLabel = campaignData.current_phase ?? (isPreCampaign ? 'Pre-campaign' : null);
-  const cycleButtonLabel = currentCycle !== null ? 'End cycle' : isPreCampaign ? 'Start campaign' : 'Set cycle';
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
@@ -575,7 +574,7 @@ export default function CampaignPageContent({
                          variant="outline"
                          className="print:hidden"
                        >
-                         {cycleButtonLabel}
+                         Edit cycle
                        </Button>
                        <Button
                          onClick={() => setShowEditModal(true)}
@@ -1155,7 +1154,6 @@ export default function CampaignPageContent({
       {showCycleModal && safePermissions.canEditCampaign && (
         <CampaignCycleModal
           campaignId={campaignData.id}
-          title={cycleButtonLabel}
           currentCycle={currentCycle}
           currentPhase={campaignData.current_phase ?? null}
           battles={campaignData.battles || []}
