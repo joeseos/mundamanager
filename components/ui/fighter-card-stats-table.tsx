@@ -28,11 +28,11 @@ type FighterStats = {
   'M': string;
   'WS': string;
   'BS': string;
-  'S': string | number;
-  'T': string | number;
-  'W': string | number;
+  'S': string;
+  'T': string;
+  'W': string;
   'I': string;
-  'A': string | number;
+  'A': string;
   'Sv'?: string; // N26 fighters only — omitted key hides the column
   'Ld': string;
   'Cl': string;
