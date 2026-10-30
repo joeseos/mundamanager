@@ -28,11 +28,11 @@ type FighterStats = {
   'M': string;
   'WS': string;
   'BS': string;
-  'S': number;
-  'T': number;
-  'W': number;
+  'S': string;
+  'T': string;
+  'W': string;
   'I': string;
-  'A': number;
+  'A': string;
   'Sv'?: string; // N26 fighters only — omitted key hides the column
   'Ld': string;
   'Cl': string;
@@ -43,6 +43,10 @@ type FighterStats = {
 }
 
 export type StatsType = CrewStats | FighterStats;
+
+/** A characteristic the profile leaves empty shows as '-'. */
+export const formatCharacteristic = (value: number | null | undefined, suffix = ''): string =>
+  value == null ? '-' : `${value}${suffix}`;
 
 export const Table: React.FC<React.HTMLAttributes<HTMLTableElement>> = ({ children, ...props }) => (
   <table {...props}>{children}</table>

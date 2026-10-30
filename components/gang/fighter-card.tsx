@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
+import { StatsTable, StatsType, formatCharacteristic } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
@@ -430,29 +430,29 @@ const FighterCard = memo(function FighterCard({
         'HP': vehicleStats ? vehicleStats.hull_points : '*',
         'Hnd': vehicleStats ? `${vehicleStats.handling}+` : '*',
         'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-        'Ld': `${adjustedStats.leadership}+`,
-        'Cl': `${adjustedStats.cool}+`,
-        'Wil': `${adjustedStats.willpower}+`,
-        'Int': `${adjustedStats.intelligence}+`,
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+        'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+        'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+        'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+        'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
         'XP': xpDisplay
       };
     }
     
     return {
-      'M': `${adjustedStats.movement}"`,
-      'WS': `${adjustedStats.weapon_skill}+`,
-      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-      'S': adjustedStats.strength,
-      'T': adjustedStats.toughness,
-      'W': adjustedStats.wounds,
-      'I': `${adjustedStats.initiative}+`,
-      'A': adjustedStats.attacks,
-      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-' }),
-      'Ld': `${adjustedStats.leadership}+`,
-      'Cl': `${adjustedStats.cool}+`,
-      'Wil': `${adjustedStats.willpower}+`,
-      'Int': `${adjustedStats.intelligence}+`,
+      'M': formatCharacteristic(adjustedStats.movement, '"'),
+      'WS': formatCharacteristic(adjustedStats.weapon_skill, '+'),
+      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+      'S': formatCharacteristic(adjustedStats.strength),
+      'T': formatCharacteristic(adjustedStats.toughness),
+      'W': formatCharacteristic(adjustedStats.wounds),
+      'I': formatCharacteristic(adjustedStats.initiative, '+'),
+      'A': formatCharacteristic(adjustedStats.attacks),
+      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': formatCharacteristic(adjustedStats.save, '+') }),
+      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+      'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
       'XP': xpDisplay
     };
   }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);

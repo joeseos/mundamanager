@@ -9,7 +9,7 @@ import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effe
 import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
-import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
+import { StatsTable, StatsType, formatCharacteristic } from "../ui/fighter-card-stats-table";
 import { hasAlignment, hasFleshWoundCondition, hasInjuredCondition, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { formatFighterSubtypeDisplay } from "@/utils/fighterSubtypeDisplay";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
@@ -738,28 +738,28 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       'HP': vehicleStats ? vehicleStats.hull_points : '*',
                       'Hnd': vehicleStats ? `${vehicleStats.handling}+` : '*',
                       'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-                      'Ld': `${adjustedStats.leadership}+`,
-                      'Cl': `${adjustedStats.cool}+`,
-                      'Wil': `${adjustedStats.willpower}+`,
-                      'Int': `${adjustedStats.intelligence}+`
+                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+                      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+                      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+                      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+                      'Int': formatCharacteristic(adjustedStats.intelligence, '+')
                     }
                   : {
-                      'M': `${adjustedStats.movement}"`,
-                      'WS': `${adjustedStats.weapon_skill}+`,
-                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-                      'S': adjustedStats.strength,
-                      'T': adjustedStats.toughness,
-                      'W': adjustedStats.wounds,
-                      'I': `${adjustedStats.initiative}+`,
-                      'A': adjustedStats.attacks,
+                      'M': formatCharacteristic(adjustedStats.movement, '"'),
+                      'WS': formatCharacteristic(adjustedStats.weapon_skill, '+'),
+                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+                      'S': formatCharacteristic(adjustedStats.strength),
+                      'T': formatCharacteristic(adjustedStats.toughness),
+                      'W': formatCharacteristic(adjustedStats.wounds),
+                      'I': formatCharacteristic(adjustedStats.initiative, '+'),
+                      'A': formatCharacteristic(adjustedStats.attacks),
                       ...(hasSaveCharacteristic(fighter.edition_slug) && {
-                        'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-'
+                        'Sv': formatCharacteristic(adjustedStats.save, '+')
                       }),
-                      'Ld': `${adjustedStats.leadership}+`,
-                      'Cl': `${adjustedStats.cool}+`,
-                      'Wil': `${adjustedStats.willpower}+`,
-                      'Int': `${adjustedStats.intelligence}+`
+                      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+                      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+                      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+                      'Int': formatCharacteristic(adjustedStats.intelligence, '+')
                     }) as StatsType;
 
                 const fighterRowKey = `${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`;
