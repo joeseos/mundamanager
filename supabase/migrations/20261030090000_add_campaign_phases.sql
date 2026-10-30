@@ -8,6 +8,10 @@ ALTER TABLE public.campaigns
   ADD COLUMN current_phase text;
 
 ALTER TABLE public.campaigns
+  ADD CONSTRAINT campaigns_current_cycle_positive
+  CHECK (current_cycle IS NULL OR current_cycle >= 1);
+
+ALTER TABLE public.campaigns
   ADD CONSTRAINT campaigns_current_phase_length
   CHECK (current_phase IS NULL OR char_length(current_phase) BETWEEN 1 AND 50);
 

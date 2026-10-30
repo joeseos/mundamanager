@@ -7,20 +7,18 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { updateCampaignCycle, type CampaignGangBalance } from "@/app/actions/campaigns/[id]/campaign-settings";
-import { hasTradePoints } from "@/types/edition";
 
 interface CampaignCycleModalProps {
   campaignId: string;
-  editionSlug: string | null;
   title: string;
   currentCycle: number | null;
   currentPhase: string | null;
-  /** Prefills the cycle when none is set yet: where the battle logs have got to. */
-  latestBattleCycle: number | null;
+  /** The highest logged cycle prefills the cycle when none is set yet. */
+  battles: { cycle?: number | null }[];
   /** The campaign type's phase names, offered as suggestions. */
   phases: string[];
-  /** Accepted gangs, to show which still hold Trade Points. */
-  gangs: { id: string; name: string; trade_points?: number }[];
+  /** To list the accepted gangs that still hold Trade Points. */
+  members: { gangs: { name: string; status: string | null; trade_points?: number }[] }[];
   onClose: () => void;
   onSaved: (
     balances: CampaignGangBalance[],
@@ -30,35 +28,38 @@ interface CampaignCycleModalProps {
 
 export default function CampaignCycleModal({
   campaignId,
-  editionSlug,
   title,
   currentCycle,
   currentPhase,
-  latestBattleCycle,
+  battles,
   phases,
-  gangs,
+  members,
   onClose,
   onSaved,
 }: CampaignCycleModalProps) {
-  const [cycle, setCycle] = useState(String(currentCycle !== null ? currentCycle + 1 : latestBattleCycle ?? 1));
+  const gangsWithTradePoints = members
+    .flatMap((member) => member.gangs)
+    .filter((gang) => gang.status === 'ACCEPTED' && (gang.trade_points ?? 0) > 0);
+
+  const [cycle, setCycle] = useState(() =>
+    String(currentCycle !== null ? currentCycle + 1 : Math.max(1, ...battles.flatMap((battle) => battle.cycle ?? [])))
+  );
   const [phase, setPhase] = useState(currentPhase ?? '');
-  const tradePoints = hasTradePoints(editionSlug);
   // Ending a cycle clears Trade Points by default; starting or setting one does not.
-  const [clearTradePoints, setClearTradePoints] = useState(tradePoints && currentCycle !== null);
+  const [clearTradePoints, setClearTradePoints] = useState(currentCycle !== null && gangsWithTradePoints.length > 0);
   const [credits, setCredits] = useState('');
 
   const cycleValue = Number(cycle);
   const cycleValid = Number.isInteger(cycleValue) && cycleValue > 0;
   const creditsValue = Number(credits);
   const creditsValid = Number.isInteger(creditsValue) && creditsValue >= 0;
-  const gangsWithTradePoints = gangs.filter((gang) => (gang.trade_points ?? 0) > 0);
 
   const handleConfirm = async () => {
     const result = await updateCampaignCycle({
       campaignId,
       fromCycle: currentCycle,
       cycle: cycleValue,
-      phase: phase || null,
+      phase,
       clearTradePoints,
       credits: creditsValue,
     });
@@ -113,7 +114,7 @@ export default function CampaignCycleModal({
             />
           </div>
 
-          {tradePoints && (
+          {gangsWithTradePoints.length > 0 && (
             <div className="space-y-1">
               <div className="flex items-center space-x-2">
                 <Checkbox
@@ -126,11 +127,7 @@ export default function CampaignCycleModal({
                 </label>
               </div>
               <p className="text-xs text-muted-foreground">
-                {gangsWithTradePoints.length > 0
-                  ? `Still holding Trade Points: ${gangsWithTradePoints
-                      .map((gang) => `${gang.name} (${gang.trade_points})`)
-                      .join(', ')}`
-                  : 'No gang holds Trade Points.'}
+                Still holding Trade Points: {gangsWithTradePoints.map((gang) => `${gang.name} (${gang.trade_points})`).join(', ')}
               </p>
             </div>
           )}

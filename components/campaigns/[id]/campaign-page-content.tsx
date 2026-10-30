@@ -26,7 +26,6 @@ import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
-import type { CampaignGangBalance } from '@/app/actions/campaigns/[id]/campaign-settings';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
@@ -77,8 +76,6 @@ interface Member {
     status: string | null;
     rating?: number;
     reputation?: number;
-    wealth?: number;
-    trade_points?: number;
     allegiance?: {
       id: string;
       name: string;
@@ -378,29 +375,10 @@ export default function CampaignPageContent({
     && !!campaignData.allow_join_requests;
 
   const currentCycle = campaignData.current_cycle ?? null;
-  const battleCycles = (campaignData.battles || []).flatMap((battle) => battle.cycle ?? []);
-  const latestBattleCycle = battleCycles.length > 0 ? Math.max(...battleCycles) : null;
   // Pre-campaign is not stored: it is a campaign with no cycle set and no battle logged.
   const isPreCampaign = currentCycle === null && (campaignData.battles || []).length === 0;
   const phaseLabel = campaignData.current_phase ?? (isPreCampaign ? 'Pre-campaign' : null);
   const cycleButtonLabel = currentCycle !== null ? 'End cycle' : isPreCampaign ? 'Start campaign' : 'Set cycle';
-  const acceptedGangs: Member['gangs'] = campaignData.members
-    .flatMap((member: Member) => member.gangs)
-    .filter((gang: Member['gangs'][0]) => gang.status === 'ACCEPTED');
-
-  // Folds a cycle change, and the gang balances it changed, into the page.
-  const handleCycleSaved = (balances: CampaignGangBalance[], campaign: { current_cycle: number; current_phase: string | null; updated_at: string }) => {
-    const byGangId = new Map(balances.map(({ gangId, ...balance }) => [gangId, balance]));
-    setCampaignData(prev => ({
-      ...prev,
-      ...campaign,
-      members: prev.members.map((member: Member) => ({
-        ...member,
-        gangs: member.gangs.map((gang) => ({ ...gang, ...byGangId.get(gang.id) })),
-      })),
-    }));
-  };
-
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
@@ -591,21 +569,21 @@ export default function CampaignPageContent({
                      )
                    )}
                    {safePermissions.canEditCampaign && (
-                     <Button
-                       onClick={() => setShowCycleModal(true)}
-                       variant="outline"
-                       className="print:hidden"
-                     >
-                       {cycleButtonLabel}
-                     </Button>
-                   )}
-                   {safePermissions.canEditCampaign && (
-                     <Button
-                       onClick={() => setShowEditModal(true)}
-                       className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
-                     >
-                       Edit
-                     </Button>
+                     <>
+                       <Button
+                         onClick={() => setShowCycleModal(true)}
+                         variant="outline"
+                         className="print:hidden"
+                       >
+                         {cycleButtonLabel}
+                       </Button>
+                       <Button
+                         onClick={() => setShowEditModal(true)}
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                       >
+                         Edit
+                       </Button>
+                     </>
                    )}
                  </div>
                </div>
@@ -1177,15 +1155,24 @@ export default function CampaignPageContent({
       {showCycleModal && safePermissions.canEditCampaign && (
         <CampaignCycleModal
           campaignId={campaignData.id}
-          editionSlug={campaignData.edition_slug ?? null}
           title={cycleButtonLabel}
           currentCycle={currentCycle}
           currentPhase={campaignData.current_phase ?? null}
-          latestBattleCycle={latestBattleCycle}
+          battles={campaignData.battles || []}
           phases={campaignTypes.find((type) => type.id === campaignData.campaign_type_id)?.phases ?? []}
-          gangs={acceptedGangs}
+          members={campaignData.members}
           onClose={() => setShowCycleModal(false)}
-          onSaved={handleCycleSaved}
+          onSaved={(balances, campaign) => {
+            const byGangId = new Map(balances.map(({ gangId, ...balance }) => [gangId, balance]));
+            setCampaignData(prev => ({
+              ...prev,
+              ...campaign,
+              members: prev.members.map((member: Member) => ({
+                ...member,
+                gangs: member.gangs.map((gang) => ({ ...gang, ...byGangId.get(gang.id) })),
+              })),
+            }));
+          }}
         />
       )}
 

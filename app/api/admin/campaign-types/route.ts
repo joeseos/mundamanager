@@ -50,7 +50,6 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { campaign_type_name, image_url, trading_posts, resources, edition_id } = body;
-    const phases = parsePhases(body.phases ?? null);
 
     if (!campaign_type_name?.trim()) {
       return NextResponse.json(
@@ -78,6 +77,7 @@ export async function POST(request: Request) {
       }
     }
 
+    const phases = parsePhases(body.phases ?? null);
     if (phases === undefined) {
       return NextResponse.json({ error: INVALID_PHASES }, { status: 400 });
     }

@@ -143,8 +143,8 @@ export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
       return { success: false as const, error: 'Only the campaign arbitrators can change the cycle' };
     }
 
-    // Matching the cycle the modal opened with makes a double submit match no
-    // row, so one change never clears Trade Points or grants credits twice.
+    // Applies only while the cycle is still the one the modal opened with, so a
+    // stale page or a second arbitrator cannot end the same cycle twice.
     const campaign = { current_cycle: cycle, current_phase: phase, updated_at: new Date().toISOString() };
     const update = supabase.from('campaigns').update(campaign).eq('id', campaignId);
     const { data: updated, error: updateError } = await (
@@ -172,7 +172,6 @@ export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
       .map((row) => row.gangs as unknown as { id: string; user_id: string; trade_points: number })
       .filter((gang) => credits > 0 || gang.trade_points > 0);
 
-    // Gangs are independent, so one failing does not stop the rest.
     const results = await Promise.all(gangs.map(async (gang): Promise<CampaignGangBalance | null> => {
       const tradePointsDelta = clearTradePoints ? -gang.trade_points : 0;
       const result = await updateGangFinancials(supabase, { gangId: gang.id, creditsDelta: credits, tradePointsDelta });
@@ -180,22 +179,20 @@ export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
       const { oldValues: from, newValues: to } = result;
 
       // Logs go to the gang owner, as for other arbitrator edits.
-      if (tradePointsDelta !== 0) {
-        await createGangLog({
+      await Promise.all([
+        tradePointsDelta !== 0 && createGangLog({
           gang_id: gang.id,
           user_id: gang.user_id,
           action_type: 'campaign_trade_points_cleared',
           description: `Trade Points cleared as the campaign moved to cycle ${cycle}. Trade Points: ${from.trade_points} → ${to.trade_points}`,
-        });
-      }
-      if (credits > 0) {
-        await createGangLog({
+        }),
+        credits > 0 && createGangLog({
           gang_id: gang.id,
           user_id: gang.user_id,
           action_type: 'campaign_credits_granted',
           description: `Granted ${credits} credits as the campaign moved to cycle ${cycle}. ${formatFinancialChanges(from.credits, to.credits, from.rating, to.rating, from.wealth, to.wealth)}`,
-        });
-      }
+        }),
+      ]);
       return { gangId: gang.id, wealth: to.wealth, trade_points: to.trade_points };
     }));
 
