@@ -518,7 +518,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       {/* Toolbar */}
       <div
         ref={toolbarRef}
-        className={`border-b rounded-t-md p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] sticky ${
+        className={`border-b p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] sticky ${
         // Below the fixed site header (57px) and breadcrumb bar (40px)
         stickyWithinScrollContainer ? 'top-[-20px]' : 'top-[97px]'
       } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}>
