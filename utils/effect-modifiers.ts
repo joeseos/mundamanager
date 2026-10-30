@@ -319,6 +319,12 @@ export function fighterWideWeaponEffects<T extends { type_specific_data?: TraitM
     .map(e => ({ ...e, fighter_effect_modifiers: [] }));
 }
 
+/** Effects picked through Edit (Spyrer tiers, Enhance weapon upgrades), as opposed to the fixed effects that come with the equipment */
+export function isEditableEffect(effect: { type_specific_data?: unknown }): boolean {
+  const tsd = effect.type_specific_data;
+  return typeof tsd === 'object' && tsd !== null && (tsd as { is_editable?: unknown }).is_editable === true;
+}
+
 /** The weapon profile fields an effect modifier can change */
 export const WEAPON_NUMERIC_FIELDS = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
 
