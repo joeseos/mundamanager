@@ -641,6 +641,15 @@ export const gangPortraits = pgTable('gang_portraits', {
   label: text('label'),
 });
 
+export const campaignPortraits = pgTable('campaign_portraits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  storage_path: text('storage_path').notNull(),
+  credit: json('credit').notNull(),
+  group_label: text('group_label').notNull(),
+  style: text('style').notNull(),
+  label: text('label'),
+});
+
 export const gangSkillSetRanks = pgTable('gang_skill_set_ranks', {
   gang_id: uuid('gang_id').notNull(),
   rank: integer('rank').notNull(),
@@ -686,6 +695,7 @@ export const campaigns = pgTable('campaigns', {
   custom_trading_posts: json('custom_trading_posts').$type<string[]>(),
   allow_join_requests: boolean('allow_join_requests').default(false).notNull(),
   current_cycle: integer('current_cycle'),
+  campaign_portrait_id: uuid('campaign_portrait_id'),
 });
 
 export const campaignMembers = pgTable('campaign_members', {
@@ -1189,6 +1199,10 @@ export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   campaign_type: one(campaignTypes, {
     fields: [campaigns.campaign_type_id],
     references: [campaignTypes.id],
+  }),
+  campaign_portrait: one(campaignPortraits, {
+    fields: [campaigns.campaign_portrait_id],
+    references: [campaignPortraits.id],
   }),
   campaign_territories: many(campaignTerritories),
   campaign_resources: many(campaignResources),

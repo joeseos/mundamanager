@@ -9,6 +9,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
 import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
+import { resolveCampaignImageUrl } from '@/utils/campaign-image'
 
 export interface CampaignCardProps {
   campaign: Campaign;
@@ -21,13 +22,18 @@ export interface CampaignCardProps {
 
 export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners, dragAttributes, isDragging, disableLink = false }: CampaignCardProps) {
   const isDraggable = Boolean(dragListeners);
+  const imageUrl = resolveCampaignImageUrl({
+    imageUrl: campaign.image_url,
+    portraitUrl: campaign.campaign_portrait_url,
+    typeImageUrl: campaign.campaign_type_image_url,
+  });
 
   const innerContent = (
     <>
       <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
-        {campaign.image_url || campaign.campaign_type_image_url ? (
+        {imageUrl ? (
           <Image
-            src={campaign.image_url || campaign.campaign_type_image_url}
+            src={imageUrl}
             alt={campaign.campaign_name ?? ''}
             width={60}
             height={60}

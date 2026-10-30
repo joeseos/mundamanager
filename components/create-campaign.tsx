@@ -16,6 +16,9 @@ import type { CampaignType } from '@/types/campaign'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
+import { CreateCampaignPortraitPicker } from '@/components/campaigns/create-campaign-portrait-picker'
+import { useCampaignPortraits } from '@/hooks/use-campaign-portraits'
+import { catalogueSlotForCampaignType, defaultPortraitForSlot } from '@/utils/campaign-portraits'
 
 interface TradingPostType {
   id: string;
@@ -72,6 +75,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
   const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = useCampaignPortraits();
 
   const editionCampaignTypes = useMemo(
     () => campaignTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
@@ -86,6 +90,28 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const campaignRank = getCampaignRank(editionSlug);
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
+
+  const selectedCampaignType = useMemo(
+    () => campaignTypes.find(type => type.id === campaignType) ?? null,
+    [campaignTypes, campaignType]
+  );
+  const catalogueSlot = useMemo(
+    () => catalogueSlotForCampaignType(selectedCampaignType?.campaign_type_name),
+    [selectedCampaignType]
+  );
+  const defaultPortraitId = useMemo(
+    () => defaultPortraitForSlot(portraits, catalogueSlot)?.id ?? null,
+    [portraits, catalogueSlot]
+  );
+
+  const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(null);
+  const [pinnedCampaignTypeId, setPinnedCampaignTypeId] = useState(campaignType);
+  if (campaignType !== pinnedCampaignTypeId) {
+    setPinnedCampaignTypeId(campaignType);
+    setSelectedPortraitId(defaultPortraitId);
+  } else if (selectedPortraitId === null && defaultPortraitId) {
+    setSelectedPortraitId(defaultPortraitId);
+  }
 
   // Clear campaign type / trading posts that no longer belong to the active edition
   const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
@@ -152,6 +178,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
         name: campaignName.trimEnd(),
         campaignTypeId: campaignType,
         trading_posts: selectedTradingPosts,
+        campaignPortraitId: selectedPortraitId,
       })
 
       if (!result.success) {
@@ -163,6 +190,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       // Reset form and close modal first for better UX
       setCampaignName("")
       setCampaignType("")
+      setSelectedPortraitId(null)
       setSelectedTradingPosts([])
       onClose()
       
@@ -215,7 +243,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       onMouseDown={handleOverlayClick}
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Create a New Campaign</h2>
@@ -319,6 +347,22 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                   })}
               </div>
             </div>
+          )}
+
+          {campaignType && (
+            <>
+              <CreateCampaignPortraitPicker
+                portraits={portraits}
+                catalogueSlot={catalogueSlot}
+                selectedPortraitId={selectedPortraitId}
+                campaignTypeName={selectedCampaignType?.campaign_type_name ?? ''}
+                onSelect={setSelectedPortraitId}
+                fallbackImageUrl={selectedPortraitId ? null : selectedCampaignType?.image_url}
+                catalogueLoadFailed={Boolean(catalogueSlot) && portraitsStatus === 'error'}
+                onRetryCatalogue={retryPortraits}
+              />
+              <p className="text-xs text-center text-muted-foreground">You&apos;ll be able to upload a custom image once your campaign is created.</p>
+            </>
           )}
 
           <div>

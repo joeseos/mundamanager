@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +11,18 @@ import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
 import type { CampaignType, CampaignTypeResource } from '@/types/campaign';
 import { EditionSelect } from '@/components/edition-select';
+import {
+  AdminCampaignPortraitForm,
+  type PortraitFormHandle,
+  type PortraitFormState,
+} from '@/components/admin/admin-campaign-portrait-form';
 
 enum OperationType {
   POST = 'POST',
   UPDATE = 'UPDATE'
 }
 
-type CategoryType = 'campaign-types' | 'territories' | 'triumphs';
+type CategoryType = 'campaign-types' | 'territories' | 'triumphs' | 'portraits';
 
 interface Territory {
   id: string;
@@ -60,6 +65,15 @@ const territoryCardOptions = [
   )
 ];
 
+const EMPTY_PORTRAIT_STATE: PortraitFormState = {
+  canSave: false,
+  canDelete: false,
+  hasSelection: false,
+  isBusy: false,
+  pendingAction: null,
+  isCreateMode: false,
+};
+
 export function AdminCampaignManagementModal({ 
   onClose, 
   onSubmit 
@@ -67,6 +81,11 @@ export function AdminCampaignManagementModal({
   
   
   const queryClient = useQueryClient();
+  const portraitFormRef = useRef<PortraitFormHandle>(null);
+  const [portraitState, setPortraitState] = useState<PortraitFormState>(EMPTY_PORTRAIT_STATE);
+  const handlePortraitState = useCallback((state: PortraitFormState) => {
+    setPortraitState(state);
+  }, []);
 
   // Category selection
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('campaign-types');
@@ -686,7 +705,7 @@ export function AdminCampaignManagementModal({
     }
   };
 
-  const activeForm = getActiveFormState();
+  const activeForm = selectedCategory === 'portraits' ? null : getActiveFormState();
   const territorySelectOptions = filteredTerritories.map((territory) => {
     const playingCardValue = territory.playing_card?.trim();
     const hasPlayingCardValue = Boolean(playingCardValue);
@@ -732,7 +751,7 @@ export function AdminCampaignManagementModal({
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-xl md:text-2xl font-bold text-foreground">Campaign Management</h3>
-            <p className="text-sm text-muted-foreground">Manage campaign types, territories, and triumphs</p>
+            <p className="text-sm text-muted-foreground">Manage campaign types, portraits, territories, and triumphs</p>
           </div>
           <button
             onClick={onClose}
@@ -753,13 +772,18 @@ export function AdminCampaignManagementModal({
                 value={selectedCategory}
                 onChange={(e) => handleCategoryChange(e.target.value as CategoryType)}
                 className="w-full p-2 border rounded-md"
-                disabled={isLoading}
+                disabled={isLoading || portraitState.isBusy}
               >
                 <option value="campaign-types">Campaign Types</option>
+                <option value="portraits">Campaign Portraits</option>
                 <option value="territories">Territories</option>
                 <option value="triumphs">Campaign Triumphs</option>
               </select>
             </div>
+
+            {selectedCategory === 'portraits' && (
+              <AdminCampaignPortraitForm ref={portraitFormRef} onStateChange={handlePortraitState} />
+            )}
 
             {/* Campaign Types Section */}
             {selectedCategory === 'campaign-types' && (
@@ -1185,13 +1209,42 @@ export function AdminCampaignManagementModal({
           <Button
             variant="outline"
             onClick={onClose}
-            disabled={isLoading}
+            disabled={selectedCategory === 'portraits' ? portraitState.isBusy : isLoading}
             className="flex-1"
           >
             Cancel
           </Button>
+
+          {selectedCategory === 'portraits' && portraitState.isCreateMode && (
+            <Button
+              onClick={() => portraitFormRef.current?.save()}
+              disabled={!portraitState.canSave}
+              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+            >
+              {portraitState.pendingAction === 'save' ? 'Creating...' : 'Create Portrait'}
+            </Button>
+          )}
+
+          {selectedCategory === 'portraits' && portraitState.hasSelection && (
+            <>
+              <Button
+                onClick={() => portraitFormRef.current?.save()}
+                disabled={!portraitState.canSave}
+                className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+              >
+                {portraitState.pendingAction === 'save' ? 'Updating...' : 'Update Portrait'}
+              </Button>
+              <Button
+                onClick={() => portraitFormRef.current?.remove()}
+                disabled={!portraitState.canDelete}
+                className="flex-1 bg-red-600 text-white rounded-sm hover:bg-red-700"
+              >
+                {portraitState.pendingAction === 'delete' ? 'Deleting...' : 'Delete Portrait'}
+              </Button>
+            </>
+          )}
           
-          {activeForm.isCreateMode && (
+          {activeForm?.isCreateMode && (
             <Button
               onClick={() => activeForm.handleSubmit(OperationType.POST)}
               disabled={!activeForm.canSubmit || isLoading}
@@ -1201,7 +1254,7 @@ export function AdminCampaignManagementModal({
             </Button>
           )}
 
-          {!activeForm.isCreateMode && activeForm.selectedId && (
+          {activeForm && !activeForm.isCreateMode && activeForm.selectedId && (
             <Button
               onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
               disabled={!activeForm.canSubmit || isLoading}
