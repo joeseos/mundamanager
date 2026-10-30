@@ -6,15 +6,18 @@ import { useFormStatus } from "react-dom";
 
 type Props = ComponentProps<typeof Button> & {
   pendingText?: string;
+  /** For a form submitted by a handler, whose submit useFormStatus does not see. */
+  pending?: boolean;
 };
 
 export function SubmitButton({
   children,
   pendingText = "Submitting...",
+  pending: isSubmitting = false,
   disabled,
   ...props
 }: Props) {
-  const { pending } = useFormStatus();
+  const pending = useFormStatus().pending || isSubmitting;
 
   return (
     <Button

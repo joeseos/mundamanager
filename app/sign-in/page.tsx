@@ -36,6 +36,7 @@ function SignInContent() {
   const [gangCount, setGangCount] = useState<number | undefined>(undefined);
   const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
   useEffect(() => {
@@ -80,18 +81,37 @@ function SignInContent() {
     topMessage = { message };
   }
 
-  async function clientAction(formData: FormData) {
-    const result = await signInAction(formData);
+  // A submit handler, not a form action: React resets a form once its action
+  // finishes, which blanked the fields on a failed sign-in and while the next
+  // page loaded after a successful one.
+  async function handleSubmit(event: React.SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    setErrorMessage(null);
+    setIsSubmitting(true);
+
+    // There is no error boundary, so a failed request would replace the page
+    const result = await signInAction(formData).catch((error) => {
+      console.error('Sign-in request failed:', error);
+      return { error: "Something went wrong. Please try again." };
+    });
 
     if ('error' in result) {
       setErrorMessage(result.error);
-      // This attempt consumed the token, so a retry needs a fresh one.
-      turnstileRef.current?.reset();
+      // A submitted token was consumed, so a retry needs a fresh one. Without
+      // one, a reset would only restart a challenge still in progress.
+      if (formData.get('cf-turnstile-response')) {
+        turnstileRef.current?.reset();
+      }
+      setIsSubmitting(false);
       return;
     }
 
     // Full document load, not a client-side navigation: it's what rebuilds the
-    // browser Supabase client and useClaims from the newly-set cookies.
+    // browser Supabase client and useClaims from the newly-set cookies. Still
+    // submitting until then, so the button keeps showing progress, but not once
+    // the page is left: Back can restore it from the back/forward cache.
+    window.addEventListener('pagehide', () => setIsSubmitting(false), { once: true });
     window.location.assign(result.redirectTo);
   }
 
@@ -113,7 +133,9 @@ function SignInContent() {
         )}
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
-          action={clientAction}
+          // POST, so a submit before hydration keeps the password out of the URL
+          method="post"
+          onSubmit={handleSubmit}
         >
           {/* Carry next through to the server action */}
           {(() => {
@@ -199,7 +221,7 @@ function SignInContent() {
             <div className="mt-2 flex justify-center">
               <TurnstileWidget ref={turnstileRef} />
             </div>
-            <SubmitButton pendingText="Signing In..." className="mt-2">
+            <SubmitButton pendingText="Signing In..." className="mt-2" pending={isSubmitting}>
               Sign In
             </SubmitButton>
           </div>

@@ -150,6 +150,8 @@ function SignUpContent() {
       <div className="container mx-auto max-w-4xl w-full px-4">
         <form 
           className="flex flex-col w-full max-w-sm mx-auto text-white"
+          // POST, so a submit before hydration keeps the password out of the URL
+          method="post"
           onSubmit={handleSubmit}
           noValidate
         >
