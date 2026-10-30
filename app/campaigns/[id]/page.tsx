@@ -171,6 +171,7 @@ export default async function CampaignPage(props: {
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
       current_cycle: campaignBasic.current_cycle ?? null,
+      current_phase: campaignBasic.current_phase ?? null,
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,

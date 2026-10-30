@@ -48,6 +48,8 @@ interface CampaignBattleLogModalProps {
   scenarioTables?: ScenarioTableWithEntries[];
   /** Add a challenge instead of a battle report: no result, only a challenge status. */
   newChallenge?: boolean;
+  /** The campaign's current cycle, prefilled on a new log. */
+  defaultCycle?: number | null;
 }
 
 const reportCharLimit = 4096;
@@ -87,7 +89,8 @@ const CampaignBattleLogModal = ({
   userRole = 'MEMBER',
   canRespondToChallenge = false,
   scenarioTables = [],
-  newChallenge = false
+  newChallenge = false,
+  defaultCycle = null
 }: CampaignBattleLogModalProps) => {
   // N26 has no scenario list: Deployment, Objective and Crew are rolled for the
   // battle, and a Side Job for each gang.
@@ -134,7 +137,7 @@ const CampaignBattleLogModal = ({
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
   });
-  const [cycle, setCycle] = useState<string>('');
+  const [cycle, setCycle] = useState<string>(defaultCycle != null ? String(defaultCycle) : '');
 
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;

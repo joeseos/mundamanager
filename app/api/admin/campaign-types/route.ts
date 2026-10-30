@@ -3,6 +3,17 @@ import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
 import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
 
+/** Trimmed phase names, or null for none; undefined when the value is not a list of names. */
+function parsePhases(phases: unknown): string[] | null | undefined {
+  if (phases === null) return null;
+  if (!Array.isArray(phases) || phases.some((phase) => typeof phase !== 'string')) return undefined;
+  const names = [...new Set(phases.map((phase: string) => phase.trim()).filter(Boolean))];
+  if (names.some((name) => name.length > 50)) return undefined;
+  return names.length > 0 ? names : null;
+}
+
+const INVALID_PHASES = 'phases must be a list of names of 50 characters or less, or null';
+
 export async function GET() {
   const supabase = await createClient();
   
@@ -14,7 +25,7 @@ export async function GET() {
 
     const { data: campaignTypes, error } = await supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, image_url, trading_posts, edition_id, campaign_type_resources(id, resource_name)')
+      .select('id, campaign_type_name, image_url, trading_posts, phases, edition_id, campaign_type_resources(id, resource_name)')
       .order('campaign_type_name', { ascending: true });
 
     if (error) throw error;
@@ -39,6 +50,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { campaign_type_name, image_url, trading_posts, resources, edition_id } = body;
+    const phases = parsePhases(body.phases ?? null);
 
     if (!campaign_type_name?.trim()) {
       return NextResponse.json(
@@ -64,6 +76,10 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+    }
+
+    if (phases === undefined) {
+      return NextResponse.json({ error: INVALID_PHASES }, { status: 400 });
     }
 
     if (trading_posts !== undefined && trading_posts !== null && !Array.isArray(trading_posts)) {
@@ -92,6 +108,7 @@ export async function POST(request: Request) {
         campaign_type_name: campaign_type_name.trim(),
         image_url: image_url?.trim() || null,
         trading_posts: trading_posts ?? null,
+        phases,
         edition_id: edition_id || null
       }])
       .select()
@@ -186,6 +203,13 @@ export async function PATCH(request: Request) {
       }
       updateData.trading_posts = trading_posts;
     }
+    if (body.phases !== undefined) {
+      const phases = parsePhases(body.phases);
+      if (phases === undefined) {
+        return NextResponse.json({ error: INVALID_PHASES }, { status: 400 });
+      }
+      updateData.phases = phases;
+    }
     if (edition_id !== undefined) {
       updateData.edition_id = edition_id || null;
     }
@@ -238,7 +262,7 @@ export async function PATCH(request: Request) {
 
     const { data: updatedCampaignType, error: fetchError } = await supabase
       .from('campaign_types')
-      .select('id, campaign_type_name, image_url, trading_posts, edition_id, campaign_type_resources(id, resource_name)')
+      .select('id, campaign_type_name, image_url, trading_posts, phases, edition_id, campaign_type_resources(id, resource_name)')
       .eq('id', id)
       .single();
     if (fetchError) throw fetchError;

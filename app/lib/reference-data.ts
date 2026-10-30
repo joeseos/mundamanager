@@ -64,7 +64,7 @@ export const getCampaignTypes = async () => {
   return unstable_cache(
     async () => {
       const campaignTypes = await getAppDb().query.campaignTypes.findMany({
-        columns: { id: true, campaign_type_name: true, trading_posts: true },
+        columns: { id: true, campaign_type_name: true, trading_posts: true, phases: true },
         orderBy: (campaignType, { asc }) => asc(campaignType.campaign_type_name),
         with: { editions: { columns: { slug: true } } },
       });

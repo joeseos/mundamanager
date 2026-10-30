@@ -15,7 +15,7 @@ import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import { FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuTrophy, LuCodeXml, LuLogs, LuMail } from "react-icons/lu";
+import { LuSwords, LuTrophy, LuCodeXml, LuLogs, LuMail, LuCoins } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
@@ -26,6 +26,7 @@ import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
+import type { CampaignGangBalance } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
@@ -39,6 +40,8 @@ const CampaignMessageModal = dynamic(
   { ssr: false }
 );
 const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
+const CampaignCycleModal = dynamic(() => import('@/components/campaigns/[id]/campaign-cycle-modal'), { ssr: false });
+const CampaignGrantCreditsModal = dynamic(() => import('@/components/campaigns/[id]/campaign-grant-credits-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
   { ssr: false }
@@ -75,6 +78,9 @@ interface Member {
     status: string | null;
     rating?: number;
     reputation?: number;
+    credits?: number;
+    wealth?: number;
+    trade_points?: number;
     allegiance?: {
       id: string;
       name: string;
@@ -130,6 +136,7 @@ interface CampaignPageContentProps {
     updated_at: string | null;
     note: string | null;
     current_cycle?: number | null;
+    current_phase?: string | null;
     members: any[];
     territories: Territory[];
     trading_posts: string[];
@@ -227,6 +234,8 @@ export default function CampaignPageContent({
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showCycleModal, setShowCycleModal] = useState(false);
+  const [showGrantCreditsModal, setShowGrantCreditsModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -370,6 +379,31 @@ export default function CampaignPageContent({
     && !safePermissions.campaignRole
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
+
+  const currentCycle = campaignData.current_cycle ?? null;
+  const battleCycles = (campaignData.battles || []).flatMap((battle) => battle.cycle ?? []);
+  const latestBattleCycle = battleCycles.length > 0 ? Math.max(...battleCycles) : null;
+  // Pre-campaign is not stored: it is a campaign with no cycle set and no battle logged.
+  const isPreCampaign = currentCycle === null && (campaignData.battles || []).length === 0;
+  const phaseLabel = campaignData.current_phase ?? (isPreCampaign ? 'Pre-campaign' : null);
+  const cycleButtonLabel = currentCycle !== null ? 'End cycle' : isPreCampaign ? 'Start campaign' : 'Set cycle';
+  const acceptedGangs: Member['gangs'] = campaignData.members
+    .flatMap((member: Member) => member.gangs)
+    .filter((gang: Member['gangs'][0]) => gang.status === 'ACCEPTED');
+
+  // Folds the balances a bulk cycle or credits change returned into the members' gangs.
+  const applyGangBalances = (prev: typeof campaignData, balances: CampaignGangBalance[]) => {
+    const byGangId = new Map(balances.map((balance) => [balance.gangId, balance]));
+    return prev.members.map((member: Member) => ({
+      ...member,
+      gangs: member.gangs.map((gang) => {
+        const balance = byGangId.get(gang.id);
+        return balance
+          ? { ...gang, credits: balance.credits, wealth: balance.wealth, trade_points: balance.trade_points }
+          : gang;
+      }),
+    }));
+  };
 
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
@@ -562,6 +596,15 @@ export default function CampaignPageContent({
                    )}
                    {safePermissions.canEditCampaign && (
                      <Button
+                       onClick={() => setShowCycleModal(true)}
+                       variant="outline"
+                       className="print:hidden"
+                     >
+                       {cycleButtonLabel}
+                     </Button>
+                   )}
+                   {safePermissions.canEditCampaign && (
+                     <Button
                        onClick={() => setShowEditModal(true)}
                        className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
                      >
@@ -656,6 +699,16 @@ export default function CampaignPageContent({
                   <div className="flex items-center gap-1">
                     Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
                   </div>
+                  {phaseLabel && (
+                    <div className="flex items-center gap-1">
+                      Phase: <Badge variant="secondary">{phaseLabel}</Badge>
+                    </div>
+                  )}
+                  {currentCycle !== null && (
+                    <div className="flex items-center gap-1">
+                      Cycle: <Badge variant="secondary">{currentCycle}</Badge>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <div className="flex flex-wrap items-center gap-1">
@@ -756,15 +809,24 @@ export default function CampaignPageContent({
                   </InfoTooltip>
                 </div>
                 {safePermissions.canManageMembers && (
-                  <Button
-                    onClick={() => setShowMessageModal(true)}
-                    variant="ghost"
-                    size="icon"
-                    className="print:hidden"
-                    title="Message players"
-                  >
-                    <LuMail className="w-5 h-5" />
-                  </Button>
+                  <div className="flex print:hidden">
+                    <Button
+                      onClick={() => setShowGrantCreditsModal(true)}
+                      variant="ghost"
+                      size="icon"
+                      title="Grant credits"
+                    >
+                      <LuCoins className="w-5 h-5" />
+                    </Button>
+                    <Button
+                      onClick={() => setShowMessageModal(true)}
+                      variant="ghost"
+                      size="icon"
+                      title="Message players"
+                    >
+                      <LuMail className="w-5 h-5" />
+                    </Button>
+                  </div>
                 )}
               </div>
               {safePermissions.canManageMembers && (
@@ -1122,6 +1184,33 @@ export default function CampaignPageContent({
               username: member.username || member.profile?.username || 'Unknown',
             }))}
           onClose={() => setShowMessageModal(false)}
+        />
+      )}
+
+      {showCycleModal && safePermissions.canEditCampaign && (
+        <CampaignCycleModal
+          campaignId={campaignData.id}
+          title={cycleButtonLabel}
+          currentCycle={currentCycle}
+          currentPhase={campaignData.current_phase ?? null}
+          latestBattleCycle={latestBattleCycle}
+          phases={campaignTypes.find((type) => type.id === campaignData.campaign_type_id)?.phases ?? []}
+          gangs={acceptedGangs}
+          onClose={() => setShowCycleModal(false)}
+          onSaved={({ balances, ...saved }) => {
+            setCampaignData(prev => ({ ...prev, ...saved, members: applyGangBalances(prev, balances) }));
+          }}
+        />
+      )}
+
+      {showGrantCreditsModal && safePermissions.canManageMembers && (
+        <CampaignGrantCreditsModal
+          campaignId={campaignData.id}
+          gangs={acceptedGangs}
+          onClose={() => setShowGrantCreditsModal(false)}
+          onGranted={(balances) => {
+            setCampaignData(prev => ({ ...prev, members: applyGangBalances(prev, balances) }));
+          }}
         />
       )}
 

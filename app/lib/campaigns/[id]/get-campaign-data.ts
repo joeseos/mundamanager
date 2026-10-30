@@ -33,6 +33,7 @@ async function _getCampaignBasic(campaignId: string) {
       discord_channel_id: true,
       allow_join_requests: true,
       current_cycle: true,
+      current_phase: true,
     },
     extras: (campaign, { sql }) => ({
       created_at: sql<string>`to_json(${campaign.created_at})`.as('created_at'),
@@ -87,6 +88,7 @@ async function _getCampaignMembers(campaignId: string) {
             rating: true,
             wealth: true,
             credits: true,
+            trade_points: true,
           },
           with: { gang_types: { columns: { parent_gang_type_name: true } } },
         },
@@ -143,6 +145,7 @@ async function _getCampaignMembers(campaignId: string) {
         rating: cg.gang?.rating || 0,
         wealth: cg.gang?.wealth || 0,
         credits: cg.gang?.credits || 0,
+        trade_points: cg.gang?.trade_points || 0,
         reputation: cg.gang?.reputation || 0,
         territory_count: territoryCountByGang.get(cg.gang_id) || 0,
 
@@ -407,7 +410,7 @@ export const getCampaignBasic = async (campaignId: string) => {
     async () => {
       return _getCampaignBasic(campaignId);
     },
-    [`campaign-basic-v3-${campaignId}`],
+    [`campaign-basic-v4-${campaignId}`],
     {
       tags: [TAGS.campaignCore(campaignId)],
       revalidate: false
@@ -443,7 +446,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     async () => {
       return _getCampaignMembers(campaignId);
     },
-    [`campaign-members-v4-${campaignId}`],
+    [`campaign-members-v5-${campaignId}`],
     {
       tags: cacheTags,
       revalidate: false
