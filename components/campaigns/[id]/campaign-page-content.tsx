@@ -15,7 +15,7 @@ import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import { FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuTrophy, LuCodeXml, LuLogs, LuMail, LuCoins } from "react-icons/lu";
+import { LuSwords, LuTrophy, LuCodeXml, LuLogs, LuMail } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
@@ -26,7 +26,7 @@ import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
-import type { CampaignGangBalance } from '@/app/actions/campaigns/[id]/campaign-gangs';
+import type { CampaignGangBalance } from '@/app/actions/campaigns/[id]/campaign-settings';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
@@ -41,7 +41,6 @@ const CampaignMessageModal = dynamic(
 );
 const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
 const CampaignCycleModal = dynamic(() => import('@/components/campaigns/[id]/campaign-cycle-modal'), { ssr: false });
-const CampaignGrantCreditsModal = dynamic(() => import('@/components/campaigns/[id]/campaign-grant-credits-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
   { ssr: false }
@@ -78,7 +77,6 @@ interface Member {
     status: string | null;
     rating?: number;
     reputation?: number;
-    credits?: number;
     wealth?: number;
     trade_points?: number;
     allegiance?: {
@@ -235,7 +233,6 @@ export default function CampaignPageContent({
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showCycleModal, setShowCycleModal] = useState(false);
-  const [showGrantCreditsModal, setShowGrantCreditsModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -391,17 +388,16 @@ export default function CampaignPageContent({
     .flatMap((member: Member) => member.gangs)
     .filter((gang: Member['gangs'][0]) => gang.status === 'ACCEPTED');
 
-  // Folds the balances a bulk cycle or credits change returned into the members' gangs.
-  const applyGangBalances = (prev: typeof campaignData, balances: CampaignGangBalance[]) => {
-    const byGangId = new Map(balances.map((balance) => [balance.gangId, balance]));
-    return prev.members.map((member: Member) => ({
-      ...member,
-      gangs: member.gangs.map((gang) => {
-        const balance = byGangId.get(gang.id);
-        return balance
-          ? { ...gang, credits: balance.credits, wealth: balance.wealth, trade_points: balance.trade_points }
-          : gang;
-      }),
+  // Folds a cycle change, and the gang balances it changed, into the page.
+  const handleCycleSaved = (balances: CampaignGangBalance[], campaign: { current_cycle: number; current_phase: string | null; updated_at: string }) => {
+    const byGangId = new Map(balances.map(({ gangId, ...balance }) => [gangId, balance]));
+    setCampaignData(prev => ({
+      ...prev,
+      ...campaign,
+      members: prev.members.map((member: Member) => ({
+        ...member,
+        gangs: member.gangs.map((gang) => ({ ...gang, ...byGangId.get(gang.id) })),
+      })),
     }));
   };
 
@@ -809,24 +805,15 @@ export default function CampaignPageContent({
                   </InfoTooltip>
                 </div>
                 {safePermissions.canManageMembers && (
-                  <div className="flex print:hidden">
-                    <Button
-                      onClick={() => setShowGrantCreditsModal(true)}
-                      variant="ghost"
-                      size="icon"
-                      title="Grant credits"
-                    >
-                      <LuCoins className="w-5 h-5" />
-                    </Button>
-                    <Button
-                      onClick={() => setShowMessageModal(true)}
-                      variant="ghost"
-                      size="icon"
-                      title="Message players"
-                    >
-                      <LuMail className="w-5 h-5" />
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={() => setShowMessageModal(true)}
+                    variant="ghost"
+                    size="icon"
+                    className="print:hidden"
+                    title="Message players"
+                  >
+                    <LuMail className="w-5 h-5" />
+                  </Button>
                 )}
               </div>
               {safePermissions.canManageMembers && (
@@ -997,7 +984,7 @@ export default function CampaignPageContent({
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
-                    currentCycle={campaignData.current_cycle ?? null}
+                    currentCycle={currentCycle}
                     scenarioTables={scenarioTables}
                     battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
                       <CampaignBattleSessions
@@ -1190,6 +1177,7 @@ export default function CampaignPageContent({
       {showCycleModal && safePermissions.canEditCampaign && (
         <CampaignCycleModal
           campaignId={campaignData.id}
+          editionSlug={campaignData.edition_slug ?? null}
           title={cycleButtonLabel}
           currentCycle={currentCycle}
           currentPhase={campaignData.current_phase ?? null}
@@ -1197,20 +1185,7 @@ export default function CampaignPageContent({
           phases={campaignTypes.find((type) => type.id === campaignData.campaign_type_id)?.phases ?? []}
           gangs={acceptedGangs}
           onClose={() => setShowCycleModal(false)}
-          onSaved={({ balances, ...saved }) => {
-            setCampaignData(prev => ({ ...prev, ...saved, members: applyGangBalances(prev, balances) }));
-          }}
-        />
-      )}
-
-      {showGrantCreditsModal && safePermissions.canManageMembers && (
-        <CampaignGrantCreditsModal
-          campaignId={campaignData.id}
-          gangs={acceptedGangs}
-          onClose={() => setShowGrantCreditsModal(false)}
-          onGranted={(balances) => {
-            setCampaignData(prev => ({ ...prev, members: applyGangBalances(prev, balances) }));
-          }}
+          onSaved={handleCycleSaved}
         />
       )}
 

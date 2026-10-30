@@ -4,7 +4,11 @@ import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaignCor
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
+import { checkCampaignArbitrator } from '@/utils/user-permissions';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { isUuidArray } from '@/utils/uuid';
+import { createGangLog } from '../../logs/gang-logs';
+import { formatFinancialChanges } from '../../logs/log-helpers';
 
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
@@ -93,6 +97,115 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to update campaign settings' 
+    };
+  }
+}
+
+export interface UpdateCampaignCycleParams {
+  campaignId: string;
+  /** The cycle the modal opened with: the change applies only while it still holds. */
+  fromCycle: number | null;
+  cycle: number;
+  phase: string | null;
+  clearTradePoints: boolean;
+  /** Credits given to every accepted gang; 0 for none. */
+  credits: number;
+}
+
+/** A gang's balances after the cycle change, for the campaign page to patch in. */
+export interface CampaignGangBalance {
+  gangId: string;
+  wealth: number;
+  trade_points: number;
+}
+
+/**
+ * Set the campaign's cycle and phase and, in the same step, optionally clear
+ * every accepted gang's Trade Points and grant each of them credits.
+ */
+export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+    const { campaignId, fromCycle, cycle, clearTradePoints, credits } = params;
+    const phase = params.phase?.trim() || null;
+
+    if (!Number.isInteger(cycle) || cycle < 1) {
+      return { success: false as const, error: 'Cycle must be a whole number of 1 or more' };
+    }
+    if (phase && phase.length > 50) {
+      return { success: false as const, error: 'Phase must be 50 characters or less' };
+    }
+    if (!Number.isInteger(credits) || credits < 0) {
+      return { success: false as const, error: 'Credits must be a whole number of 0 or more' };
+    }
+    if (!(await checkCampaignArbitrator(user.id, campaignId))) {
+      return { success: false as const, error: 'Only the campaign arbitrators can change the cycle' };
+    }
+
+    // Matching the cycle the modal opened with makes a double submit match no
+    // row, so one change never clears Trade Points or grants credits twice.
+    const campaign = { current_cycle: cycle, current_phase: phase, updated_at: new Date().toISOString() };
+    const update = supabase.from('campaigns').update(campaign).eq('id', campaignId);
+    const { data: updated, error: updateError } = await (
+      fromCycle === null ? update.is('current_cycle', null) : update.eq('current_cycle', fromCycle)
+    ).select('id');
+
+    if (updateError) throw updateError;
+    if (!updated || updated.length === 0) {
+      return { success: false as const, error: 'The cycle has already been changed. Reload the page to see it.' };
+    }
+    invalidateCampaignCore(campaignId);
+
+    if (!clearTradePoints && credits === 0) {
+      return { success: true as const, campaign, balances: [] as CampaignGangBalance[], failed: 0 };
+    }
+
+    const { data: campaignGangs, error: gangsError } = await supabase
+      .from('campaign_gangs')
+      .select('gangs!inner(id, user_id, trade_points)')
+      .eq('campaign_id', campaignId)
+      .eq('status', 'ACCEPTED');
+    if (gangsError) throw gangsError;
+
+    const gangs = (campaignGangs ?? [])
+      .map((row) => row.gangs as unknown as { id: string; user_id: string; trade_points: number })
+      .filter((gang) => credits > 0 || gang.trade_points > 0);
+
+    // Gangs are independent, so one failing does not stop the rest.
+    const results = await Promise.all(gangs.map(async (gang): Promise<CampaignGangBalance | null> => {
+      const tradePointsDelta = clearTradePoints ? -gang.trade_points : 0;
+      const result = await updateGangFinancials(supabase, { gangId: gang.id, creditsDelta: credits, tradePointsDelta });
+      if (!result.success || !result.oldValues || !result.newValues) return null;
+      const { oldValues: from, newValues: to } = result;
+
+      // Logs go to the gang owner, as for other arbitrator edits.
+      if (tradePointsDelta !== 0) {
+        await createGangLog({
+          gang_id: gang.id,
+          user_id: gang.user_id,
+          action_type: 'campaign_trade_points_cleared',
+          description: `Trade Points cleared as the campaign moved to cycle ${cycle}. Trade Points: ${from.trade_points} → ${to.trade_points}`,
+        });
+      }
+      if (credits > 0) {
+        await createGangLog({
+          gang_id: gang.id,
+          user_id: gang.user_id,
+          action_type: 'campaign_credits_granted',
+          description: `Granted ${credits} credits as the campaign moved to cycle ${cycle}. ${formatFinancialChanges(from.credits, to.credits, from.rating, to.rating, from.wealth, to.wealth)}`,
+        });
+      }
+      return { gangId: gang.id, wealth: to.wealth, trade_points: to.trade_points };
+    }));
+
+    const balances = results.filter((balance) => balance !== null);
+    return { success: true as const, campaign, balances, failed: gangs.length - balances.length };
+  } catch (error) {
+    console.error('Error updating campaign cycle:', error);
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : 'Failed to update the campaign cycle'
     };
   }
 }
