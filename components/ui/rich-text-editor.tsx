@@ -10,8 +10,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import { UserMention } from '@/components/ui/rich-text-mention';
 
-// The fixed site header and breadcrumb bar are 90px tall; the toolbar sticks below them.
-const PAGE_TOOLBAR_TOP = 90;
+// The toolbar sticks below the fixed site header (57px) and breadcrumb bar (40px).
+const PAGE_TOOLBAR_TOP = 97;
 
 // Upper bound for a user-chosen display width, in CSS px.
 const MAX_IMAGE_WIDTH = 2000;
@@ -152,7 +152,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const [imageUrl, setImageUrl] = useState('');
   const [imageWidth, setImageWidth] = useState(''); // '' = original size
   const [isEditingImage, setIsEditingImage] = useState(false);
-  const [stickyTop, setStickyTop] = useState(PAGE_TOOLBAR_TOP);
   const [isToolbarFloating, setIsToolbarFloating] = useState(false);
   const [, forceUpdate] = useState({});
   const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -296,18 +295,22 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   }, []);
 
   // With the iPhone keyboard open, the visible area can scroll down past the fixed
-  // header, so keep the toolbar at the top of what is visible.
+  // header, so keep the toolbar at the top of what is visible. Written straight to a
+  // CSS variable so scrolling doesn't re-render the editor.
   useEffect(() => {
     const viewport = window.visualViewport;
-    if (!viewport || stickyWithinScrollContainer) return;
+    const toolbar = toolbarRef.current;
+    if (!viewport || !toolbar || stickyWithinScrollContainer) return;
 
-    const updateStickyTop = () => setStickyTop(Math.max(PAGE_TOOLBAR_TOP, viewport.offsetTop));
+    const updateViewportTop = () =>
+      toolbar.style.setProperty('--viewport-top', `${viewport.offsetTop}px`);
 
-    viewport.addEventListener('resize', updateStickyTop);
-    viewport.addEventListener('scroll', updateStickyTop);
+    updateViewportTop();
+    viewport.addEventListener('resize', updateViewportTop);
+    viewport.addEventListener('scroll', updateViewportTop);
     return () => {
-      viewport.removeEventListener('resize', updateStickyTop);
-      viewport.removeEventListener('scroll', updateStickyTop);
+      viewport.removeEventListener('resize', updateViewportTop);
+      viewport.removeEventListener('scroll', updateViewportTop);
     };
   }, [stickyWithinScrollContainer]);
 
@@ -538,10 +541,14 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       {/* Toolbar */}
       <div
         ref={toolbarRef}
-        className={`border-b rounded-t-md p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] ${
-        stickyWithinScrollContainer ? 'sticky top-[-20px]' : 'sticky'
-      } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}
-      style={stickyWithinScrollContainer ? undefined : { top: stickyTop }}>
+        className={`border-b rounded-t-md p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] sticky ${
+        isToolbarFloating ? 'shadow-md' : 'shadow-xs'
+      }`}
+      style={{
+        top: stickyWithinScrollContainer
+          ? -20
+          : `max(${PAGE_TOOLBAR_TOP}px, var(--viewport-top, 0px))`,
+      }}>
         {/* Text formatting */}
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
