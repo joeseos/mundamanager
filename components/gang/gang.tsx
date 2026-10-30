@@ -1020,6 +1020,7 @@ export default function Gang({
               alt={name}
               name={name}
               errorSrc={UNKNOWN_GANG_IMAGE_URL}
+              preload
               large
             />
           </div>
@@ -1035,6 +1036,7 @@ export default function Gang({
                   alt={name}
                   name={name}
                   errorSrc={UNKNOWN_GANG_IMAGE_URL}
+                  preload
                   className="size-[72px]"
                   imageClassName="size-[58px]"
                 />

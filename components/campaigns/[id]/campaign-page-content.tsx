@@ -507,6 +507,7 @@ export default function CampaignPageContent({
                 alt={campaignData.campaign_name}
                 fallback={<PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />}
                 errorSrc={UNKNOWN_GANG_IMAGE_URL}
+                preload
                 large
               />
             </div>

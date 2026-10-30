@@ -18,6 +18,8 @@ interface CogwheelPortraitProps {
   errorSrc?: string;
   /** The big portrait at the top of the gang and campaign pages and in the portrait pickers. */
   large?: boolean;
+  /** Loads the images up front, for a portrait at the top of the page. */
+  preload?: boolean;
   /** Sizes the cogwheel frame. */
   className?: string;
   /** Sizes the round image inside the frame. */
@@ -32,6 +34,7 @@ export function CogwheelPortrait({
   fallback = name?.charAt(0) || '?',
   errorSrc,
   large = false,
+  preload,
   className,
   imageClassName = large ? 'size-[145px] md:size-[180px] mt-1' : 'size-[76%]',
 }: CogwheelPortraitProps) {
@@ -60,6 +63,7 @@ export function CogwheelPortrait({
             alt={alt}
             fill
             sizes="250px"
+            preload={preload}
             onError={() => setFailed((urls) => [...urls, shown])}
             className="object-cover"
           />
@@ -67,7 +71,7 @@ export function CogwheelPortrait({
           fallback
         )}
       </span>
-      <Image src={COGWHEEL_URL} alt="" fill sizes="250px" className="pointer-events-none" />
+      <Image src={COGWHEEL_URL} alt="" fill sizes="250px" preload={preload} className="pointer-events-none" />
     </span>
   );
 }

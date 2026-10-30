@@ -80,6 +80,7 @@ export function CreateGangPortraitPicker({
             alt={gangTypeName || 'Gang portrait'}
             name={gangTypeName}
             errorSrc={UNKNOWN_GANG_IMAGE_URL}
+            preload
             large
             className="text-2xl"
           />
