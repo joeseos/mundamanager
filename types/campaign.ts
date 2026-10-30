@@ -447,7 +447,6 @@ export interface CampaignType {
   campaign_type_name: string | null;
   image_url?: string | null;
   trading_posts?: string[] | null;
-  /** Phase names suggested to arbitrators, in order. */
   phases?: string[] | null;
   /** edition_id is written by the admin editor; edition_slug is what app code
    *  reads, resolved server-side. */
