@@ -128,9 +128,6 @@ export function AdminFighterEquipmentSelection({
           <div key={`${type}-${category}-${index}`} className="border rounded-lg p-4 mb-6 bg-muted">
             <div className="flex justify-between items-center mb-4 pb-2 border-b">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-muted-foreground">
-                  {SELECTION_CATEGORIES.find(c => c.value === category)?.label}
-                </h3>
                 <select
                   value={category}
                   onChange={(e) => {
@@ -173,7 +170,8 @@ export function AdminFighterEquipmentSelection({
                 </div>
               </div>
 
-              {type === 'optional' && (
+              {/* Stored on the defaults, so it can be set once the group has one */}
+              {type === 'optional' && group.length > 0 && (
                 <div className="mt-2">
                   <label className="block text-sm font-medium text-muted-foreground mb-1">
                     Replacement Mode

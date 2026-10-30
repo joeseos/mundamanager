@@ -165,7 +165,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelectionDataModel>(EMPTY_EQUIPMENT_SELECTION);
-  const [, setIsEquipmentLoaded] = useState(false);
 
   // Add a new state variable to track the specialisation name
   const [variantName, setVariantName] = useState('');
@@ -306,7 +305,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         })) as EquipmentWithId[];
         setEquipment(equipmentWithIds);
         hasLoadedEquipmentCategoriesRef.current = true;
-        setIsEquipmentLoaded(true);
       } catch {
         // Will retry when needed via fetchEquipmentByCategory
       }
