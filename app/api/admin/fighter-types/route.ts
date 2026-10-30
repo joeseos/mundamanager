@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import { fetchAllRows } from "@/utils/supabase/fetch-all-rows";
-import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
+import { CountLimit, EquipmentSelectionDataModel, FighterTypeGrant } from "@/types/fighter-type";
 
 // Add type guard at the top of the file
 function isNonEmptyArray(value: unknown): boolean {
@@ -777,19 +777,21 @@ export async function PATCH(request: Request) {
 
     // Handle equipment selection
     if (data.equipment_selection) {
-
-      // Check if we have any content in the equipment selection
-      const hasSelection = data.equipment_selection &&
-        (Object.values(data.equipment_selection.optional).some(isNonEmptyArray) ||
-         Object.values(data.equipment_selection.single).some(isNonEmptyArray) ||
-         Object.values(data.equipment_selection.multiple).some(isNonEmptyArray));
+      // The admin form keeps empty groups while editing; only groups with items are stored
+      const equipmentSelection = Object.fromEntries(
+        Object.entries(data.equipment_selection as EquipmentSelectionDataModel).map(([type, groups]) => [
+          type,
+          { weapons: groups.weapons.filter(isNonEmptyArray), wargear: groups.wargear.filter(isNonEmptyArray) }
+        ])
+      );
+      const hasSelection = Object.values(equipmentSelection).some(groups => groups.weapons.length > 0 || groups.wargear.length > 0);
 
       if (hasSelection) {
         const { error: upsertError } = await supabase
           .from('fighter_equipment_selections')
           .upsert({
             fighter_type_id: id,
-            equipment_selection: data.equipment_selection
+            equipment_selection: equipmentSelection
           }, {
             onConflict: 'fighter_type_id',
             ignoreDuplicates: false

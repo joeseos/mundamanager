@@ -13,9 +13,9 @@ import { GangType } from "@/types/gang";
 import { Equipment } from '@/types/equipment';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { compareEquipmentCategories } from "@/utils/getEquipmentCategoryRank";
-import { AdminFighterEquipmentSelection, EquipmentSelection, guiToDataModel, dataModelToGui } from "@/components/admin/admin-fighter-equipment-selection";
+import { AdminFighterEquipmentSelection, EMPTY_EQUIPMENT_SELECTION } from "@/components/admin/admin-fighter-equipment-selection";
 import { CountLimitsEditor, GangScope, GangScopeSelects, formatGangScope, gangScopeKey } from "@/components/admin/gang-scope-options";
-import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
+import { CountLimit, EquipmentSelectionDataModel, FighterTypeGrant } from "@/types/fighter-type";
 import { EditionSelect, useEditions } from '@/components/edition-select';
 import { hasAlignment, hasSaveCharacteristic, allowsMultipleSubtypes, hasStartingXp, hasVehicles } from '@/types/edition';
 import { toggleFighterSubtype } from '@/utils/fighter-subtype-picker';
@@ -164,7 +164,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   const [selectedAdjustedCostEquipment, setSelectedAdjustedCostEquipment] = useState('');
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
+  const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelectionDataModel>(EMPTY_EQUIPMENT_SELECTION);
   const [, setIsEquipmentLoaded] = useState(false);
 
   // Add a new state variable to track the specialisation name
@@ -217,9 +217,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add a flag ref to prevent duplicate fetches
   const isFetchingFighterTypeDetailsRef = useRef(false);
 
-
-  // Add a ref to track if a category was manually removed
-  const userRemovedCategoryRef = useRef(false);
 
   // Track which skill IDs we've already fetched details for
   const fetchedSkillDetailsRef = useRef<Set<string>>(new Set());
@@ -755,12 +752,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       setSpecialisationCatalogId(data.fighter_specialisation_id || '');
 
       // Set equipment selection
-      if (data.equipment_selection) {
-        setEquipmentSelection(dataModelToGui(data.equipment_selection));
-      } else {
-        // Reset to empty object if no equipment selection
-        setEquipmentSelection({});
-      }
+      setEquipmentSelection(data.equipment_selection || EMPTY_EQUIPMENT_SELECTION);
 
       // Set skill access if present
       if (data.skill_access) {
@@ -900,33 +892,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
   };
 
-  // Validate equipment selection structure
-  useEffect(() => {
-    if (Object.keys(equipmentSelection).length > 0) {
-      Object.entries(equipmentSelection).forEach(([key, category]) => {
-        if (!category.select_type) {
-          setEquipmentSelection(prev => ({
-            ...prev,
-            [key]: {
-              ...prev[key],
-              select_type: 'optional'
-            }
-          }));
-        }
-
-        if (!category.options) {
-          setEquipmentSelection(prev => ({
-            ...prev,
-            [key]: {
-              ...prev[key],
-              options: []
-            }
-          }));
-        }
-      });
-    }
-  }, [equipmentSelection]);
-
   const handleAddSpecialRule = () => {
     if (!newSpecialRule.trim()) return;
 
@@ -988,60 +953,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       const finalVariantName = (variantNameInputRef.current?.value ?? variantName).trim() || null;
 
-      // Log equipment selection state before preparing update data
-      console.log('Equipment selection before update:', equipmentSelection);
-      console.log('Equipment selection keys:', Object.keys(equipmentSelection));
-      console.log('Equipment selection values sample:', 
-        Object.keys(equipmentSelection).length > 0 ? 
-          Object.entries(equipmentSelection)[0] : 
-          'No equipment selection data'
-      );
-
-      // Prepare the equipment selection data for the update
-      const formattedEquipmentSelection = Object.keys(equipmentSelection).length > 0 ? 
-        Object.entries(equipmentSelection).reduce<Record<string, any>>((acc, [key, category]) => {
-          console.log(`Processing category ${key} with type ${category.select_type}`);
-          return {
-            ...acc,
-            [key]: {
-              select_type: category.select_type,
-              name: category.name,
-              default: category.default,
-              options: category.options?.map(option => ({
-                id: option.id,
-                cost: option.cost,
-                max_quantity: option.max_quantity,
-                replaces: option.replaces,
-                max_replace: option.max_replace
-              }))
-            }
-          };
-        }, {}) : 
-        null;
-
-      console.log('Formatted equipment selection:', formattedEquipmentSelection);
-      
-      // Ensure equipment selection format is compatible with the server's expectations
-      // by adding a weapons key if it doesn't exist
-      let finalEquipmentSelection = formattedEquipmentSelection;
-      if (finalEquipmentSelection && Object.keys(finalEquipmentSelection).length > 0) {
-        if (!('weapons' in finalEquipmentSelection)) {
-          console.log('Adding weapons key to ensure compatibility with server');
-          // Use the first category as the "weapons" category
-          const firstKey = Object.keys(finalEquipmentSelection)[0];
-          const firstCategory = finalEquipmentSelection[firstKey];
-          finalEquipmentSelection = {
-            ...finalEquipmentSelection,
-            weapons: {
-              select_type: firstCategory?.select_type || 'optional',
-              name: 'Weapons',
-              default: firstCategory?.default || [],
-              options: []
-            }
-          };
-        }
-      }
-
       const updateData = {
         id: fighterIdToUpdate,
         fighter_type: fighterType,
@@ -1080,7 +991,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         default_skills: selectedSkills,
         equipment_list: equipmentListSelections,
         equipment_discounts: equipmentDiscounts,
-        equipment_selection: guiToDataModel(equipmentSelection),
+        equipment_selection: equipmentSelection,
         gang_type_costs: gangTypeCosts, // Add gang-specific costs
         ...(availability ? { availability: availabilityRules } : {}),
         ...(countLimits ? { count_limits: countLimits } : {}),
@@ -2525,14 +2436,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   key={`equipment-selection-${selectedFighterTypeId}`}
                   equipment={filteredEquipment}
                   equipmentSelection={equipmentSelection}
-                  setEquipmentSelection={(newSelection) => {
-                    // Check if this is a removal operation (fewer categories than before)
-                    if (Object.keys(newSelection).length < Object.keys(equipmentSelection).length) {
-                      console.log('Category removal detected, setting flag to prevent API refetch');
-                      userRemovedCategoryRef.current = true;
-                    }
-                    setEquipmentSelection(newSelection);
-                  }}
+                  setEquipmentSelection={setEquipmentSelection}
                       disabled={!selectedFighterTypeId}
                 />
               </div>
