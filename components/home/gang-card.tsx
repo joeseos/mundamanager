@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait'
 import Link from 'next/link'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
@@ -31,35 +31,14 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
   const innerContent = (
     <>
-      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={gang.name ?? ''}
-            width={60}
-            height={60}
-            className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
-            priority={false}
-            onError={(e) => {
-              console.error('Failed to load image:', e.currentTarget.src);
-              e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
-            }}
-          />
-        ) : (
-          <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
-            {gang.name?.charAt(0)}
-          </div>
-        )}
-        <Image
-          src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-          alt=""
-          width={80}
-          height={80}
-          className="absolute z-20 scale-110"
-          priority
-          sizes="80px, 80px"
-        />
-      </div>
+      <CogwheelPortrait
+        src={imageUrl}
+        alt={gang.name ?? ''}
+        name={gang.name}
+        errorSrc={UNKNOWN_GANG_IMAGE_URL}
+        className="size-20 mr-3 md:mr-4 scale-110"
+        imageClassName="size-[82%]"
+      />
       <div className="grow min-w-0">
         <h3 className="text-lg md:text-xl font-medium text-foreground truncate">{gang.name}</h3>
         <div className="text-sm md:text-base text-muted-foreground">
