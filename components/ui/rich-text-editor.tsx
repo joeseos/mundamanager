@@ -10,9 +10,6 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import { UserMention } from '@/components/ui/rich-text-mention';
 
-// The toolbar sticks below the fixed site header (57px) and breadcrumb bar (40px).
-const PAGE_TOOLBAR_TOP = 97;
-
 // Upper bound for a user-chosen display width, in CSS px.
 const MAX_IMAGE_WIDTH = 2000;
 const IMAGE_WIDTH_PRESETS = [
@@ -294,26 +291,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     };
   }, []);
 
-  // With the iPhone keyboard open, the visible area can scroll down past the fixed
-  // header, so keep the toolbar at the top of what is visible. Written straight to a
-  // CSS variable so scrolling doesn't re-render the editor.
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    const toolbar = toolbarRef.current;
-    if (!viewport || !toolbar || stickyWithinScrollContainer) return;
-
-    const updateViewportTop = () =>
-      toolbar.style.setProperty('--viewport-top', `${viewport.offsetTop}px`);
-
-    updateViewportTop();
-    viewport.addEventListener('resize', updateViewportTop);
-    viewport.addEventListener('scroll', updateViewportTop);
-    return () => {
-      viewport.removeEventListener('resize', updateViewportTop);
-      viewport.removeEventListener('scroll', updateViewportTop);
-    };
-  }, [stickyWithinScrollContainer]);
-
   // Calculate character count from HTML content
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
@@ -542,13 +519,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       <div
         ref={toolbarRef}
         className={`border-b rounded-t-md p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] sticky ${
-        isToolbarFloating ? 'shadow-md' : 'shadow-xs'
-      }`}
-      style={{
-        top: stickyWithinScrollContainer
-          ? -20
-          : `max(${PAGE_TOOLBAR_TOP}px, var(--viewport-top, 0px))`,
-      }}>
+        // Below the fixed site header (57px) and breadcrumb bar (40px)
+        stickyWithinScrollContainer ? 'top-[-20px]' : 'top-[97px]'
+      } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}>
         {/* Text formatting */}
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
