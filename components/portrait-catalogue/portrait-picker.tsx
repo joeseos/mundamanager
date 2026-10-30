@@ -1,103 +1,124 @@
 'use client';
 
-import { useEffect, useState, type SyntheticEvent } from 'react';
+import { useEffect, useState, type ReactNode, type SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
-import { PiFlagBannerFoldBold } from 'react-icons/pi';
 import Modal from '@/components/ui/modal';
 import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
-import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import type { DefaultImageCredit } from '@/types/gang';
 import {
   alternativePortraits,
   gallerySections,
   portraitCaption,
-  type CampaignPortrait,
+  PORTRAIT_COGWHEEL_URL,
   type CatalogueSlot,
-} from '@/utils/campaign-portraits';
+  type Portrait,
+} from '@/utils/portrait-catalogue';
 
-const COGWHEEL_URL =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp';
+export interface PortraitAlternateOption {
+  heading: string;
+  label: string;
+  imageUrl?: string | null;
+  selected: boolean;
+  onSelect: () => void;
+}
 
-interface CreateCampaignPortraitPickerProps {
-  portraits: CampaignPortrait[];
+interface PortraitPickerProps {
+  portraits: Portrait[];
   catalogueSlot: CatalogueSlot | null;
   selectedPortraitId: string | null;
-  campaignTypeName: string;
+  subjectName: string;
   onSelect: (portraitId: string) => void;
-  /** Shown when no catalogue portrait is selected, such as the campaign type image. */
+  imageUrl: (storagePath: string) => string | undefined;
   fallbackImageUrl?: string | null;
   fallbackCredit?: DefaultImageCredit | null;
-  /** Edit flow: clear the catalogue portrait and show the campaign type image. */
-  typeImageUrl?: string | null;
-  onUseTypeImage?: () => void;
-  typeImageSelected?: boolean;
+  /** Shown when a portrait has no image, or when an image fails and imageErrorUrl is unset. */
+  emptyFallback: ReactNode;
+  /** Replaces a broken image. Gangs use the silhouette. */
+  imageErrorUrl?: string;
+  galleryTitle: string;
+  galleryHelper: string;
+  alternateOption?: PortraitAlternateOption;
   catalogueLoadFailed?: boolean;
   onRetryCatalogue?: () => void;
 }
 
-function PortraitFallback() {
-  return (
-    <span className="flex size-full items-center justify-center bg-secondary text-muted-foreground">
-      <PiFlagBannerFoldBold className="size-1/2" />
-    </span>
-  );
-}
-
-function PortraitImage({
+function CatalogueImage({
   src,
   alt,
-  sizes,
   className,
-  priority,
+  sizes,
   quality,
+  priority,
+  fill,
+  width,
+  height,
+  imageErrorUrl,
+  emptyFallback,
 }: {
   src: string;
   alt: string;
-  sizes?: string;
   className?: string;
-  priority?: boolean;
+  sizes?: string;
   quality?: number;
+  priority?: boolean;
+  fill?: boolean;
+  width?: number;
+  height?: number;
+  imageErrorUrl?: string;
+  emptyFallback: ReactNode;
 }) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  if (failedSrc === src) return <PortraitFallback />;
+  const [failed, setFailed] = useState(false);
+
+  if (failed && !imageErrorUrl) {
+    return (
+      <span className={`flex items-center justify-center bg-secondary text-muted-foreground ${fill ? 'absolute inset-0' : className ?? ''}`}>
+        {emptyFallback}
+      </span>
+    );
+  }
 
   return (
     <Image
-      src={src}
+      src={failed && imageErrorUrl ? imageErrorUrl : src}
       alt={alt}
-      fill
+      fill={fill}
+      width={fill ? undefined : width}
+      height={fill ? undefined : height}
       sizes={sizes}
       className={className}
       priority={priority}
       quality={quality}
       onError={(event: SyntheticEvent<HTMLImageElement, Event>) => {
         console.error('Failed to load image:', event.currentTarget.src);
-        setFailedSrc(src);
+        setFailed(true);
       }}
     />
   );
 }
 
-export function CreateCampaignPortraitPicker({
+export function PortraitPicker({
   portraits,
   catalogueSlot,
   selectedPortraitId,
-  campaignTypeName,
+  subjectName,
   onSelect,
+  imageUrl,
   fallbackImageUrl,
   fallbackCredit,
-  typeImageUrl,
-  onUseTypeImage,
-  typeImageSelected = false,
+  emptyFallback,
+  imageErrorUrl,
+  galleryTitle,
+  galleryHelper,
+  alternateOption,
   catalogueLoadFailed,
   onRetryCatalogue,
-}: CreateCampaignPortraitPickerProps) {
+}: PortraitPickerProps) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const selected = portraits.find((portrait) => portrait.id === selectedPortraitId) ?? null;
   const alternatives = alternativePortraits(portraits, selected, catalogueSlot);
   const selectedUrl = selected
-    ? campaignPortraitPublicUrl(selected.storage_path)
+    ? imageUrl(selected.storage_path)
     : fallbackImageUrl || undefined;
   const displayCredit = selected?.credit ?? (selected ? null : fallbackCredit);
   const currentGroupLabel = selected?.group_label ?? catalogueSlot?.groupLabel ?? null;
@@ -119,23 +140,26 @@ export function CreateCampaignPortraitPicker({
       <div className="flex items-start justify-center gap-6 md:gap-10">
         <div className="flex flex-col items-center shrink-0">
           <div className="relative flex size-[200px] md:size-[250px] items-center justify-center">
-            <div className="absolute z-10 mt-1 size-[145px] overflow-hidden rounded-full md:size-[180px]">
-              {selectedUrl ? (
-                <PortraitImage
-                  src={selectedUrl}
-                  alt={campaignTypeName || 'Campaign portrait'}
-                  sizes="180px"
-                  className="object-cover"
-                  priority={false}
-                  quality={100}
-                />
-              ) : (
-                <PortraitFallback />
-              )}
-            </div>
+            {selectedUrl ? (
+              <CatalogueImage
+                src={selectedUrl}
+                alt={subjectName || 'Portrait'}
+                width={180}
+                height={180}
+                className="absolute z-10 mt-1 size-[145px] rounded-full object-cover md:size-[180px]"
+                priority={false}
+                quality={100}
+                imageErrorUrl={imageErrorUrl}
+                emptyFallback={emptyFallback}
+              />
+            ) : (
+              <div className="absolute z-10 flex size-[180px] items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                {emptyFallback}
+              </div>
+            )}
             <div className="pointer-events-none absolute z-20 size-[200px] md:size-[250px]">
               <Image
-                src={COGWHEEL_URL}
+                src={PORTRAIT_COGWHEEL_URL}
                 alt=""
                 width={250}
                 height={250}
@@ -150,7 +174,7 @@ export function CreateCampaignPortraitPicker({
 
         <div className="flex h-[200px] md:h-[250px] shrink-0 flex-col justify-center gap-1">
           {alternatives.map((portrait) => {
-            const url = campaignPortraitPublicUrl(portrait.storage_path);
+            const url = imageUrl(portrait.storage_path);
             const caption = portraitCaption(portrait);
             return (
               <button
@@ -161,12 +185,15 @@ export function CreateCampaignPortraitPicker({
                 aria-label={caption}
               >
                 {url && (
-                  <PortraitImage
+                  <CatalogueImage
                     src={url}
                     alt=""
+                    fill
                     sizes="72px"
                     className="object-cover"
                     quality={75}
+                    imageErrorUrl={imageErrorUrl}
+                    emptyFallback={emptyFallback}
                   />
                 )}
               </button>
@@ -199,17 +226,23 @@ export function CreateCampaignPortraitPicker({
               if (event.key === 'Enter') event.stopPropagation();
             }}
           >
-          <CampaignPortraitGallery
+          <PortraitGallery
             portraits={portraits}
             currentGroupLabel={currentGroupLabel}
             selectedPortraitId={selectedPortraitId}
-            typeImageUrl={onUseTypeImage ? typeImageUrl : undefined}
-            typeImageSelected={typeImageSelected}
-            onUseTypeImage={
-              onUseTypeImage
-                ? () => {
-                    onUseTypeImage();
-                    setGalleryOpen(false);
+            imageUrl={imageUrl}
+            emptyFallback={emptyFallback}
+            imageErrorUrl={imageErrorUrl}
+            galleryTitle={galleryTitle}
+            galleryHelper={galleryHelper}
+            alternateOption={
+              alternateOption
+                ? {
+                    ...alternateOption,
+                    onSelect: () => {
+                      alternateOption.onSelect();
+                      setGalleryOpen(false);
+                    },
                   }
                 : undefined
             }
@@ -226,22 +259,28 @@ export function CreateCampaignPortraitPicker({
   );
 }
 
-function CampaignPortraitGallery({
+function PortraitGallery({
   portraits,
   currentGroupLabel,
   selectedPortraitId,
-  typeImageUrl,
-  typeImageSelected = false,
-  onUseTypeImage,
+  imageUrl,
+  emptyFallback,
+  imageErrorUrl,
+  galleryTitle,
+  galleryHelper,
+  alternateOption,
   onSelect,
   onClose,
 }: {
-  portraits: CampaignPortrait[];
+  portraits: Portrait[];
   currentGroupLabel: string | null;
   selectedPortraitId: string | null;
-  typeImageUrl?: string | null;
-  typeImageSelected?: boolean;
-  onUseTypeImage?: () => void;
+  imageUrl: (storagePath: string) => string | undefined;
+  emptyFallback: ReactNode;
+  imageErrorUrl?: string;
+  galleryTitle: string;
+  galleryHelper: string;
+  alternateOption?: PortraitAlternateOption;
   onSelect: (portraitId: string) => void;
   onClose: () => void;
 }) {
@@ -249,12 +288,12 @@ function CampaignPortraitGallery({
 
   return (
     <Modal
-      title="Campaign Portraits"
-      helper="Choose a portrait for this campaign."
+      title={galleryTitle}
+      helper={galleryHelper}
       onClose={onClose}
       width="4xl"
     >
-      {sections.length === 0 && !onUseTypeImage ? (
+      {sections.length === 0 && !alternateOption ? (
         <p className="text-sm text-muted-foreground">No portraits are available yet.</p>
       ) : (
         <div className="space-y-6">
@@ -266,7 +305,7 @@ function CampaignPortraitGallery({
               <h4 className="text-xl font-semibold mb-3">{section.groupLabel}</h4>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5">
                 {section.portraits.map((portrait) => {
-                  const url = campaignPortraitPublicUrl(portrait.storage_path);
+                  const url = imageUrl(portrait.storage_path);
                   const authorName = portrait.credit?.name?.trim();
                   const isSelected = portrait.id === selectedPortraitId;
                   return (
@@ -282,15 +321,20 @@ function CampaignPortraitGallery({
                     >
                       <span className="relative size-24 sm:size-32 rounded-full overflow-hidden bg-secondary">
                         {url ? (
-                          <PortraitImage
+                          <CatalogueImage
                             src={url}
                             alt=""
+                            fill
                             sizes="128px"
                             className="object-cover"
                             quality={75}
+                            imageErrorUrl={imageErrorUrl}
+                            emptyFallback={emptyFallback}
                           />
                         ) : (
-                          <PortraitFallback />
+                          <span className="flex size-full items-center justify-center text-muted-foreground">
+                            {emptyFallback}
+                          </span>
                         )}
                       </span>
                       <span className="text-xs text-center leading-tight">
@@ -305,32 +349,35 @@ function CampaignPortraitGallery({
               </div>
             </section>
           ))}
-          {onUseTypeImage && (
+          {alternateOption && (
             <section className={sections.length > 0 ? 'border-t border-border pt-6' : undefined}>
-              <h4 className="text-xl font-semibold mb-3">Campaign type image</h4>
+              <h4 className="text-xl font-semibold mb-3">{alternateOption.heading}</h4>
               <button
                 type="button"
-                onClick={onUseTypeImage}
+                onClick={alternateOption.onSelect}
                 className={`flex flex-col items-center gap-1 rounded-md p-1 hover:bg-muted ${
-                  typeImageSelected ? 'ring-2 ring-foreground' : ''
+                  alternateOption.selected ? 'ring-2 ring-foreground' : ''
                 }`}
-                aria-label="Use campaign type image"
-                aria-pressed={typeImageSelected}
+                aria-label={alternateOption.label}
+                aria-pressed={alternateOption.selected}
               >
-                <span className="relative flex size-24 sm:size-32 items-center justify-center overflow-hidden rounded-full bg-secondary">
-                  {typeImageUrl ? (
-                    <PortraitImage
-                      src={typeImageUrl}
+                <span className="relative flex size-24 sm:size-32 items-center justify-center overflow-hidden rounded-full bg-secondary text-muted-foreground">
+                  {alternateOption.imageUrl ? (
+                    <CatalogueImage
+                      src={alternateOption.imageUrl}
                       alt=""
+                      fill
                       sizes="128px"
                       className="object-cover"
                       quality={75}
+                      imageErrorUrl={imageErrorUrl}
+                      emptyFallback={emptyFallback}
                     />
                   ) : (
-                    <PortraitFallback />
+                    emptyFallback
                   )}
                 </span>
-                <span className="text-xs text-center leading-tight">Campaign type</span>
+                <span className="text-xs text-center leading-tight">{alternateOption.label}</span>
               </button>
             </section>
           )}

@@ -648,6 +648,7 @@ export const campaignPortraits = pgTable('campaign_portraits', {
   group_label: text('group_label').notNull(),
   style: text('style').notNull(),
   label: text('label'),
+  campaign_type_id: uuid('campaign_type_id').notNull(),
 });
 
 export const gangSkillSetRanks = pgTable('gang_skill_set_ranks', {
@@ -1192,6 +1193,13 @@ export const campaignGangsRelations = relations(campaignGangs, ({ one, many }) =
   gang: one(gangs, {
     fields: [campaignGangs.gang_id],
     references: [gangs.id],
+  }),
+}));
+
+export const campaignPortraitsRelations = relations(campaignPortraits, ({ one }) => ({
+  campaign_type: one(campaignTypes, {
+    fields: [campaignPortraits.campaign_type_id],
+    references: [campaignTypes.id],
   }),
 }));
 

@@ -1,10 +1,7 @@
-export const CAMPAIGN_TYPE_IMAGES_PUBLIC_BASE =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/campaign-type-images/';
+import { portraitPublicUrl, PORTRAIT_CATALOGUES } from '@/utils/portrait-catalogue';
 
 export function campaignPortraitPublicUrl(storagePath: string | null | undefined): string | undefined {
-  const path = storagePath?.replace(/^\/+/, '');
-  if (!path) return undefined;
-  return `${CAMPAIGN_TYPE_IMAGES_PUBLIC_BASE}${path}`;
+  return portraitPublicUrl(PORTRAIT_CATALOGUES.campaign.publicBase, storagePath);
 }
 
 function presentUrl(value?: string | null): string | undefined {

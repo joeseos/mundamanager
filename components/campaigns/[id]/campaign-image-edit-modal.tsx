@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { updateCampaignImage } from '@/app/actions/campaigns/[id]/update-campaign-image';
-import { CreateCampaignPortraitPicker } from '@/components/campaigns/create-campaign-portrait-picker';
+import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker';
 import { ImageEditModal } from '@/components/ui/image-edit-modal';
-import { useCampaignPortraits } from '@/hooks/use-campaign-portraits';
+import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue';
 import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import { catalogueSlotForCampaignType } from '@/utils/campaign-portraits';
+import { PiFlagBannerFoldBold } from 'react-icons/pi';
 
 interface CampaignImageEditModalProps {
   onClose: () => void;
@@ -31,7 +32,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
   onImageUpdate,
   onPortraitUpdate,
 }) => {
-  const { portraits, status: portraitsStatus } = useCampaignPortraits();
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('campaign');
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(campaignPortraitId ?? null);
   const [clearedPortrait, setClearedPortrait] = useState(false);
 
@@ -77,22 +78,32 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
       title="Edit Campaign Image"
       onImageUpdate={onImageUpdate}
       portraitPicker={
-        <CreateCampaignPortraitPicker
+        <PortraitPicker
           portraits={portraits}
           catalogueSlot={catalogueSlot}
           selectedPortraitId={selectedPortraitId}
-          campaignTypeName={campaignTypeName}
+          subjectName={campaignTypeName}
           onSelect={(portraitId) => {
             setClearedPortrait(false);
             setSelectedPortraitId(portraitId);
           }}
+          imageUrl={campaignPortraitPublicUrl}
           fallbackImageUrl={fallbackImageUrl}
-          typeImageUrl={typeImageUrl}
-          typeImageSelected={selectedPortraitId === null && (clearedPortrait || alreadyOnTypeImage)}
-          onUseTypeImage={() => {
-            setClearedPortrait(true);
-            setSelectedPortraitId(null);
+          emptyFallback={<PiFlagBannerFoldBold className="size-1/2" />}
+          galleryTitle="Campaign Portraits"
+          galleryHelper="Choose a portrait for this campaign."
+          alternateOption={{
+            heading: 'Campaign type image',
+            label: 'Campaign type',
+            imageUrl: typeImageUrl,
+            selected: selectedPortraitId === null && (clearedPortrait || alreadyOnTypeImage),
+            onSelect: () => {
+              setClearedPortrait(true);
+              setSelectedPortraitId(null);
+            },
           }}
+          catalogueLoadFailed={Boolean(catalogueSlot) && portraitsStatus === 'error'}
+          onRetryCatalogue={retryPortraits}
         />
       }
       portraitChanged={portraitChanged}

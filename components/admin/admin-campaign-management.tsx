@@ -12,10 +12,10 @@ import Modal from '@/components/ui/modal';
 import type { CampaignType, CampaignTypeResource } from '@/types/campaign';
 import { EditionSelect } from '@/components/edition-select';
 import {
-  AdminCampaignPortraitForm,
+  AdminPortraitForm,
   type PortraitFormHandle,
   type PortraitFormState,
-} from '@/components/admin/admin-campaign-portrait-form';
+} from '@/components/admin/admin-portrait-form';
 
 enum OperationType {
   POST = 'POST',
@@ -782,7 +782,14 @@ export function AdminCampaignManagementModal({
             </div>
 
             {selectedCategory === 'portraits' && (
-              <AdminCampaignPortraitForm ref={portraitFormRef} onStateChange={handlePortraitState} />
+              <AdminPortraitForm
+                ref={portraitFormRef}
+                catalogue="campaign"
+                campaignTypes={campaignTypes}
+                onStateChange={handlePortraitState}
+                groupLabelPlaceholder="E.g. Law and Misrule"
+                deleteWarning="Delete this portrait? Campaigns using it will fall back to their campaign type image."
+              />
             )}
 
             {/* Campaign Types Section */}

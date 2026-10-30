@@ -16,9 +16,11 @@ import type { CampaignType } from '@/types/campaign'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
-import { CreateCampaignPortraitPicker } from '@/components/campaigns/create-campaign-portrait-picker'
-import { useCampaignPortraits } from '@/hooks/use-campaign-portraits'
-import { catalogueSlotForCampaignType, defaultPortraitForSlot } from '@/utils/campaign-portraits'
+import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker'
+import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue'
+import { catalogueSlotForCampaignType, portraitsForCampaignType } from '@/utils/campaign-portraits'
+import { defaultPortraitForSlot, portraitPublicUrl, PORTRAIT_CATALOGUES } from '@/utils/portrait-catalogue'
+import { PiFlagBannerFoldBold } from 'react-icons/pi'
 
 interface TradingPostType {
   id: string;
@@ -75,7 +77,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
   const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
-  const { portraits, status: portraitsStatus, retry: retryPortraits } = useCampaignPortraits();
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('campaign');
 
   const editionCampaignTypes = useMemo(
     () => campaignTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
@@ -100,8 +102,11 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
     [selectedCampaignType]
   );
   const defaultPortraitId = useMemo(
-    () => defaultPortraitForSlot(portraits, catalogueSlot)?.id ?? null,
-    [portraits, catalogueSlot]
+    () => defaultPortraitForSlot(
+      selectedCampaignType ? portraitsForCampaignType(portraits, selectedCampaignType.id) : [],
+      catalogueSlot
+    )?.id ?? null,
+    [portraits, catalogueSlot, selectedCampaignType]
   );
 
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(null);
@@ -216,6 +221,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       const activeElement = document.activeElement;
+
+      const target = event.target as HTMLElement | null;
+      // Gallery buttons are portaled outside this modal. Enter must activate them, not create the campaign.
+      if (target?.closest('button, [data-portrait-picker]')) {
+        return;
+      }
 
       if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA')
           && (!campaignName.trim() || !campaignType || isLoading)) {
@@ -351,13 +362,17 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
 
           {campaignType && (
             <>
-              <CreateCampaignPortraitPicker
+              <PortraitPicker
                 portraits={portraits}
                 catalogueSlot={catalogueSlot}
                 selectedPortraitId={selectedPortraitId}
-                campaignTypeName={selectedCampaignType?.campaign_type_name ?? ''}
+                subjectName={selectedCampaignType?.campaign_type_name ?? ''}
                 onSelect={setSelectedPortraitId}
+                imageUrl={(storagePath) => portraitPublicUrl(PORTRAIT_CATALOGUES.campaign.publicBase, storagePath)}
                 fallbackImageUrl={selectedPortraitId ? null : selectedCampaignType?.image_url}
+                emptyFallback={<PiFlagBannerFoldBold className="size-1/2" />}
+                galleryTitle="Campaign Portraits"
+                galleryHelper="Choose a portrait for this campaign."
                 catalogueLoadFailed={Boolean(catalogueSlot) && portraitsStatus === 'error'}
                 onRetryCatalogue={retryPortraits}
               />
