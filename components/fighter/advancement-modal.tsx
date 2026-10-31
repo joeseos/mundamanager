@@ -35,6 +35,7 @@ import {
 } from '@/utils/dice';
 import {
   hasCumulativeXp,
+  hasN26LegendaryNames,
   hasSharedAdvancementTable,
   initiativeAndMentalCharacteristicSuffix
 } from '@/types/edition';
@@ -496,7 +497,7 @@ export function AdvancementModal({
   const [skillAccessLoading, setSkillAccessLoading] = useState(false);
   /** N26: a fighter with access to a Legendary Name set (Orlock gangs) may take one on a 6+. */
   const canTakeLegendaryName =
-    isCumulativeXp && skillAccess.some((a) => a.legendary_name && effectiveSkillAccess(a) !== null);
+    hasN26LegendaryNames(editionSlug) && skillAccess.some((a) => a.legendary_name && effectiveSkillAccess(a) !== null);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -1754,7 +1755,8 @@ export function AdvancementModal({
     const n26LegendaryName = skillAcquisitionType === N26_LEGENDARY_NAME_TYPE_ID;
     const skillCategories = categories.filter(
       (cat): cat is SkillType =>
-        cat.type === 'skill' && (!isCumulativeXp || !!cat.legendary_name === n26LegendaryName)
+        cat.type === 'skill' &&
+        (!hasN26LegendaryNames(editionSlug) || !!cat.legendary_name === n26LegendaryName)
     );
     const accessSource =
       advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
@@ -2046,7 +2048,7 @@ export function AdvancementModal({
 
   // Fetch skill access for the standard skill advancement flow. N26 needs it on
   // open to know whether its results offer a Legendary Name.
-  const needsSkillAccess = advancementType === 'skill' || isCumulativeXp;
+  const needsSkillAccess = advancementType === 'skill' || hasN26LegendaryNames(editionSlug);
   useEffect(() => {
     if (!needsSkillAccess) return;
     let cancelled = false;

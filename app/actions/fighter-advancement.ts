@@ -440,7 +440,7 @@ async function addSkillAdvancementInternal(
     // XP total only ever grows and there is nothing to afford.
     const spendsXp = !hasCumulativeXp(editionSlug);
 
-    const isLegendaryName = await isLegendaryNameSkill(supabase, params.skill_id);
+    const isLegendaryName = await isLegendaryNameSkill(supabase, params);
     if (
       isLegendaryName &&
       hasN26LegendaryNames(editionSlug) &&
@@ -897,17 +897,20 @@ async function resolveCatalogSkillId(
  */
 async function isLegendaryNameSkill(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  skillId: string | null | undefined
+  skill: { skill_id?: string | null; custom_skill_id?: string | null }
 ): Promise<boolean> {
-  if (!skillId) return false;
+  const table = skill.skill_id ? 'skills' : 'custom_skills';
+  const id = skill.skill_id ?? skill.custom_skill_id;
+  if (!id) return false;
   const { data } = await supabase
-    .from('skills')
-    .select('skill_types!inner(legendary_name)')
-    .eq('id', skillId)
+    .from(table)
+    .select('skill_types(legendary_name)')
+    .eq('id', id)
     .maybeSingle();
   return Boolean((data?.skill_types as { legendary_name?: boolean } | null)?.legendary_name);
 }
 
+/** Standard and custom skills both count: a custom skill can sit in a Legendary Name set. */
 async function legendaryNameCapReached(
   supabase: Awaited<ReturnType<typeof createClient>>,
   fighterId: string,
@@ -915,12 +918,17 @@ async function legendaryNameCapReached(
 ): Promise<boolean> {
   const subtypes = Array.isArray(fighterSubtypes) ? fighterSubtypes : [];
   const cap = subtypes.includes('Leader') || subtypes.includes('Champion') ? 2 : 1;
-  const { count } = await supabase
+  const { data } = await supabase
     .from('fighter_skills')
-    .select('id, skills!inner(skill_types!inner(legendary_name))', { count: 'exact', head: true })
-    .eq('fighter_id', fighterId)
-    .eq('skills.skill_types.legendary_name', true);
-  return (count ?? 0) >= cap;
+    .select('skills(skill_types(legendary_name)), custom_skills(skill_types(legendary_name))')
+    .eq('fighter_id', fighterId);
+  type Row = { skill_types?: { legendary_name?: boolean } | null } | null;
+  const held = (data ?? []).filter(
+    (row) =>
+      (row.skills as Row)?.skill_types?.legendary_name ||
+      (row.custom_skills as Row)?.skill_types?.legendary_name
+  ).length;
+  return held >= cap;
 }
 
 async function fighterAlreadyHasSkill(
@@ -1513,7 +1521,7 @@ export async function deleteAdvancement(
       ratingDelta -= (skillData.credits_increase || 0);
       // Non-advancement skills paid from stash, so refund on delete. Legendary Names never were.
       refundStash =
-        !skillData.is_advance && !(await isLegendaryNameSkill(supabase, skillData.skill_id));
+        !skillData.is_advance && !(await isLegendaryNameSkill(supabase, skillData));
 
       // Get skill name for logging
       if (skillData.custom_skill_id) {
