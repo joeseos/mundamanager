@@ -27,13 +27,14 @@ import {
   removeFighterFromSession,
   updateFighterLoadout,
   updateSessionXp,
+  updateSessionParticipationXp,
+  addParticipationXpFighters,
   updateSessionConditions,
   updateActivations,
   updateSessionNote,
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
-import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterRow from '@/components/battle-session/fighter-row';
 import BattleParticipationModal from '@/components/battle-session/battle-participation-modal';
 import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition } from '@/types/battle-session';
@@ -341,7 +342,14 @@ export default function ParticipantCard({
       participant_id: participant.id,
       fighter_id: fighterId,
       loadout_id: loadoutId,
-      session_record: { xp_earned: 0, injuries: [], conditions: [], activations: isDual ? 2 : 1 },
+      session_record: {
+        xp_earned: 0,
+        // As bulkAddFightersToSession: a type that can't gain XP starts at 0.
+        participation_xp: fullGf?.starting_xp === null ? 0 : 1,
+        injuries: [],
+        conditions: [],
+        activations: isDual ? 2 : 1,
+      },
       created_at: new Date().toISOString(),
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, special_rules: fullGf?.special_rules } : undefined,
     };
@@ -721,33 +729,42 @@ export default function ParticipantCard({
             gangFightersList={gangFightersList}
             editionSlug={session.edition_slug}
             onClose={() => setShowParticipationModal(false)}
-            onConfirm={(xpByFighterId) => {
-              const entries = Object.entries(xpByFighterId);
-              setLocalFighters((cur) =>
-                cur.map((f) => {
-                  const xp = xpByFighterId[f.fighter_id];
-                  return xp
-                    ? { ...f, session_record: { ...f.session_record, xp_earned: (f.session_record?.xp_earned ?? 0) + xp } }
-                    : f;
-                })
+            onConfirm={({ crew, added }) => {
+              const crewEntries = Object.entries(crew);
+              const addedEntries = Object.entries(added);
+              const count = crewEntries.length + addedEntries.length;
+              if (count === 0) {
+                setShowParticipationModal(false);
+                return;
+              }
+              const prev = localFighters;
+              setLocalFighters((cur) => [
+                ...cur.map((f) =>
+                  f.id in crew
+                    ? { ...f, session_record: { ...f.session_record, participation_xp: crew[f.id] } }
+                    : f
+                ),
+                ...addedEntries.map(([fighterId, xp]) => {
+                  const optimistic = buildOptimisticFighter(fighterId);
+                  return { ...optimistic, session_record: { ...optimistic.session_record, participation_xp: xp } };
+                }),
+              ]);
+              const calls: Promise<{ success: boolean }>[] = crewEntries.map(([sessionFighterId, xp]) =>
+                updateSessionParticipationXp({ session_fighter_id: sessionFighterId, participation_xp: xp })
               );
-              const calls = entries.flatMap(([fighterId, xp]) => {
-                const sessionFighter = localFighters.find((lf) => lf.fighter_id === fighterId);
-                const persistCalls: Promise<{ success: boolean }>[] = [
-                  updateFighterXp({ fighter_id: fighterId, xp_to_add: xp }),
-                ];
-                if (sessionFighter) {
-                  const totalXp = (sessionFighter.session_record?.xp_earned ?? 0) + xp;
-                  persistCalls.push(updateSessionXp({ session_fighter_id: sessionFighter.id, xp_earned: totalXp }));
-                }
-                return persistCalls;
-              });
+              if (addedEntries.length > 0) {
+                calls.push(addParticipationXpFighters({
+                  session_id: session.id,
+                  participant_id: participant.id,
+                  fighter_entries: addedEntries.map(([fighter_id, participation_xp]) => ({ fighter_id, participation_xp })),
+                }));
+              }
               Promise.all(calls).then((results) => {
-                const failed = results.filter((r) => !r.success);
-                if (failed.length > 0) {
+                if (results.some((r) => !r.success)) {
+                  setLocalFighters(prev);
                   toast.error('Failed to update participation XP');
                 } else {
-                  toast.success(`Participation XP updated for ${entries.length} fighter${entries.length !== 1 ? 's' : ''}`);
+                  toast.success(`Participation XP updated for ${count} fighter${count !== 1 ? 's' : ''}`);
                 }
                 onBroadcast?.();
               });
@@ -763,6 +780,7 @@ export default function ParticipantCard({
               <thead>
                 <tr className="bg-muted border-b">
                   <th className="p-1 md:p-2 text-left font-medium w-full">Fighter</th>
+                  {isPostBattle && <th className="p-1 md:p-2 text-right font-medium max-md:whitespace-normal md:whitespace-nowrap">Participation XP</th>}
                   <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap">Value</th>
                   {(canInteract || battleActive) && <th className="p-1 md:p-2 text-right font-medium whitespace-nowrap min-w-[3.6rem]">{canInteract ? 'Actions' : 'Status'}</th>}
                 </tr>
@@ -770,7 +788,7 @@ export default function ParticipantCard({
               <tbody>
                 {localFighters.length === 0 ? (
                   <tr>
-                    <td colSpan={(canInteract || battleActive) ? 3 : 2} className="text-muted-foreground italic text-center py-4">
+                    <td colSpan={2 + (isPostBattle ? 1 : 0) + ((canInteract || battleActive) ? 1 : 0)} className="text-muted-foreground italic text-center py-4">
                       {canEdit ? 'No fighters added yet.' : 'No fighters.'}
                     </td>
                   </tr>
@@ -798,6 +816,7 @@ export default function ParticipantCard({
                         loadoutName={match?.loadout_name}
                         cost={cost}
                         xp={xp}
+                        participationXp={isPostBattle ? (f.session_record?.participation_xp ?? 0) : undefined}
                         injuryCount={injuryCount}
                         canInteract={canInteract}
                         battleActive={battleActive}

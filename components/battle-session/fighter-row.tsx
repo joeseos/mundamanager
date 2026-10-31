@@ -115,6 +115,7 @@ export default function FighterRow({
   loadoutName,
   cost,
   xp,
+  participationXp,
   injuryCount,
   canInteract,
   battleActive,
@@ -137,6 +138,8 @@ export default function FighterRow({
   loadoutName: string | undefined;
   cost: number | undefined;
   xp: number;
+  /** Shown in its own column when set (post-battle). */
+  participationXp?: number;
   injuryCount: number;
   canInteract: boolean;
   battleActive: boolean;
@@ -255,6 +258,11 @@ export default function FighterRow({
           </div>
         </div>
       </td>
+      {participationXp !== undefined && (
+        <td className={`p-1 md:p-2 text-right whitespace-nowrap align-top ${participationXp === 0 ? 'text-muted-foreground' : ''}`}>
+          {participationXp}
+        </td>
+      )}
       <td className="p-1 md:p-2 text-right text-muted-foreground whitespace-nowrap align-top">
         {cost !== undefined ? (cost === 0 ? '*' : cost) : '—'}
       </td>
