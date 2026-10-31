@@ -442,11 +442,14 @@ export interface CampaignTypeResource {
   resource_name: string;
 }
 
+export const CAMPAIGN_PHASE_MAX_LENGTH = 50;
+
 export interface CampaignType {
   id: string;
   campaign_type_name: string | null;
   image_url?: string | null;
   trading_posts?: string[] | null;
+  phases?: string[] | null;
   /** edition_id is written by the admin editor; edition_slug is what app code
    *  reads, resolved server-side. */
   edition_id?: string | null;

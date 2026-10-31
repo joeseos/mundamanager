@@ -9,7 +9,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
-import type { CampaignType, CampaignTypeResource } from '@/types/campaign';
+import type { CampaignType } from '@/types/campaign';
 import { EditionSelect } from '@/components/edition-select';
 import {
   AdminPortraitForm,
@@ -64,6 +64,81 @@ const territoryCardOptions = [
     }))
   )
 ];
+
+/** Names typed in one at a time and shown as removable chips, kept in the order added. */
+function NameListInput({
+  label,
+  placeholder,
+  names,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  names: string[];
+  onChange: (names: string[]) => void;
+}) {
+  const [newName, setNewName] = useState('');
+
+  const handleAdd = () => {
+    const name = newName.trim();
+    if (!name) return;
+    if (names.some(existing => existing.toLowerCase() === name.toLowerCase())) {
+      toast.error(`${name} is already in the list`);
+      return;
+    }
+    onChange([...names, name]);
+    setNewName('');
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-muted-foreground mb-1">
+        {label}
+      </label>
+      <div className="flex gap-2 mb-2">
+        <Input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleAdd();
+            }
+          }}
+          placeholder={placeholder}
+          className="flex-1"
+        />
+        <Button
+          onClick={handleAdd}
+          variant="outline"
+          size="sm"
+          disabled={!newName.trim()}
+        >
+          Add
+        </Button>
+      </div>
+      {names.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {names.map((name, idx) => (
+            <div
+              key={name}
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+            >
+              <span>{name}</span>
+              <button
+                onClick={() => onChange(names.filter((_, i) => i !== idx))}
+                className="hover:text-red-500 focus:outline-hidden"
+              >
+                <HiX className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const EMPTY_PORTRAIT_STATE: PortraitFormState = {
   canSave: false,
@@ -146,8 +221,8 @@ export function AdminCampaignManagementModal({
   const [relatedTerritories, setRelatedTerritories] = useState<Territory[]>([]);
   const [relatedTriumphs, setRelatedTriumphs] = useState<CampaignTriumph[]>([]);
   const [relatedTradingPostIds, setRelatedTradingPostIds] = useState<string[]>([]);
-  const [campaignTypeResources, setCampaignTypeResources] = useState<CampaignTypeResource[]>([]);
-  const [newResourceName, setNewResourceName] = useState('');
+  const [campaignTypeResources, setCampaignTypeResources] = useState<string[]>([]);
+  const [campaignTypePhases, setCampaignTypePhases] = useState<string[]>([]);
   const [showAddTerritoryModal, setShowAddTerritoryModal] = useState(false);
   const [showAddTriumphModal, setShowAddTriumphModal] = useState(false);
   const [showAddTradingPostModal, setShowAddTradingPostModal] = useState(false);
@@ -182,7 +257,7 @@ export function AdminCampaignManagementModal({
     setRelatedTriumphs([]);
     setRelatedTradingPostIds([]);
     setCampaignTypeResources([]);
-    setNewResourceName('');
+    setCampaignTypePhases([]);
 
     setSelectedTerritoryId('');
     setTerritoryName('');
@@ -234,7 +309,7 @@ export function AdminCampaignManagementModal({
         setRelatedTriumphs([]);
         setRelatedTradingPostIds([]);
         setCampaignTypeResources([]);
-        setNewResourceName('');
+        setCampaignTypePhases([]);
       }
     }
   };
@@ -270,20 +345,9 @@ export function AdminCampaignManagementModal({
       setImageUrl(selected.image_url || '');
       setCampaignTypeEditionId(selected.edition_id ?? '');
       setRelatedTradingPostIds(selected.trading_posts || []);
-      setCampaignTypeResources(selected.campaign_type_resources ?? []);
-      setNewResourceName('');
+      setCampaignTypeResources(selected.campaign_type_resources?.map(r => r.resource_name) ?? []);
+      setCampaignTypePhases(selected.phases ?? []);
     }
-  };
-
-  const handleAddResource = () => {
-    const name = newResourceName.trim();
-    if (!name) return;
-    if (campaignTypeResources.some(r => r.resource_name.toLowerCase() === name.toLowerCase())) {
-      toast.error('Resource already exists');
-      return;
-    }
-    setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: name }]);
-    setNewResourceName('');
   };
 
   const handleCreateNewCampaignType = () => {
@@ -295,7 +359,7 @@ export function AdminCampaignManagementModal({
     setRelatedTriumphs([]);
     setRelatedTradingPostIds([]);
     setCampaignTypeResources([]);
-    setNewResourceName('');
+    setCampaignTypePhases([]);
   };
 
   const handleSubmitCampaignType = async (operation: OperationType) => {
@@ -318,7 +382,8 @@ export function AdminCampaignManagementModal({
             image_url: imageUrl.trim() || null,
             trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
             edition_id: campaignTypeEditionId || null,
-            resources: campaignTypeResources.map(r => r.resource_name)
+            resources: campaignTypeResources,
+            phases: campaignTypePhases
           });
           break;
         case OperationType.UPDATE:
@@ -329,7 +394,8 @@ export function AdminCampaignManagementModal({
             image_url: imageUrl.trim() || null,
             trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
             edition_id: campaignTypeEditionId || null,
-            resources: campaignTypeResources.map(r => r.resource_name)
+            resources: campaignTypeResources,
+            phases: campaignTypePhases
           });
           break;
         default:
@@ -435,7 +501,7 @@ export function AdminCampaignManagementModal({
       setRelatedTriumphs([]);
       setRelatedTradingPostIds([]);
       setCampaignTypeResources([]);
-      setNewResourceName('');
+      setCampaignTypePhases([]);
       setIsCreateModeCampaignType(false);
 
       if (onSubmit) {
@@ -957,54 +1023,24 @@ export function AdminCampaignManagementModal({
                   </div>
                 )}
 
-                {/* Resources Section */}
+                {/* Resources and Phases Sections */}
                 {(isCreateModeCampaignType || (selectedCampaignTypeId && !isCreateModeCampaignType)) && (
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                      Resources
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <Input
-                        type="text"
-                        value={newResourceName}
-                        onChange={(e) => setNewResourceName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddResource();
-                          }
-                        }}
-                        placeholder="e.g. Meat"
-                        className="flex-1"
-                      />
-                      <Button
-                        onClick={handleAddResource}
-                        variant="outline"
-                        size="sm"
-                        disabled={!newResourceName.trim()}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                    {campaignTypeResources.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {campaignTypeResources.map((resource, idx) => (
-                          <div
-                            key={resource.id}
-                            className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                          >
-                            <span>{resource.resource_name}</span>
-                            <button
-                              onClick={() => setCampaignTypeResources(campaignTypeResources.filter((_, i) => i !== idx))}
-                              className="hover:text-red-500 focus:outline-hidden"
-                            >
-                              <HiX className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <>
+                    <NameListInput
+                      key={`resources-${selectedCampaignTypeId}`}
+                      label="Resources"
+                      placeholder="e.g. Meat"
+                      names={campaignTypeResources}
+                      onChange={setCampaignTypeResources}
+                    />
+                    <NameListInput
+                      key={`phases-${selectedCampaignTypeId}`}
+                      label="Phases"
+                      placeholder="e.g. Occupation"
+                      names={campaignTypePhases}
+                      onChange={setCampaignTypePhases}
+                    />
+                  </>
                 )}
 
                 {/* Default Trading Posts Section */}

@@ -40,6 +40,7 @@ const CampaignMessageModal = dynamic(
   { ssr: false }
 );
 const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
+const CampaignPhasesCyclesModal = dynamic(() => import('@/components/campaigns/[id]/campaign-phases-cycles-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
   { ssr: false }
@@ -133,6 +134,7 @@ interface CampaignPageContentProps {
     updated_at: string | null;
     note: string | null;
     current_cycle?: number | null;
+    current_phase?: string | null;
     members: any[];
     territories: Territory[];
     trading_posts: string[];
@@ -230,6 +232,7 @@ export default function CampaignPageContent({
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showPhasesCyclesModal, setShowPhasesCyclesModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -374,6 +377,10 @@ export default function CampaignPageContent({
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
 
+  const currentCycle = campaignData.current_cycle ?? null;
+  // Pre-campaign is not stored: it is a campaign with no cycle set and no battle logged.
+  const isPreCampaign = currentCycle === null && (campaignData.battles || []).length === 0;
+  const phaseLabel = campaignData.current_phase ?? (isPreCampaign ? 'Pre-campaign' : null);
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
@@ -569,12 +576,20 @@ export default function CampaignPageContent({
                      )
                    )}
                    {safePermissions.canEditCampaign && (
-                     <Button
-                       onClick={() => setShowEditModal(true)}
-                       className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
-                     >
-                       Edit
-                     </Button>
+                     <>
+                       <Button
+                         onClick={() => setShowPhasesCyclesModal(true)}
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                       >
+                         Phases & Cycles
+                       </Button>
+                       <Button
+                         onClick={() => setShowEditModal(true)}
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                       >
+                         Edit
+                       </Button>
+                     </>
                    )}
                  </div>
                </div>
@@ -664,6 +679,16 @@ export default function CampaignPageContent({
                   <div className="flex items-center gap-1">
                     Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
                   </div>
+                  {phaseLabel && (
+                    <div className="flex items-center gap-1">
+                      Phase: <Badge variant="secondary">{phaseLabel}</Badge>
+                    </div>
+                  )}
+                  {currentCycle !== null && (
+                    <div className="flex items-center gap-1">
+                      Cycle: <Badge variant="secondary">{currentCycle}</Badge>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <div className="flex flex-wrap items-center gap-1">
@@ -943,7 +968,7 @@ export default function CampaignPageContent({
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
-                    currentCycle={campaignData.current_cycle ?? null}
+                    currentCycle={currentCycle}
                     scenarioTables={scenarioTables}
                     battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
                       <CampaignBattleSessions
@@ -1145,6 +1170,30 @@ export default function CampaignPageContent({
               username: member.username || member.profile?.username || 'Unknown',
             }))}
           onClose={() => setShowMessageModal(false)}
+        />
+      )}
+
+      {showPhasesCyclesModal && safePermissions.canEditCampaign && (
+        <CampaignPhasesCyclesModal
+          campaignId={campaignData.id}
+          editionSlug={campaignData.edition_slug ?? null}
+          currentCycle={currentCycle}
+          currentPhase={campaignData.current_phase ?? null}
+          battles={campaignData.battles || []}
+          phases={campaignTypes.find((type) => type.id === campaignData.campaign_type_id)?.phases ?? []}
+          members={campaignData.members}
+          onClose={() => setShowPhasesCyclesModal(false)}
+          onSaved={(balances, campaign) => {
+            const byGangId = new Map(balances.map(({ gangId, ...balance }) => [gangId, balance]));
+            setCampaignData(prev => ({
+              ...prev,
+              ...campaign,
+              members: prev.members.map((member: Member) => ({
+                ...member,
+                gangs: member.gangs.map((gang) => ({ ...gang, ...byGangId.get(gang.id) })),
+              })),
+            }));
+          }}
         />
       )}
 

@@ -665,6 +665,7 @@ export const campaignTypes = pgTable('campaign_types', {
   image_url: text('image_url'),
   trading_posts: json('trading_posts').$type<string[]>(),
   edition_id: uuid('edition_id'),
+  phases: json('phases').$type<string[]>(),
 });
 
 export const campaignTriumphs = pgTable('campaign_triumphs', {
@@ -694,6 +695,7 @@ export const campaigns = pgTable('campaigns', {
   custom_trading_posts: json('custom_trading_posts').$type<string[]>(),
   allow_join_requests: boolean('allow_join_requests').default(false).notNull(),
   current_cycle: integer('current_cycle'),
+  current_phase: text('current_phase'),
   campaign_portrait_id: uuid('campaign_portrait_id'),
 });
 

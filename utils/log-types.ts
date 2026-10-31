@@ -12,6 +12,8 @@ export const CAMPAIGN_ACTION_TYPES = [
   'battle_draw',
   'territory_claimed',
   'territory_lost',
+  'campaign_credits_granted',
+  'campaign_trade_points_cleared',
 ] as const;
 
 export const LOG_TYPE_LABELS: Record<string, string> = {
@@ -122,6 +124,8 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'battle_draw': 'Battle draw',
   'territory_claimed': 'Territory claimed',
   'territory_lost': 'Territory lost',
+  'campaign_credits_granted': 'Credits granted',
+  'campaign_trade_points_cleared': 'Trade Points cleared',
 };
 
 /**
