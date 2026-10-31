@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,6 +14,7 @@ import { getCampaignRank } from '@/utils/campaigns/campaignRank'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
 import React from "react"
 import type { CampaignType } from '@/types/campaign'
+import type { TradingPostType } from '@/app/lib/reference-data'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
@@ -23,21 +25,25 @@ import { campaignPortraitPublicUrl } from '@/utils/campaign-image'
 import { defaultPortraitForSlot } from '@/utils/portrait-catalogue'
 import { PiFlagBannerFoldBold } from 'react-icons/pi'
 
-interface TradingPostType {
-  id: string;
-  trading_post_name: string | null;
-  edition_slug?: string | null;
-}
-
 interface CreateCampaignModalProps {
   onClose: () => void;
-  initialCampaignTypes: CampaignType[] | null;
-  initialTradingPostTypes: TradingPostType[] | null;
   userId?: string;
 }
 
+type CampaignTypesData = { campaignTypes: CampaignType[]; tradingPostTypes: TradingPostType[] };
+
+const NO_CAMPAIGN_TYPES: CampaignTypesData = { campaignTypes: [], tradingPostTypes: [] };
+
+async function fetchCampaignTypes(): Promise<CampaignTypesData> {
+  const response = await fetch('/api/campaign-types');
+  if (!response.ok) {
+    throw new Error('Failed to fetch campaign types');
+  }
+  return response.json();
+}
+
 // Button component that opens the modal
-export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostTypes, userId }: { initialCampaignTypes: CampaignType[] | null; initialTradingPostTypes: TradingPostType[] | null; userId?: string }) {
+export function CreateCampaignButton({ userId }: { userId?: string }) {
   const [showModal, setShowModal] = useState(false);
 
   const handleClose = () => {
@@ -56,8 +62,6 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
       {showModal && (
         <CreateCampaignModal
           onClose={handleClose}
-          initialCampaignTypes={initialCampaignTypes}
-          initialTradingPostTypes={initialTradingPostTypes}
           userId={userId}
         />
       )}
@@ -66,7 +70,7 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
 }
 
 // Modal component
-export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTradingPostTypes, userId }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProps) {
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,8 +79,13 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
-  const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
+  // isPending also covers a fetch paused while offline; isLoadingError ignores
+  // a failed background refetch while the earlier types are still shown
+  const { data: types = NO_CAMPAIGN_TYPES, isPending: isLoadingTypes, isLoadingError: typesFailed } = useQuery({
+    queryKey: ['campaign-types'],
+    queryFn: fetchCampaignTypes,
+  })
+  const { campaignTypes, tradingPostTypes } = types
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
   const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('campaign');
 
@@ -283,6 +292,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               id="campaign-type"
               value={campaignType}
               onChange={(e) => setCampaignType(e.target.value)}
+              disabled={isLoadingTypes}
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select campaign type</option>
@@ -394,7 +404,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
             />
           </div>
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {(error || typesFailed) && <p className="text-red-500 text-sm">{error ?? 'Failed to load campaign types. Please try again.'}</p>}
           <SubmitButton 
             onClick={handleCreateCampaign} 
             className="w-full" 
