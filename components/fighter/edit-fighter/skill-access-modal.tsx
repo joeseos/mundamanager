@@ -10,7 +10,6 @@ import {
   type SkillAccessOverride
 } from '@/app/actions/fighter-skill-access';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
-import { fighterSkillAccessQueryKey, fighterSkillAccessQueryOptions } from '@/utils/fighterSkillAccessQuery';
 
 interface SkillAccessModalProps {
   fighterId: string;
@@ -61,8 +60,18 @@ export function SkillAccessModal({
 
   // Fetch fighter's current skill access (defaults + overrides)
   const { data: skillAccessData, isLoading: isLoadingSkillAccess, error: skillAccessError } = useQuery({
-    ...fighterSkillAccessQueryOptions(fighterId),
+    queryKey: ['fighter-skill-access', fighterId],
+    queryFn: async () => {
+      const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch skill access');
+      }
+      return response.json();
+    },
     enabled: isOpen,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
   // Show error toast if data failed to load
@@ -123,7 +132,7 @@ export function SkillAccessModal({
     });
 
     return result;
-  }, [allSkillTypes, skillAccessData, editionSlug, skillSetRank]);
+  }, [allSkillTypes, skillAccessData, skillSetRank]);
 
   // Sync computed data to local state once per modal open
   const [prevComputedSkillAccess, setPrevComputedSkillAccess] = useState(computedSkillAccess);
@@ -159,7 +168,7 @@ export function SkillAccessModal({
     },
     onSuccess: () => {
       // Invalidate the TanStack Query cache for skill access
-      queryClient.invalidateQueries({ queryKey: fighterSkillAccessQueryKey(fighterId) });
+      queryClient.invalidateQueries({ queryKey: ['fighter-skill-access', fighterId] });
       toast.success('Skill access updated successfully');
       onClose();
     },

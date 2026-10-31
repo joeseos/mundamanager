@@ -7,7 +7,6 @@ import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/
 import { createClient } from '@/utils/supabase/client';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
-import { fighterSkillAccessQueryOptions } from '@/utils/fighterSkillAccessQuery';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -477,6 +476,8 @@ export function AdvancementModal({
   const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
   const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
+  const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
+  const [skillAccessLoading, setSkillAccessLoading] = useState(false);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -649,16 +650,6 @@ export function AdvancementModal({
     () => GANGER_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === gangerSelectedRowId),
     [gangerSelectedRowId]
   );
-
-  // N26 needs skill access before a row is claimed, so row 6 can offer a Legendary Name.
-  // N23 only needs it once a skill advancement is chosen. Prefetched on the fighter page.
-  const shouldFetchSkillAccess = isCumulativeXp || advancementType === 'skill';
-  const { data: skillAccessData, isPending: skillAccessPending } = useQuery({
-    ...fighterSkillAccessQueryOptions(fighterId),
-    enabled: shouldFetchSkillAccess,
-  });
-  const skillAccess: SkillAccess[] = skillAccessData?.skill_access ?? [];
-  const skillAccessLoading = shouldFetchSkillAccess && skillAccessPending;
 
   /** Allowed, Primary, or Secondary on Legendary Names unlocks that choice on row 6. */
   const n26LegendaryNameAccess = useMemo(() => {
@@ -1924,22 +1915,16 @@ export function AdvancementModal({
   }, [advancementType, fighterId]);
 
   // Costs for a claimed characteristic come from the RPC map — no extra round trip.
-  useEffect(() => {
-    if (advancementType !== 'characteristic' || !selectedCategory) return;
+  const formattedCharacteristic = useMemo<AvailableAdvancement | null>(() => {
+    if (advancementType !== 'characteristic' || !selectedCategory) return null;
 
     const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
-    if (!selectedCategoryObj || !isStatChangeCategory(selectedCategoryObj)) {
-      console.error('Selected category not found or wrong type:', selectedCategory);
-      return;
-    }
+    if (!selectedCategoryObj || !isStatChangeCategory(selectedCategoryObj)) return null;
 
     const advancementDetails = characteristicAdvancements[selectedCategoryObj.effect_name];
-    if (!advancementDetails) {
-      console.error('No advancement details found for category:', selectedCategoryObj.effect_name);
-      return;
-    }
+    if (!advancementDetails) return null;
 
-    const formattedAdvancement: AvailableAdvancement = {
+    return {
       id: advancementDetails.id,
       level: advancementDetails.times_increased || 0,
       xp_cost: isCumulativeXp ? 0 : advancementDetails.xp_cost,
@@ -1955,12 +1940,6 @@ export function AdvancementModal({
       characteristic_code: advancementDetails.characteristic_code,
       available_acquisition_types: []
     };
-
-    setAvailableAdvancements([formattedAdvancement]);
-    setSelectedAdvancement(formattedAdvancement);
-    setEditableXpCost(formattedAdvancement.xp_cost);
-    setEditableCreditsIncrease(formattedAdvancement.credits_increase || 0);
-    setError(null);
   }, [
     advancementType,
     selectedCategory,
@@ -1970,19 +1949,39 @@ export function AdvancementModal({
     n26SelectedRow
   ]);
 
+  if (
+    formattedCharacteristic &&
+    (selectedAdvancement?.id !== formattedCharacteristic.id ||
+      selectedAdvancement.credits_increase !== formattedCharacteristic.credits_increase)
+  ) {
+    setAvailableAdvancements([formattedCharacteristic]);
+    setSelectedAdvancement(formattedCharacteristic);
+    setError(null);
+  }
+
   // Skills are keyed by skill_type_id (`selectedCategory`). Do not depend on the
   // Skill Set catalog — it arrives after a Legendary Name is pinned and would
   // refetch, unmount the dropdown, then fill it again.
+  const skillFetchKey =
+    (advancementType === 'skill' || advancementType === 'promotion_to_champion') && selectedCategory
+      ? `${advancementType}:${selectedCategory}:${fighterId}`
+      : '';
+  const [prevSkillFetchKey, setPrevSkillFetchKey] = useState('');
+  if (skillFetchKey !== prevSkillFetchKey) {
+    setPrevSkillFetchKey(skillFetchKey);
+    if (skillFetchKey) {
+      setAvailableAdvancements([]);
+      setSelectedAdvancement(null);
+      setSkillsLoading(true);
+    }
+  }
+
   useEffect(() => {
     if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
     if (!selectedCategory) return;
 
-    setAvailableAdvancements([]);
-    setSelectedAdvancement(null);
-
     let cancelled = false;
     const fetchSkills = async () => {
-      setSkillsLoading(true);
       try {
         const supabase = createClient();
         const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
@@ -2050,6 +2049,34 @@ export function AdvancementModal({
       setEditableCreditsIncrease(CHAMPION_PROMOTION_CREDITS_INCREASE);
     }
   }
+
+  // N26 needs skill access on open so row 6 can offer a Legendary Name.
+  // N23 only needs it once a skill advancement is chosen.
+  useEffect(() => {
+    if (!isCumulativeXp && advancementType !== 'skill') return;
+    const controller = new AbortController();
+    const fetchSkillAccess = async () => {
+      setSkillAccessLoading(true);
+      try {
+        const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`, {
+          signal: controller.signal,
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setSkillAccess(data.skill_access || []);
+        } else {
+          setSkillAccess([]);
+        }
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setSkillAccess([]);
+      } finally {
+        if (!controller.signal.aborted) setSkillAccessLoading(false);
+      }
+    };
+    void fetchSkillAccess();
+    return () => { controller.abort(); };
+  }, [isCumulativeXp, advancementType, fighterId]);
 
   // Row 6 offers a Legendary Name only when this fighter already has that set.
   if (
