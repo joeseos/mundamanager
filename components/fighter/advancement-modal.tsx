@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
 import { createClient } from '@/utils/supabase/client';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
-import { hasWyrdFighterSubtype, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
+import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
+import { fighterSkillAccessQueryOptions } from '@/utils/fighterSkillAccessQuery';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -28,8 +29,8 @@ import {
   rollNd6Outcome,
   GANGER_EXOTIC_BEAST_ADVANCEMENT_TABLE,
   resolveGangerExoticBeastAdvancementFromUtil,
-  N26_ADVANCEMENT_TABLE,
-  resolveN26AdvancementFromUtil,
+  N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID,
+  n26AdvancementTable,
   type TableEntry,
   type N26AdvancementEntry
 } from '@/utils/dice';
@@ -296,17 +297,13 @@ function formatAdvancementRangeLabel(entry: { range: readonly [number, number] }
  *  every N26 fighter picks from these. */
 type N26AdvancementComboRow = N26AdvancementEntry & { id: string };
 
-const N26_ADVANCEMENT_COMBO_OPTIONS: N26AdvancementComboRow[] = N26_ADVANCEMENT_TABLE.map((entry) => ({
-  ...entry,
-  id: `n26-adv-${entry.range[0]}-${entry.range[1]}`
-}));
-
 const N26_SKILL_OPTION_LABELS: Record<string, string> = {
   primary_random: 'A random Primary skill',
   primary_selected: 'A new Primary skill',
   secondary_random: 'A random Secondary skill',
   secondary_selected: 'A new Secondary skill',
-  any_random: 'A random skill'
+  any_random: 'A random skill',
+  [N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID]: 'A Legendary Name'
 };
 
 /** 12 is "any skill": pick a set, then a specific skill. Not an RPC acquisition type_id. */
@@ -442,9 +439,14 @@ export function AdvancementModal({
   const categories: (StatChangeCategory | SkillType)[] =
     advancementType === 'characteristic' ? characteristicCategories : skillSetCategories;
 
-  // Characteristics wait on the RPC, skill sets on their own fetch.
+  // Characteristics wait on the RPC, skill sets on their own fetch. A Legendary
+  // Name does not use the Skill Set combobox, so it must not wait on that catalog.
   const loading =
-    advancementType === 'characteristic' ? !characteristicsLoaded : skillSetsLoading;
+    advancementType === 'characteristic'
+      ? !characteristicsLoaded
+      : skillAcquisitionType === N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID
+        ? false
+        : skillSetsLoading;
 
   // A failed catalog fetch clears the spinner and leaves the dropdown empty, so
   // say why instead of showing an unexplained empty list. Read at render rather
@@ -475,8 +477,6 @@ export function AdvancementModal({
   const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
   const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
-  const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
-  const [skillAccessLoading, setSkillAccessLoading] = useState(false);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -650,9 +650,42 @@ export function AdvancementModal({
     [gangerSelectedRowId]
   );
 
+  // N26 needs skill access before a row is claimed, so row 6 can offer a Legendary Name.
+  // N23 only needs it once a skill advancement is chosen. Prefetched on the fighter page.
+  const shouldFetchSkillAccess = isCumulativeXp || advancementType === 'skill';
+  const { data: skillAccessData, isPending: skillAccessPending } = useQuery({
+    ...fighterSkillAccessQueryOptions(fighterId),
+    enabled: shouldFetchSkillAccess,
+  });
+  const skillAccess: SkillAccess[] = skillAccessData?.skill_access ?? [];
+  const skillAccessLoading = shouldFetchSkillAccess && skillAccessPending;
+
+  /** Allowed, Primary, or Secondary on Legendary Names unlocks that choice on row 6. */
+  const n26LegendaryNameAccess = useMemo(() => {
+    if (!isCumulativeXp) return null;
+    return (
+      skillAccess.find((access) => {
+        if (!isLegendaryNameSkillSet(access.skill_type_name, editionSlug)) return false;
+        const level = effectiveSkillAccess(access);
+        return level === 'primary' || level === 'secondary' || level === 'allowed';
+      }) ?? null
+    );
+  }, [isCumulativeXp, skillAccess, editionSlug]);
+
+  const n26AdvancementRows = useMemo<N26AdvancementComboRow[]>(
+    () =>
+      n26AdvancementTable(n26LegendaryNameAccess !== null).map((entry) => ({
+        ...entry,
+        id: `n26-adv-${entry.range[0]}-${entry.range[1]}`
+      })),
+    [n26LegendaryNameAccess]
+  );
+
+  const n26LegendaryNameSkillTypeId = n26LegendaryNameAccess?.skill_type_id ?? '';
+
   const n26SelectedRow = useMemo(
-    () => N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === n26SelectedRowId),
-    [n26SelectedRowId]
+    () => n26AdvancementRows.find((r) => r.id === n26SelectedRowId),
+    [n26AdvancementRows, n26SelectedRowId]
   );
 
   const [prevN26SelectedRowId, setPrevN26SelectedRowId] = useState(n26SelectedRowId);
@@ -1504,19 +1537,21 @@ export function AdvancementModal({
   const selectN26SkillOutcome = useCallback((typeId: string, credits: number) => {
     setN26CharacteristicName('');
     setAdvancementType('skill');
-    setSelectedCategory('');
+    setSelectedCategory(
+      typeId === N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID ? n26LegendaryNameSkillTypeId : ''
+    );
     setSelectedAdvancement(null);
     setSkillAcquisitionType(typeId);
     setSkillRollResult(null);
     setAvailableAdvancements([]);
     setEditableXpCost(0);
     setEditableCreditsIncrease(credits);
-  }, []);
+  }, [n26LegendaryNameSkillTypeId]);
 
   const selectN26Row = useCallback(
     (rowId: string) => {
       if (rowId === n26SelectedRowId) return;
-      const row = N26_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === rowId);
+      const row = n26AdvancementRows.find((r) => r.id === rowId);
       setN26SelectedRowId(rowId);
       setN26CharacteristicName('');
       setAdvancementType('');
@@ -1535,7 +1570,7 @@ export function AdvancementModal({
       }
       selectN26SkillOutcome(skillOptions[0].typeId, row?.credits ?? 0);
     },
-    [n26SelectedRowId, selectN26Characteristic, selectN26SkillOutcome]
+    [n26AdvancementRows, n26SelectedRowId, selectN26Characteristic, selectN26SkillOutcome]
   );
 
   const gangerSpecialistSkillSetComboboxOptions = useMemo(
@@ -1730,7 +1765,13 @@ export function AdvancementModal({
    */
   const skillSetComboboxOptions = useMemo(() => {
     if (!isSkillLikeAdvancementType) return [];
-    const skillCategories = categories.filter((cat): cat is SkillType => cat.type === 'skill');
+    const skillCategories = categories
+      .filter((cat): cat is SkillType => cat.type === 'skill')
+      .filter((cat) => {
+        if (skillAcquisitionType === N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID) return true;
+        if (!isCumulativeXp) return true;
+        return !isLegendaryNameSkillSet(cat.name, editionSlug);
+      });
     const accessSource =
       advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
     const n26HighlightAccess: 'primary' | 'secondary' | 'any' | null =
@@ -1882,120 +1923,108 @@ export function AdvancementModal({
     fetchSkillSets();
   }, [advancementType, fighterId]);
 
-  // Fetch available advancements when category is selected
+  // Costs for a claimed characteristic come from the RPC map — no extra round trip.
   useEffect(() => {
-    const fetchAvailableAdvancements = async () => {
-      if (!advancementType || !selectedCategory) return;
+    if (advancementType !== 'characteristic' || !selectedCategory) return;
 
-      try {
+    const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
+    if (!selectedCategoryObj || !isStatChangeCategory(selectedCategoryObj)) {
+      console.error('Selected category not found or wrong type:', selectedCategory);
+      return;
+    }
 
-        if (advancementType === 'characteristic') {
-          // Find the category name from the selected category
-          const selectedCategoryObj = categories.find(cat => cat.id === selectedCategory);
-          if (!selectedCategoryObj || !isStatChangeCategory(selectedCategoryObj)) {
-            console.error('Selected category not found or wrong type:', selectedCategory);
-            return;
-          }
+    const advancementDetails = characteristicAdvancements[selectedCategoryObj.effect_name];
+    if (!advancementDetails) {
+      console.error('No advancement details found for category:', selectedCategoryObj.effect_name);
+      return;
+    }
 
-          // Costs come from the same RPC map that supplied the dropdown, so
-          // selecting a characteristic costs no round trip.
-          const advancementDetails = characteristicAdvancements[selectedCategoryObj.effect_name];
-          if (!advancementDetails) {
-            console.error('No advancement details found for category:', selectedCategoryObj.effect_name);
-            return;
-          }
-
-          // Format the characteristic advancement
-          const formattedAdvancement: AvailableAdvancement = {
-            id: advancementDetails.id,
-            level: advancementDetails.times_increased || 0,
-            xp_cost: isCumulativeXp ? 0 : advancementDetails.xp_cost,
-            base_xp_cost: advancementDetails.base_xp_cost,
-            stat_change: 1,
-            can_purchase: advancementDetails.can_purchase,
-            is_available: advancementDetails.is_available,
-            has_enough_xp: isCumulativeXp ? true : advancementDetails.has_enough_xp,
-            credits_increase: isCumulativeXp
-              ? (n26SelectedRow?.credits ?? 0)
-              : advancementDetails.credits_increase,
-            stat_change_name: selectedCategoryObj.effect_name,
-            characteristic_code: advancementDetails.characteristic_code,
-            available_acquisition_types: []
-          };
-
-          setAvailableAdvancements([formattedAdvancement]);
-          setSelectedAdvancement(formattedAdvancement);
-          setEditableXpCost(formattedAdvancement.xp_cost);
-          setEditableCreditsIncrease(formattedAdvancement.credits_increase || 0);
-
-        } else {
-          // Handle skills - only fetch if we have selected a skill set
-          setSkillsLoading(true);
-          try {
-            const supabase = createClient();
-            const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
-              fighter_id: fighterId
-            });
-
-            if (skillsError) {
-              throw new Error('Failed to fetch available skills');
-            }
-
-            const data = skillsData as unknown as SkillResponse;
-
-            // Find the selected skill set name
-            const selectedSkillType = categories.find(cat => cat.id === selectedCategory);
-            if (!selectedSkillType) {
-              console.error('Selected skill set not found:', selectedCategory);
-              return;
-            }
-
-            // Filter skills by the selected type
-            const skillsForType = data.skills.filter(
-              (skill) => skill.skill_type_id === selectedSkillType.id
-            );
-
-            // Format the skills into advancements
-            const formattedAdvancements: AvailableAdvancement[] = skillsForType.map((skill) => ({
-              id: skill.skill_id,
-              skill_id: skill.skill_id,
-              xp_cost: 0,
-              stat_change: 1,
-              can_purchase: skill.available,
-              stat_change_name: skill.skill_name,
-              credits_increase: 0,
-              has_enough_xp: true,
-              available_acquisition_types: skill.available_acquisition_types,
-              skill_type_id: skill.skill_type_id,
-              is_available: skill.available,
-              is_custom: skill.is_custom
-            }));
-
-            setAvailableAdvancements(formattedAdvancements);
-          } finally {
-            setSkillsLoading(false);
-          }
-        }
-
-        setError(null);
-      } catch (err) {
-        console.error('Full error details:', err);
-        setError(`Failed to load ${advancementType} details: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setSkillsLoading(false);
-      }
+    const formattedAdvancement: AvailableAdvancement = {
+      id: advancementDetails.id,
+      level: advancementDetails.times_increased || 0,
+      xp_cost: isCumulativeXp ? 0 : advancementDetails.xp_cost,
+      base_xp_cost: advancementDetails.base_xp_cost,
+      stat_change: 1,
+      can_purchase: advancementDetails.can_purchase,
+      is_available: advancementDetails.is_available,
+      has_enough_xp: isCumulativeXp ? true : advancementDetails.has_enough_xp,
+      credits_increase: isCumulativeXp
+        ? (n26SelectedRow?.credits ?? 0)
+        : advancementDetails.credits_increase,
+      stat_change_name: selectedCategoryObj.effect_name,
+      characteristic_code: advancementDetails.characteristic_code,
+      available_acquisition_types: []
     };
 
-    fetchAvailableAdvancements();
+    setAvailableAdvancements([formattedAdvancement]);
+    setSelectedAdvancement(formattedAdvancement);
+    setEditableXpCost(formattedAdvancement.xp_cost);
+    setEditableCreditsIncrease(formattedAdvancement.credits_increase || 0);
+    setError(null);
   }, [
     advancementType,
     selectedCategory,
-    fighterId,
-    currentXp,
     categories,
     characteristicAdvancements,
     isCumulativeXp,
     n26SelectedRow
   ]);
+
+  // Skills are keyed by skill_type_id (`selectedCategory`). Do not depend on the
+  // Skill Set catalog — it arrives after a Legendary Name is pinned and would
+  // refetch, unmount the dropdown, then fill it again.
+  useEffect(() => {
+    if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
+    if (!selectedCategory) return;
+
+    let cancelled = false;
+    const fetchSkills = async () => {
+      setSkillsLoading(true);
+      try {
+        const supabase = createClient();
+        const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
+          fighter_id: fighterId
+        });
+
+        if (skillsError) {
+          throw new Error('Failed to fetch available skills');
+        }
+        if (cancelled) return;
+
+        const data = skillsData as unknown as SkillResponse;
+        const skillsForType = data.skills.filter(
+          (skill) => skill.skill_type_id === selectedCategory
+        );
+
+        setAvailableAdvancements(skillsForType.map((skill) => ({
+          id: skill.skill_id,
+          skill_id: skill.skill_id,
+          xp_cost: 0,
+          stat_change: 1,
+          can_purchase: skill.available,
+          stat_change_name: skill.skill_name,
+          credits_increase: 0,
+          has_enough_xp: true,
+          available_acquisition_types: skill.available_acquisition_types,
+          skill_type_id: skill.skill_type_id,
+          is_available: skill.available,
+          is_custom: skill.is_custom
+        })));
+        setError(null);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Full error details:', err);
+        setError(`Failed to load ${advancementType} details: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      } finally {
+        if (!cancelled) setSkillsLoading(false);
+      }
+    };
+
+    void fetchSkills();
+    return () => {
+      cancelled = true;
+    };
+  }, [advancementType, selectedCategory, fighterId]);
 
   // Set initial values when an advancement/acquisition type is selected
   const [prevSelectedAdvancement, setPrevSelectedAdvancement] = useState(selectedAdvancement);
@@ -2019,30 +2048,14 @@ export function AdvancementModal({
     }
   }
 
-  // Fetch skill access for the standard skill advancement flow
-  useEffect(() => {
-    if (advancementType !== 'skill') return;
-    let cancelled = false;
-    const fetchSkillAccess = async () => {
-      setSkillAccessLoading(true);
-      try {
-        const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
-        if (cancelled) return;
-        if (response.ok) {
-          const data = await response.json();
-          if (!cancelled) setSkillAccess(data.skill_access || []);
-        } else {
-          if (!cancelled) setSkillAccess([]);
-        }
-      } catch {
-        if (!cancelled) setSkillAccess([]);
-      } finally {
-        if (!cancelled) setSkillAccessLoading(false);
-      }
-    };
-    void fetchSkillAccess();
-    return () => { cancelled = true; };
-  }, [advancementType, fighterId]);
+  // Row 6 offers a Legendary Name only when this fighter already has that set.
+  if (
+    skillAcquisitionType === N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID &&
+    n26LegendaryNameSkillTypeId &&
+    selectedCategory !== n26LegendaryNameSkillTypeId
+  ) {
+    setSelectedCategory(n26LegendaryNameSkillTypeId);
+  }
 
   // Fetch preview skill access for the target Champion type after promotion is confirmed
   const championPromotionTypeId = championPendingPromotion?.fighter_type_id;
@@ -2226,7 +2239,7 @@ export function AdvancementModal({
             <div className="mb-4 space-y-4">
               <div className="space-y-2">
                 <DiceRoller
-                  items={N26_ADVANCEMENT_TABLE}
+                  items={n26AdvancementRows}
                   getRange={(r) => ({ min: r.range[0], max: r.range[1] })}
                   getName={(r) => r.name}
                   getResultLabel={(total) => formatN26AdvancementThresholdLabel(total)}
@@ -2236,14 +2249,13 @@ export function AdvancementModal({
                   onRolled={(rolled) => {
                     if (rolled.length > 0) {
                       const { roll: total, dice } = rolled[0];
-                      const row = resolveN26AdvancementFromUtil(total);
+                      const row = n26AdvancementRows.find(
+                        (entry) => total >= entry.range[0] && total <= entry.range[1]
+                      );
                       if (row) {
                         setN26RollTotal(total);
                         // Preselect the exact band; any result at or below the total stays allowed.
-                        const combo = N26_ADVANCEMENT_COMBO_OPTIONS.find(
-                          (o) => o.range[0] === row.range[0] && o.range[1] === row.range[1]
-                        );
-                        if (combo) selectN26Row(combo.id);
+                        selectN26Row(row.id);
                         logN26RollWithCooldown(row.name, total, dice);
                       }
                     }
@@ -2255,7 +2267,7 @@ export function AdvancementModal({
 
               <div>
                 <N26AdvancementResultTable
-                  rows={N26_ADVANCEMENT_COMBO_OPTIONS}
+                  rows={n26AdvancementRows}
                   selectedRowId={n26SelectedRowId}
                   rollTotal={n26RollTotal}
                   onSelectRow={selectN26Row}
@@ -2296,9 +2308,11 @@ export function AdvancementModal({
                   </div>
                   {advancementType === 'skill' && (
                     <p className="text-xs text-muted-foreground">
-                      {isRandomAcquisitionType
-                        ? 'Choose a Skill Set below, then roll for a skill from it.'
-                        : 'Choose a Skill Set below, then select a skill from it.'}
+                      {skillAcquisitionType === N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID
+                        ? 'Select a Legendary Name below.'
+                        : isRandomAcquisitionType
+                          ? 'Choose a Skill Set below, then roll for a skill from it.'
+                          : 'Choose a Skill Set below, then select a skill from it.'}
                     </p>
                   )}
                 </div>
@@ -2670,6 +2684,7 @@ export function AdvancementModal({
             {advancementType === 'skill' && !loading && (
               <>
                 <div className="space-y-2">
+                  {skillAcquisitionType !== N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID && (
                   <Combobox
                     value={selectedCategory}
                     onValueChange={(v) => {
@@ -2687,6 +2702,7 @@ export function AdvancementModal({
                     options={skillSetComboboxOptions}
                     dropdownPlacement="down"
                   />
+                  )}
                   {venatorRanksIncomplete && (
                     <p className="text-sm text-amber-500">
                       {VENATOR_RANKS_INCOMPLETE_MESSAGE}
@@ -2713,7 +2729,7 @@ export function AdvancementModal({
                   )}
                 </div>
 
-                {selectedCategory && skillsLoading && (
+                {selectedCategory && skillsLoading && availableAdvancements.length === 0 && (
                   <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
                 )}
 
@@ -2730,7 +2746,7 @@ export function AdvancementModal({
                   />
                 )}
 
-                {selectedCategory && !skillsLoading && skillAcquisitionType && availableAdvancements.length > 0 && (
+                {selectedCategory && skillAcquisitionType && availableAdvancements.length > 0 && (
                   <div className="space-y-2">
                     {isRandomAcquisitionType && (
                       <div className="flex flex-wrap items-center gap-2">
@@ -2768,7 +2784,11 @@ export function AdvancementModal({
                           setSkillRollResult(null);
                         }
                       }}
-                      placeholder="Select a Skill"
+                      placeholder={
+                        skillAcquisitionType === N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID
+                          ? 'Select a Legendary Name'
+                          : 'Select a Skill'
+                      }
                       options={skillComboboxOptions}
                     />
                   </div>

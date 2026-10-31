@@ -1,4 +1,4 @@
-import type { EditionSlug } from '@/types/edition';
+import { EDITION_N26, type EditionSlug } from '@/types/edition';
 import { skillSetRankN23 } from '@/utils/skillSetRankN23';
 import { skillSetRankN26 } from '@/utils/skillSetRankN26';
 
@@ -47,6 +47,22 @@ export function isWyrdPowerSkillSet(
   if (/wyrd/i.test(name)) return true;
   const rank = getSkillSetRank(editionSlug)[name.toLowerCase()] ?? Infinity;
   return rank >= 40 && rank <= 69;
+}
+
+/**
+ * Whether a Skill Set is Legendary Names.
+ *
+ * Name match covers the set even when it is unranked. The 80–89 band is the
+ * N26 "Legendary Names" group only — N23 uses those ranks for other sets.
+ */
+export function isLegendaryNameSkillSet(
+  name: string,
+  editionSlug?: string | null
+): boolean {
+  if (editionSlug !== EDITION_N26) return false;
+  if (/legendary names/i.test(name)) return true;
+  const rank = getSkillSetRank(editionSlug)[name.toLowerCase()] ?? Infinity;
+  return rank >= 80 && rank <= 89;
 }
 
 /**

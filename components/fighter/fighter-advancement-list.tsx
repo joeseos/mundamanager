@@ -21,6 +21,7 @@ import {
 import { LuUndo2 } from 'react-icons/lu';
 import type { FighterPromotionResult } from '@/components/fighter/edit-fighter/fighter-promotion-modal';
 import { hasCumulativeXp } from '@/types/edition';
+import { fighterSkillAccessQueryOptions } from '@/utils/fighterSkillAccessQuery';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
   N26_PROSPECT_PROMOTION_CREDITS,
@@ -99,6 +100,13 @@ export function AdvancementsList({
   // No XP is spent on Advancements in a rank-based edition, so there is no XP
   // cost to list and nothing to refund when one is undone.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
+
+  // N26 row 6 reads Legendary Names access from this cache. Start the fetch on
+  // the fighter page so the Advancements modal already has the correct label.
+  useQuery({
+    ...fighterSkillAccessQueryOptions(fighterId),
+    enabled: isCumulativeXp && !!fighterId && userPermissions.canEdit,
+  });
 
   const canPromoteToOutcastLeader = canPromoteToN26OutcastLeader({
     owningGangTypeId,
