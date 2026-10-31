@@ -28,8 +28,7 @@ import {
   isN26ProspectPromotionUndoCandidate,
   N26_PROSPECT_PROMOTION_CREDITS,
 } from '@/utils/keepTypePromotionN26';
-import { hasN26LegendaryNames, hasProspectSpecialisationPromotion } from '@/types/edition';
-import { Checkbox } from '@/components/ui/checkbox';
+import { hasProspectSpecialisationPromotion } from '@/types/edition';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -80,9 +79,6 @@ interface SkillsListProps {
   }) => void;
 }
 
-/** N26: a Legendary Name gained from 5+ XP in one battle adds this to the fighter's value. */
-const N26_BATTLE_XP_LEGENDARY_NAME_CREDITS = 5;
-
 // SkillModal Interfaces
 interface SkillModalProps {
   fighterId: string;
@@ -102,7 +98,6 @@ interface Category {
   id: string;
   name: string;
   is_custom?: boolean;
-  legendary_name?: boolean;
 }
 
 interface SkillData {
@@ -136,11 +131,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
   const [editableCost, setEditableCost] = useState<number>(0);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(true);
-  const [battleXpLegendaryName, setBattleXpLegendaryName] = useState(false);
-
-  // Legendary Names only raise the fighter's value, so they never touch the stash.
-  const isLegendaryNameSet = !!categories.find((c) => c.id === selectedCategory)?.legendary_name;
-  const offersBattleXpLegendaryName = isLegendaryNameSet && hasN26LegendaryNames(editionSlug);
 
   const queryClient = useQueryClient();
 
@@ -165,13 +155,11 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onSkillAdded(variables.skill_id || variables.custom_skill_id || '', skillName, variables.credits_increase, variables.is_advance);
 
       // Optimistically deduct gang credits for non-advancement purchases
-      const creditsDeducted =
-        !variables.is_advance && !isLegendaryNameSet ? variables.credits_increase : 0;
-      if (creditsDeducted > 0) {
-        onGangCreditsUpdate?.(-creditsDeducted);
+      if (variables.credits_increase > 0 && !variables.is_advance) {
+        onGangCreditsUpdate?.(-variables.credits_increase);
       }
 
-      return { skillName, creditsDeducted };
+      return { skillName, creditsDeducted: (!variables.is_advance && variables.credits_increase > 0) ? variables.credits_increase : 0 };
     },
     onSuccess: (result, variables, context) => {
       if (context?.creditsDeducted && context.creditsDeducted > 0) {
@@ -339,10 +327,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     const mutationData = {
       fighter_id: fighterId,
       xp_cost: 0,
-      credits_increase:
-        offersBattleXpLegendaryName && battleXpLegendaryName
-          ? N26_BATTLE_XP_LEGENDARY_NAME_CREDITS
-          : editableCost,
+      credits_increase: editableCost,
       is_advance: false,
       ...(isCustomSkillSelected ? { custom_skill_id: selectedSkill } : { skill_id: selectedSkill }),
     };
@@ -362,7 +347,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
             setSelectedSkill('');
             setIsCustomSkillSelected(false);
             setEditableCost(0);
-            setBattleXpLegendaryName(false);
           }}
           placeholder="Select a skill set"
           options={skillSetComboboxOptions}
@@ -396,22 +380,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
             options={skillComboboxOptions}
             dropdownPlacement="down"
           />
-
-          {offersBattleXpLegendaryName && (
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="legendary-name-battle-xp"
-                checked={battleXpLegendaryName}
-                onCheckedChange={(checked) => setBattleXpLegendaryName(checked === true)}
-              />
-              <label htmlFor="legendary-name-battle-xp" className="text-sm font-medium cursor-pointer">
-                Earned 5+ XP in one battle
-                <span className="ml-2 font-normal text-muted-foreground">
-                  (+{N26_BATTLE_XP_LEGENDARY_NAME_CREDITS} credits)
-                </span>
-              </label>
-            </div>
-          )}
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
           {(skillsData?.skills.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0 && (
@@ -448,7 +416,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (!isLegendaryNameSet && editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
+      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
     />
   );
 }
@@ -591,10 +559,6 @@ export function SkillsList({
       };
     },
     onSuccess: (result, _variables, context) => {
-      // The server refunds no stash for a skill that was never bought (a Legendary Name).
-      if (context?.creditsRefunded && result.refund_stash === false) {
-        onGangCreditsUpdate?.(-context.creditsRefunded);
-      }
       if (result.fighter_details) {
         onFighterDetailsUpdate?.(result.fighter_details);
       } else if (
@@ -619,7 +583,7 @@ export function SkillsList({
         toast.success(`${context?.skillName} removed — Champion promotion undone`);
       } else if (context?.isLeaderPromotionGrant && result.fighter_details) {
         toast.success(`${context?.skillName} removed — Leader promotion undone`);
-      } else if (context?.creditsRefunded && context.creditsRefunded > 0 && result.refund_stash !== false) {
+      } else if (context?.creditsRefunded && context.creditsRefunded > 0) {
         toast.success(`${context?.skillName} removed, ${context.creditsRefunded} credits refunded`);
       } else {
         toast.success(`${context?.skillName} removed successfully`);

@@ -891,10 +891,7 @@ async function resolveCatalogSkillId(
   return { skillId: skillsByName[0].id };
 }
 
-/**
- * Legendary Names raise a fighter's value but are never bought from the stash,
- * whichever way they were gained.
- */
+/** Legendary Names are never bought from the stash and are not a fighter's starting skill. */
 async function isLegendaryNameSkill(
   supabase: Awaited<ReturnType<typeof createClient>>,
   skill: { skill_id?: string | null; custom_skill_id?: string | null }
@@ -1519,9 +1516,7 @@ export async function deleteAdvancement(
 
       xpToRefund = skillData.xp_cost || 0;
       ratingDelta -= (skillData.credits_increase || 0);
-      // Non-advancement skills paid from stash, so refund on delete. Legendary Names never were.
-      refundStash =
-        !skillData.is_advance && !(await isLegendaryNameSkill(supabase, skillData));
+      refundStash = !skillData.is_advance; // Non-advancement skills paid from stash, so refund on delete
 
       // Get skill name for logging
       if (skillData.custom_skill_id) {

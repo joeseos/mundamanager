@@ -259,10 +259,7 @@ const EDITION_CAPABILITIES = {
   spyrerPowerBoosts:        { n23: true,  n26: false },
   /** Each model may take one Post-cycle Action between battles (utils/postCycleActions.ts). */
   postCycleActions:         { n23: false, n26: true  },
-  /**
-   * N26 Legendary Names: Leaders and Champions may hold two, other fighters one;
-   * a name gained from 5+ XP in one battle adds 5 credits to the fighter's value.
-   */
+  /** N26 Legendary Names: a 6+ Advancement may be one; Leaders and Champions hold two, others one. */
   n26LegendaryNames:        { n23: false, n26: true  },
 } as const satisfies Record<string, Record<EditionSlug, unknown>>;
 
