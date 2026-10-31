@@ -16,6 +16,12 @@ import type { CampaignType } from '@/types/campaign'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
+import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker'
+import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue'
+import { catalogueSlotForCampaignType } from '@/utils/campaign-portraits'
+import { campaignPortraitPublicUrl } from '@/utils/campaign-image'
+import { defaultPortraitForSlot } from '@/utils/portrait-catalogue'
+import { PiFlagBannerFoldBold } from 'react-icons/pi'
 
 interface TradingPostType {
   id: string;
@@ -72,6 +78,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
   const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('campaign');
 
   const editionCampaignTypes = useMemo(
     () => campaignTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
@@ -86,6 +93,31 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const campaignRank = getCampaignRank(editionSlug);
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
+
+  const selectedCampaignType = useMemo(
+    () => campaignTypes.find(type => type.id === campaignType) ?? null,
+    [campaignTypes, campaignType]
+  );
+  const catalogueSlot = useMemo(
+    () => catalogueSlotForCampaignType(
+      selectedCampaignType?.id,
+      selectedCampaignType?.campaign_type_name
+    ),
+    [selectedCampaignType]
+  );
+  const defaultPortraitId = useMemo(
+    () => defaultPortraitForSlot(portraits, catalogueSlot)?.id ?? null,
+    [portraits, catalogueSlot]
+  );
+
+  const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(null);
+  const [pinnedCampaignTypeId, setPinnedCampaignTypeId] = useState(campaignType);
+  if (campaignType !== pinnedCampaignTypeId) {
+    setPinnedCampaignTypeId(campaignType);
+    setSelectedPortraitId(defaultPortraitId);
+  } else if (selectedPortraitId === null && defaultPortraitId) {
+    setSelectedPortraitId(defaultPortraitId);
+  }
 
   // Clear campaign type / trading posts that no longer belong to the active edition
   const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
@@ -152,6 +184,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
         name: campaignName.trimEnd(),
         campaignTypeId: campaignType,
         trading_posts: selectedTradingPosts,
+        campaignPortraitId: selectedPortraitId,
       })
 
       if (!result.success) {
@@ -163,6 +196,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       // Reset form and close modal first for better UX
       setCampaignName("")
       setCampaignType("")
+      setSelectedPortraitId(null)
       setSelectedTradingPosts([])
       onClose()
       
@@ -188,6 +222,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       const activeElement = document.activeElement;
+
+      const target = event.target as HTMLElement | null;
+      // Gallery buttons are portaled outside this modal. Enter must activate them, not create the campaign.
+      if (target?.closest('button, [data-portrait-picker]')) {
+        return;
+      }
 
       if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA')
           && (!campaignName.trim() || !campaignType || isLoading)) {
@@ -215,7 +255,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       onMouseDown={handleOverlayClick}
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Create a New Campaign</h2>
@@ -319,6 +359,26 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                   })}
               </div>
             </div>
+          )}
+
+          {campaignType && (
+            <>
+              <PortraitPicker
+                portraits={portraits}
+                catalogueSlot={catalogueSlot}
+                selectedPortraitId={selectedPortraitId}
+                subjectName={selectedCampaignType?.campaign_type_name ?? ''}
+                onSelect={setSelectedPortraitId}
+                imageUrl={campaignPortraitPublicUrl}
+                fallbackImageUrl={selectedPortraitId ? null : selectedCampaignType?.image_url}
+                emptyFallback={<PiFlagBannerFoldBold className="size-1/2" />}
+                galleryTitle="Campaign Portraits"
+                galleryHelper="Choose a portrait for this campaign."
+                catalogueLoadFailed={Boolean(catalogueSlot) && portraitsStatus === 'error'}
+                onRetryCatalogue={retryPortraits}
+              />
+              <p className="text-xs text-center text-muted-foreground">You&apos;ll be able to upload a custom image once your campaign is created.</p>
+            </>
           )}
 
           <div>

@@ -11,25 +11,24 @@ import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-lin
 import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
 import { createClient } from '@/utils/supabase/client';
-import { gangPortraitPublicUrl } from '@/types/gang';
 import { isValidHttpUrl } from '@/utils/http-url';
 import {
-  compareGangPortraits,
-  GANG_PORTRAIT_STYLES,
-  type GangPortrait,
-} from '@/utils/gang-portraits';
+  comparePortraits,
+  PORTRAIT_CATALOGUES,
+  PORTRAIT_STYLES,
+  PORTRAIT_COGWHEEL_URL,
+  portraitPublicUrl,
+  type Portrait,
+  type PortraitCatalogueKey,
+} from '@/utils/portrait-catalogue';
 import {
   type CropArea,
   getCroppedImg,
   processImageFile,
   validateImageFile,
 } from '@/utils/image-processing';
-
-const COGWHEEL_URL =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp';
-const PORTRAIT_BUCKET = 'gang-type-images';
 const PORTRAIT_PX = 512;
-const STYLES_SET = new Set<string>(GANG_PORTRAIT_STYLES);
+const STYLES_SET = new Set<string>(PORTRAIT_STYLES);
 
 const STYLE_FILE_SLUG: Record<string, string> = {
   colour: 'colour',
@@ -51,8 +50,13 @@ export interface PortraitFormHandle {
   remove: () => void;
 }
 
-interface AdminGangPortraitFormProps {
+interface AdminPortraitFormProps {
+  catalogue: PortraitCatalogueKey;
   onStateChange: (state: PortraitFormState) => void;
+  /** When set, the group label is a campaign type instead of free text. */
+  campaignTypes?: { id: string; campaign_type_name: string | null }[];
+  groupLabelPlaceholder: string;
+  deleteWarning: string;
 }
 
 function slugPart(value: string): string {
@@ -85,13 +89,13 @@ function isDuplicateStorageError(error: { message?: string; statusCode?: string 
   return status === '409' || message.includes('already exists') || message.includes('duplicate');
 }
 
-async function listAdminPaths(): Promise<Set<string>> {
+async function listAdminPaths(bucket: string): Promise<Set<string>> {
   const supabase = createClient();
   const paths = new Set<string>();
   const pageSize = 1000;
 
   for (let offset = 0; offset < 10000; offset += pageSize) {
-    const { data, error } = await supabase.storage.from(PORTRAIT_BUCKET).list('admin', {
+    const { data, error } = await supabase.storage.from(bucket).list('admin', {
       limit: pageSize,
       offset,
       sortBy: { column: 'name', order: 'asc' },
@@ -122,14 +126,15 @@ async function uploadPortraitBlob(
   label: string,
   style: string,
   reservedPaths: Set<string>,
+  bucket: string,
 ): Promise<string> {
-  const taken = new Set<string>([...reservedPaths, ...(await listAdminPaths())]);
+  const taken = new Set<string>([...reservedPaths, ...(await listAdminPaths(bucket))]);
   const base = portraitBaseName(group, label, style);
   const supabase = createClient();
 
   for (let attempt = 0; attempt < 50; attempt++) {
     const path = nextFreePath(base, taken);
-    const { error } = await supabase.storage.from(PORTRAIT_BUCKET).upload(path, blob, {
+    const { error } = await supabase.storage.from(bucket).upload(path, blob, {
       contentType: 'image/webp',
       cacheControl: 'no-cache',
       upsert: false,
@@ -146,14 +151,14 @@ function isAdminUploadedPath(storagePath: string): boolean {
   return storagePath.startsWith('admin/') && !storagePath.includes('..');
 }
 
-async function removePortraitFile(storagePath: string) {
+async function removePortraitFile(storagePath: string, bucket: string) {
   if (!isAdminUploadedPath(storagePath)) return;
   const supabase = createClient();
-  const { error } = await supabase.storage.from(PORTRAIT_BUCKET).remove([storagePath]);
+  const { error } = await supabase.storage.from(bucket).remove([storagePath]);
   if (error) throw error;
 }
 
-function portraitOption(portrait: GangPortrait) {
+function portraitOption(portrait: Portrait) {
   const primary = [portrait.group_label, portrait.label].filter(Boolean).join(' · ');
   const artist = portrait.credit?.name?.trim() ?? '';
   const detail = [artist ? `• ${artist}` : '', portrait.style].filter(Boolean).join(' · ');
@@ -173,8 +178,9 @@ function portraitOption(portrait: GangPortrait) {
   };
 }
 
-export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPortraitFormProps>(
-  function AdminGangPortraitForm({ onStateChange }, ref) {
+export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFormProps>(
+  function AdminPortraitForm({ catalogue, onStateChange, campaignTypes, groupLabelPlaceholder, deleteWarning }, ref) {
+    const config = PORTRAIT_CATALOGUES[catalogue];
     const queryClient = useQueryClient();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const onStateChangeRef = useRef(onStateChange);
@@ -182,7 +188,8 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
 
     const [selectedId, setSelectedId] = useState('');
     const [groupLabel, setGroupLabel] = useState('');
-    const [style, setStyle] = useState<string>(GANG_PORTRAIT_STYLES[0]);
+    const [campaignTypeId, setCampaignTypeId] = useState('');
+    const [style, setStyle] = useState<string>(PORTRAIT_STYLES[0]);
     const [label, setLabel] = useState('');
     const [creditName, setCreditName] = useState('');
     const [creditUrl, setCreditUrl] = useState('');
@@ -197,11 +204,11 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
 
-    const { data: portraits = [], isLoading } = useQuery<GangPortrait[]>({
-      queryKey: ['admin-gang-portraits'],
+    const { data: portraits = [], isLoading } = useQuery<Portrait[]>({
+      queryKey: [config.adminQueryKey],
       queryFn: async () => {
-        const response = await fetch('/api/admin/gang-portraits');
-        if (!response.ok) throw new Error('Failed to fetch gang portraits');
+        const response = await fetch(`/api/admin/portraits/${catalogue}`);
+        if (!response.ok) throw new Error('Failed to fetch portraits');
         return response.json();
       },
       staleTime: 60 * 1000,
@@ -212,7 +219,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
         .sort((a, b) => {
           const group = a.group_label.localeCompare(b.group_label, undefined, { sensitivity: 'base' });
           if (group !== 0) return group;
-          return compareGangPortraits(a, b);
+          return comparePortraits(a, b);
         })
         .map((portrait) => portraitOption(portrait));
     }, [portraits]);
@@ -221,8 +228,14 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
     const fieldsDisabled = (!isCreateMode && !selectedId) || isBusy || isLoading || isProcessing;
     const creditUrlTrimmed = creditUrl.trim();
     const creditUrlValid = creditUrlTrimmed === '' || isValidHttpUrl(creditUrlTrimmed);
+    const selectedTypeName = (campaignTypes ?? [])
+      .find((type) => type.id === campaignTypeId)
+      ?.campaign_type_name
+      ?.trim() ?? '';
+    const resolvedGroupLabel = config.requiresCampaignType ? selectedTypeName : groupLabel.trim();
     const metadataValid =
-      groupLabel.trim() !== '' &&
+      resolvedGroupLabel !== '' &&
+      (!config.requiresCampaignType || campaignTypeId !== '') &&
       STYLES_SET.has(style) &&
       creditName.trim() !== '' &&
       creditUrlValid;
@@ -257,7 +270,8 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
 
     const clearFields = () => {
       setGroupLabel('');
-      setStyle(GANG_PORTRAIT_STYLES[0]);
+      setCampaignTypeId('');
+      setStyle(PORTRAIT_STYLES[0]);
       setLabel('');
       setCreditName('');
       setCreditUrl('');
@@ -265,9 +279,10 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
       clearPendingImage();
     };
 
-    const applyPortrait = (portrait: GangPortrait) => {
+    const applyPortrait = (portrait: Portrait) => {
       setGroupLabel(portrait.group_label ?? '');
-      setStyle(portrait.style || GANG_PORTRAIT_STYLES[0]);
+      setCampaignTypeId(portrait.campaign_type_id ?? '');
+      setStyle(portrait.style || PORTRAIT_STYLES[0]);
       setLabel(portrait.label ?? '');
       setCreditName(portrait.credit?.name ?? '');
       setCreditUrl(portrait.credit?.url ?? '');
@@ -333,8 +348,8 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
     };
 
     const refreshPortraits = async () => {
-      await queryClient.invalidateQueries({ queryKey: ['admin-gang-portraits'] });
-      await queryClient.invalidateQueries({ queryKey: ['gang-portraits'] });
+      await queryClient.invalidateQueries({ queryKey: [config.adminQueryKey] });
+      await queryClient.invalidateQueries({ queryKey: [config.queryKey] });
     };
 
     const handleSave = useCallback(async () => {
@@ -354,7 +369,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
           const cropped = await getCroppedImg(pendingImage, croppedAreaPixels, PORTRAIT_PX, PORTRAIT_PX);
           const reserved = new Set(portraits.map((portrait) => portrait.storage_path));
           if (previousPath) reserved.add(previousPath);
-          uploadedPath = await uploadPortraitBlob(cropped, groupLabel, label, style, reserved);
+          uploadedPath = await uploadPortraitBlob(cropped, resolvedGroupLabel, label, style, reserved, config.bucket);
           storagePath = uploadedPath;
         }
 
@@ -364,15 +379,16 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
 
         const payload = {
           storage_path: storagePath,
-          group_label: groupLabel.trim(),
           style,
-          label: label.trim(),
           credit_name: creditName.trim(),
           credit_url: creditUrl.trim(),
           credit_suffix: creditSuffix.trim(),
+          ...(config.requiresCampaignType
+            ? { campaign_type_id: campaignTypeId }
+            : { group_label: resolvedGroupLabel, label: label.trim() }),
         };
 
-        const response = await fetch('/api/admin/gang-portraits', {
+        const response = await fetch(`/api/admin/portraits/${catalogue}`, {
           method: isCreateMode ? 'POST' : 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(isCreateMode ? payload : { id: selectedId, ...payload }),
@@ -383,11 +399,11 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
           throw new Error(errorData.error || `Failed to ${isCreateMode ? 'create' : 'update'} portrait`);
         }
 
-        const saved = await response.json() as GangPortrait;
+        const saved = await response.json() as Portrait;
 
         if (previousPath && uploadedPath && previousPath !== uploadedPath) {
           try {
-            await removePortraitFile(previousPath);
+            await removePortraitFile(previousPath, config.bucket);
           } catch (removeError) {
             console.error('Error removing the previous portrait file:', removeError);
             toast.error('Portrait saved, but the previous image file could not be removed');
@@ -400,10 +416,10 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
         setIsCreateMode(false);
         applyPortrait(saved);
       } catch (error) {
-        console.error('Error saving gang portrait:', error);
+        console.error('Error saving portrait:', error);
         if (uploadedPath) {
           try {
-            await removePortraitFile(uploadedPath);
+            await removePortraitFile(uploadedPath, config.bucket);
           } catch (removeError) {
             console.error('Error removing the unused portrait file:', removeError);
           }
@@ -414,11 +430,15 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
         setPendingAction(null);
       }
     }, [
+      campaignTypeId,
+      catalogue,
+      config.bucket,
+      config.requiresCampaignType,
       creditName,
       creditSuffix,
       creditUrl,
       croppedAreaPixels,
-      groupLabel,
+      resolvedGroupLabel,
       imageReady,
       isBusy,
       isCreateMode,
@@ -437,7 +457,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
       setPendingAction('delete');
       setIsBusy(true);
       try {
-        const response = await fetch('/api/admin/gang-portraits', {
+        const response = await fetch(`/api/admin/portraits/${catalogue}`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: selectedId }),
@@ -451,7 +471,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
         const removed = await response.json() as { storage_path?: string };
         if (removed.storage_path) {
           try {
-            await removePortraitFile(removed.storage_path);
+            await removePortraitFile(removed.storage_path, config.bucket);
           } catch (removeError) {
             console.error('Error removing the portrait file:', removeError);
             toast.error('Portrait deleted, but the image file could not be removed');
@@ -465,14 +485,14 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
         setIsCreateMode(false);
         return true;
       } catch (error) {
-        console.error('Error deleting gang portrait:', error);
+        console.error('Error deleting portrait:', error);
         toast.error(error instanceof Error ? error.message : 'Failed to delete portrait');
         return false;
       } finally {
         setIsBusy(false);
         setPendingAction(null);
       }
-    }, [isBusy, selectedId, selectedPortrait]);
+    }, [catalogue, isBusy, selectedId, selectedPortrait]);
 
     useImperativeHandle(ref, () => ({
       save: () => { void handleSave(); },
@@ -483,7 +503,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
     }), [handleDelete, handleSave, isBusy, selectedId, selectedPortrait]);
 
     const previewUrl = !isCreateMode && selectedPortrait
-      ? gangPortraitPublicUrl(selectedPortrait.storage_path)
+      ? portraitPublicUrl(config.publicBase, selectedPortrait.storage_path)
       : undefined;
     const showPortraitPreview = Boolean(previewUrl || isCreateMode || selectedId);
     const previewCredit = {
@@ -545,7 +565,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
                 )}
                 <div className="pointer-events-none absolute z-20 size-[200px] md:size-[250px]">
                   <Image
-                    src={COGWHEEL_URL}
+                    src={PORTRAIT_COGWHEEL_URL}
                     alt=""
                     width={250}
                     height={250}
@@ -629,16 +649,35 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
 
         <div>
           <label className="block text-sm font-medium text-muted-foreground mb-1">
-            Group label *
+            {config.requiresCampaignType ? 'Campaign type *' : 'Group label *'}
           </label>
-          <Input
-            type="text"
-            value={groupLabel}
-            onChange={(e) => setGroupLabel(e.target.value)}
-            placeholder="E.g. House Escher"
-            className="w-full"
-            disabled={fieldsDisabled}
-          />
+          {config.requiresCampaignType ? (
+            <select
+              value={campaignTypeId}
+              onChange={(e) => setCampaignTypeId(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              disabled={fieldsDisabled}
+            >
+              <option value="">Select a campaign type</option>
+              {(campaignTypes ?? [])
+                .filter((type) => type.campaign_type_name?.trim())
+                .sort((a, b) => (a.campaign_type_name ?? '').localeCompare(b.campaign_type_name ?? '', undefined, { sensitivity: 'base' }))
+                .map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.campaign_type_name}
+                  </option>
+                ))}
+            </select>
+          ) : (
+            <Input
+              type="text"
+              value={groupLabel}
+              onChange={(e) => setGroupLabel(e.target.value)}
+              placeholder={groupLabelPlaceholder}
+              className="w-full"
+              disabled={fieldsDisabled}
+            />
+          )}
         </div>
 
         <div>
@@ -651,7 +690,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
             className="w-full p-2 border rounded-md"
             disabled={fieldsDisabled}
           >
-            {GANG_PORTRAIT_STYLES.map((option) => (
+            {PORTRAIT_STYLES.map((option) => (
               <option key={option} value={option}>
                 {option}
               </option>
@@ -659,19 +698,21 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-muted-foreground mb-1">
-            Label
-          </label>
-          <Input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Optional, e.g. Pride 1"
-            className="w-full"
-            disabled={fieldsDisabled}
-          />
-        </div>
+        {!config.requiresCampaignType && (
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Label
+            </label>
+            <Input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Optional, e.g. Pride 1"
+              className="w-full"
+              disabled={fieldsDisabled}
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-muted-foreground mb-1">
@@ -724,7 +765,7 @@ export const AdminGangPortraitForm = forwardRef<PortraitFormHandle, AdminGangPor
           width="sm"
           content={
             <p>
-              Delete this portrait? Gangs using it will fall back to the silhouette.
+              {deleteWarning}
               {selectedPortrait && isAdminUploadedPath(selectedPortrait.storage_path)
                 ? ' The uploaded image file will also be removed.'
                 : ''}
