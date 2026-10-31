@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -156,6 +157,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const [skillNameList, setSkillList] = useState<Skill[]>([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
+  const [legendaryName, setLegendaryName] = useState(false);
   const [gangOrigin, setGangOrigin] = useState('');
   const [editionId, setEditionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -168,7 +170,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const editionSlug = editionSlugOf(editions, editionId);
   const skillSetRank = getSkillSetRank(editionSlug);
 
-  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
+  const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null, legendary_name?: boolean}>>({
     queryKey: ['admin-skill-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/skill-types');
@@ -315,6 +317,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
           name: skillTypeName,
           id: skillType,
           edition_id: editionId || null,
+          legendary_name: legendaryName,
         });
         break;
       case OperationType.DELETE:
@@ -478,6 +481,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                       searchSkillType(e.target.value, selectedEditionId);
                     }
                     setSkillTypeName(selectedSkillType);
+                    setLegendaryName(!!selectedType?.legendary_name);
                     setEditionId(selectedType?.edition_id ?? '');
                   }
                 }
@@ -692,6 +696,19 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 disabled={skillName == '' && skillType == ''}
               />
             </div>
+
+            {skillName == '' && skillType !== '' && (
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="legendary-name-set"
+                  checked={legendaryName}
+                  onCheckedChange={(checked) => setLegendaryName(checked === true)}
+                />
+                <label htmlFor="legendary-name-set" className="text-sm font-medium text-muted-foreground cursor-pointer">
+                  Legendary Name Skill Set
+                </label>
+              </div>
+            )}
 
           </div>
         </div>

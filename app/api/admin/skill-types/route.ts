@@ -13,7 +13,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('skill_types')
-      .select('id, name, edition_id')
+      .select('id, name, edition_id, legendary_name')
       .order('name');
 
     if (error) throw error;
@@ -21,7 +21,8 @@ export async function GET() {
     const transformedData = data.map(type => ({
       id: type.id,
       skill_type: type.name,
-      edition_id: type.edition_id
+      edition_id: type.edition_id,
+      legendary_name: type.legendary_name
     }));
 
     return NextResponse.json(transformedData);
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
 
     const formattedData = {
       name: skillTypeData.name,
-      edition_id: skillTypeData.edition_id || null
+      edition_id: skillTypeData.edition_id || null,
+      legendary_name: skillTypeData.legendary_name === true
     };
 
     const { data, error } = await supabase
@@ -83,6 +85,9 @@ export async function PATCH(request: Request) {
       name: skillTypeData.name,
       id: skillTypeData.id,
       edition_id: skillTypeData.edition_id || null,
+      ...(typeof skillTypeData.legendary_name === 'boolean' && {
+        legendary_name: skillTypeData.legendary_name,
+      }),
     };
 
     const { data, error } = await supabase

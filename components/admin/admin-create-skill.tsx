@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { gangOriginRank } from "@/utils/gangOriginRank";
@@ -19,6 +20,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [skillName, setSkillName] = useState('');
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
+  const [legendaryName, setLegendaryName] = useState(false);
   const [gangOrigin, setGangOrigin] = useState('');
   const [editionId, setEditionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -122,7 +124,8 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         },
         body: JSON.stringify({
           name: skillTypeName,
-          edition_id: editionId || null
+          edition_id: editionId || null,
+          legendary_name: legendaryName
         }),
       });
 
@@ -285,6 +288,18 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
               {skillType !== '' && (
                 <p className="text-xs text-amber-600 mt-1">Clear the Skill Set selection to enter a Skill Set Name.</p>
               )}
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="legendary-name-set"
+                checked={legendaryName}
+                onCheckedChange={(checked) => setLegendaryName(checked === true)}
+                disabled={skillType !== ''}
+              />
+              <label htmlFor="legendary-name-set" className="text-sm font-medium text-muted-foreground cursor-pointer">
+                Legendary Name Skill Set
+              </label>
             </div>
 
           </div>
