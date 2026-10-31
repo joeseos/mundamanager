@@ -5283,10 +5283,7 @@ COMMENT ON TABLE public.campaign_allegiances IS 'Custom allegiances created by a
 CREATE TABLE public.campaign_battles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    attacker_id uuid,
-    defender_id uuid,
     scenario_id uuid,
-    winner_id uuid,
     note text,
     campaign_id uuid,
     participants jsonb,
@@ -5310,27 +5307,6 @@ CREATE TABLE public.campaign_battles (
     CONSTRAINT campaign_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
-
-
---
--- Name: COLUMN campaign_battles.attacker_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.attacker_id IS 'gang_id';
-
-
---
--- Name: COLUMN campaign_battles.defender_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.defender_id IS 'gang_id';
-
-
---
--- Name: COLUMN campaign_battles.winner_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.winner_id IS 'gang_id';
 
 
 --
@@ -5626,8 +5602,16 @@ CREATE TABLE public.campaign_types (
     description text,
     image_url text,
     trading_posts jsonb,
-    edition_id uuid
+    edition_id uuid,
+    phases json
 );
+
+
+--
+-- Name: COLUMN campaign_types.phases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_types.phases IS 'Ordered phase names suggested to arbitrators of this campaign type. Null when the type has none.';
 
 
 --
@@ -5651,7 +5635,10 @@ CREATE TABLE public.campaigns (
     created_by uuid DEFAULT auth.uid(),
     custom_trading_posts jsonb,
     allow_join_requests boolean DEFAULT false NOT NULL,
-    current_cycle integer
+    current_cycle integer,
+    current_phase text,
+    CONSTRAINT campaigns_current_cycle_positive CHECK (((current_cycle IS NULL) OR (current_cycle >= 1))),
+    CONSTRAINT campaigns_current_phase_length CHECK (((current_phase IS NULL) OR ((char_length(current_phase) >= 1) AND (char_length(current_phase) <= 50))))
 );
 
 
@@ -5660,6 +5647,13 @@ CREATE TABLE public.campaigns (
 --
 
 COMMENT ON COLUMN public.campaigns.status IS 'Campaign status: Active or Closed. Defaults to Active for new campaigns.';
+
+
+--
+-- Name: COLUMN campaigns.current_phase; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaigns.current_phase IS 'Free-text name of the phase the campaign is in. Null when the campaign does not track phases.';
 
 
 --
@@ -9288,13 +9282,6 @@ CREATE INDEX battle_sessions_winner_gang_id_idx ON public.battle_sessions USING 
 
 
 --
--- Name: campaign_battles_attacker_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_battles_attacker_id_idx ON public.campaign_battles USING btree (attacker_id);
-
-
---
 -- Name: campaign_battles_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9344,13 +9331,6 @@ CREATE INDEX campaign_battles_cycle_idx ON public.campaign_battles USING btree (
 
 
 --
--- Name: campaign_battles_defender_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_battles_defender_id_idx ON public.campaign_battles USING btree (defender_id);
-
-
---
 -- Name: campaign_battles_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9369,13 +9349,6 @@ CREATE INDEX campaign_battles_objective_id_idx ON public.campaign_battles USING 
 --
 
 CREATE INDEX campaign_battles_scenario_id_idx ON public.campaign_battles USING btree (scenario_id);
-
-
---
--- Name: campaign_battles_winner_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_battles_winner_id_idx ON public.campaign_battles USING btree (winner_id);
 
 
 --
@@ -9526,6 +9499,13 @@ CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree
 
 
 --
+-- Name: custom_fighter_types_custom_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_custom_gang_type_id_idx ON public.custom_fighter_types USING btree (custom_gang_type_id);
+
+
+--
 -- Name: custom_fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9586,6 +9566,13 @@ CREATE INDEX custom_shared_edition_id_idx ON public.custom_shared USING btree (e
 --
 
 CREATE INDEX custom_skill_types_edition_id_idx ON public.custom_skill_types USING btree (edition_id);
+
+
+--
+-- Name: custom_skill_types_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_skill_types_user_id_idx ON public.custom_skill_types USING btree (user_id);
 
 
 --
@@ -10041,6 +10028,13 @@ CREATE INDEX fighter_type_equipment_fighter_subtype_idx ON public.fighter_type_e
 --
 
 CREATE INDEX fighter_type_equipment_gang_subtype_id_idx ON public.fighter_type_equipment USING btree (gang_subtype_id);
+
+
+--
+-- Name: fighter_type_skill_access_custom_skill_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_skill_access_custom_skill_type_id_idx ON public.fighter_type_skill_access USING btree (custom_skill_type_id);
 
 
 --
@@ -11438,14 +11432,6 @@ ALTER TABLE ONLY public.campaign_allegiances
 
 
 --
--- Name: campaign_battles campaign_battles_attacker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_attacker_id_fkey FOREIGN KEY (attacker_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
-
-
---
 -- Name: campaign_battles campaign_battles_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11486,14 +11472,6 @@ ALTER TABLE ONLY public.campaign_battles
 
 
 --
--- Name: campaign_battles campaign_battles_defender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_defender_id_fkey FOREIGN KEY (defender_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
-
-
---
 -- Name: campaign_battles campaign_battles_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11515,14 +11493,6 @@ ALTER TABLE ONLY public.campaign_battles
 
 ALTER TABLE ONLY public.campaign_battles
     ADD CONSTRAINT campaign_battles_territory_id_fkey FOREIGN KEY (territory_id) REFERENCES public.territories(id) ON DELETE SET NULL;
-
-
---
--- Name: campaign_battles campaign_battles_winner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --

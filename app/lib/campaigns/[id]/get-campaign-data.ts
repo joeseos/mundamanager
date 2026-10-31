@@ -12,6 +12,7 @@ import { sumFighterKills } from '@/app/lib/shared/gang-data';
 import { groupBy } from '@/utils/gang-assembly';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
+import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import type { CampaignMapBundle } from '@/types/campaign';
 
 // No TTL - infinite cache with server action invalidation only
@@ -29,6 +30,7 @@ async function _getCampaignBasic(campaignId: string) {
       custom_trading_posts: true,
       note: true,
       image_url: true,
+      campaign_portrait_id: true,
       discord_guild_id: true,
       discord_channel_id: true,
       allow_join_requests: true,
@@ -45,13 +47,15 @@ async function _getCampaignBasic(campaignId: string) {
         columns: { campaign_type_name: true, image_url: true },
         with: { editions: { columns: { slug: true } } },
       },
+      campaign_portrait: { columns: { storage_path: true } },
     },
   });
   if (!campaign) return null;
 
-  const { campaign_type, ...campaignRow } = campaign;
+  const { campaign_type, campaign_portrait, ...campaignRow } = campaign;
   return {
     ...campaignRow,
+    campaign_portrait_url: campaignPortraitPublicUrl(campaign_portrait?.storage_path) ?? null,
     campaign_types: campaign_type?.campaign_type_name ? {
       campaign_type_name: campaign_type.campaign_type_name,
       image_url: campaign_type.image_url || '',
@@ -410,9 +414,9 @@ export const getCampaignBasic = async (campaignId: string) => {
     async () => {
       return _getCampaignBasic(campaignId);
     },
-    [`campaign-basic-v4-${campaignId}`],
+    [`campaign-basic-v5-${campaignId}`],
     {
-      tags: [TAGS.campaignCore(campaignId)],
+      tags: [TAGS.campaignCore(campaignId), TAGS.globalCampaignPortraits()],
       revalidate: false
     }
   )();

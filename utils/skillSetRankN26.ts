@@ -6,8 +6,9 @@ export const skillSetRankN26: { [key: string]: number } = {
   "savant": 5,
   "shooting": 6,
   //
-  "finesse": 20,
-  "muscle": 21,
+  "bravado": 20,
+  "finesse": 21,
+  "muscle": 22,
   //
   // Ranks 40–69 are Wyrd Powers. isWyrdPowerSkillSet uses this band (plus a
   // /wyrd/i name match) so do not place a non-Wyrd Skill Set here.
@@ -20,4 +21,7 @@ export const skillSetRankN26: { [key: string]: number } = {
   "malstrain wyrd powers": 63,
   "psychoteric whispers": 64,
   "psyrender wyrd powers": 65,
+  //
+  // Legendary Names
+  "legendary names": 80,
 };
