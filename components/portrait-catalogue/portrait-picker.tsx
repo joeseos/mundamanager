@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode, type SyntheticEvent } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Modal from '@/components/ui/modal';
@@ -68,7 +68,8 @@ function CatalogueImage({
   imageErrorUrl?: string;
   emptyFallback: ReactNode;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === src;
 
   if (failed && !imageErrorUrl) {
     return (
@@ -89,9 +90,9 @@ function CatalogueImage({
       className={className}
       priority={priority}
       quality={quality}
-      onError={(event: SyntheticEvent<HTMLImageElement, Event>) => {
-        console.error('Failed to load image:', event.currentTarget.src);
-        setFailed(true);
+      onError={() => {
+        console.error('Failed to load image:', src);
+        setFailedSrc(src);
       }}
     />
   );
@@ -121,7 +122,12 @@ export function PortraitPicker({
     ? imageUrl(selected.storage_path)
     : fallbackImageUrl || undefined;
   const displayCredit = selected?.credit ?? (selected ? null : fallbackCredit);
-  const currentGroupLabel = selected?.group_label ?? catalogueSlot?.groupLabel ?? null;
+  const currentSectionKey =
+    selected?.campaign_type_id
+    || catalogueSlot?.campaignTypeId
+    || selected?.group_label
+    || catalogueSlot?.groupLabel
+    || null;
 
   useEffect(() => {
     if (!galleryOpen) return;
@@ -228,7 +234,7 @@ export function PortraitPicker({
           >
           <PortraitGallery
             portraits={portraits}
-            currentGroupLabel={currentGroupLabel}
+            currentSectionKey={currentSectionKey}
             selectedPortraitId={selectedPortraitId}
             imageUrl={imageUrl}
             emptyFallback={emptyFallback}
@@ -261,7 +267,7 @@ export function PortraitPicker({
 
 function PortraitGallery({
   portraits,
-  currentGroupLabel,
+  currentSectionKey,
   selectedPortraitId,
   imageUrl,
   emptyFallback,
@@ -273,7 +279,7 @@ function PortraitGallery({
   onClose,
 }: {
   portraits: Portrait[];
-  currentGroupLabel: string | null;
+  currentSectionKey: string | null;
   selectedPortraitId: string | null;
   imageUrl: (storagePath: string) => string | undefined;
   emptyFallback: ReactNode;
@@ -284,7 +290,7 @@ function PortraitGallery({
   onSelect: (portraitId: string) => void;
   onClose: () => void;
 }) {
-  const sections = gallerySections(portraits, currentGroupLabel);
+  const sections = gallerySections(portraits, currentSectionKey);
 
   return (
     <Modal
@@ -299,7 +305,7 @@ function PortraitGallery({
         <div className="space-y-6">
           {sections.map((section, index) => (
             <section
-              key={section.groupLabel}
+              key={section.key}
               className={index === 1 ? 'border-t border-border pt-6' : undefined}
             >
               <h4 className="text-xl font-semibold mb-3">{section.groupLabel}</h4>

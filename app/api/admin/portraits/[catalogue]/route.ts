@@ -6,14 +6,16 @@ import { isUuid } from "@/utils/uuid";
 import {
   PORTRAIT_CATALOGUES,
   isPortraitCatalogueKey,
+  toCampaignPortrait,
   toPortrait,
   validatePortraitWrite,
+  type Portrait,
   type PortraitCatalogueKey,
-  type PortraitWrite,
 } from "@/utils/portrait-catalogue";
 
 const GANG_COLUMNS = 'id, storage_path, credit, group_label, style, label';
-const CAMPAIGN_COLUMNS = `${GANG_COLUMNS}, campaign_type_id`;
+const CAMPAIGN_COLUMNS =
+  'id, storage_path, credit, style, campaign_type_id, campaign_types(campaign_type_name)';
 
 const INVALIDATE = {
   gang: invalidateGangPortraits,
@@ -21,6 +23,8 @@ const INVALIDATE = {
 } as const;
 
 type RouteProps = { params: Promise<{ catalogue: string }> };
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+type WriteBody = Parameters<typeof validatePortraitWrite>[0];
 
 function postgresCode(error: unknown): string | undefined {
   if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
@@ -56,31 +60,112 @@ async function catalogueKey(props: RouteProps): Promise<PortraitCatalogueKey | n
   return isPortraitCatalogueKey(catalogue) ? catalogue : null;
 }
 
-function campaignTypeId(write: PortraitWrite): string {
-  if (!write.campaign_type_id) {
-    throw new Error('campaign_type_id is required');
-  }
-  return write.campaign_type_id;
+function rejected(result: { error: unknown }): NextResponse | null {
+  if (!result.error) return null;
+  return constraintResponse(result.error) ?? null;
 }
 
-async function groupLabelForWrite(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  catalogue: PortraitCatalogueKey,
-  write: PortraitWrite
-): Promise<{ error: string } | { data: PortraitWrite }> {
-  if (!PORTRAIT_CATALOGUES[catalogue].requiresCampaignType) return { data: write };
-  const campaignTypeId = write.campaign_type_id;
-  if (!campaignTypeId) return { error: 'campaign_type_id is required' };
+async function listPortraits(supabase: Supabase, catalogue: PortraitCatalogueKey): Promise<Portrait[]> {
+  const config = PORTRAIT_CATALOGUES[catalogue];
+  if (config.requiresCampaignType) {
+    const { data, error } = await supabase
+      .from(config.table)
+      .select(CAMPAIGN_COLUMNS)
+      .order('storage_path');
+    if (error) throw error;
+    return (data ?? []).map((row) => toCampaignPortrait(row));
+  }
 
   const { data, error } = await supabase
-    .from('campaign_types')
-    .select('campaign_type_name')
-    .eq('id', campaignTypeId)
-    .maybeSingle();
+    .from(config.table)
+    .select(GANG_COLUMNS)
+    .order('group_label', { ascending: true })
+    .order('label', { ascending: true, nullsFirst: true });
   if (error) throw error;
-  const name = data?.campaign_type_name?.trim();
-  if (!name) return { error: 'Choose a campaign type that still exists' };
-  return { data: { ...write, group_label: name } };
+  return (data ?? []).map((row) => toPortrait(row));
+}
+
+async function insertPortrait(
+  supabase: Supabase,
+  catalogue: PortraitCatalogueKey,
+  body: WriteBody
+): Promise<NextResponse> {
+  const config = PORTRAIT_CATALOGUES[catalogue];
+  if (config.requiresCampaignType) {
+    const validated = validatePortraitWrite(body, { requireCampaignTypeId: true });
+    if ('error' in validated) {
+      return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+    const created = await supabase
+      .from(config.table)
+      .insert(validated.data)
+      .select(CAMPAIGN_COLUMNS)
+      .single();
+    const constraint = rejected(created);
+    if (constraint) return constraint;
+    if (created.error) throw created.error;
+    return NextResponse.json(toCampaignPortrait(created.data));
+  }
+
+  const validated = validatePortraitWrite(body, { requireCampaignTypeId: false });
+  if ('error' in validated) {
+    return NextResponse.json({ error: validated.error }, { status: 400 });
+  }
+  const created = await supabase
+    .from(config.table)
+    .insert(validated.data)
+    .select(GANG_COLUMNS)
+    .single();
+  const constraint = rejected(created);
+  if (constraint) return constraint;
+  if (created.error) throw created.error;
+  return NextResponse.json(toPortrait(created.data));
+}
+
+async function updatePortrait(
+  supabase: Supabase,
+  catalogue: PortraitCatalogueKey,
+  id: string,
+  body: WriteBody
+): Promise<NextResponse> {
+  const config = PORTRAIT_CATALOGUES[catalogue];
+  if (config.requiresCampaignType) {
+    const validated = validatePortraitWrite(body, { requireCampaignTypeId: true });
+    if ('error' in validated) {
+      return NextResponse.json({ error: validated.error }, { status: 400 });
+    }
+    const updated = await supabase
+      .from(config.table)
+      .update(validated.data)
+      .eq('id', id)
+      .select(CAMPAIGN_COLUMNS)
+      .maybeSingle();
+    const constraint = rejected(updated);
+    if (constraint) return constraint;
+    if (updated.error) throw updated.error;
+    if (!updated.data) {
+      return NextResponse.json({ error: 'Portrait not found' }, { status: 404 });
+    }
+    return NextResponse.json(toCampaignPortrait(updated.data));
+  }
+
+  const validated = validatePortraitWrite(body, { requireCampaignTypeId: false });
+  if ('error' in validated) {
+    return NextResponse.json({ error: validated.error }, { status: 400 });
+  }
+  const updated = await supabase
+    .from(config.table)
+    .update(validated.data)
+    .eq('id', id)
+    .select(GANG_COLUMNS)
+    .maybeSingle();
+  const constraint = rejected(updated);
+  if (constraint) return constraint;
+  if (updated.error) throw updated.error;
+  if (!updated.data) {
+    return NextResponse.json({ error: 'Portrait not found' }, { status: 404 });
+  }
+  return NextResponse.json(toPortrait(updated.data));
 }
 
 export async function GET(_request: Request, props: RouteProps) {
@@ -95,31 +180,7 @@ export async function GET(_request: Request, props: RouteProps) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (catalogue === 'campaign') {
-      const { data, error } = await supabase
-        .from('campaign_portraits')
-        .select(`${CAMPAIGN_COLUMNS}, campaign_types(campaign_type_name)`)
-        .order('label', { ascending: true, nullsFirst: true });
-      if (error) throw error;
-      return NextResponse.json((data ?? []).map((row) => {
-        const joined = Array.isArray(row.campaign_types) ? row.campaign_types[0] : row.campaign_types;
-        const liveName = joined?.campaign_type_name?.trim();
-        return toPortrait({
-          ...row,
-          group_label: liveName || row.group_label,
-        });
-      }));
-    }
-
-    const { data, error } = await supabase
-      .from('gang_portraits')
-      .select(GANG_COLUMNS)
-      .order('group_label', { ascending: true })
-      .order('label', { ascending: true, nullsFirst: true });
-
-    if (error) throw error;
-
-    return NextResponse.json((data ?? []).map((row) => toPortrait(row)));
+    return NextResponse.json(await listPortraits(supabase, catalogue));
   } catch (error) {
     console.error('Error fetching portraits:', error);
     return NextResponse.json(
@@ -141,51 +202,9 @@ export async function POST(request: Request, props: RouteProps) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const validated = validatePortraitWrite(body, {
-      requireCampaignTypeId: PORTRAIT_CATALOGUES[catalogue].requiresCampaignType,
-    });
-    if ('error' in validated) {
-      return NextResponse.json({ error: validated.error }, { status: 400 });
-    }
-    const write = await groupLabelForWrite(supabase, catalogue, validated.data);
-    if ('error' in write) {
-      return NextResponse.json({ error: write.error }, { status: 400 });
-    }
-
-    const created = catalogue === 'campaign'
-      ? await supabase
-          .from('campaign_portraits')
-          .insert([{
-            storage_path: write.data.storage_path,
-            group_label: write.data.group_label,
-            style: write.data.style,
-            label: write.data.label,
-            credit: write.data.credit,
-            campaign_type_id: campaignTypeId(write.data),
-          }])
-          .select(CAMPAIGN_COLUMNS)
-          .single()
-      : await supabase
-          .from('gang_portraits')
-          .insert([{
-            storage_path: write.data.storage_path,
-            group_label: write.data.group_label,
-            style: write.data.style,
-            label: write.data.label,
-            credit: write.data.credit,
-          }])
-          .select(GANG_COLUMNS)
-          .single();
-
-    if (created.error) {
-      const constraint = constraintResponse(created.error);
-      if (constraint) return constraint;
-      throw created.error;
-    }
-
-    INVALIDATE[catalogue]();
-    return NextResponse.json(toPortrait(created.data));
+    const saved = await insertPortrait(supabase, catalogue, await request.json());
+    if (saved.ok) INVALIDATE[catalogue]();
+    return saved;
   } catch (error) {
     console.error('Error creating portrait:', error);
     return NextResponse.json(
@@ -212,55 +231,9 @@ export async function PATCH(request: Request, props: RouteProps) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    const validated = validatePortraitWrite(body, {
-      requireCampaignTypeId: PORTRAIT_CATALOGUES[catalogue].requiresCampaignType,
-    });
-    if ('error' in validated) {
-      return NextResponse.json({ error: validated.error }, { status: 400 });
-    }
-    const write = await groupLabelForWrite(supabase, catalogue, validated.data);
-    if ('error' in write) {
-      return NextResponse.json({ error: write.error }, { status: 400 });
-    }
-
-    const updated = catalogue === 'campaign'
-      ? await supabase
-          .from('campaign_portraits')
-          .update({
-            storage_path: write.data.storage_path,
-            group_label: write.data.group_label,
-            style: write.data.style,
-            label: write.data.label,
-            credit: write.data.credit,
-            campaign_type_id: campaignTypeId(write.data),
-          })
-          .eq('id', body.id)
-          .select(CAMPAIGN_COLUMNS)
-          .maybeSingle()
-      : await supabase
-          .from('gang_portraits')
-          .update({
-            storage_path: write.data.storage_path,
-            group_label: write.data.group_label,
-            style: write.data.style,
-            label: write.data.label,
-            credit: write.data.credit,
-          })
-          .eq('id', body.id)
-          .select(GANG_COLUMNS)
-          .maybeSingle();
-
-    if (updated.error) {
-      const constraint = constraintResponse(updated.error);
-      if (constraint) return constraint;
-      throw updated.error;
-    }
-    if (!updated.data) {
-      return NextResponse.json({ error: 'Portrait not found' }, { status: 404 });
-    }
-
-    INVALIDATE[catalogue]();
-    return NextResponse.json(toPortrait(updated.data));
+    const saved = await updatePortrait(supabase, catalogue, body.id, body);
+    if (saved.ok) INVALIDATE[catalogue]();
+    return saved;
   } catch (error) {
     console.error('Error updating portrait:', error);
     return NextResponse.json(
@@ -287,27 +260,19 @@ export async function DELETE(request: Request, props: RouteProps) {
       return NextResponse.json({ error: 'id is required' }, { status: 400 });
     }
 
-    const existing = catalogue === 'campaign'
-      ? await supabase
-          .from('campaign_portraits')
-          .select('id, storage_path')
-          .eq('id', body.id)
-          .maybeSingle()
-      : await supabase
-          .from('gang_portraits')
-          .select('id, storage_path')
-          .eq('id', body.id)
-          .maybeSingle();
+    const config = PORTRAIT_CATALOGUES[catalogue];
+    const existing = await supabase
+      .from(config.table)
+      .select('id, storage_path')
+      .eq('id', body.id)
+      .maybeSingle();
 
     if (existing.error) throw existing.error;
     if (!existing.data) {
       return NextResponse.json({ error: 'Portrait not found' }, { status: 404 });
     }
 
-    const { error } = catalogue === 'campaign'
-      ? await supabase.from('campaign_portraits').delete().eq('id', body.id)
-      : await supabase.from('gang_portraits').delete().eq('id', body.id);
-
+    const { error } = await supabase.from(config.table).delete().eq('id', body.id);
     if (error) throw error;
 
     INVALIDATE[catalogue]();

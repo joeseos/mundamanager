@@ -1,15 +1,15 @@
-import type { CatalogueSlot, Portrait } from '@/utils/portrait-catalogue';
+import type { CatalogueSlot } from '@/utils/portrait-catalogue';
 
-/** Gallery section for a campaign type. Types have no parent or variant aliases. */
+/** Gallery section for a campaign type. Matching uses the type id, not the name. */
 export function catalogueSlotForCampaignType(
+  campaignTypeId: string | null | undefined,
   campaignTypeName: string | null | undefined
 ): CatalogueSlot | null {
-  const name = campaignTypeName?.trim();
-  if (!name) return null;
-  return { groupLabel: name, label: null };
-}
-
-/** Portraits linked to one campaign type. Matching uses the foreign key, not the stored name. */
-export function portraitsForCampaignType(portraits: Portrait[], campaignTypeId: string): Portrait[] {
-  return portraits.filter((portrait) => portrait.campaign_type_id === campaignTypeId);
+  const id = campaignTypeId?.trim();
+  if (!id) return null;
+  return {
+    groupLabel: campaignTypeName?.trim() || 'Campaign',
+    label: null,
+    campaignTypeId: id,
+  };
 }

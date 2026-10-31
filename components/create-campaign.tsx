@@ -18,8 +18,9 @@ import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
 import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker'
 import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue'
-import { catalogueSlotForCampaignType, portraitsForCampaignType } from '@/utils/campaign-portraits'
-import { defaultPortraitForSlot, portraitPublicUrl, PORTRAIT_CATALOGUES } from '@/utils/portrait-catalogue'
+import { catalogueSlotForCampaignType } from '@/utils/campaign-portraits'
+import { campaignPortraitPublicUrl } from '@/utils/campaign-image'
+import { defaultPortraitForSlot } from '@/utils/portrait-catalogue'
 import { PiFlagBannerFoldBold } from 'react-icons/pi'
 
 interface TradingPostType {
@@ -98,15 +99,15 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
     [campaignTypes, campaignType]
   );
   const catalogueSlot = useMemo(
-    () => catalogueSlotForCampaignType(selectedCampaignType?.campaign_type_name),
+    () => catalogueSlotForCampaignType(
+      selectedCampaignType?.id,
+      selectedCampaignType?.campaign_type_name
+    ),
     [selectedCampaignType]
   );
   const defaultPortraitId = useMemo(
-    () => defaultPortraitForSlot(
-      selectedCampaignType ? portraitsForCampaignType(portraits, selectedCampaignType.id) : [],
-      catalogueSlot
-    )?.id ?? null,
-    [portraits, catalogueSlot, selectedCampaignType]
+    () => defaultPortraitForSlot(portraits, catalogueSlot)?.id ?? null,
+    [portraits, catalogueSlot]
   );
 
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(null);
@@ -368,7 +369,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                 selectedPortraitId={selectedPortraitId}
                 subjectName={selectedCampaignType?.campaign_type_name ?? ''}
                 onSelect={setSelectedPortraitId}
-                imageUrl={(storagePath) => portraitPublicUrl(PORTRAIT_CATALOGUES.campaign.publicBase, storagePath)}
+                imageUrl={campaignPortraitPublicUrl}
                 fallbackImageUrl={selectedPortraitId ? null : selectedCampaignType?.image_url}
                 emptyFallback={<PiFlagBannerFoldBold className="size-1/2" />}
                 galleryTitle="Campaign Portraits"

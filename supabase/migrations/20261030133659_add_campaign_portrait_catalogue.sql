@@ -1,10 +1,10 @@
 -- Campaign portrait catalogue, the campaign pointer, and admin storage.
 --
 -- One row per file in campaign_portraits. campaign_type_id is the campaign
--- type the portrait belongs to. group_label is the type name at save time;
--- the app shows the current name through the foreign key.
--- campaigns.campaign_portrait_id points at one row. campaign_types.image_url
--- stays as the fallback when a campaign has no custom upload and no portrait.
+-- type the portrait belongs to. The app reads the type name through that
+-- foreign key. campaigns.campaign_portrait_id points at one row.
+-- campaign_types.image_url stays as the fallback when a campaign has no
+-- custom upload and no portrait.
 -- Deleting a catalogue portrait clears that pointer. It does not delete the campaign.
 
 BEGIN;
@@ -13,9 +13,7 @@ CREATE TABLE public.campaign_portraits (
     id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
     storage_path text NOT NULL,
     credit jsonb NOT NULL,
-    group_label text NOT NULL,
     style text NOT NULL,
-    label text,
     campaign_type_id uuid NOT NULL,
 
     CONSTRAINT campaign_portraits_storage_path_key
@@ -24,14 +22,8 @@ CREATE TABLE public.campaign_portraits (
     CONSTRAINT campaign_portraits_storage_path_check
         CHECK (storage_path <> '' AND storage_path !~ '^/'),
 
-    CONSTRAINT campaign_portraits_group_label_check
-        CHECK (btrim(group_label) <> ''),
-
     CONSTRAINT campaign_portraits_style_check
         CHECK (style IN ('colour', 'black & white', 'ai-assisted')),
-
-    CONSTRAINT campaign_portraits_label_check
-        CHECK (label IS NULL OR btrim(label) <> ''),
 
     CONSTRAINT campaign_portraits_credit_check
         CHECK (
@@ -53,14 +45,8 @@ COMMENT ON COLUMN public.campaign_portraits.storage_path IS
 COMMENT ON COLUMN public.campaign_portraits.credit IS
     'Artist credit: name, url, and optional suffix. Shown with the portrait.';
 
-COMMENT ON COLUMN public.campaign_portraits.group_label IS
-    'Campaign type name copied when the portrait is saved. The app displays the current name through campaign_type_id.';
-
 COMMENT ON COLUMN public.campaign_portraits.style IS
     'Portrait treatment used as a gallery filter: colour, black & white, or ai-assisted.';
-
-COMMENT ON COLUMN public.campaign_portraits.label IS
-    'Extra name within a section. Null on the main portrait.';
 
 COMMENT ON COLUMN public.campaign_portraits.campaign_type_id IS
     'Campaign type this portrait belongs to. Renaming the type does not detach the portrait.';

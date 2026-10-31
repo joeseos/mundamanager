@@ -13,6 +13,7 @@ interface CampaignImageEditModalProps {
   onClose: () => void;
   currentImageUrl?: string;
   campaignId: string;
+  campaignTypeId: string;
   campaignTypeName: string;
   campaignPortraitId?: string | null;
   currentPortraitUrl?: string | null;
@@ -25,6 +26,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
   onClose,
   currentImageUrl,
   campaignId,
+  campaignTypeId,
   campaignTypeName,
   campaignPortraitId,
   currentPortraitUrl,
@@ -36,7 +38,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(campaignPortraitId ?? null);
   const [clearedPortrait, setClearedPortrait] = useState(false);
 
-  const catalogueSlot = catalogueSlotForCampaignType(campaignTypeName);
+  const catalogueSlot = catalogueSlotForCampaignType(campaignTypeId, campaignTypeName);
   const savedPortraitId = campaignPortraitId ?? null;
   const alreadyOnTypeImage = savedPortraitId === null && !currentImageUrl;
   const portraitChanged =

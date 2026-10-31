@@ -1092,6 +1092,7 @@ export default function CampaignPageContent({
             onClose={() => setShowImageModal(false)}
             currentImageUrl={campaignData.image_url || ''}
             campaignId={campaignData.id}
+            campaignTypeId={campaignData.campaign_type_id}
             campaignTypeName={campaignData.campaign_type_name}
             campaignPortraitId={campaignData.campaign_portrait_id}
             currentPortraitUrl={campaignData.campaign_portrait_url}

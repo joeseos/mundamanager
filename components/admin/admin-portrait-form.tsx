@@ -379,13 +379,13 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
 
         const payload = {
           storage_path: storagePath,
-          group_label: resolvedGroupLabel,
           style,
-          label: label.trim(),
           credit_name: creditName.trim(),
           credit_url: creditUrl.trim(),
           credit_suffix: creditSuffix.trim(),
-          ...(config.requiresCampaignType ? { campaign_type_id: campaignTypeId } : {}),
+          ...(config.requiresCampaignType
+            ? { campaign_type_id: campaignTypeId }
+            : { group_label: resolvedGroupLabel, label: label.trim() }),
         };
 
         const response = await fetch(`/api/admin/portraits/${catalogue}`, {
@@ -698,19 +698,21 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-muted-foreground mb-1">
-            Label
-          </label>
-          <Input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Optional, e.g. Pride 1"
-            className="w-full"
-            disabled={fieldsDisabled}
-          />
-        </div>
+        {!config.requiresCampaignType && (
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Label
+            </label>
+            <Input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Optional, e.g. Pride 1"
+              className="w-full"
+              disabled={fieldsDisabled}
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-muted-foreground mb-1">

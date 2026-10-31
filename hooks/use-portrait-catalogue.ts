@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 import {
   PORTRAIT_CATALOGUES,
+  toCampaignPortrait,
   toPortrait,
   type Portrait,
   type PortraitCatalogueKey,
@@ -11,34 +12,21 @@ import {
 
 export type PortraitLoadStatus = 'loading' | 'ready' | 'error';
 
-type CampaignTypeJoin = { campaign_type_name: string | null } | { campaign_type_name: string | null }[] | null;
-
-function joinedCampaignTypeName(joined: CampaignTypeJoin): string | null {
-  const row = Array.isArray(joined) ? joined[0] : joined;
-  const name = row?.campaign_type_name?.trim();
-  return name || null;
-}
-
 async function fetchPortraits(catalogue: PortraitCatalogueKey): Promise<Portrait[]> {
   const supabase = createClient();
+  const config = PORTRAIT_CATALOGUES[catalogue];
 
-  if (catalogue === 'campaign') {
+  if (config.requiresCampaignType) {
     const { data, error } = await supabase
-      .from('campaign_portraits')
-      .select('id, storage_path, credit, group_label, style, label, campaign_type_id, campaign_types(campaign_type_name)')
+      .from(config.table)
+      .select('id, storage_path, credit, style, campaign_type_id, campaign_types(campaign_type_name)')
       .order('storage_path');
     if (error) throw error;
-    return (data ?? []).map((row) => {
-      const liveName = joinedCampaignTypeName(row.campaign_types);
-      return toPortrait({
-        ...row,
-        group_label: liveName ?? row.group_label,
-      });
-    });
+    return (data ?? []).map((row) => toCampaignPortrait(row));
   }
 
   const { data, error } = await supabase
-    .from('gang_portraits')
+    .from(config.table)
     .select('id, storage_path, credit, group_label, style, label')
     .order('storage_path');
   if (error) throw error;

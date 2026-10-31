@@ -645,9 +645,7 @@ export const campaignPortraits = pgTable('campaign_portraits', {
   id: uuid('id').defaultRandom().primaryKey(),
   storage_path: text('storage_path').notNull(),
   credit: json('credit').notNull(),
-  group_label: text('group_label').notNull(),
   style: text('style').notNull(),
-  label: text('label'),
   campaign_type_id: uuid('campaign_type_id').notNull(),
 });
 

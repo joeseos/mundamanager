@@ -54,6 +54,8 @@ export interface Portrait {
 export interface CatalogueSlot {
   groupLabel: string;
   label: string | null;
+  /** Campaigns match on this id so two types with the same name stay apart. */
+  campaignTypeId?: string;
 }
 
 function portraitCredit(value: unknown): DefaultImageCredit | null {
@@ -90,6 +92,34 @@ export function toPortrait(row: {
   };
 }
 
+export function joinedCampaignTypeName(
+  joined: { campaign_type_name?: string | null } | { campaign_type_name?: string | null }[] | null | undefined
+): string | null {
+  const row = Array.isArray(joined) ? joined[0] : joined;
+  const name = row?.campaign_type_name?.trim();
+  return name || null;
+}
+
+/** Campaign rows have no stored section name. The live type name comes from the join. */
+export function toCampaignPortrait(row: {
+  id: string;
+  storage_path: string;
+  credit: unknown;
+  style: string;
+  campaign_type_id: string;
+  campaign_types?: { campaign_type_name?: string | null } | { campaign_type_name?: string | null }[] | null;
+}): Portrait {
+  return toPortrait({
+    id: row.id,
+    storage_path: row.storage_path,
+    credit: row.credit,
+    group_label: joinedCampaignTypeName(row.campaign_types) ?? 'Campaign',
+    style: row.style,
+    label: null,
+    campaign_type_id: row.campaign_type_id,
+  });
+}
+
 export function comparePortraits(a: Portrait, b: Portrait): number {
   const styleDiff = (STYLE_RANK[a.style] ?? 99) - (STYLE_RANK[b.style] ?? 99);
   if (styleDiff !== 0) return styleDiff;
@@ -104,6 +134,11 @@ export function comparePortraits(a: Portrait, b: Portrait): number {
  * Portraits for one catalogue slot. When a variant has no rows of its own,
  * fall back to the parent section's unlabelled portraits.
  */
+function sameCatalogueGroup(portrait: Portrait, slot: CatalogueSlot): boolean {
+  if (slot.campaignTypeId) return portrait.campaign_type_id === slot.campaignTypeId;
+  return portrait.group_label === slot.groupLabel;
+}
+
 export function portraitsInSlot(
   portraits: Portrait[],
   slot: CatalogueSlot | null,
@@ -111,13 +146,13 @@ export function portraitsInSlot(
 ): Portrait[] {
   if (!slot) return [];
   const exact = portraits.filter(
-    (portrait) => portrait.group_label === slot.groupLabel && portrait.label === slot.label
+    (portrait) => sameCatalogueGroup(portrait, slot) && portrait.label === slot.label
   );
   const pool =
     exact.length > 0 || !fallbackToUnlabelled || slot.label === null
       ? exact
       : portraits.filter(
-          (portrait) => portrait.group_label === slot.groupLabel && portrait.label === null
+          (portrait) => sameCatalogueGroup(portrait, slot) && portrait.label === null
         );
   return [...pool].sort(comparePortraits);
 }
@@ -134,8 +169,12 @@ export function alternativePortraits(
   selected: Portrait | null,
   catalogueSlot: CatalogueSlot | null
 ): Portrait[] {
-  const slot = selected
-    ? { groupLabel: selected.group_label, label: selected.label }
+  const slot: CatalogueSlot | null = selected
+    ? {
+        groupLabel: selected.group_label,
+        label: selected.label,
+        ...(selected.campaign_type_id ? { campaignTypeId: selected.campaign_type_id } : {}),
+      }
     : catalogueSlot;
   return portraitsInSlot(portraits, slot, selected == null)
     .filter((portrait) => portrait.id !== selected?.id)
@@ -144,26 +183,32 @@ export function alternativePortraits(
 
 export function gallerySections(
   portraits: Portrait[],
-  currentGroupLabel: string | null
-): { groupLabel: string; portraits: Portrait[] }[] {
-  const byGroup = new Map<string, Portrait[]>();
+  currentSectionKey: string | null
+): { key: string; groupLabel: string; portraits: Portrait[] }[] {
+  const byGroup = new Map<string, { groupLabel: string; portraits: Portrait[] }>();
   for (const portrait of portraits) {
-    const list = byGroup.get(portrait.group_label) ?? [];
-    list.push(portrait);
-    byGroup.set(portrait.group_label, list);
+    const key = portrait.campaign_type_id || portrait.group_label;
+    const groupLabel = portrait.group_label.trim() || 'Campaign';
+    const section = byGroup.get(key);
+    if (section) {
+      section.portraits.push(portrait);
+    } else {
+      byGroup.set(key, { groupLabel, portraits: [portrait] });
+    }
   }
 
-  return [...byGroup.keys()]
-    .sort((a, b) => {
-      if (currentGroupLabel) {
-        if (a === currentGroupLabel) return -1;
-        if (b === currentGroupLabel) return 1;
+  return [...byGroup.entries()]
+    .sort(([keyA, sectionA], [keyB, sectionB]) => {
+      if (currentSectionKey) {
+        if (keyA === currentSectionKey) return -1;
+        if (keyB === currentSectionKey) return 1;
       }
-      return a.localeCompare(b, undefined, { sensitivity: 'base' });
+      return sectionA.groupLabel.localeCompare(sectionB.groupLabel, undefined, { sensitivity: 'base' });
     })
-    .map((groupLabel) => ({
-      groupLabel,
-      portraits: [...(byGroup.get(groupLabel) ?? [])].sort(comparePortraits),
+    .map(([key, section]) => ({
+      key,
+      groupLabel: section.groupLabel,
+      portraits: [...section.portraits].sort(comparePortraits),
     }));
 }
 
@@ -171,14 +216,24 @@ export function portraitCaption(portrait: Portrait): string {
   return [portrait.label, portrait.style].filter(Boolean).join(' · ');
 }
 
-export type PortraitWrite = {
+type PortraitCredit = { name: string; url?: string; suffix?: string };
+
+export type GangPortraitWrite = {
   storage_path: string;
   group_label: string;
   style: string;
   label: string | null;
-  credit: { name: string; url?: string; suffix?: string };
-  campaign_type_id?: string;
+  credit: PortraitCredit;
 };
+
+export type CampaignPortraitWrite = {
+  storage_path: string;
+  style: string;
+  credit: PortraitCredit;
+  campaign_type_id: string;
+};
+
+export type PortraitWrite = GangPortraitWrite | CampaignPortraitWrite;
 
 const PORTRAIT_STYLE_SET = new Set<string>(PORTRAIT_STYLES);
 
@@ -217,6 +272,32 @@ export function validatePortraitWrite(
     credit_suffix?: unknown;
     campaign_type_id?: unknown;
   },
+  options: { requireCampaignTypeId: true }
+): { error: string } | { data: CampaignPortraitWrite };
+export function validatePortraitWrite(
+  body: {
+    storage_path?: unknown;
+    group_label?: unknown;
+    style?: unknown;
+    label?: unknown;
+    credit_name?: unknown;
+    credit_url?: unknown;
+    credit_suffix?: unknown;
+    campaign_type_id?: unknown;
+  },
+  options: { requireCampaignTypeId: false }
+): { error: string } | { data: GangPortraitWrite };
+export function validatePortraitWrite(
+  body: {
+    storage_path?: unknown;
+    group_label?: unknown;
+    style?: unknown;
+    label?: unknown;
+    credit_name?: unknown;
+    credit_url?: unknown;
+    credit_suffix?: unknown;
+    campaign_type_id?: unknown;
+  },
   options: { requireCampaignTypeId: boolean }
 ): { error: string } | { data: PortraitWrite } {
   const storagePath = typeof body.storage_path === 'string' ? body.storage_path.trim() : '';
@@ -244,22 +325,26 @@ export function validatePortraitWrite(
   const creditSuffix = optionalText(body.credit_suffix, 'credit_suffix', 200);
   if ('error' in creditSuffix) return creditSuffix;
 
-  let campaignTypeId: string | undefined;
+  const credit: PortraitCredit = { name: creditName.data };
+  if (creditUrl.data) credit.url = creditUrl.data;
+  if (creditSuffix.data) credit.suffix = creditSuffix.data;
+
   if (options.requireCampaignTypeId) {
     if (!isUuid(body.campaign_type_id)) {
       return { error: 'campaign_type_id is required' };
     }
-    campaignTypeId = body.campaign_type_id;
+    return {
+      data: {
+        storage_path: storagePath,
+        style,
+        credit,
+        campaign_type_id: body.campaign_type_id,
+      },
+    };
   }
 
-  const groupLabel = options.requireCampaignTypeId
-    ? { data: '' }
-    : trimmedText(body.group_label, 'group_label', 200);
+  const groupLabel = trimmedText(body.group_label, 'group_label', 200);
   if ('error' in groupLabel) return groupLabel;
-
-  const credit: PortraitWrite['credit'] = { name: creditName.data };
-  if (creditUrl.data) credit.url = creditUrl.data;
-  if (creditSuffix.data) credit.suffix = creditSuffix.data;
 
   return {
     data: {
@@ -268,7 +353,6 @@ export function validatePortraitWrite(
       style,
       label: label.data,
       credit,
-      ...(campaignTypeId ? { campaign_type_id: campaignTypeId } : {}),
     },
   };
 }
