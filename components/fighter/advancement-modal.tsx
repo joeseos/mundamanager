@@ -1949,14 +1949,14 @@ export function AdvancementModal({
     n26SelectedRow
   ]);
 
-  if (
-    formattedCharacteristic &&
-    (selectedAdvancement?.id !== formattedCharacteristic.id ||
-      selectedAdvancement.credits_increase !== formattedCharacteristic.credits_increase)
-  ) {
-    setAvailableAdvancements([formattedCharacteristic]);
-    setSelectedAdvancement(formattedCharacteristic);
-    setError(null);
+  const [prevFormattedCharacteristic, setPrevFormattedCharacteristic] = useState(formattedCharacteristic);
+  if (formattedCharacteristic !== prevFormattedCharacteristic) {
+    setPrevFormattedCharacteristic(formattedCharacteristic);
+    if (formattedCharacteristic) {
+      setAvailableAdvancements([formattedCharacteristic]);
+      setSelectedAdvancement(formattedCharacteristic);
+      setError(null);
+    }
   }
 
   // Skills are keyed by skill_type_id (`selectedCategory`). Do not depend on the
@@ -2052,8 +2052,9 @@ export function AdvancementModal({
 
   // N26 needs skill access on open so row 6 can offer a Legendary Name.
   // N23 only needs it once a skill advancement is chosen.
+  const needsSkillAccess = isCumulativeXp || advancementType === 'skill';
   useEffect(() => {
-    if (!isCumulativeXp && advancementType !== 'skill') return;
+    if (!needsSkillAccess) return;
     const controller = new AbortController();
     const fetchSkillAccess = async () => {
       setSkillAccessLoading(true);
@@ -2076,7 +2077,7 @@ export function AdvancementModal({
     };
     void fetchSkillAccess();
     return () => { controller.abort(); };
-  }, [isCumulativeXp, advancementType, fighterId]);
+  }, [needsSkillAccess, fighterId]);
 
   // Row 6 offers a Legendary Name only when this fighter already has that set.
   if (
