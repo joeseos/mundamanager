@@ -132,7 +132,7 @@ export function SkillAccessModal({
     });
 
     return result;
-  }, [allSkillTypes, skillAccessData, editionSlug, skillSetRank]);
+  }, [allSkillTypes, skillAccessData, skillSetRank]);
 
   // Sync computed data to local state once per modal open
   const [prevComputedSkillAccess, setPrevComputedSkillAccess] = useState(computedSkillAccess);

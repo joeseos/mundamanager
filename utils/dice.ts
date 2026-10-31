@@ -551,5 +551,26 @@ export const N26_ADVANCEMENT_TABLE: N26AdvancementEntry[] = [
     skillAcquisitionTypeIds: ['primary_selected', 'secondary_selected', 'any_random'] },
 ];
 
-export const resolveN26AdvancementFromUtil = (roll: number): N26AdvancementEntry | undefined =>
-  N26_ADVANCEMENT_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);
+/**
+ * Not an RPC acquisition type. The Advancements modal uses it so row 6 can
+ * offer a chosen Legendary Name, the same way roll 12 uses `any_selected`.
+ */
+export const N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID = 'legendary_selected';
+
+/**
+ * N26 advancement table for this fighter. Row 6 stays Initiative or Movement
+ * unless the fighter may take a Legendary Name, in which case that skill is a
+ * third choice at the same +10 credits.
+ */
+export function n26AdvancementTable(includeLegendaryName: boolean): readonly N26AdvancementEntry[] {
+  if (!includeLegendaryName) return N26_ADVANCEMENT_TABLE;
+  return N26_ADVANCEMENT_TABLE.map((entry) =>
+    entry.range[0] === 6 && entry.range[1] === 6
+      ? {
+          ...entry,
+          name: '+1 Initiative, +1" Movement or a Legendary Name',
+          skillAcquisitionTypeIds: [N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID],
+        }
+      : entry
+  );
+}
