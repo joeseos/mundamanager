@@ -5494,6 +5494,57 @@ COMMENT ON TABLE public.campaign_members IS 'members of a campaign';
 
 
 --
+-- Name: campaign_portraits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_portraits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    storage_path text NOT NULL,
+    credit jsonb NOT NULL,
+    style text NOT NULL,
+    campaign_type_id uuid NOT NULL,
+    CONSTRAINT campaign_portraits_credit_check CHECK (((jsonb_typeof(credit) = 'object'::text) AND (btrim(COALESCE((credit ->> 'name'::text), ''::text)) <> ''::text))),
+    CONSTRAINT campaign_portraits_storage_path_check CHECK (((storage_path <> ''::text) AND (storage_path !~ '^/'::text))),
+    CONSTRAINT campaign_portraits_style_check CHECK ((style = ANY (ARRAY['colour'::text, 'black & white'::text, 'ai-assisted'::text])))
+);
+
+
+--
+-- Name: TABLE campaign_portraits; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.campaign_portraits IS 'Catalogue of shared campaign portraits in the campaign-type-images bucket. One file belongs to one campaign type.';
+
+
+--
+-- Name: COLUMN campaign_portraits.storage_path; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.storage_path IS 'Object path inside the campaign-type-images bucket, such as admin/law_and_misrule.webp.';
+
+
+--
+-- Name: COLUMN campaign_portraits.credit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.credit IS 'Artist credit: name, url, and optional suffix. Shown with the portrait.';
+
+
+--
+-- Name: COLUMN campaign_portraits.style; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.style IS 'Portrait treatment used as a gallery filter: colour, black & white, or ai-assisted.';
+
+
+--
+-- Name: COLUMN campaign_portraits.campaign_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.campaign_type_id IS 'Campaign type this portrait belongs to. Renaming the type does not detach the portrait. A type with portraits cannot be deleted until its portraits, and their files, are removed through admin.';
+
+
+--
 -- Name: campaign_resources; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5603,7 +5654,7 @@ CREATE TABLE public.campaign_types (
     image_url text,
     trading_posts jsonb,
     edition_id uuid,
-    phases json
+    phases jsonb
 );
 
 
@@ -5637,6 +5688,7 @@ CREATE TABLE public.campaigns (
     allow_join_requests boolean DEFAULT false NOT NULL,
     current_cycle integer,
     current_phase text,
+    campaign_portrait_id uuid,
     CONSTRAINT campaigns_current_cycle_positive CHECK (((current_cycle IS NULL) OR (current_cycle >= 1))),
     CONSTRAINT campaigns_current_phase_length CHECK (((current_phase IS NULL) OR ((char_length(current_phase) >= 1) AND (char_length(current_phase) <= 50))))
 );
@@ -5654,6 +5706,13 @@ COMMENT ON COLUMN public.campaigns.status IS 'Campaign status: Active or Closed.
 --
 
 COMMENT ON COLUMN public.campaigns.current_phase IS 'Free-text name of the phase the campaign is in. Null when the campaign does not track phases.';
+
+
+--
+-- Name: COLUMN campaigns.campaign_portrait_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaigns.campaign_portrait_id IS 'Selected shared portrait from campaign_portraits. Null for a custom upload, the campaign type image, or no catalogue image.';
 
 
 --
@@ -8104,6 +8163,22 @@ ALTER TABLE ONLY public.campaign_members
 
 
 --
+-- Name: campaign_portraits campaign_portraits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_portraits campaign_portraits_storage_path_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_storage_path_key UNIQUE (storage_path);
+
+
+--
 -- Name: campaign_resources campaign_resources_campaign_id_resource_name_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9394,6 +9469,20 @@ CREATE INDEX campaign_members_is_favourite_idx ON public.campaign_members USING 
 
 
 --
+-- Name: campaign_portraits_campaign_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_portraits_campaign_type_id_idx ON public.campaign_portraits USING btree (campaign_type_id);
+
+
+--
+-- Name: campaign_portraits_style_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_portraits_style_idx ON public.campaign_portraits USING btree (style);
+
+
+--
 -- Name: campaign_territories_gang_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9419,6 +9508,13 @@ CREATE INDEX campaign_territories_territory_name_idx ON public.campaign_territor
 --
 
 CREATE INDEX campaign_types_edition_id_idx ON public.campaign_types USING btree (edition_id);
+
+
+--
+-- Name: campaigns_campaign_portrait_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaigns_campaign_portrait_id_idx ON public.campaigns USING btree (campaign_portrait_id) WHERE (campaign_portrait_id IS NOT NULL);
 
 
 --
@@ -11632,6 +11728,14 @@ ALTER TABLE ONLY public.campaign_members
 
 
 --
+-- Name: campaign_portraits campaign_portraits_campaign_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_campaign_type_id_fkey FOREIGN KEY (campaign_type_id) REFERENCES public.campaign_types(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: campaign_resources campaign_resources_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11701,6 +11805,14 @@ ALTER TABLE ONLY public.campaign_type_resources
 
 ALTER TABLE ONLY public.campaign_types
     ADD CONSTRAINT campaign_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: campaigns campaigns_campaign_portrait_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaigns
+    ADD CONSTRAINT campaigns_campaign_portrait_id_fkey FOREIGN KEY (campaign_portrait_id) REFERENCES public.campaign_portraits(id) ON DELETE SET NULL;
 
 
 --
@@ -13809,6 +13921,13 @@ CREATE POLICY "Allow authenticated users to view campaign members" ON public.cam
 
 
 --
+-- Name: campaign_portraits Allow authenticated users to view campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view campaign portraits" ON public.campaign_portraits FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: campaign_territories Allow authenticated users to view campaign territories; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14739,6 +14858,13 @@ CREATE POLICY "Moderators can view reports" ON public.forum_reports FOR SELECT T
 
 
 --
+-- Name: campaign_portraits Only admin can create campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create campaign portraits" ON public.campaign_portraits FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: campaign_triumphs Only admin can create campaign_triumphs entries; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14904,6 +15030,13 @@ CREATE POLICY "Only admin can create trading_post_equipment entries" ON public.t
 --
 
 CREATE POLICY "Only admin can create trading_post_types entries" ON public.trading_post_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_portraits Only admin can delete campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete campaign portraits" ON public.campaign_portraits FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -15114,6 +15247,13 @@ CREATE POLICY "Only admin can insert gang_origin_categories" ON public.gang_orig
 --
 
 CREATE POLICY "Only admin can insert gang_origins" ON public.gang_origins FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_portraits Only admin can update campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update campaign portraits" ON public.campaign_portraits FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -16405,6 +16545,12 @@ ALTER TABLE public.campaign_maps ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.campaign_members ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_portraits; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_portraits ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_resources; Type: ROW SECURITY; Schema: public; Owner: -
