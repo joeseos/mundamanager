@@ -191,6 +191,7 @@ export default function FighterActionModal({
               onClick={() => setShowInjuryModal(true)}
               variant="outline"
               className="flex-1"
+              disabled={!gangFighter}
             >
               {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
             </Button>
@@ -360,11 +361,15 @@ export default function FighterActionModal({
                 effect_name: injury.effect_name,
                 ...status,
               };
-              onInjuryAdded(sessionInjury);
-              addSessionInjury({ session_fighter_id: fighter.id, injury: sessionInjury }).then((result) => {
-                if (result.success) onBroadcast?.();
-                else toast.error(result.error || 'Failed to record the injury in this battle');
-              });
+              addSessionInjury({ session_fighter_id: fighter.id, injury: sessionInjury })
+                .then((result) => {
+                  if (!result.success) throw new Error(result.error);
+                  onInjuryAdded(sessionInjury);
+                  onBroadcast?.();
+                })
+                .catch((err) =>
+                  toast.error(err instanceof Error && err.message ? err.message : 'Failed to record the injury in this battle')
+                );
             }}
           />
         </Modal>
