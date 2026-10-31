@@ -574,6 +574,3 @@ export function n26AdvancementTable(includeLegendaryName: boolean): readonly N26
       : entry
   );
 }
-
-export const resolveN26AdvancementFromUtil = (roll: number): N26AdvancementEntry | undefined =>
-  N26_ADVANCEMENT_TABLE.find((e) => roll >= e.range[0] && roll <= e.range[1]);

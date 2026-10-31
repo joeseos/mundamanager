@@ -1977,6 +1977,9 @@ export function AdvancementModal({
     if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
     if (!selectedCategory) return;
 
+    setAvailableAdvancements([]);
+    setSelectedAdvancement(null);
+
     let cancelled = false;
     const fetchSkills = async () => {
       setSkillsLoading(true);
@@ -2729,7 +2732,7 @@ export function AdvancementModal({
                   )}
                 </div>
 
-                {selectedCategory && skillsLoading && availableAdvancements.length === 0 && (
+                {selectedCategory && skillsLoading && (
                   <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
                 )}
 
@@ -2746,7 +2749,7 @@ export function AdvancementModal({
                   />
                 )}
 
-                {selectedCategory && skillAcquisitionType && availableAdvancements.length > 0 && (
+                {selectedCategory && !skillsLoading && skillAcquisitionType && availableAdvancements.length > 0 && (
                   <div className="space-y-2">
                     {isRandomAcquisitionType && (
                       <div className="flex flex-wrap items-center gap-2">
