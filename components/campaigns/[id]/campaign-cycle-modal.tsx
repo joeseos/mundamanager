@@ -79,7 +79,7 @@ export default function CampaignCycleModal({
 
   return (
     <Modal
-      title="Edit cycle"
+      title="Phases and Cycles"
       helper="Changes the cycle and phase shown to everyone in the campaign."
       onClose={onClose}
       onConfirm={handleConfirm}

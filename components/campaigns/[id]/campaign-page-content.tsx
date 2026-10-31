@@ -574,7 +574,7 @@ export default function CampaignPageContent({
                          variant="outline"
                          className="print:hidden"
                        >
-                         Edit cycle
+                         Phases and Cycles
                        </Button>
                        <Button
                          onClick={() => setShowEditModal(true)}
