@@ -13,6 +13,7 @@ import {
   deleteFighterInjury,
   verifyAndLogRolledFighterInjury,
   clearRigGlitchesDowntime,
+  type InjuryResult,
 } from '@/app/actions/fighter-injury';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
@@ -57,7 +58,7 @@ interface InjuriesListProps {
   fighterKilled?: boolean;
   fighterCaptured?: boolean;
   fighterCapturedByGangId?: string | null;
-  userPermissions: UserPermissions;
+  userPermissions: Pick<UserPermissions, 'canEdit'>;
   fighter_subtypes: string[];
   is_spyrer?: boolean;
   kill_count?: number;
@@ -65,6 +66,13 @@ interface InjuriesListProps {
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
   /** Scopes the injury catalog, D66 table and grouping to one ruleset. Null shows an unscoped, ungrouped list. */
   editionSlug?: string | null;
+  /** Gangs offered as captor and Hatred targets instead of every gang in the fighter's campaigns. */
+  candidateGangs?: CampaignGangWithFighters[];
+  /** Called once the server has saved a new injury. */
+  onInjuryAdded?: (
+    injury: NonNullable<InjuryResult['injury']>,
+    status: { send_to_recovery: boolean; set_captured: boolean }
+  ) => void;
 }
 
 export function InjuriesList({
@@ -91,7 +99,9 @@ export function InjuriesList({
   kill_count = 0,
   gangCredits = 0,
   fighterWeapons,
-  editionSlug = null
+  editionSlug = null,
+  candidateGangs,
+  onInjuryAdded
 }: InjuriesListProps) {
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -112,7 +122,8 @@ export function InjuriesList({
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the fighter list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
-  const [campaignGangs, setCampaignGangs] = useState<CampaignGangWithFighters[]>([]);
+  const [fetchedCampaignGangs, setFetchedCampaignGangs] = useState<CampaignGangWithFighters[]>([]);
+  const campaignGangs = candidateGangs ?? fetchedCampaignGangs;
   const [isFetchingGangs, setIsFetchingGangs] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
 
@@ -305,6 +316,13 @@ export function InjuriesList({
       toast.success(`${successText}${statusMessage.length > 0 ? ` and ${statusMessage.join(' and ')}` : ''}`);
 
       if (addFormOnly) onRequestClose?.();
+
+      if (result.injury) {
+        onInjuryAdded?.(result.injury, {
+          send_to_recovery: variables.send_to_recovery ?? false,
+          set_captured: variables.set_captured ?? false,
+        });
+      }
 
       // Replace optimistic injury with real one from server so delete/other actions use real id
       if (result.injury && context?.previousInjuries && onInjuryUpdate) {
@@ -722,6 +740,7 @@ export function InjuriesList({
 
   // Gang types are global, so an Eternal Enmity needs no campaign data at all.
   const needsCampaignGangPicker =
+    !candidateGangs &&
     campaignIds.length > 0 &&
     (selectedInjuryRequiresCaptured ||
       selectedHatredTarget === 'gang' ||
@@ -731,7 +750,7 @@ export function InjuriesList({
   if (needsCampaignGangPicker !== prevNeedsCampaignGangPicker) {
     setPrevNeedsCampaignGangPicker(needsCampaignGangPicker);
     if (!needsCampaignGangPicker) {
-      setCampaignGangs([]);
+      setFetchedCampaignGangs([]);
       setSelectedCapturingGangId('');
       setSelectedHatredTargetId('');
       setSelectedHatredGangId('');
@@ -773,7 +792,7 @@ export function InjuriesList({
         }
 
         if (!cancelled) {
-          setCampaignGangs(allGangs);
+          setFetchedCampaignGangs(allGangs);
         }
       } catch (err) {
         console.error('Failed to fetch campaign gangs:', err);

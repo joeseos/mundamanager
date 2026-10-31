@@ -809,7 +809,6 @@ export default function ParticipantCard({
                         // per-fighter slug is often null for custom fighter types.
                         editionSlug={session.edition_slug}
                         candidateGangs={hatredCandidateGangs}
-                        isSkirmish={!session.campaign_id}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
