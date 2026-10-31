@@ -135,7 +135,7 @@ export default function ParticipantCard({
   // actually IN this battle, not every gang in the campaign — only a gang
   // present at the battle can have taken the fighter Out of Action. Already in
   // memory on the session, so no fetch is needed.
-  const hatredCandidateGangs = useMemo<CampaignGangWithFighters[]>(
+  const opponentGangs = useMemo<CampaignGangWithFighters[]>(
     () =>
       session.participants
         .filter((p) => p.gang_id !== participant.gang_id)
@@ -808,7 +808,7 @@ export default function ParticipantCard({
                         // The session's edition, not gangFighter.edition_slug — the
                         // per-fighter slug is often null for custom fighter types.
                         editionSlug={session.edition_slug}
-                        candidateGangs={hatredCandidateGangs}
+                        candidateGangs={opponentGangs}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });

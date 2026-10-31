@@ -40,8 +40,6 @@ export function rollNd6(count: number): number {
 
 export const rollD6 = (): number => rollNd6(1);
 
-export const rollD66 = (): number => rollD6() * 10 + rollD6();
-
 /** Total and individual dice — used by DiceRoller for display (e.g. `Roll 11 (6, 5): …`). */
 export type RollOutcome = { total: number; dice: number[] };
 
