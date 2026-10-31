@@ -11,6 +11,7 @@ import { rollD66, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { requiredHatredTarget } from '@/utils/injuryTarget';
 import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 import { addSessionInjury } from '@/app/actions/battle-sessions';
 import { addFighterInjury } from '@/app/actions/fighter-injury';
@@ -58,14 +59,19 @@ export default function InjuryPickerModal({
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
   const [hatredTargetId, setHatredTargetId] = useState('');
   const [hatredGangId, setHatredGangId] = useState('');
+  const [pickedCapturingGangId, setCapturingGangId] = useState('');
+  // With a single opponent the captor is obvious, so preselect it.
+  const capturingGangId =
+    pickedCapturingGangId || (candidateGangs.length === 1 ? candidateGangs[0].gang_id : '');
 
   const addMut = useMutation({
-    mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean; hatred_target_id?: string | null; target_equipment_id?: string }) => {
+    mutationFn: async (params: { fighter_effect_type_id: string; effect_name: string; send_to_recovery: boolean; set_captured: boolean; hatred_target_id?: string | null; target_equipment_id?: string; captured_by_gang_id?: string | null }) => {
       const injuryResult = await addFighterInjury({
         fighter_id: fighter.fighter_id,
         injury_type_id: params.fighter_effect_type_id,
         send_to_recovery: params.send_to_recovery,
         set_captured: params.set_captured,
+        captured_by_gang_id: params.captured_by_gang_id,
         hatred_target_id: params.hatred_target_id ?? null,
         target_equipment_id: params.target_equipment_id,
       });
@@ -128,6 +134,7 @@ export default function InjuryPickerModal({
       set_captured,
       hatred_target_id: hatredTarget && hatredTargetId ? hatredTargetId : undefined,
       target_equipment_id,
+      captured_by_gang_id: set_captured ? capturingGangId || null : undefined,
     });
   };
 
@@ -319,9 +326,30 @@ export default function InjuryPickerModal({
           onClose={() => setMode('main')}
           onConfirm={async () => { commit(false, true, pendingEquipmentId); return false; }}
           confirmText="Yes"
-          confirmDisabled={addMut.isPending}
+          confirmDisabled={addMut.isPending || (candidateGangs.length > 0 && !capturingGangId)}
         >
           <p>This injury results in the fighter being captured. Mark as Captured?</p>
+          {candidateGangs.length > 0 && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Captured by
+              </label>
+              <Combobox
+                options={candidateGangs
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((g) => buildGangComboboxOption({
+                    id: g.gang_id,
+                    name: g.name,
+                    gang_colour: g.gang_colour,
+                    owner_username: g.owner_username,
+                  }))}
+                value={capturingGangId}
+                onValueChange={setCapturingGangId}
+                placeholder="Select capturing gang..."
+              />
+            </div>
+          )}
         </Modal>
       )}
     </>
