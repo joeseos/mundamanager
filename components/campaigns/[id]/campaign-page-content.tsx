@@ -40,7 +40,7 @@ const CampaignMessageModal = dynamic(
   { ssr: false }
 );
 const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
-const CampaignCycleModal = dynamic(() => import('@/components/campaigns/[id]/campaign-cycle-modal'), { ssr: false });
+const CampaignPhasesCyclesModal = dynamic(() => import('@/components/campaigns/[id]/campaign-phases-cycles-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
   { ssr: false }
@@ -232,7 +232,7 @@ export default function CampaignPageContent({
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
-  const [showCycleModal, setShowCycleModal] = useState(false);
+  const [showPhasesCyclesModal, setShowPhasesCyclesModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -578,7 +578,7 @@ export default function CampaignPageContent({
                    {safePermissions.canEditCampaign && (
                      <>
                        <Button
-                         onClick={() => setShowCycleModal(true)}
+                         onClick={() => setShowPhasesCyclesModal(true)}
                          className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
                        >
                          Phases & Cycles
@@ -1173,8 +1173,8 @@ export default function CampaignPageContent({
         />
       )}
 
-      {showCycleModal && safePermissions.canEditCampaign && (
-        <CampaignCycleModal
+      {showPhasesCyclesModal && safePermissions.canEditCampaign && (
+        <CampaignPhasesCyclesModal
           campaignId={campaignData.id}
           editionSlug={campaignData.edition_slug ?? null}
           currentCycle={currentCycle}
@@ -1182,7 +1182,7 @@ export default function CampaignPageContent({
           battles={campaignData.battles || []}
           phases={campaignTypes.find((type) => type.id === campaignData.campaign_type_id)?.phases ?? []}
           members={campaignData.members}
-          onClose={() => setShowCycleModal(false)}
+          onClose={() => setShowPhasesCyclesModal(false)}
           onSaved={(balances, campaign) => {
             const byGangId = new Map(balances.map(({ gangId, ...balance }) => [gangId, balance]));
             setCampaignData(prev => ({

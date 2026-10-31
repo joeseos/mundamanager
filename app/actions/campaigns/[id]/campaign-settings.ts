@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { isUuidArray } from '@/utils/uuid';
+import { CAMPAIGN_PHASE_MAX_LENGTH } from '@/types/campaign';
 import { createGangLog } from '../../logs/gang-logs';
 import { formatFinancialChanges } from '../../logs/log-helpers';
 
@@ -101,18 +102,21 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
   }
 }
 
-export interface UpdateCampaignCycleParams {
+export interface UpdateCampaignPhaseAndCycleParams {
   campaignId: string;
-  /** The cycle the modal opened with: the change applies only while it still holds. */
-  fromCycle: number | null;
-  cycle: number;
   phase: string | null;
+  cycle: number;
   clearTradePoints: boolean;
   /** Credits given to every accepted gang; 0 for none. */
   credits: number;
 }
 
-/** A gang's balances after the cycle change, for the campaign page to patch in. */
+export interface CampaignPhaseAndCycle {
+  current_phase: string | null;
+  current_cycle: number;
+  updated_at: string;
+}
+
 export interface CampaignGangBalance {
   gangId: string;
   wealth: number;
@@ -120,41 +124,32 @@ export interface CampaignGangBalance {
 }
 
 /**
- * Set the campaign's cycle and phase and, in the same step, optionally clear
+ * Set the campaign's phase and cycle and, in the same step, optionally clear
  * every accepted gang's Trade Points and grant each of them credits.
  */
-export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
+export async function updateCampaignPhaseAndCycle(params: UpdateCampaignPhaseAndCycleParams) {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
-    const { campaignId, fromCycle, cycle, clearTradePoints, credits } = params;
+    const { campaignId, cycle, clearTradePoints, credits } = params;
     const phase = params.phase?.trim() || null;
 
     if (!Number.isInteger(cycle) || cycle < 1) {
       return { success: false as const, error: 'Cycle must be a whole number of 1 or more' };
     }
-    if (phase && phase.length > 50) {
-      return { success: false as const, error: 'Phase must be 50 characters or less' };
+    if (phase && phase.length > CAMPAIGN_PHASE_MAX_LENGTH) {
+      return { success: false as const, error: `Phase must be ${CAMPAIGN_PHASE_MAX_LENGTH} characters or less` };
     }
     if (!Number.isInteger(credits) || credits < 0) {
       return { success: false as const, error: 'Credits must be a whole number of 0 or more' };
     }
     if (!(await checkCampaignArbitrator(user.id, campaignId))) {
-      return { success: false as const, error: 'Only the campaign arbitrators can change the cycle' };
+      return { success: false as const, error: 'Only the campaign arbitrators can change the phase and cycle' };
     }
 
-    // Applies only while the cycle is still the one the modal opened with, so a
-    // stale page cannot overwrite a cycle another arbitrator has changed since.
-    const campaign = { current_cycle: cycle, current_phase: phase, updated_at: new Date().toISOString() };
-    const update = supabase.from('campaigns').update(campaign).eq('id', campaignId);
-    const { data: updated, error: updateError } = await (
-      fromCycle === null ? update.is('current_cycle', null) : update.eq('current_cycle', fromCycle)
-    ).select('id');
-
+    const campaign: CampaignPhaseAndCycle = { current_phase: phase, current_cycle: cycle, updated_at: new Date().toISOString() };
+    const { error: updateError } = await supabase.from('campaigns').update(campaign).eq('id', campaignId);
     if (updateError) throw updateError;
-    if (!updated || updated.length === 0) {
-      return { success: false as const, error: 'The cycle has already been changed. Reload the page to see it.' };
-    }
     invalidateCampaignCore(campaignId);
 
     if (!clearTradePoints && credits === 0) {
@@ -198,10 +193,10 @@ export async function updateCampaignCycle(params: UpdateCampaignCycleParams) {
     const balances = results.filter((balance) => balance !== null);
     return { success: true as const, campaign, balances, failed: gangs.length - balances.length };
   } catch (error) {
-    console.error('Error updating campaign cycle:', error);
+    console.error('Error updating campaign phase and cycle:', error);
     return {
       success: false as const,
-      error: error instanceof Error ? error.message : 'Failed to update the campaign cycle'
+      error: error instanceof Error ? error.message : 'Failed to update the phase and cycle'
     };
   }
 }

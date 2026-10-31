@@ -442,6 +442,8 @@ export interface CampaignTypeResource {
   resource_name: string;
 }
 
+export const CAMPAIGN_PHASE_MAX_LENGTH = 50;
+
 export interface CampaignType {
   id: string;
   campaign_type_name: string | null;

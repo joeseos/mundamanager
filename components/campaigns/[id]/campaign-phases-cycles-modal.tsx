@@ -6,28 +6,28 @@ import Modal from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
-import { updateCampaignCycle, type CampaignGangBalance } from "@/app/actions/campaigns/[id]/campaign-settings";
+import {
+  updateCampaignPhaseAndCycle,
+  type CampaignGangBalance,
+  type CampaignPhaseAndCycle,
+} from "@/app/actions/campaigns/[id]/campaign-settings";
 import { hasTradePoints } from "@/types/edition";
 
-interface CampaignCycleModalProps {
+interface CampaignPhasesCyclesModalProps {
   campaignId: string;
   editionSlug: string | null;
   currentCycle: number | null;
   currentPhase: string | null;
   /** The highest logged cycle prefills the cycle when none is set yet. */
   battles: { cycle?: number | null }[];
-  /** The campaign type's phase names, offered as suggestions. */
   phases: string[];
   /** To list the accepted gangs that still hold Trade Points. */
   members: { gangs: { name: string; status: string | null; trade_points?: number }[] }[];
   onClose: () => void;
-  onSaved: (
-    balances: CampaignGangBalance[],
-    campaign: { current_cycle: number; current_phase: string | null; updated_at: string }
-  ) => void;
+  onSaved: (balances: CampaignGangBalance[], campaign: CampaignPhaseAndCycle) => void;
 }
 
-export default function CampaignCycleModal({
+export default function CampaignPhasesCyclesModal({
   campaignId,
   editionSlug,
   currentCycle,
@@ -37,7 +37,7 @@ export default function CampaignCycleModal({
   members,
   onClose,
   onSaved,
-}: CampaignCycleModalProps) {
+}: CampaignPhasesCyclesModalProps) {
   const gangsWithTradePoints = hasTradePoints(editionSlug)
     ? members
         .flatMap((member) => member.gangs)
@@ -57,11 +57,10 @@ export default function CampaignCycleModal({
   const creditsValid = Number.isInteger(creditsValue) && creditsValue >= 0;
 
   const handleConfirm = async () => {
-    const result = await updateCampaignCycle({
+    const result = await updateCampaignPhaseAndCycle({
       campaignId,
-      fromCycle: currentCycle,
-      cycle: cycleValue,
       phase,
+      cycle: cycleValue,
       clearTradePoints,
       credits: creditsValue,
     });
@@ -72,7 +71,7 @@ export default function CampaignCycleModal({
     if (result.failed > 0) {
       toast.error(`${result.failed} gang${result.failed === 1 ? ' was' : 's were'} not updated`);
     }
-    toast.success(`Campaign is now in cycle ${result.campaign.current_cycle}`);
+    toast.success('Phase and cycle updated');
     onSaved(result.balances, result.campaign);
     return true;
   };

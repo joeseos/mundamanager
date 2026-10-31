@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { checkAdmin } from "@/utils/auth";
 import { invalidateCampaignCatalogLists } from "@/utils/cache-tags";
+import { CAMPAIGN_PHASE_MAX_LENGTH } from "@/types/campaign";
 
 /** Trimmed phase names, or null for none; undefined when the value is not a list of names. */
 function parsePhases(phases: unknown): string[] | null | undefined {
@@ -10,11 +11,11 @@ function parsePhases(phases: unknown): string[] | null | undefined {
   const names = phases
     .map((phase: string) => phase.trim())
     .filter((name, index, all) => name && all.findIndex((other) => other.toLowerCase() === name.toLowerCase()) === index);
-  if (names.some((name) => name.length > 50)) return undefined;
+  if (names.some((name) => name.length > CAMPAIGN_PHASE_MAX_LENGTH)) return undefined;
   return names.length > 0 ? names : null;
 }
 
-const INVALID_PHASES = 'phases must be a list of names of 50 characters or less, or null';
+const INVALID_PHASES = `phases must be a list of names of ${CAMPAIGN_PHASE_MAX_LENGTH} characters or less, or null`;
 
 export async function GET() {
   const supabase = await createClient();
