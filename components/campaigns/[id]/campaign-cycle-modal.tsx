@@ -7,9 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Checkbox } from "@/components/ui/checkbox";
 import { updateCampaignCycle, type CampaignGangBalance } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { hasTradePoints } from "@/types/edition";
 
 interface CampaignCycleModalProps {
   campaignId: string;
+  editionSlug: string | null;
   currentCycle: number | null;
   currentPhase: string | null;
   /** The highest logged cycle prefills the cycle when none is set yet. */
@@ -27,6 +29,7 @@ interface CampaignCycleModalProps {
 
 export default function CampaignCycleModal({
   campaignId,
+  editionSlug,
   currentCycle,
   currentPhase,
   battles,
@@ -35,9 +38,11 @@ export default function CampaignCycleModal({
   onClose,
   onSaved,
 }: CampaignCycleModalProps) {
-  const gangsWithTradePoints = members
-    .flatMap((member) => member.gangs)
-    .filter((gang) => gang.status === 'ACCEPTED' && (gang.trade_points ?? 0) > 0);
+  const gangsWithTradePoints = hasTradePoints(editionSlug)
+    ? members
+        .flatMap((member) => member.gangs)
+        .filter((gang) => gang.status === 'ACCEPTED' && (gang.trade_points ?? 0) > 0)
+    : [];
 
   const [cycle, setCycle] = useState(() =>
     String(currentCycle ?? Math.max(1, ...battles.flatMap((battle) => battle.cycle ?? [])))

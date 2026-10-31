@@ -1154,6 +1154,7 @@ export default function CampaignPageContent({
       {showCycleModal && safePermissions.canEditCampaign && (
         <CampaignCycleModal
           campaignId={campaignData.id}
+          editionSlug={campaignData.edition_slug ?? null}
           currentCycle={currentCycle}
           currentPhase={campaignData.current_phase ?? null}
           battles={campaignData.battles || []}
