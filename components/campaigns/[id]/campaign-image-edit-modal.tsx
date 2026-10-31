@@ -18,7 +18,8 @@ interface CampaignImageEditModalProps {
   campaignPortraitId?: string | null;
   currentPortraitUrl?: string | null;
   typeImageUrl?: string | null;
-  onImageUpdate: (newImageUrl: string, options?: { clearPortrait?: boolean }) => void;
+  /** Any image change clears the portrait; an empty url means the campaign type image. */
+  onImageUpdate: (newImageUrl: string) => void;
   onPortraitUpdate: (portraitId: string, portraitUrl: string) => void;
 }
 
@@ -55,9 +56,9 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
 
   const handleSavePortrait = async () => {
     if (clearedPortrait && !selectedPortraitId) {
-      const result = await updateCampaignImage(campaignId, null, null);
+      const result = await updateCampaignImage(campaignId, { kind: 'type-image' });
       if (result.success) {
-        onImageUpdate('', { clearPortrait: true });
+        onImageUpdate('');
       }
       return result;
     }
@@ -66,7 +67,7 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
     const portraitUrl = selected ? campaignPortraitPublicUrl(selected.storage_path) : undefined;
     if (!portraitUrl) return { success: false, error: 'Portrait image is missing' };
 
-    const result = await updateCampaignImage(campaignId, undefined, selectedPortraitId);
+    const result = await updateCampaignImage(campaignId, { kind: 'portrait', portraitId: selectedPortraitId });
     if (result.success) {
       onPortraitUpdate(selectedPortraitId, portraitUrl);
     }
@@ -115,7 +116,11 @@ export const CampaignImageEditModal: React.FC<CampaignImageEditModalProps> = ({
         storagePath: `campaigns/${campaignId}`,
         fileNamePattern: (id: string, timestamp: number) => `${id}_${timestamp}.webp`,
         listPath: `campaigns/${campaignId}/`,
-        updateAction: (imageUrl: string | null) => updateCampaignImage(campaignId, imageUrl),
+        updateAction: (imageUrl: string | null) =>
+          updateCampaignImage(
+            campaignId,
+            imageUrl ? { kind: 'custom', imageUrl } : { kind: 'type-image' }
+          ),
         successMessage: 'Campaign image updated successfully',
         removeSuccessMessage: 'Campaign image removed successfully',
       }}

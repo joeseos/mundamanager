@@ -34,6 +34,7 @@ CREATE TABLE public.campaign_portraits (
     CONSTRAINT campaign_portraits_campaign_type_id_fkey
         FOREIGN KEY (campaign_type_id)
         REFERENCES public.campaign_types(id)
+        ON DELETE RESTRICT
 );
 
 COMMENT ON TABLE public.campaign_portraits IS
@@ -49,7 +50,7 @@ COMMENT ON COLUMN public.campaign_portraits.style IS
     'Portrait treatment used as a gallery filter: colour, black & white, or ai-assisted.';
 
 COMMENT ON COLUMN public.campaign_portraits.campaign_type_id IS
-    'Campaign type this portrait belongs to. Renaming the type does not detach the portrait.';
+    'Campaign type this portrait belongs to. Renaming the type does not detach the portrait. A type with portraits cannot be deleted until its portraits, and their files, are removed through admin.';
 
 CREATE INDEX campaign_portraits_style_idx
     ON public.campaign_portraits (style);

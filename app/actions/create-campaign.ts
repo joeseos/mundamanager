@@ -4,6 +4,7 @@ import { invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { isUuid, isUuidArray } from "@/utils/uuid";
+import { portraitBelongsToCampaignType } from "@/app/lib/campaigns/campaign-portrait-check";
 
 interface CreateCampaignParams {
   name: string;
@@ -25,8 +26,15 @@ export async function createCampaign({ name, campaignTypeId, trading_posts, camp
     if (!isUuidArray(tradingPosts)) {
       return { success: false, error: 'Invalid trading posts' };
     }
-    if (campaignPortraitId != null && !isUuid(campaignPortraitId)) {
-      return { success: false, error: 'Invalid campaign portrait' };
+    if (!isUuid(campaignTypeId)) {
+      return { success: false, error: 'Invalid campaign type' };
+    }
+    if (campaignPortraitId != null) {
+      if (!isUuid(campaignPortraitId)) {
+        return { success: false, error: 'Invalid campaign portrait' };
+      }
+      const check = await portraitBelongsToCampaignType(supabase, campaignPortraitId, campaignTypeId);
+      if (!check.success) return check;
     }
 
     const { data: campaign, error: insertError } = await supabase

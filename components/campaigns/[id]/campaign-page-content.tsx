@@ -1097,12 +1097,11 @@ export default function CampaignPageContent({
             campaignPortraitId={campaignData.campaign_portrait_id}
             currentPortraitUrl={campaignData.campaign_portrait_url}
             typeImageUrl={campaignData.campaign_type_image_url}
-            onImageUpdate={(newUrl, options) => setCampaignData(prev => ({
+            onImageUpdate={(newUrl) => setCampaignData(prev => ({
               ...prev,
               image_url: newUrl,
-              ...(newUrl || options?.clearPortrait
-                ? { campaign_portrait_id: null, campaign_portrait_url: null }
-                : {}),
+              campaign_portrait_id: null,
+              campaign_portrait_url: null,
             }))}
             onPortraitUpdate={(portraitId, portraitUrl) => setCampaignData(prev => ({
               ...prev,

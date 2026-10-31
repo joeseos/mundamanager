@@ -679,33 +679,54 @@ export function AdminCampaignManagementModal({
     return false;
   };
 
-  // Determine which form is active and what buttons to show
-  const getActiveFormState = () => {
-    if (selectedCategory === 'campaign-types') {
-      return {
-        isCreateMode: isCreateModeCampaignType,
-        selectedId: selectedCampaignTypeId,
-        canSubmit: campaignTypeName.trim(),
-        handleSubmit: handleSubmitCampaignType
+  // Determine which form is active and what buttons to show.
+  // Portraits keep their own state in AdminPortraitForm.
+  type ActiveFormState =
+    | { kind: 'portraits' }
+    | {
+        kind: 'entity';
+        noun: string;
+        isCreateMode: boolean;
+        selectedId: string;
+        canSubmit: unknown;
+        handleSubmit: (operation: OperationType) => unknown;
       };
-    } else if (selectedCategory === 'territories') {
-      return {
-        isCreateMode: isCreateModeTerritory,
-        selectedId: selectedTerritoryId,
-        canSubmit: territoryName.trim(),
-        handleSubmit: handleSubmitTerritory
-      };
-    } else {
-      return {
-        isCreateMode: isCreateModeTriumph,
-        selectedId: selectedTriumphId,
-        canSubmit: triumphName.trim() && triumphCriteria.trim() && triumphCampaignTypeId,
-        handleSubmit: handleSubmitTriumph
-      };
+
+  const getActiveFormState = (): ActiveFormState => {
+    switch (selectedCategory) {
+      case 'portraits':
+        return { kind: 'portraits' };
+      case 'campaign-types':
+        return {
+          kind: 'entity',
+          noun: 'Campaign Type',
+          isCreateMode: isCreateModeCampaignType,
+          selectedId: selectedCampaignTypeId,
+          canSubmit: campaignTypeName.trim(),
+          handleSubmit: handleSubmitCampaignType
+        };
+      case 'territories':
+        return {
+          kind: 'entity',
+          noun: 'Territory',
+          isCreateMode: isCreateModeTerritory,
+          selectedId: selectedTerritoryId,
+          canSubmit: territoryName.trim(),
+          handleSubmit: handleSubmitTerritory
+        };
+      case 'triumphs':
+        return {
+          kind: 'entity',
+          noun: 'Triumph',
+          isCreateMode: isCreateModeTriumph,
+          selectedId: selectedTriumphId,
+          canSubmit: triumphName.trim() && triumphCriteria.trim() && triumphCampaignTypeId,
+          handleSubmit: handleSubmitTriumph
+        };
     }
   };
 
-  const activeForm = selectedCategory === 'portraits' ? null : getActiveFormState();
+  const activeForm = getActiveFormState();
   const territorySelectOptions = filteredTerritories.map((territory) => {
     const playingCardValue = territory.playing_card?.trim();
     const hasPlayingCardValue = Boolean(playingCardValue);
@@ -1222,53 +1243,59 @@ export function AdminCampaignManagementModal({
             Cancel
           </Button>
 
-          {selectedCategory === 'portraits' && portraitState.isCreateMode && (
-            <Button
-              onClick={() => portraitFormRef.current?.save()}
-              disabled={!portraitState.canSave}
-              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-            >
-              {portraitState.pendingAction === 'save' ? 'Creating...' : 'Create Portrait'}
-            </Button>
-          )}
-
-          {selectedCategory === 'portraits' && portraitState.hasSelection && (
+          {activeForm.kind === 'portraits' ? (
             <>
-              <Button
-                onClick={() => portraitFormRef.current?.save()}
-                disabled={!portraitState.canSave}
-                className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-              >
-                {portraitState.pendingAction === 'save' ? 'Updating...' : 'Update Portrait'}
-              </Button>
-              <Button
-                onClick={() => portraitFormRef.current?.remove()}
-                disabled={!portraitState.canDelete}
-                className="flex-1 bg-red-600 text-white rounded-sm hover:bg-red-700"
-              >
-                {portraitState.pendingAction === 'delete' ? 'Deleting...' : 'Delete Portrait'}
-              </Button>
-            </>
-          )}
-          
-          {activeForm?.isCreateMode && (
-            <Button
-              onClick={() => activeForm.handleSubmit(OperationType.POST)}
-              disabled={!activeForm.canSubmit || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-            >
-              {isLoading ? 'Creating...' : `Create ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
-            </Button>
-          )}
+              {portraitState.isCreateMode && (
+                <Button
+                  onClick={() => portraitFormRef.current?.save()}
+                  disabled={!portraitState.canSave}
+                  className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                >
+                  {portraitState.pendingAction === 'save' ? 'Creating...' : 'Create Portrait'}
+                </Button>
+              )}
 
-          {activeForm && !activeForm.isCreateMode && activeForm.selectedId && (
-            <Button
-              onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
-              disabled={!activeForm.canSubmit || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-            >
-              {isLoading ? 'Updating...' : `Update ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
-            </Button>
+              {portraitState.hasSelection && (
+                <>
+                  <Button
+                    onClick={() => portraitFormRef.current?.save()}
+                    disabled={!portraitState.canSave}
+                    className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                  >
+                    {portraitState.pendingAction === 'save' ? 'Updating...' : 'Update Portrait'}
+                  </Button>
+                  <Button
+                    onClick={() => portraitFormRef.current?.remove()}
+                    disabled={!portraitState.canDelete}
+                    className="flex-1 bg-red-600 text-white rounded-sm hover:bg-red-700"
+                  >
+                    {portraitState.pendingAction === 'delete' ? 'Deleting...' : 'Delete Portrait'}
+                  </Button>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              {activeForm.isCreateMode && (
+                <Button
+                  onClick={() => activeForm.handleSubmit(OperationType.POST)}
+                  disabled={!activeForm.canSubmit || isLoading}
+                  className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                >
+                  {isLoading ? 'Creating...' : `Create ${activeForm.noun}`}
+                </Button>
+              )}
+
+              {!activeForm.isCreateMode && activeForm.selectedId && (
+                <Button
+                  onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
+                  disabled={!activeForm.canSubmit || isLoading}
+                  className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                >
+                  {isLoading ? 'Updating...' : `Update ${activeForm.noun}`}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -4,37 +4,52 @@ import { invalidateCampaignCore, invalidateUser } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { isUuid } from '@/utils/uuid';
+import { portraitBelongsToCampaignType } from '@/app/lib/campaigns/campaign-portrait-check';
 
-export async function updateCampaignImage(
-  campaignId: string,
-  imageUrl?: string | null,
-  campaignPortraitId?: string | null
-) {
+/**
+ * custom: a user upload; clears the portrait.
+ * portrait: a catalogue portrait; clears the upload.
+ * type-image: clears both, so the campaign shows its type image.
+ */
+export type CampaignImageUpdate =
+  | { kind: 'custom'; imageUrl: string }
+  | { kind: 'portrait'; portraitId: string }
+  | { kind: 'type-image' };
+
+export async function updateCampaignImage(campaignId: string, update: CampaignImageUpdate) {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    if (campaignPortraitId != null && !isUuid(campaignPortraitId)) {
-      return { success: false, error: 'Invalid campaign portrait' };
+    if (!isUuid(campaignId)) {
+      return { success: false, error: 'Invalid campaign' };
     }
 
     const updates: {
-      image_url?: string | null;
-      campaign_portrait_id?: string | null;
+      image_url: string | null;
+      campaign_portrait_id: string | null;
       updated_at: string;
-    } = { updated_at: new Date().toISOString() };
+    } = { image_url: null, campaign_portrait_id: null, updated_at: new Date().toISOString() };
 
-    if (campaignPortraitId) {
-      updates.campaign_portrait_id = campaignPortraitId;
-      updates.image_url = null;
-    } else if (imageUrl === null && campaignPortraitId === null) {
-      updates.image_url = null;
-      updates.campaign_portrait_id = null;
-    } else if (imageUrl !== undefined) {
+    if (update.kind === 'custom') {
+      const imageUrl = update.imageUrl.trim();
+      if (!imageUrl) return { success: false, error: 'Image is missing' };
       updates.image_url = imageUrl;
-      if (imageUrl !== null) {
-        updates.campaign_portrait_id = null;
+    } else if (update.kind === 'portrait') {
+      if (!isUuid(update.portraitId)) {
+        return { success: false, error: 'Invalid campaign portrait' };
       }
+      const { data: campaign, error: campaignError } = await supabase
+        .from('campaigns')
+        .select('campaign_type_id')
+        .eq('id', campaignId)
+        .maybeSingle();
+      if (campaignError) throw campaignError;
+      if (!campaign) return { success: false, error: 'Campaign not found' };
+
+      const check = await portraitBelongsToCampaignType(supabase, update.portraitId, campaign.campaign_type_id);
+      if (!check.success) return check;
+      updates.campaign_portrait_id = update.portraitId;
     }
 
     const { data, error } = await supabase
