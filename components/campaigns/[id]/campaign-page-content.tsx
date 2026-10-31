@@ -579,8 +579,7 @@ export default function CampaignPageContent({
                      <>
                        <Button
                          onClick={() => setShowCycleModal(true)}
-                         variant="outline"
-                         className="print:hidden"
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
                        >
                          Phases & Cycles
                        </Button>
