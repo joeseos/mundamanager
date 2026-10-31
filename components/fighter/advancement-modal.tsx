@@ -79,6 +79,7 @@ interface SkillType {
   name: string;
   type: 'skill';
   is_custom?: boolean;
+  legendary_name?: boolean;
   created_at?: string;
   updated_at?: string | null;
 }
@@ -133,6 +134,7 @@ interface SkillAccess {
   access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
   override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
   skill_type_name: string;
+  legendary_name?: boolean;
 }
 
 /**
@@ -312,19 +314,34 @@ const N26_SKILL_OPTION_LABELS: Record<string, string> = {
 /** 12 is "any skill": pick a set, then a specific skill. Not an RPC acquisition type_id. */
 const N26_ANY_SKILL_TYPE_ID = 'any_selected';
 
+/** A result of 6+ may be taken as a Legendary Name instead. Not an RPC acquisition type_id. */
+const N26_LEGENDARY_NAME_TYPE_ID = 'legendary_name';
+const N26_LEGENDARY_NAME_MIN_ROLL = 6;
+const N26_LEGENDARY_NAME_CREDITS = 10;
+
 function n26SkillRadioOptions(
-  row: Pick<N26AdvancementEntry, 'range' | 'skillAcquisitionTypeIds'> | undefined
-): Array<{ typeId: string; label: string }> {
-  const ids = row?.skillAcquisitionTypeIds ?? [];
-  if (ids.length === 0) return [];
-  const [lo, hi] = row?.range ?? [0, 0];
-  if (lo === 12 && hi === 12) {
-    return [{ typeId: N26_ANY_SKILL_TYPE_ID, label: 'A new skill from any Skill Set' }];
+  row: Pick<N26AdvancementEntry, 'range' | 'skillAcquisitionTypeIds' | 'credits'> | undefined,
+  canTakeLegendaryName: boolean
+): Array<{ typeId: string; label: string; credits: number }> {
+  if (!row) return [];
+  const ids = row.skillAcquisitionTypeIds ?? [];
+  const [lo, hi] = row.range;
+  const options =
+    lo === 12 && hi === 12
+      ? [{ typeId: N26_ANY_SKILL_TYPE_ID, label: 'A new skill from any Skill Set', credits: row.credits }]
+      : ids.map((typeId) => ({
+          typeId,
+          label: N26_SKILL_OPTION_LABELS[typeId] ?? typeId,
+          credits: row.credits
+        }));
+  if (canTakeLegendaryName && lo >= N26_LEGENDARY_NAME_MIN_ROLL) {
+    options.push({
+      typeId: N26_LEGENDARY_NAME_TYPE_ID,
+      label: `A Legendary Name (+${N26_LEGENDARY_NAME_CREDITS} credits)`,
+      credits: N26_LEGENDARY_NAME_CREDITS
+    });
   }
-  return ids.map((typeId) => ({
-    typeId,
-    label: N26_SKILL_OPTION_LABELS[typeId] ?? typeId
-  }));
+  return options;
 }
 
 /**
@@ -477,6 +494,9 @@ export function AdvancementModal({
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(false);
+  /** N26: a fighter with access to a Legendary Name set (Orlock gangs) may take one on a 6+. */
+  const canTakeLegendaryName =
+    isCumulativeXp && skillAccess.some((a) => a.legendary_name && effectiveSkillAccess(a) !== null);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -1527,15 +1547,15 @@ export function AdvancementModal({
       setAvailableAdvancements([]);
 
       const characteristics = row?.characteristics ?? [];
-      const skillOptions = n26SkillRadioOptions(row);
+      const skillOptions = n26SkillRadioOptions(row, canTakeLegendaryName);
       if (characteristics.length + skillOptions.length !== 1) return;
       if (characteristics.length === 1) {
         selectN26Characteristic(characteristics[0]);
         return;
       }
-      selectN26SkillOutcome(skillOptions[0].typeId, row?.credits ?? 0);
+      selectN26SkillOutcome(skillOptions[0].typeId, skillOptions[0].credits);
     },
-    [n26SelectedRowId, selectN26Characteristic, selectN26SkillOutcome]
+    [n26SelectedRowId, canTakeLegendaryName, selectN26Characteristic, selectN26SkillOutcome]
   );
 
   const gangerSpecialistSkillSetComboboxOptions = useMemo(
@@ -1730,7 +1750,12 @@ export function AdvancementModal({
    */
   const skillSetComboboxOptions = useMemo(() => {
     if (!isSkillLikeAdvancementType) return [];
-    const skillCategories = categories.filter((cat): cat is SkillType => cat.type === 'skill');
+    // N26 reaches Legendary Name sets only through the 6+ Legendary Name option.
+    const n26LegendaryName = skillAcquisitionType === N26_LEGENDARY_NAME_TYPE_ID;
+    const skillCategories = categories.filter(
+      (cat): cat is SkillType =>
+        cat.type === 'skill' && (!isCumulativeXp || !!cat.legendary_name === n26LegendaryName)
+    );
     const accessSource =
       advancementType === 'promotion_to_champion' ? championPreviewSkillAccess : skillAccess;
     const n26HighlightAccess: 'primary' | 'secondary' | 'any' | null =
@@ -2019,9 +2044,11 @@ export function AdvancementModal({
     }
   }
 
-  // Fetch skill access for the standard skill advancement flow
+  // Fetch skill access for the standard skill advancement flow. N26 needs it on
+  // open to know whether its results offer a Legendary Name.
+  const needsSkillAccess = advancementType === 'skill' || isCumulativeXp;
   useEffect(() => {
-    if (advancementType !== 'skill') return;
+    if (!needsSkillAccess) return;
     let cancelled = false;
     const fetchSkillAccess = async () => {
       setSkillAccessLoading(true);
@@ -2042,7 +2069,7 @@ export function AdvancementModal({
     };
     void fetchSkillAccess();
     return () => { cancelled = true; };
-  }, [advancementType, fighterId]);
+  }, [needsSkillAccess, fighterId]);
 
   // Fetch preview skill access for the target Champion type after promotion is confirmed
   const championPromotionTypeId = championPendingPromotion?.fighter_type_id;
@@ -2281,13 +2308,13 @@ export function AdvancementModal({
                         {name}
                       </label>
                     ))}
-                    {n26SkillRadioOptions(n26SelectedRow).map((option) => (
+                    {n26SkillRadioOptions(n26SelectedRow, canTakeLegendaryName).map((option) => (
                       <label key={option.typeId} className="flex items-center gap-2 text-sm cursor-pointer">
                         <input
                           type="radio"
                           name="n26-result-option"
                           checked={advancementType === 'skill' && skillAcquisitionType === option.typeId}
-                          onChange={() => selectN26SkillOutcome(option.typeId, n26SelectedRow.credits)}
+                          onChange={() => selectN26SkillOutcome(option.typeId, option.credits)}
                           disabled={!userPermissions.canEdit}
                         />
                         {option.label}

@@ -20,4 +20,10 @@ export const skillSetRankN26: { [key: string]: number } = {
   "malstrain wyrd powers": 63,
   "psychoteric whispers": 64,
   "psyrender wyrd powers": 65,
+  //
+  // Legendary Names (80–89)
+  "impressive leadership": 80,
+  "improbable beatdowns": 81,
+  "incredible drives": 82,
+  "unbelievable escapes": 83,
 };

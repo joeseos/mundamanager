@@ -11,6 +11,7 @@ import {
   hasChampionLeaderTypePromotion,
   hasCumulativeXp,
   hasGangerChampionKeepTypePromotion,
+  hasN26LegendaryNames,
   hasProspectSpecialisationPromotion,
   hasSharedAdvancementTable,
 } from '@/types/edition';
@@ -424,7 +425,7 @@ async function addSkillAdvancementInternal(
     // Verify fighter ownership and get fighter data
     const { data: fighter, error: fighterError } = await supabase
       .from('fighters')
-      .select(FIGHTER_WITH_EDITION_SELECT)
+      .select(`${FIGHTER_WITH_EDITION_SELECT}, fighter_subtypes`)
       .eq('id', params.fighter_id)
       .single();
 
@@ -434,9 +435,22 @@ async function addSkillAdvancementInternal(
 
     // Note: Authorization is enforced by RLS policies on fighters table
 
+    const editionSlug = gangEditionSlug(fighter.gangs);
     // N26 earns Advancements by reaching a rank rather than buying them, so its
     // XP total only ever grows and there is nothing to afford.
-    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
+    const spendsXp = !hasCumulativeXp(editionSlug);
+
+    const isLegendaryName = await isLegendaryNameSkill(supabase, params.skill_id);
+    if (
+      isLegendaryName &&
+      hasN26LegendaryNames(editionSlug) &&
+      (await legendaryNameCapReached(supabase, params.fighter_id, fighter.fighter_subtypes))
+    ) {
+      return {
+        success: false,
+        error: 'Leaders and Champions may have two Legendary Names, other fighters one.'
+      };
+    }
 
     const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
@@ -537,11 +551,11 @@ async function addSkillAdvancementInternal(
     };
     
     const isAdvance = params.is_advance ?? true;
-    const ratingOnly = Boolean(params.ratingOnly);
+    const ratingOnly = Boolean(params.ratingOnly) || isLegendaryName;
 
     // Set free_skill to false only for regular skills (is_advance: false) when fighter currently has free_skill: true (missing starting skill)
     // Do NOT set free_skill to false for advancement skills (is_advance: true) as those are purchased with XP, not starting skills
-    // ratingOnly grants (N26 Prospect promotion) also leave free_skill alone
+    // ratingOnly grants (N26 promotions, Legendary Names) also leave free_skill alone
     if (!isAdvance && !ratingOnly && fighter.free_skill) {
       updateData.free_skill = false;
     }
@@ -875,6 +889,38 @@ async function resolveCatalogSkillId(
     };
   }
   return { skillId: skillsByName[0].id };
+}
+
+/**
+ * Legendary Names raise a fighter's value but are never bought from the stash,
+ * whichever way they were gained.
+ */
+async function isLegendaryNameSkill(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  skillId: string | null | undefined
+): Promise<boolean> {
+  if (!skillId) return false;
+  const { data } = await supabase
+    .from('skills')
+    .select('skill_types!inner(legendary_name)')
+    .eq('id', skillId)
+    .maybeSingle();
+  return Boolean((data?.skill_types as { legendary_name?: boolean } | null)?.legendary_name);
+}
+
+async function legendaryNameCapReached(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fighterId: string,
+  fighterSubtypes: unknown
+): Promise<boolean> {
+  const subtypes = Array.isArray(fighterSubtypes) ? fighterSubtypes : [];
+  const cap = subtypes.includes('Leader') || subtypes.includes('Champion') ? 2 : 1;
+  const { count } = await supabase
+    .from('fighter_skills')
+    .select('id, skills!inner(skill_types!inner(legendary_name))', { count: 'exact', head: true })
+    .eq('fighter_id', fighterId)
+    .eq('skills.skill_types.legendary_name', true);
+  return (count ?? 0) >= cap;
 }
 
 async function fighterAlreadyHasSkill(
@@ -1465,7 +1511,9 @@ export async function deleteAdvancement(
 
       xpToRefund = skillData.xp_cost || 0;
       ratingDelta -= (skillData.credits_increase || 0);
-      refundStash = !skillData.is_advance; // Non-advancement skills paid from stash, so refund on delete
+      // Non-advancement skills paid from stash, so refund on delete. Legendary Names never were.
+      refundStash =
+        !skillData.is_advance && !(await isLegendaryNameSkill(supabase, skillData.skill_id));
 
       // Get skill name for logging
       if (skillData.custom_skill_id) {

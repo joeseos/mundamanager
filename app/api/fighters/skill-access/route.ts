@@ -8,6 +8,7 @@ interface FormattedSkillAccess {
   access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null;
   override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null;
   skill_type_name: string;
+  legendary_name?: boolean;
 }
 
 // Rows from fighter_type_skill_access and fighter_skill_access_override point at
@@ -21,6 +22,7 @@ type SkillSetRef = {
 const skillSetId = (row: SkillSetRef) => (row.skill_type_id || row.custom_skill_type_id) as string;
 const skillSetName = (row: SkillSetRef): string =>
   (row.skill_types as any)?.name || (row.custom_skill_types as any)?.name || 'Unknown';
+const isLegendaryNameSet = (row: SkillSetRef): boolean => !!(row.skill_types as any)?.legendary_name;
 
 export async function GET(request: Request) {
   try {
@@ -99,7 +101,8 @@ export async function GET(request: Request) {
         access_level,
         skill_types (
           id,
-          name
+          name,
+          legendary_name
         ),
         custom_skill_types (
           id,
@@ -141,7 +144,8 @@ export async function GET(request: Request) {
         custom_skill_type_id,
         access_level,
         skill_types (
-          name
+          name,
+          legendary_name
         ),
         custom_skill_types (
           name
@@ -172,7 +176,8 @@ export async function GET(request: Request) {
         skill_type_id: effectiveId,
         access_level: access.access_level, // default from fighter type
         override_access_level: overrideLevel, // override from archetype (or null)
-        skill_type_name: skillSetName(access)
+        skill_type_name: skillSetName(access),
+        legendary_name: isLegendaryNameSet(access)
       };
     });
 
@@ -186,7 +191,8 @@ export async function GET(request: Request) {
           skill_type_id: effectiveId,
           access_level: null, // no default from fighter type
           override_access_level: override.access_level, // override from archetype
-          skill_type_name: skillSetName(override)
+          skill_type_name: skillSetName(override),
+          legendary_name: isLegendaryNameSet(override)
         });
       }
     }
