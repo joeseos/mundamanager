@@ -770,8 +770,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
   const handleFighterTypeComboChange = (comboString: string) => {
     console.log('handleFighterTypeComboChange called with:', comboString);
-
-    fighterTypeDetailsFetchGenRef.current += 1;
     
     setSelectedFighterTypeCombo(comboString);
     setSelectedFighterTypeId('');
@@ -789,9 +787,16 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     if (variantNameInputRef.current) {
       variantNameInputRef.current.value = '';
     }
+
+    // Bump only on terminal branches. Auto-select of Default delegates to
+    // handleSpecialisationChange, which bumps once and owns the in-flight fetch.
+    const invalidateInFlightDetails = () => {
+      fighterTypeDetailsFetchGenRef.current += 1;
+      setIsLoading(false);
+    };
     
     if (!comboString) {
-      setIsLoading(false);
+      invalidateInFlightDetails();
       return;
     }
     
@@ -802,7 +807,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // An empty subtype is valid for N26 (`Type||gangTypeId`). A missing segment is not.
       if (!fighterType || fighterSubtype == null || !gangTypeId) {
         console.error('Invalid fighter type combo string:', comboString);
-        setIsLoading(false);
+        invalidateInFlightDetails();
         return;
       }
       
@@ -846,11 +851,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (defaultOption) {
         void handleSpecialisationChange(defaultOption.id, specialisationOptions);
       } else {
-        setIsLoading(false);
+        invalidateInFlightDetails();
       }
     } catch (error) {
       console.error('Error processing fighter type combo:', error);
-      setIsLoading(false);
+      invalidateInFlightDetails();
     }
   };
   
@@ -1357,6 +1362,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                   setIsLoading(false);
                   setGangTypeFilter(e.target.value);
                   // Reset downstream selections when gang type changes
+                  setSelectedFighterTypeCombo('');
                   setSelectedFighterTypeId('');
                   setSelectedSpecialisationId('');
                   setAvailability(null);
