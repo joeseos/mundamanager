@@ -87,6 +87,20 @@ export default function CampaignCycleModal({
       content={
         <div className="space-y-4">
           <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Phase
+            </label>
+            <Combobox
+              options={phases.map((name) => ({ value: name, label: name }))}
+              value={phase}
+              onValueChange={setPhase}
+              placeholder="Select or type a phase (optional)"
+              allowCustom
+              clearable
+            />
+          </div>
+
+          <div>
             <label htmlFor="campaign-cycle" className="block text-sm font-medium text-muted-foreground mb-1">
               Cycle
             </label>
@@ -100,20 +114,6 @@ export default function CampaignCycleModal({
             {!cycleValid && (
               <p className="mt-1 text-xs text-red-600">Cycle must be a whole number of 1 or more.</p>
             )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
-              Phase
-            </label>
-            <Combobox
-              options={phases.map((name) => ({ value: name, label: name }))}
-              value={phase}
-              onValueChange={setPhase}
-              placeholder="Select or type a phase (optional)"
-              allowCustom
-              clearable
-            />
           </div>
 
           {gangsWithTradePoints.length > 0 && (
