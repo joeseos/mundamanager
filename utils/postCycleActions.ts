@@ -8,7 +8,6 @@ import type { FighterSkills, WeaponProps } from '@/types/fighter';
 import { hasGangTacticsCards } from '@/types/edition';
 import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { traitMatchKeys } from '@/utils/effect-modifiers';
 
 export type PostCycleActionId =
   | 'medical_escort'
@@ -278,7 +277,7 @@ export interface PostCycleFighter {
   recovery?: boolean;
   kill_count?: number;
   skills?: FighterSkills;
-  weapons?: Pick<WeaponProps, 'fighter_weapon_id' | 'weapon_name' | 'equipment_category' | 'weapon_profiles'>[];
+  weapons?: Pick<WeaponProps, 'fighter_weapon_id' | 'weapon_name'>[];
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
@@ -425,17 +424,6 @@ export const hasCriticalInjury = (fighter: PostCycleFighter): boolean =>
 export const lastingDamagesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   fighter.effects?.['lasting damages'] ?? [];
 
-const ENHANCEABLE_CATEGORIES = ['primitive weapons', 'repurposed tools'];
-
-/** Enhance Weapon: the fighter's Primitive Weapons and Repurposed Tools with the Melee trait. */
-export const enhanceableWeaponsOf = (fighter: PostCycleFighter) =>
-  (fighter.weapons ?? []).filter(
-    (weapon) =>
-      ENHANCEABLE_CATEGORIES.some((category) =>
-        weapon.equipment_category?.toLowerCase().startsWith(category)
-      ) && weapon.weapon_profiles.some((profile) => traitMatchKeys(profile.traits).has('melee'))
-  );
-
 /** Suit Maintenance clears all of them, so there is nothing to pick. */
 export const rigGlitchesOf = (fighter: PostCycleFighter): FighterEffect[] =>
   fighter.effects?.['rig-glitches'] ?? [];
@@ -539,8 +527,8 @@ export function validatePostCycleAssignment(
     }
 
     case 'enhance_weapon':
-      if (!enhanceableWeaponsOf(performer).some((weapon) => weapon.fighter_weapon_id === assignment.weaponId)) {
-        issues.push(`Choose a Melee Primitive Weapon or Repurposed Tool that ${label} has.`);
+      if (!performer.weapons?.some((weapon) => weapon.fighter_weapon_id === assignment.weaponId)) {
+        issues.push(`Choose a weapon that ${label} has.`);
       }
       break;
 

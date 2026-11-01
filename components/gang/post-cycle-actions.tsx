@@ -24,7 +24,6 @@ import {
   TRAIN_XP,
   assignmentCreditsDelta,
   eligiblePostCycleActions,
-  enhanceableWeaponsOf,
   hasCriticalInjury,
   lastingDamagesOf,
   patientOf,
@@ -384,7 +383,7 @@ export default function PostCycleActions({
       case 'suit_maintenance':
         return rigGlitchesOf(fighter).length > 0 ? null : 'No Rig Glitches';
       case 'enhance_weapon':
-        return enhanceableWeaponsOf(fighter).length > 0 ? null : 'No weapon to enhance';
+        return fighter.weapons.length > 0 ? null : 'No weapons';
       default:
         return null;
     }
@@ -707,7 +706,7 @@ export default function PostCycleActions({
                       {row?.action === 'enhance_weapon' && (
                         <>
                           <Combobox
-                            options={enhanceableWeaponsOf(fighter).map((weapon) => ({
+                            options={fighter.weapons.map((weapon) => ({
                               value: weapon.fighter_weapon_id,
                               label: weapon.weapon_name,
                             }))}

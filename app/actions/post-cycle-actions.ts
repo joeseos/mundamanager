@@ -27,7 +27,6 @@ import {
   TRAIN_XP,
   assignmentCreditsDelta,
   criticalInjuriesOf,
-  enhanceableWeaponsOf,
   fitBionicsCost,
   lastingDamagesOf,
   medicalEscortCost,
@@ -452,7 +451,7 @@ async function handleEnhanceWeapon(
   weaponId: string,
   upgradeId: string
 ): Promise<HandlerOutcome> {
-  const weapon = enhanceableWeaponsOf(ctx.performer).find((w) => w.fighter_weapon_id === weaponId)!;
+  const weapon = ctx.performer.weapons.find((w) => w.fighter_weapon_id === weaponId)!;
   const enhance = await getEnhanceWeapon(ctx.supabase);
   const upgrade = enhance.upgrades.find((u) => u.id === upgradeId);
   if (!upgrade || !enhance.attachEffectId) {

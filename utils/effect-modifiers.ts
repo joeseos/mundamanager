@@ -305,7 +305,7 @@ function traitListOf(
 }
 
 /** Lowercased traits, each also by its name alone so "Toxin" matches "Toxin (4+)" */
-export function traitMatchKeys(traits: string | null | undefined): Set<string> {
+function traitMatchKeys(traits: string | null | undefined): Set<string> {
   return new Set(splitTraits(traits).flatMap(t => {
     const lower = t.toLowerCase();
     return [lower, lower.replace(/\s*\(.*\)$/, '')];
