@@ -439,7 +439,9 @@ async function getEnhanceWeapon(supabase: any) {
 
 /** The upgrades the panel offers for Enhance Weapon. */
 export async function getEnhanceWeaponUpgrades() {
-  return (await getEnhanceWeapon(await createClient())).upgrades;
+  const supabase = await createClient();
+  await getAuthenticatedUser(supabase);
+  return (await getEnhanceWeapon(supabase)).upgrades;
 }
 
 /**
@@ -473,7 +475,8 @@ async function handleEnhanceWeapon(
     return { outcome: `Failed to enhance the weapon: ${bought.error}`, creditsDelta: 0, failed: true };
   }
 
-  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
+  // Only for the page: the purchase has landed, so a failed read must not fail the action.
+  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug }).catch(() => []);
   return {
     outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}. Cost ${ENHANCE_WEAPON_COST} credits.`,
     creditsDelta: 0,
