@@ -32,6 +32,7 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  territoryIncome,
   tradePointsText,
   tradingPostTradePoints,
   validatePostCycleAssignment,
@@ -53,7 +54,7 @@ interface PostCycleActionsProps {
   /** gangs.reputation is nullable; NULL reads as 0, as on the gang card. */
   gangReputation: number | null;
   /** The gang's territories across its campaigns; credits is null when unset. */
-  territories: Array<{ id: string; territory_name: string; credits: number | null }>;
+  territories: Array<{ id: string; territory_id: string | null; territory_name: string; credits: number | null }>;
   /** Gang facts the gang-specific actions depend on; see postCycleAvailability. */
   gangType?: string | null;
   isCustomGangType: boolean;
@@ -302,14 +303,16 @@ export default function PostCycleActions({
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
   const reputation = gangReputation ?? 0;
   const income = reputationIncome(reputation);
-  const incomeTerritories = territories.filter((territory) => territory.credits);
+  const incomeTerritories = territories
+    .map((territory) => ({ ...territory, income: territoryIncome(territory, { gangType, isCustomGangType }) }))
+    .filter((territory) => territory.income > 0);
   const pickedTerritories = incomeTerritories.filter((territory) =>
     collectTerritoryIds.includes(territory.id)
   );
   const collecting = collectReputation || pickedTerritories.length > 0;
   const collected =
     (collectReputation ? income : 0) +
-    pickedTerritories.reduce((sum, territory) => sum + (territory.credits ?? 0), 0);
+    pickedTerritories.reduce((sum, territory) => sum + territory.income, 0);
   const cannotAfford = totalSpend > gangCredits + collected;
   const readyToApply =
     (pendingStates.length > 0 || collecting) &&
@@ -555,7 +558,7 @@ export default function PostCycleActions({
             >
               {territory.territory_name}
               <span className="ml-2 font-normal text-muted-foreground">
-                (+{territory.credits} credits)
+                (+{territory.income} credits)
               </span>
             </label>
           </div>

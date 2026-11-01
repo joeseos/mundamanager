@@ -322,6 +322,7 @@ const CHAOS_HELOTS_GANG_TYPE = 'chaos helots';
 const CHAOS_CORRUPTED_GANG_SUBTYPE = 'chaos corrupted';
 const CHYMIST_CULT_GANG_TYPE = 'chymist cult';
 const FURNACE_BRUTES_GANG_TYPE = 'furnace brutes';
+const SPYRE_HUNTERS_GANG_TYPE = 'spyre hunters';
 
 /**
  * Gang types and subtypes are matched by name, like isVenatorGang. A custom
@@ -339,6 +340,25 @@ export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailabilit
     deathRitesAvailable: gangType === CHYMIST_CULT_GANG_TYPE,
     enhanceWeaponAvailable: gangType === FURNACE_BRUTES_GANG_TYPE,
   };
+}
+
+const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
+/** By catalog id, since campaigns rename their territories. */
+const N26_SPYRER_BASE_CAMP_TERRITORY_ID = '83c0b9c2-f88d-4d89-b979-ccae8f8c3566';
+
+/**
+ * Collect Income from one held Territory: its credits, except that a Spyre
+ * Hunting Party takes a flat 15 from each Territory but its Spyrer Base Camp.
+ */
+export function territoryIncome(
+  territory: { territory_id: string | null; credits: number | null },
+  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>
+): number {
+  const spyreHunters =
+    !gang.isCustomGangType && gang.gangType?.toLowerCase() === SPYRE_HUNTERS_GANG_TYPE;
+  return spyreHunters && territory.territory_id !== N26_SPYRER_BASE_CAMP_TERRITORY_ID
+    ? SPYRE_HUNTERS_TERRITORY_INCOME
+    : (territory.credits ?? 0);
 }
 
 export function canPerformPostCycleAction(
