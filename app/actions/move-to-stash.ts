@@ -10,7 +10,6 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
-import { equipmentEffectsFilter, effectsCredits } from '@/utils/effect-modifiers';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -87,7 +86,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           numeric_value
         )
       `)
-      .or(equipmentEffectsFilter(params.fighter_equipment_id));
+      .or(`fighter_equipment_id.eq.${params.fighter_equipment_id},target_equipment_id.eq.${params.fighter_equipment_id}`);
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
@@ -221,14 +220,15 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     let ratingDelta = 0;
     if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
       ratingDelta -= (equipmentData.purchase_cost || 0);
-      ratingDelta -= effectsCredits(associatedEffects);
+      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+      ratingDelta -= effectsCredits;
       ratingDelta -= beastEquipmentCost;
     }
 
     // Calculate equipment value for wealth calculation
     // Wealth includes stash value, so moving equipment to stash increases wealth by equipment value
     const equipmentValue = (equipmentData.purchase_cost || 0) +
-      effectsCredits(associatedEffects) +
+      (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0) +
       beastEquipmentCost;
 
     // Wealth delta calculation:

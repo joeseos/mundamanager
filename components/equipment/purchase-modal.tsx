@@ -10,7 +10,6 @@ import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
-import { isEditableEffect } from '@/utils/effect-modifiers';
 
 export interface PurchaseConfirmOptions {
   cost: number;
@@ -51,7 +50,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [upgradeEffect, setUpgradeEffect] = useState<{ id: string; name: string } | null>(null);
-  const [chosenTarget, setChosenTarget] = useState<PurchaseConfirmOptions['equipmentTarget']>();
 
   // Grants selection state
   const [showGrantsSelection, setShowGrantsSelection] = useState(false);
@@ -202,12 +200,12 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         // Separate equipment upgrades from fighter effects
         const equipmentUpgrade = fetchedEffectTypes?.find((effect: any) =>
           effect.type_specific_data?.applies_to === 'equipment' &&
-          !isEditableEffect(effect)
+          !effect.type_specific_data?.is_editable
         );
 
         const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>
           effect.type_specific_data?.applies_to !== 'equipment' &&
-          !isEditableEffect(effect)
+          effect.type_specific_data?.is_editable !== true
         );
 
         // Priority 1: Check for equipment upgrade (applies_to=equipment)
@@ -220,7 +218,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             )
             .map((effect: any) => effect.id) || [];
           setSelectedEffectIds(fixedFighterEffectIds);
-          setEffectTypes(fetchedEffectTypes.filter(isEditableEffect));
 
           setUpgradeEffect({ id: equipmentUpgrade.id, name: equipmentUpgrade.effect_name });
           setShowTargetSelection(true);
@@ -265,14 +262,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   };
 
   const handleEffectSelectionComplete = async (effectIds: string[]) => {
-    if (chosenTarget) {
-      onConfirm(buildConfirmOptions({
-        cost: Number(manualCost),
-        selectedEffectIds: [...selectedEffectIds, ...effectIds],
-        equipmentTarget: chosenTarget,
-      }));
-      return;
-    }
     setSelectedEffectIds(effectIds);
     setShowEffectSelection(false);
     setEffectTypes([]);
@@ -282,7 +271,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
   const handleEffectSelectionCancel = () => {
     setShowEffectSelection(false);
-    setChosenTarget(undefined);
     setSelectedEffectIds([]);
     setIsEffectSelectionValid(false);
     setEffectTypes([]);
@@ -293,8 +281,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   };
 
   if (showTargetSelection) {
-    // Attached items with editable upgrades (Enhance weapon) pick one after the weapon
-    const upgradePickFollows = effectTypes.length > 0;
     return (
       <Modal
         title="Select Weapon"
@@ -314,13 +300,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 target_equipment_id: targetEquipmentId,
                 effect_type_id: upgradeEffect?.id as string
               };
-              if (upgradePickFollows) {
-                setChosenTarget(equipmentTargetData);
-                setShowTargetSelection(false);
-                setShowEffectSelection(true);
-                setIsEffectSelectionValid(false);
-                return;
-              }
               onConfirm(buildConfirmOptions({
                 cost: Number(manualCost),
                 selectedEffectIds,
@@ -340,8 +319,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         }
         onClose={onClose}
         onConfirm={async () => {
-          const applied = await effectSelectionRef.current?.handleConfirm() || false;
-          return applied && !upgradePickFollows;
+          return await effectSelectionRef.current?.handleConfirm() || false;
         }}
         confirmText="Confirm"
         confirmDisabled={!isEffectSelectionValid}

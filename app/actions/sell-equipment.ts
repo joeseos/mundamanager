@@ -13,7 +13,6 @@ import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import type { CostResourcePayload } from '@/types/equipment';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
-import { equipmentEffectsFilter, effectsCredits } from '@/utils/effect-modifiers';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -167,11 +166,11 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       await clearHardpointReference(supabase, params.fighter_equipment_id, equipmentData.vehicle_id);
     }
 
-    // Find associated effects before deletion, including those targeting this equipment
+    // Find associated effects before deletion
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')
       .select('id, type_specific_data')
-      .or(equipmentEffectsFilter(params.fighter_equipment_id));
+      .eq('fighter_equipment_id', params.fighter_equipment_id);
 
     // Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
     const equipmentCategory = (equipmentData.equipment as any)?.equipment_category?.toLowerCase();
@@ -210,7 +209,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     let ratingDelta = 0;
     if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
       ratingDelta -= (equipmentData.purchase_cost || 0);
-      ratingDelta -= effectsCredits(associatedEffects);
+      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+      ratingDelta -= effectsCredits;
       ratingDelta -= beastEquipmentCost;
     }
 
