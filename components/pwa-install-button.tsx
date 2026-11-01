@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { FaDownload } from "react-icons/fa";
 import { IoDownloadOutline } from "react-icons/io5";
 import Modal from '@/components/ui/modal';
@@ -10,9 +10,11 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+const SERVER_PLATFORM = { ios: false, android: false, windowsDesktop: false, installed: false };
+
 function detectPlatform() {
   if (typeof window === 'undefined') {
-    return { ios: false, android: false, windowsDesktop: false, installed: false };
+    return SERVER_PLATFORM;
   }
 
   const ua = window.navigator.userAgent.toLowerCase();
@@ -31,29 +33,33 @@ function detectPlatform() {
   return { ios, android, windowsDesktop, installed };
 }
 
+function subscribeNever() {
+  return () => {};
+}
+
+function getIsClientSnapshot() {
+  return true;
+}
+
+function getIsServerSnapshot() {
+  return false;
+}
+
 export function PwaInstallButton() {
-  const [isReady, setIsReady] = useState(false);
+  const isReady = useSyncExternalStore(subscribeNever, getIsClientSnapshot, getIsServerSnapshot);
+  const platform = isReady ? detectPlatform() : SERVER_PLATFORM;
+  const isIOS = platform.ios;
+  const isAndroid = platform.android;
+  const isWindowsDesktop = platform.windowsDesktop;
+
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isAndroid, setIsAndroid] = useState(false);
-  const [isWindowsDesktop, setIsWindowsDesktop] = useState(false);
+  const [installedThisSession, setInstalledThisSession] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
   const [showAndroidInstructions, setShowAndroidInstructions] = useState(false);
   const [showDesktopInfo, setShowDesktopInfo] = useState(false);
 
-  useEffect(() => {
-    const { ios, android, windowsDesktop, installed } = detectPlatform();
-    setIsIOS(ios);
-    setIsAndroid(android);
-    setIsWindowsDesktop(windowsDesktop);
-    setIsInstalled(installed);
-    if (ios && !installed) {
-      setIsInstallable(true);
-    }
-    setIsReady(true);
-  }, []);
+  const isInstalled = platform.installed || installedThisSession;
 
   useEffect(() => {
     if (!isReady || isInstalled || isIOS) return;
@@ -77,7 +83,7 @@ export function PwaInstallButton() {
 
     // Listen for app installed event
     const handleAppInstalled = () => {
-      setIsInstalled(true);
+      setInstalledThisSession(true);
       setIsInstallable(false);
       setDeferredPrompt(null);
     };
