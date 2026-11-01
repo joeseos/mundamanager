@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { FaDownload } from "react-icons/fa";
 import { IoDownloadOutline } from "react-icons/io5";
 import Modal from '@/components/ui/modal';
@@ -47,7 +47,10 @@ function getIsServerSnapshot() {
 
 export function PwaInstallButton() {
   const isReady = useSyncExternalStore(subscribeNever, getIsClientSnapshot, getIsServerSnapshot);
-  const platform = isReady ? detectPlatform() : SERVER_PLATFORM;
+  const platform = useMemo(
+    () => (isReady ? detectPlatform() : SERVER_PLATFORM),
+    [isReady]
+  );
   const isIOS = platform.ios;
   const isAndroid = platform.android;
   const isWindowsDesktop = platform.windowsDesktop;
