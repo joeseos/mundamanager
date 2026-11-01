@@ -48,7 +48,6 @@ export function FighterCardActionMenu({
     strategy: 'fixed',
     middleware: [offset(8), flip(), shift({ padding: 8 })],
   });
-  const setFloatingRef = refs.setFloating;
 
   const closeMenu = useCallback(() => {
     setOpenActionMenuFighterId?.(null);
@@ -266,7 +265,9 @@ export function FighterCardActionMenu({
 
       {isOpen && coords && (
         <div
-          ref={setFloatingRef}
+          ref={(node) => {
+            refs.setFloating(node);
+          }}
           style={floatingStyles}
           className="z-50 min-w-[12rem] rounded-md border bg-popover p-1 text-popover-foreground shadow-md print:hidden"
         >
