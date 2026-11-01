@@ -322,13 +322,17 @@ const CHAOS_HELOTS_GANG_TYPE = 'chaos helots';
 const CHAOS_CORRUPTED_GANG_SUBTYPE = 'chaos corrupted';
 const CHYMIST_CULT_GANG_TYPE = 'chymist cult';
 const FURNACE_BRUTES_GANG_TYPE = 'furnace brutes';
+const SPYRE_HUNTERS_GANG_TYPE = 'spyre hunters';
+
+const gangTypeName = (gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>): string =>
+  gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
 
 /**
  * Gang types and subtypes are matched by name, like isVenatorGang. A custom
  * gang type's name is the user's own, so it never counts.
  */
 export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailability {
-  const gangType = gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
+  const gangType = gangTypeName(gang);
   const subtypes = gang.subtypeNames.map((name) => name.toLowerCase());
 
   return {
@@ -340,6 +344,18 @@ export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailabilit
     enhanceWeaponAvailable: gangType === FURNACE_BRUTES_GANG_TYPE,
   };
 }
+
+const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
+
+/**
+ * Collect Income from one held Territory: its credits, except that a Spyre
+ * Hunters gang takes a flat 15 from each Territory instead of its Boon.
+ */
+export const territoryIncome = (
+  territory: { credits: number | null },
+  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>
+): number =>
+  gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE ? SPYRE_HUNTERS_TERRITORY_INCOME : (territory.credits ?? 0);
 
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,

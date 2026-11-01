@@ -158,6 +158,8 @@ export default async function CampaignPage(props: {
       campaign_type_id: campaignBasic.campaign_type_id,
       campaign_type_name: campaignBasic.campaign_types?.campaign_type_name || '',
       campaign_type_image_url: campaignBasic.campaign_types?.image_url || '',
+      campaign_portrait_id: campaignBasic.campaign_portrait_id ?? null,
+      campaign_portrait_url: campaignBasic.campaign_portrait_url ?? null,
       edition_slug: campaignBasic.campaign_types?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,

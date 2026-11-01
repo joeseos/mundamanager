@@ -10,6 +10,7 @@ import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
+import { resolveCampaignImageUrl } from '@/utils/campaign-image';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
@@ -122,6 +123,8 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     campaign_type_image_url?: string;
+    campaign_portrait_id?: string | null;
+    campaign_portrait_url?: string | null;
     edition_slug?: string | null;
     image_url?: string;
     status: string | null;
@@ -416,6 +419,11 @@ export default function CampaignPageContent({
   };
 
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
+  const shownImageUrl = resolveCampaignImageUrl({
+    imageUrl: campaignData.image_url,
+    portraitUrl: campaignData.campaign_portrait_url,
+    typeImageUrl: campaignData.campaign_type_image_url,
+  });
 
   return (
     <main className="campaign-page flex min-h-screen flex-col items-center print:min-h-0">
@@ -503,7 +511,7 @@ export default function CampaignPageContent({
               {...(canEditImage && { onClick: () => setShowImageModal(true) })}
             >
               <CogwheelPortrait
-                src={campaignData.image_url || campaignData.campaign_type_image_url}
+                src={shownImageUrl}
                 alt={campaignData.campaign_name}
                 fallback={<PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />}
                 errorSrc={UNKNOWN_GANG_IMAGE_URL}
@@ -1060,8 +1068,23 @@ export default function CampaignPageContent({
             onClose={() => setShowImageModal(false)}
             currentImageUrl={campaignData.image_url || ''}
             campaignId={campaignData.id}
-            onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
-            defaultImageUrl={campaignData.campaign_type_image_url}
+            campaignTypeId={campaignData.campaign_type_id}
+            campaignTypeName={campaignData.campaign_type_name}
+            campaignPortraitId={campaignData.campaign_portrait_id}
+            currentPortraitUrl={campaignData.campaign_portrait_url}
+            typeImageUrl={campaignData.campaign_type_image_url}
+            onImageUpdate={(newUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: newUrl,
+              campaign_portrait_id: null,
+              campaign_portrait_url: null,
+            }))}
+            onPortraitUpdate={(portraitId, portraitUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: '',
+              campaign_portrait_id: portraitId,
+              campaign_portrait_url: portraitUrl,
+            }))}
           />
         )}
 

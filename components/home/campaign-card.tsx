@@ -9,6 +9,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
 import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
+import { resolveCampaignImageUrl } from '@/utils/campaign-image'
 
 export interface CampaignCardProps {
   campaign: Campaign;
@@ -21,11 +22,16 @@ export interface CampaignCardProps {
 
 export function CampaignCardContent({ campaign, onToggleFavourite, dragListeners, dragAttributes, isDragging, disableLink = false }: CampaignCardProps) {
   const isDraggable = Boolean(dragListeners);
+  const imageUrl = resolveCampaignImageUrl({
+    imageUrl: campaign.image_url,
+    portraitUrl: campaign.campaign_portrait_url,
+    typeImageUrl: campaign.campaign_type_image_url,
+  });
 
   const innerContent = (
     <>
       <CogwheelPortrait
-        src={campaign.image_url || campaign.campaign_type_image_url}
+        src={imageUrl}
         alt={campaign.campaign_name ?? ''}
         name={campaign.campaign_name}
         errorSrc="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/underhive-gang-badzone-enforcers_ntnpzu.jpg"

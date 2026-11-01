@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
-import { gangOriginRank } from "@/utils/gangOriginRank";
+import { GangOriginOptions } from "@/components/admin/gang-scope-options";
 import { AdminFighterEffects } from './admin-fighter-effects';
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { HiX } from "react-icons/hi";
@@ -178,7 +178,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
+  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, edition_id: string | null}>>({
     queryKey: ['admin-gang-origins'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-origins');
@@ -210,6 +210,11 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     ? skillTypeList.filter(type => type.edition_id === editionId)
     : skillTypeList;
 
+  // Origin names repeat across editions under different ids
+  const filteredGangOriginList = editionId
+    ? gangOriginList.filter(origin => origin.edition_id === editionId)
+    : gangOriginList;
+
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
     if (newEditionId && skillType) {
@@ -219,6 +224,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         setSkillTypeName('');
         setSkillName('');
         setSkillId('');
+        setGangOrigin('');
         setSkillList([]);
       }
     }
@@ -549,34 +555,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 disabled={skillName == ''}
               >
                 <option value="">No gang origin restriction</option>
-                {Object.entries(
-                  gangOriginList
-                    .sort((a, b) => {
-                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
-                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
-                      return rankA - rankB;
-                    })
-                    .reduce((groups, origin) => {
-                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted origins
-
-                      if (rank <= 19) groupLabel = "Prefecture";
-                      else if (rank <= 39) groupLabel = "Ancestry";
-                      else if (rank <= 59) groupLabel = "Tribe";
-
-                      if (!groups[groupLabel]) groups[groupLabel] = [];
-                      groups[groupLabel].push(origin);
-                      return groups;
-                    }, {} as Record<string, typeof gangOriginList>)
-                ).map(([groupLabel, origins]) => (
-                  <optgroup key={groupLabel} label={groupLabel}>
-                    {origins.map((origin) => (
-                      <option key={origin.id} value={origin.id}>
-                        {origin.origin_name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
+                <GangOriginOptions origins={filteredGangOriginList} />
               </select>
             </div>
 
