@@ -52,7 +52,7 @@ would have.
 1. **Prerequisites**
    - Node.js 24.x (see `.nvmrc`)
    - Supabase project URL, key and database connection string
-   - Cloudflare Turnstile keys
+   - Cloudflare Turnstile site key
 
 2. **Environment setup**
    ```bash
@@ -63,7 +63,6 @@ would have.
    NEXT_PUBLIC_SUPABASE_URL=mundamanager-project-url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
    NEXT_PUBLIC_TURNSTILE_SITE_KEY=mundamanager-turnstile-key
-   TURNSTILE_SECRET_KEY=mundamanager-turnstile-secret-key
    DATABASE_URL=database-connection-string
    NODE_ENV=development
    ```

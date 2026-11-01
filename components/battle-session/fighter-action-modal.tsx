@@ -307,6 +307,7 @@ export default function FighterActionModal({
           currentKillCount={fighterData.kill_count}
           gangId={gangId}
           campaignId={campaignId ?? undefined}
+          targetGangIds={candidateGangs.map((g) => g.gang_id)}
           editionSlug={editionSlug}
           hideBattleParticipation
           onClose={() => setShowXpModal(false)}

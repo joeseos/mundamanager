@@ -446,7 +446,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
                 setNewSkillTypeName('');
               }}
             >
-              New
+              Add
             </Button>
           </div>
         )}

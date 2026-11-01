@@ -714,6 +714,8 @@ export function assembleGangFighters(
           custom_fighter_type_id: fighter.custom_fighter_type_id ?? null,
           min_count: countLimit.min_count,
           max_count: countLimit.max_count,
+          fighter_gang_type_id: fighterTypeInfo.gang_type_id ?? fighter.custom_fighter_type?.gang_type_id ?? null,
+          fighter_custom_gang_type_id: fighter.custom_fighter_type?.custom_gang_type_id ?? null,
           fighter_subtypes: fighter.fighter_subtypes || [],
           promoted_from_prospect: fighter.promoted_from_prospect,
           fighter_specialisation: fighterSpecialisationInfo ? {

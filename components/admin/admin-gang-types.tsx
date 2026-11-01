@@ -8,10 +8,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
 import { EditionSelect } from '@/components/edition-select';
 import {
-  AdminGangPortraitForm,
+  AdminPortraitForm,
   type PortraitFormHandle,
   type PortraitFormState,
-} from '@/components/admin/admin-gang-portrait-form';
+} from '@/components/admin/admin-portrait-form';
 import { GangRulesSection } from '@/components/admin/admin-gang-rules';
 
 enum OperationType {
@@ -335,7 +335,13 @@ export function AdminGangTypesModal({ onClose }: AdminGangTypesModalProps) {
             </div>
 
             {selectedCategory === 'portraits' ? (
-              <AdminGangPortraitForm ref={portraitFormRef} onStateChange={handlePortraitState} />
+              <AdminPortraitForm
+                ref={portraitFormRef}
+                catalogue="gang"
+                onStateChange={handlePortraitState}
+                groupLabelPlaceholder="E.g. House Escher"
+                deleteWarning="Delete this portrait? Gangs using it will fall back to the silhouette."
+              />
             ) : (
             <>
             <div>

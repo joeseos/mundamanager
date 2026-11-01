@@ -966,10 +966,79 @@ $$;
 
 
 --
--- Name: create_notification_send(uuid, text, uuid, text, integer, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+-- Name: forum_threads; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.create_notification_send(p_sender_id uuid, p_type text, p_campaign_id uuid, p_text text, p_expires_in_days integer, p_audience text, p_receiver_ids uuid[]) RETURNS jsonb
+CREATE TABLE public.forum_threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    number bigint NOT NULL,
+    category_id uuid NOT NULL,
+    title text NOT NULL,
+    author_id uuid,
+    is_pinned boolean DEFAULT false NOT NULL,
+    is_locked boolean DEFAULT false NOT NULL,
+    post_count integer DEFAULT 0 NOT NULL,
+    last_post_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_post_author_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    updated_by uuid,
+    article_published_at timestamp with time zone,
+    CONSTRAINT forum_threads_title_length CHECK (((char_length(btrim(title)) >= 1) AND (char_length(btrim(title)) <= 150)))
+);
+
+
+--
+-- Name: COLUMN forum_threads.number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_threads.number IS 'Short public id for URLs: /forum/<category slug>/<number>-<title slug>.';
+
+
+--
+-- Name: COLUMN forum_threads.post_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_threads.post_count IS 'Posts in the thread, the opening post included. Replies = post_count - 1.';
+
+
+--
+-- Name: COLUMN forum_threads.article_published_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_threads.article_published_at IS 'When a moderator published the thread as an article; NULL when it is not one. Articles are listed newest first by it.';
+
+
+--
+-- Name: create_forum_thread(uuid, text, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_forum_thread(p_category_id uuid, p_title text, p_content text, p_tag_ids uuid[] DEFAULT '{}'::uuid[]) RETURNS public.forum_threads
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  thread forum_threads%ROWTYPE;
+BEGIN
+  INSERT INTO forum_threads (category_id, title, author_id)
+  VALUES (p_category_id, p_title, auth.uid())
+  RETURNING * INTO thread;
+
+  INSERT INTO forum_posts (thread_id, author_id, content)
+  VALUES (thread.id, auth.uid(), p_content);
+
+  PERFORM set_forum_thread_tags(thread.id, p_tag_ids);
+
+  RETURN thread;
+END;
+$$;
+
+
+--
+-- Name: create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_notification_send(p_sender_id uuid, p_type text, p_campaign_id uuid, p_text text, p_expires_in_days integer, p_audience text, p_receiver_ids uuid[], p_logged_in_since timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -1014,6 +1083,11 @@ BEGIN
     WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
   END;
 
+  IF p_logged_in_since IS NOT NULL
+     AND (p_type = 'campaign_message' OR p_audience = 'selected') THEN
+    RAISE EXCEPTION 'logged_in_since only applies to all-user sends';
+  END IF;
+
   IF p_audience = 'all' AND p_type = 'campaign_message' THEN
     SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -1021,9 +1095,20 @@ BEGIN
     WHERE cm.campaign_id = p_campaign_id
       AND cm.user_id IS NOT NULL;
   ELSIF p_audience = 'all' THEN
+    -- Null keeps every profile. Otherwise keep a login or a session refresh at or
+    -- after the cutoff. refreshed_at has no time zone and is stored as UTC.
     SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
     INTO v_receiver_ids
-    FROM public.profiles p;
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p_logged_in_since IS NULL
+       OR u.last_sign_in_at >= p_logged_in_since
+       OR EXISTS (
+         SELECT 1
+         FROM auth.sessions s
+         WHERE s.user_id = u.id
+           AND (s.refreshed_at AT TIME ZONE 'UTC') >= p_logged_in_since
+       );
   ELSE
     SELECT COALESCE(array_agg(DISTINCT receiver.receiver_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -1104,14 +1189,16 @@ BEGIN
     campaign_id,
     text,
     recipient_count,
-    sample_receiver_ids
+    sample_receiver_ids,
+    logged_in_since
   ) VALUES (
     p_sender_id,
     p_type,
     p_campaign_id,
     p_text,
     cardinality(v_receiver_ids),
-    v_sample
+    v_sample,
+    p_logged_in_since
   )
   RETURNING id INTO v_send_id;
 
@@ -1295,6 +1382,264 @@ BEGIN
    END IF;
 
    RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_article_submissions_before_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_article_submissions_before_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF EXISTS (SELECT 1 FROM forum_threads t WHERE t.id = NEW.thread_id AND t.article_published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'This thread is already an article' USING ERRCODE = 'MM002';
+    END IF;
+    NEW.status := 'submitted';
+    NEW.review_note := NULL;
+    NEW.submitted_at := now();
+    NEW.reviewed_at := NULL;
+    NEW.reviewed_by := NULL;
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status = 'submitted' AND NEW.status <> 'submitted' AND private.is_forum_moderator() THEN
+    NEW.reviewed_at := now();
+    NEW.reviewed_by := auth.uid();
+  ELSIF OLD.status = 'changes_requested' AND NEW.status = 'submitted'
+    AND NEW.review_note IS NOT DISTINCT FROM OLD.review_note
+    AND EXISTS (SELECT 1 FROM forum_threads t WHERE t.id = NEW.thread_id AND t.author_id = auth.uid()) THEN
+    NEW.submitted_at := now();
+  ELSE
+    RAISE EXCEPTION 'Only the author can resubmit, and only moderators can answer a submission'
+      USING ERRCODE = 'MM002';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_post_likes_after_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_post_likes_after_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  UPDATE forum_posts p
+  SET like_count = p.like_count + CASE WHEN TG_OP = 'INSERT' THEN 1 ELSE -1 END
+  WHERE p.id = CASE WHEN TG_OP = 'INSERT' THEN NEW.post_id ELSE OLD.post_id END;
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: forum_posts_before_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_posts_before_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+DECLARE
+  is_moderator constant boolean := private.is_forum_moderator();
+  thread forum_threads%ROWTYPE;
+BEGIN
+  IF NOT is_moderator THEN
+    -- One post at a time per user, so parallel inserts can't all pass the check below
+    PERFORM pg_advisory_xact_lock(hashtextextended('forum_post:' || NEW.author_id::text, 0));
+    IF EXISTS (
+      SELECT 1 FROM forum_posts p
+      WHERE p.author_id = NEW.author_id
+      AND p.created_at > now() - interval '15 seconds'
+    ) THEN
+      RAISE EXCEPTION 'Please wait a few seconds before posting again'
+        USING ERRCODE = 'MM002';
+    END IF;
+  END IF;
+
+  -- Locks the thread row, so concurrent replies get consecutive numbers
+  SELECT * INTO thread FROM forum_threads t WHERE t.id = NEW.thread_id FOR UPDATE;
+  IF thread.is_locked AND NOT is_moderator THEN
+    RAISE EXCEPTION 'This thread is locked'
+      USING ERRCODE = 'MM002';
+  END IF;
+
+  NEW.post_number := thread.post_count + 1;
+  NEW.like_count := 0;
+  NEW.created_at := now();
+  NEW.updated_at := NULL;
+  NEW.deleted_at := NULL;
+  NEW.deleted_by := NULL;
+
+  UPDATE forum_threads t
+  SET post_count = t.post_count + 1,
+      last_post_at = NEW.created_at,
+      last_post_author_id = NEW.author_id
+  WHERE t.id = NEW.thread_id;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_posts_before_update(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_posts_before_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+BEGIN
+  IF OLD.deleted_at IS NOT NULL THEN
+    IF NEW.content IS DISTINCT FROM OLD.content OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
+      RAISE EXCEPTION 'This post has been removed'
+        USING ERRCODE = 'MM002';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.deleted_at IS NOT NULL THEN
+    INSERT INTO forum_post_revisions (post_id, thread_id, post_number, author_id, content, kind, created_by)
+    VALUES (OLD.id, OLD.thread_id, OLD.post_number, OLD.author_id, OLD.content, 'delete', auth.uid());
+    NEW.deleted_at := now();
+    NEW.deleted_by := auth.uid();
+    NEW.content := '';
+  ELSIF NEW.content IS DISTINCT FROM OLD.content THEN
+    -- FOR SHARE waits for a lock being set at the same moment
+    IF NOT private.is_forum_moderator()
+      AND (SELECT t.is_locked FROM forum_threads t WHERE t.id = OLD.thread_id FOR SHARE) THEN
+      RAISE EXCEPTION 'This thread is locked'
+        USING ERRCODE = 'MM002';
+    END IF;
+    INSERT INTO forum_post_revisions (post_id, thread_id, post_number, author_id, content, kind, created_by)
+    VALUES (OLD.id, OLD.thread_id, OLD.post_number, OLD.author_id, OLD.content, 'edit', auth.uid());
+    NEW.updated_at := now();
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_threads_after_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_threads_after_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND NEW.category_id IS DISTINCT FROM OLD.category_id) THEN
+    UPDATE forum_categories c
+    SET thread_count = c.thread_count - 1
+    WHERE c.id = OLD.category_id;
+  END IF;
+
+  IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.category_id IS DISTINCT FROM OLD.category_id) THEN
+    UPDATE forum_categories c
+    SET thread_count = c.thread_count + 1
+    WHERE c.id = NEW.category_id;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: forum_threads_before_delete(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_threads_before_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  INSERT INTO forum_post_revisions (post_id, thread_id, thread_title, post_number, author_id, content, kind, created_by)
+  SELECT p.id, OLD.id, OLD.title, p.post_number, p.author_id, p.content, 'delete', auth.uid()
+  FROM forum_posts p
+  WHERE p.thread_id = OLD.id
+  AND p.deleted_at IS NULL;
+  RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: forum_threads_before_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_threads_before_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+DECLARE
+  is_moderator constant boolean := private.is_forum_moderator();
+  new_account_thread_limit constant integer := 3;
+  account_created timestamp with time zone;
+  recent_threads integer;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW.post_count := 0;
+    NEW.last_post_at := now();
+    NEW.last_post_author_id := NEW.author_id;
+    NEW.created_at := now();
+    NEW.updated_at := NULL;
+    NEW.updated_by := NULL;
+    NEW.article_published_at := NULL;
+    IF NOT is_moderator THEN
+      NEW.is_pinned := false;
+      NEW.is_locked := false;
+
+      SELECT p.created_at INTO account_created FROM profiles p WHERE p.id = NEW.author_id;
+      IF account_created IS NULL OR account_created > now() - interval '1 day' THEN
+        SELECT count(*) INTO recent_threads
+        FROM forum_threads t
+        WHERE t.author_id = NEW.author_id
+        AND t.created_at > now() - interval '1 day';
+        IF recent_threads >= new_account_thread_limit THEN
+          RAISE EXCEPTION 'New accounts can start % threads a day', new_account_thread_limit
+            USING ERRCODE = 'MM002';
+        END IF;
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NOT is_moderator AND (
+    NEW.is_pinned IS DISTINCT FROM OLD.is_pinned
+    OR NEW.is_locked IS DISTINCT FROM OLD.is_locked
+    OR NEW.category_id IS DISTINCT FROM OLD.category_id
+    OR NEW.article_published_at IS DISTINCT FROM OLD.article_published_at
+  ) THEN
+    RAISE EXCEPTION 'Only moderators can pin, lock, move or publish threads'
+      USING ERRCODE = 'MM002';
+  END IF;
+  IF NOT is_moderator AND OLD.is_locked AND NEW.title IS DISTINCT FROM OLD.title THEN
+    RAISE EXCEPTION 'This thread is locked'
+      USING ERRCODE = 'MM002';
+  END IF;
+  -- Publishing stamps the time here, so the client only says whether it's an article
+  IF NEW.article_published_at IS NOT NULL THEN
+    NEW.article_published_at := coalesce(OLD.article_published_at, now());
+  END IF;
+  -- Publishing ends the author's suggestion
+  IF OLD.article_published_at IS NULL AND NEW.article_published_at IS NOT NULL THEN
+    DELETE FROM forum_article_submissions WHERE thread_id = NEW.id;
+  END IF;
+  NEW.updated_at := now();
+  NEW.updated_by := auth.uid();
+  RETURN NEW;
 END;
 $$;
 
@@ -4695,6 +5040,52 @@ COMMENT ON FUNCTION public.replace_gang_skill_set_ranks(p_gang_id uuid, p_ranks 
 
 
 --
+-- Name: set_forum_thread_tags(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_forum_thread_tags(p_thread_id uuid, p_tag_ids uuid[]) RETURNS public.forum_threads
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  max_tags constant integer := 3;
+  thread forum_threads%ROWTYPE;
+BEGIN
+  -- FOR UPDATE waits for a lock being set at the same moment
+  SELECT * INTO thread FROM forum_threads t WHERE t.id = p_thread_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This thread no longer exists'
+      USING ERRCODE = 'MM002';
+  END IF;
+  IF NOT private.is_forum_moderator() THEN
+    IF thread.author_id IS DISTINCT FROM auth.uid() THEN
+      RAISE EXCEPTION 'Only the thread''s author and moderators can change its tags'
+        USING ERRCODE = 'MM002';
+    END IF;
+    IF thread.is_locked THEN
+      RAISE EXCEPTION 'This thread is locked'
+        USING ERRCODE = 'MM002';
+    END IF;
+  END IF;
+  IF cardinality(p_tag_ids) > max_tags THEN
+    RAISE EXCEPTION 'A thread can have at most % tags', max_tags
+      USING ERRCODE = 'MM002';
+  END IF;
+
+  DELETE FROM forum_thread_tags tt
+  WHERE tt.thread_id = p_thread_id
+  AND tt.tag_id <> ALL (coalesce(p_tag_ids, '{}'));
+
+  INSERT INTO forum_thread_tags (thread_id, tag_id)
+  SELECT p_thread_id, tag.id FROM forum_tags tag WHERE tag.id = ANY (p_tag_ids)
+  ON CONFLICT DO NOTHING;
+
+  RETURN thread;
+END;
+$$;
+
+
+--
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4892,10 +5283,7 @@ COMMENT ON TABLE public.campaign_allegiances IS 'Custom allegiances created by a
 CREATE TABLE public.campaign_battles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    attacker_id uuid,
-    defender_id uuid,
     scenario_id uuid,
-    winner_id uuid,
     note text,
     campaign_id uuid,
     participants jsonb,
@@ -4919,27 +5307,6 @@ CREATE TABLE public.campaign_battles (
     CONSTRAINT campaign_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
-
-
---
--- Name: COLUMN campaign_battles.attacker_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.attacker_id IS 'gang_id';
-
-
---
--- Name: COLUMN campaign_battles.defender_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.defender_id IS 'gang_id';
-
-
---
--- Name: COLUMN campaign_battles.winner_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.winner_id IS 'gang_id';
 
 
 --
@@ -5127,6 +5494,57 @@ COMMENT ON TABLE public.campaign_members IS 'members of a campaign';
 
 
 --
+-- Name: campaign_portraits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_portraits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    storage_path text NOT NULL,
+    credit jsonb NOT NULL,
+    style text NOT NULL,
+    campaign_type_id uuid NOT NULL,
+    CONSTRAINT campaign_portraits_credit_check CHECK (((jsonb_typeof(credit) = 'object'::text) AND (btrim(COALESCE((credit ->> 'name'::text), ''::text)) <> ''::text))),
+    CONSTRAINT campaign_portraits_storage_path_check CHECK (((storage_path <> ''::text) AND (storage_path !~ '^/'::text))),
+    CONSTRAINT campaign_portraits_style_check CHECK ((style = ANY (ARRAY['colour'::text, 'black & white'::text, 'ai-assisted'::text])))
+);
+
+
+--
+-- Name: TABLE campaign_portraits; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.campaign_portraits IS 'Catalogue of shared campaign portraits in the campaign-type-images bucket. One file belongs to one campaign type.';
+
+
+--
+-- Name: COLUMN campaign_portraits.storage_path; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.storage_path IS 'Object path inside the campaign-type-images bucket, such as admin/law_and_misrule.webp.';
+
+
+--
+-- Name: COLUMN campaign_portraits.credit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.credit IS 'Artist credit: name, url, and optional suffix. Shown with the portrait.';
+
+
+--
+-- Name: COLUMN campaign_portraits.style; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.style IS 'Portrait treatment used as a gallery filter: colour, black & white, or ai-assisted.';
+
+
+--
+-- Name: COLUMN campaign_portraits.campaign_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.campaign_type_id IS 'Campaign type this portrait belongs to. Renaming the type does not detach the portrait. A type with portraits cannot be deleted until its portraits, and their files, are removed through admin.';
+
+
+--
 -- Name: campaign_resources; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5235,8 +5653,16 @@ CREATE TABLE public.campaign_types (
     description text,
     image_url text,
     trading_posts jsonb,
-    edition_id uuid
+    edition_id uuid,
+    phases jsonb
 );
+
+
+--
+-- Name: COLUMN campaign_types.phases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_types.phases IS 'Ordered phase names suggested to arbitrators of this campaign type. Null when the type has none.';
 
 
 --
@@ -5260,7 +5686,11 @@ CREATE TABLE public.campaigns (
     created_by uuid DEFAULT auth.uid(),
     custom_trading_posts jsonb,
     allow_join_requests boolean DEFAULT false NOT NULL,
-    current_cycle integer
+    current_cycle integer,
+    current_phase text,
+    campaign_portrait_id uuid,
+    CONSTRAINT campaigns_current_cycle_positive CHECK (((current_cycle IS NULL) OR (current_cycle >= 1))),
+    CONSTRAINT campaigns_current_phase_length CHECK (((current_phase IS NULL) OR ((char_length(current_phase) >= 1) AND (char_length(current_phase) <= 50))))
 );
 
 
@@ -5269,6 +5699,20 @@ CREATE TABLE public.campaigns (
 --
 
 COMMENT ON COLUMN public.campaigns.status IS 'Campaign status: Active or Closed. Defaults to Active for new campaigns.';
+
+
+--
+-- Name: COLUMN campaigns.current_phase; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaigns.current_phase IS 'Free-text name of the phase the campaign is in. Null when the campaign does not track phases.';
+
+
+--
+-- Name: COLUMN campaigns.campaign_portrait_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaigns.campaign_portrait_id IS 'Selected shared portrait from campaign_portraits. Null for a custom upload, the campaign type image, or no catalogue image.';
 
 
 --
@@ -6510,6 +6954,254 @@ COMMENT ON COLUMN public.fighters.promoted_from_prospect IS 'True when the N26 P
 
 
 --
+-- Name: forum_article_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_article_submissions (
+    thread_id uuid NOT NULL,
+    status text DEFAULT 'submitted'::text NOT NULL,
+    review_note text,
+    submitted_at timestamp with time zone DEFAULT now() NOT NULL,
+    reviewed_at timestamp with time zone,
+    reviewed_by uuid,
+    CONSTRAINT forum_article_submissions_review_note_length CHECK ((char_length(review_note) <= 2000)),
+    CONSTRAINT forum_article_submissions_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'changes_requested'::text, 'declined'::text])))
+);
+
+
+--
+-- Name: TABLE forum_article_submissions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_article_submissions IS 'Threads their authors suggested as articles, until a moderator publishes them. Author and moderators only.';
+
+
+--
+-- Name: COLUMN forum_article_submissions.review_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_article_submissions.review_note IS 'What the moderator told the author: the changes asked for, or why it was declined.';
+
+
+--
+-- Name: forum_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_categories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    slug text NOT NULL,
+    name text NOT NULL,
+    description text,
+    "position" integer DEFAULT 0 NOT NULL,
+    moderators_only boolean DEFAULT false NOT NULL,
+    thread_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    image_url text,
+    CONSTRAINT forum_categories_image_url_https CHECK (((image_url IS NULL) OR (image_url ~ '^https://[^[:space:]]+$'::text))),
+    CONSTRAINT forum_categories_slug_format CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+);
+
+
+--
+-- Name: COLUMN forum_categories."position"; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_categories."position" IS 'Order on the forum index, lowest first.';
+
+
+--
+-- Name: COLUMN forum_categories.moderators_only; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_categories.moderators_only IS 'Only moderators can start threads here (e.g. Announcements). Anyone can still reply.';
+
+
+--
+-- Name: COLUMN forum_categories.image_url; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_categories.image_url IS 'Public https URL of the image shown beside this category. Null hides the image.';
+
+
+--
+-- Name: forum_post_likes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_post_likes (
+    post_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: forum_post_revisions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_post_revisions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    post_id uuid,
+    content text NOT NULL,
+    kind text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid,
+    thread_id uuid,
+    thread_title text,
+    post_number integer,
+    author_id uuid,
+    CONSTRAINT forum_post_revisions_kind_check CHECK ((kind = ANY (ARRAY['edit'::text, 'delete'::text])))
+);
+
+
+--
+-- Name: TABLE forum_post_revisions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_post_revisions IS 'The content a post had before each edit (kind edit) or before it was removed (kind delete). Moderators only.';
+
+
+--
+-- Name: COLUMN forum_post_revisions.post_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_post_revisions.post_id IS 'NULL once the post is deleted with its thread; the other columns still say where it was and who wrote it.';
+
+
+--
+-- Name: COLUMN forum_post_revisions.thread_title; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_post_revisions.thread_title IS 'Set on the revisions kept when a thread is deleted.';
+
+
+--
+-- Name: forum_posts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_posts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    thread_id uuid NOT NULL,
+    post_number integer NOT NULL,
+    author_id uuid,
+    content text NOT NULL,
+    like_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    deleted_by uuid,
+    CONSTRAINT forum_posts_content_length CHECK ((char_length(content) <= 50000))
+);
+
+
+--
+-- Name: COLUMN forum_posts.author_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_posts.author_id IS 'NULL once the account is deleted; shown as "Unknown User".';
+
+
+--
+-- Name: COLUMN forum_posts.content; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_posts.content IS 'Rich-text HTML (TipTap output). Sanitized when pages read it. Emptied when the post is removed; the text is kept in forum_post_revisions.';
+
+
+--
+-- Name: COLUMN forum_posts.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_posts.updated_at IS 'Set when the content is edited; shown as "edited".';
+
+
+--
+-- Name: forum_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_reports (
+    post_id uuid NOT NULL,
+    reporter_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    reason text NOT NULL,
+    CONSTRAINT forum_reports_reason_length CHECK (((char_length(btrim(reason)) >= 1) AND (char_length(btrim(reason)) <= 500)))
+);
+
+
+--
+-- Name: TABLE forum_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_reports IS 'Posts members reported to the moderators, one row per member and post, until a moderator dismisses them.';
+
+
+--
+-- Name: forum_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_tags (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    CONSTRAINT forum_tags_name_length CHECK (((char_length(btrim(name)) >= 1) AND (char_length(btrim(name)) <= 40)))
+);
+
+
+--
+-- Name: TABLE forum_tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_tags IS 'Tags for forum threads, edited in the database. Renaming one renames it on every thread.';
+
+
+--
+-- Name: forum_thread_reads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_thread_reads (
+    user_id uuid NOT NULL,
+    thread_id uuid NOT NULL,
+    last_read_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: TABLE forum_thread_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_thread_reads IS 'The time of the last post each user has read in each forum thread. A thread with a later post is unread.';
+
+
+--
+-- Name: forum_thread_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_thread_tags (
+    thread_id uuid NOT NULL,
+    tag_id uuid NOT NULL
+);
+
+
+--
+-- Name: TABLE forum_thread_tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_thread_tags IS 'The tags on each forum thread, at most 3.';
+
+
+--
+-- Name: forum_threads_number_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_threads ALTER COLUMN number ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.forum_threads_number_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: friends; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6856,6 +7548,7 @@ CREATE TABLE public.notification_sends (
     recipient_count integer NOT NULL,
     sample_receiver_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    logged_in_since timestamp with time zone,
     CONSTRAINT notification_sends_recipient_count_check CHECK ((recipient_count >= 0)),
     CONSTRAINT notification_sends_type_check CHECK ((type = ANY (ARRAY['mm_announcement'::text, 'mm_staff_message'::text, 'campaign_message'::text])))
 );
@@ -6866,6 +7559,13 @@ CREATE TABLE public.notification_sends (
 --
 
 COMMENT ON TABLE public.notification_sends IS 'One composed notification send. Sent history reads this table, not the per-recipient notification rows.';
+
+
+--
+-- Name: COLUMN notification_sends.logged_in_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notification_sends.logged_in_since IS 'Login cutoff for an admin all-user send. Null means every profile, including people who never logged in.';
 
 
 --
@@ -6884,7 +7584,7 @@ CREATE TABLE public.notifications (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     is_html boolean DEFAULT false NOT NULL,
     send_id uuid,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text])))
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text, 'forum_reply'::text, 'forum_mention'::text, 'forum_article'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
@@ -6912,6 +7612,7 @@ CREATE TABLE public.profiles (
     patreon_tier_id text,
     patreon_discord_role_ids text[],
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    avatar_url text,
     CONSTRAINT username_format CHECK ((username ~ '^[a-zA-Z0-9_-]+$'::text)),
     CONSTRAINT username_length CHECK (((char_length(username) >= 3) AND (char_length(username) <= 20)))
 );
@@ -7462,6 +8163,22 @@ ALTER TABLE ONLY public.campaign_members
 
 
 --
+-- Name: campaign_portraits campaign_portraits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_portraits campaign_portraits_storage_path_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_storage_path_key UNIQUE (storage_path);
+
+
+--
 -- Name: campaign_resources campaign_resources_campaign_id_resource_name_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7955,6 +8672,118 @@ ALTER TABLE ONLY public.fighter_equipment
 
 ALTER TABLE ONLY public.fighters
     ADD CONSTRAINT fighters_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_article_submissions forum_article_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_article_submissions
+    ADD CONSTRAINT forum_article_submissions_pkey PRIMARY KEY (thread_id);
+
+
+--
+-- Name: forum_categories forum_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_categories
+    ADD CONSTRAINT forum_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_categories forum_categories_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_categories
+    ADD CONSTRAINT forum_categories_slug_key UNIQUE (slug);
+
+
+--
+-- Name: forum_post_likes forum_post_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_likes
+    ADD CONSTRAINT forum_post_likes_pkey PRIMARY KEY (post_id, user_id);
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_posts forum_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_posts forum_posts_thread_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_thread_number_key UNIQUE (thread_id, post_number);
+
+
+--
+-- Name: forum_reports forum_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_pkey PRIMARY KEY (post_id, reporter_id);
+
+
+--
+-- Name: forum_tags forum_tags_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_tags
+    ADD CONSTRAINT forum_tags_name_key UNIQUE (name);
+
+
+--
+-- Name: forum_tags forum_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_tags
+    ADD CONSTRAINT forum_tags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_pkey PRIMARY KEY (user_id, thread_id);
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_pkey PRIMARY KEY (thread_id, tag_id);
+
+
+--
+-- Name: forum_threads forum_threads_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_number_key UNIQUE (number);
+
+
+--
+-- Name: forum_threads forum_threads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_pkey PRIMARY KEY (id);
 
 
 --
@@ -8528,13 +9357,6 @@ CREATE INDEX battle_sessions_winner_gang_id_idx ON public.battle_sessions USING 
 
 
 --
--- Name: campaign_battles_attacker_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_battles_attacker_id_idx ON public.campaign_battles USING btree (attacker_id);
-
-
---
 -- Name: campaign_battles_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8584,13 +9406,6 @@ CREATE INDEX campaign_battles_cycle_idx ON public.campaign_battles USING btree (
 
 
 --
--- Name: campaign_battles_defender_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_battles_defender_id_idx ON public.campaign_battles USING btree (defender_id);
-
-
---
 -- Name: campaign_battles_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8609,13 +9424,6 @@ CREATE INDEX campaign_battles_objective_id_idx ON public.campaign_battles USING 
 --
 
 CREATE INDEX campaign_battles_scenario_id_idx ON public.campaign_battles USING btree (scenario_id);
-
-
---
--- Name: campaign_battles_winner_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_battles_winner_id_idx ON public.campaign_battles USING btree (winner_id);
 
 
 --
@@ -8661,6 +9469,20 @@ CREATE INDEX campaign_members_is_favourite_idx ON public.campaign_members USING 
 
 
 --
+-- Name: campaign_portraits_campaign_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_portraits_campaign_type_id_idx ON public.campaign_portraits USING btree (campaign_type_id);
+
+
+--
+-- Name: campaign_portraits_style_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_portraits_style_idx ON public.campaign_portraits USING btree (style);
+
+
+--
 -- Name: campaign_territories_gang_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8686,6 +9508,13 @@ CREATE INDEX campaign_territories_territory_name_idx ON public.campaign_territor
 --
 
 CREATE INDEX campaign_types_edition_id_idx ON public.campaign_types USING btree (edition_id);
+
+
+--
+-- Name: campaigns_campaign_portrait_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaigns_campaign_portrait_id_idx ON public.campaigns USING btree (campaign_portrait_id) WHERE (campaign_portrait_id IS NOT NULL);
 
 
 --
@@ -8766,6 +9595,13 @@ CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree
 
 
 --
+-- Name: custom_fighter_types_custom_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_custom_gang_type_id_idx ON public.custom_fighter_types USING btree (custom_gang_type_id);
+
+
+--
 -- Name: custom_fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8826,6 +9662,13 @@ CREATE INDEX custom_shared_edition_id_idx ON public.custom_shared USING btree (e
 --
 
 CREATE INDEX custom_skill_types_edition_id_idx ON public.custom_skill_types USING btree (edition_id);
+
+
+--
+-- Name: custom_skill_types_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_skill_types_user_id_idx ON public.custom_skill_types USING btree (user_id);
 
 
 --
@@ -9043,6 +9886,13 @@ CREATE INDEX fighter_effects_fighter_equipment_id_idx ON public.fighter_effects 
 --
 
 CREATE INDEX fighter_effects_fighter_skill_id_idx ON public.fighter_effects USING btree (fighter_skill_id) WHERE (fighter_skill_id IS NOT NULL);
+
+
+--
+-- Name: fighter_equipment_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_equipment_created_at_idx ON public.fighter_equipment USING btree (created_at);
 
 
 --
@@ -9277,6 +10127,13 @@ CREATE INDEX fighter_type_equipment_gang_subtype_id_idx ON public.fighter_type_e
 
 
 --
+-- Name: fighter_type_skill_access_custom_skill_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_skill_access_custom_skill_type_id_idx ON public.fighter_type_skill_access USING btree (custom_skill_type_id);
+
+
+--
 -- Name: fighter_types_cool_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9428,6 +10285,90 @@ CREATE INDEX fighters_fighter_variant_idx ON public.fighters USING btree (fighte
 --
 
 CREATE INDEX fighters_updated_at_idx ON public.fighters USING btree (updated_at);
+
+
+--
+-- Name: forum_article_submissions_queue_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_article_submissions_queue_idx ON public.forum_article_submissions USING btree (submitted_at) WHERE (status = 'submitted'::text);
+
+
+--
+-- Name: forum_article_submissions_reviewed_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_article_submissions_reviewed_by_idx ON public.forum_article_submissions USING btree (reviewed_by);
+
+
+--
+-- Name: forum_post_likes_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_likes_user_idx ON public.forum_post_likes USING btree (user_id);
+
+
+--
+-- Name: forum_post_revisions_author_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_revisions_author_id_idx ON public.forum_post_revisions USING btree (author_id);
+
+
+--
+-- Name: forum_post_revisions_post_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_revisions_post_idx ON public.forum_post_revisions USING btree (post_id, created_at);
+
+
+--
+-- Name: forum_post_revisions_thread_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_revisions_thread_id_idx ON public.forum_post_revisions USING btree (thread_id);
+
+
+--
+-- Name: forum_posts_author_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_posts_author_created_idx ON public.forum_posts USING btree (author_id, created_at DESC);
+
+
+--
+-- Name: forum_reports_reporter_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_reports_reporter_idx ON public.forum_reports USING btree (reporter_id);
+
+
+--
+-- Name: forum_thread_reads_thread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_thread_reads_thread_idx ON public.forum_thread_reads USING btree (thread_id);
+
+
+--
+-- Name: forum_threads_article_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_threads_article_idx ON public.forum_threads USING btree (article_published_at DESC) WHERE (article_published_at IS NOT NULL);
+
+
+--
+-- Name: forum_threads_author_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_threads_author_created_idx ON public.forum_threads USING btree (author_id, created_at DESC);
+
+
+--
+-- Name: forum_threads_category_list_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_threads_category_list_idx ON public.forum_threads USING btree (category_id, is_pinned DESC, last_post_at DESC);
 
 
 --
@@ -10332,6 +11273,55 @@ CREATE TRIGGER enforce_gang_fighter_limit BEFORE INSERT OR UPDATE OF gang_id ON 
 
 
 --
+-- Name: forum_article_submissions forum_article_submissions_before_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_article_submissions_before_write BEFORE INSERT OR UPDATE ON public.forum_article_submissions FOR EACH ROW EXECUTE FUNCTION public.forum_article_submissions_before_write();
+
+
+--
+-- Name: forum_post_likes forum_post_likes_after_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_post_likes_after_write AFTER INSERT OR DELETE ON public.forum_post_likes FOR EACH ROW EXECUTE FUNCTION public.forum_post_likes_after_write();
+
+
+--
+-- Name: forum_posts forum_posts_before_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_posts_before_insert BEFORE INSERT ON public.forum_posts FOR EACH ROW EXECUTE FUNCTION public.forum_posts_before_insert();
+
+
+--
+-- Name: forum_posts forum_posts_before_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_posts_before_update BEFORE UPDATE OF content, deleted_at ON public.forum_posts FOR EACH ROW EXECUTE FUNCTION public.forum_posts_before_update();
+
+
+--
+-- Name: forum_threads forum_threads_after_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_threads_after_write AFTER INSERT OR DELETE OR UPDATE OF category_id ON public.forum_threads FOR EACH ROW EXECUTE FUNCTION public.forum_threads_after_write();
+
+
+--
+-- Name: forum_threads forum_threads_before_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_threads_before_delete BEFORE DELETE ON public.forum_threads FOR EACH ROW EXECUTE FUNCTION public.forum_threads_before_delete();
+
+
+--
+-- Name: forum_threads forum_threads_before_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_threads_before_write BEFORE INSERT OR UPDATE OF category_id, title, is_pinned, is_locked, article_published_at ON public.forum_threads FOR EACH ROW EXECUTE FUNCTION public.forum_threads_before_write();
+
+
+--
 -- Name: gang_types gang_types_parent_must_be_root; Type: TRIGGER; Schema: public; Owner: -
 --
 
@@ -10538,14 +11528,6 @@ ALTER TABLE ONLY public.campaign_allegiances
 
 
 --
--- Name: campaign_battles campaign_battles_attacker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_attacker_id_fkey FOREIGN KEY (attacker_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
-
-
---
 -- Name: campaign_battles campaign_battles_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10586,14 +11568,6 @@ ALTER TABLE ONLY public.campaign_battles
 
 
 --
--- Name: campaign_battles campaign_battles_defender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_defender_id_fkey FOREIGN KEY (defender_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
-
-
---
 -- Name: campaign_battles campaign_battles_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10615,14 +11589,6 @@ ALTER TABLE ONLY public.campaign_battles
 
 ALTER TABLE ONLY public.campaign_battles
     ADD CONSTRAINT campaign_battles_territory_id_fkey FOREIGN KEY (territory_id) REFERENCES public.territories(id) ON DELETE SET NULL;
-
-
---
--- Name: campaign_battles campaign_battles_winner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -10762,6 +11728,14 @@ ALTER TABLE ONLY public.campaign_members
 
 
 --
+-- Name: campaign_portraits campaign_portraits_campaign_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_campaign_type_id_fkey FOREIGN KEY (campaign_type_id) REFERENCES public.campaign_types(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: campaign_resources campaign_resources_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10831,6 +11805,14 @@ ALTER TABLE ONLY public.campaign_type_resources
 
 ALTER TABLE ONLY public.campaign_types
     ADD CONSTRAINT campaign_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: campaigns campaigns_campaign_portrait_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaigns
+    ADD CONSTRAINT campaigns_campaign_portrait_id_fkey FOREIGN KEY (campaign_portrait_id) REFERENCES public.campaign_portraits(id) ON DELETE SET NULL;
 
 
 --
@@ -12026,6 +13008,166 @@ ALTER TABLE ONLY public.fighters
 
 
 --
+-- Name: forum_article_submissions forum_article_submissions_reviewed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_article_submissions
+    ADD CONSTRAINT forum_article_submissions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_article_submissions forum_article_submissions_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_article_submissions
+    ADD CONSTRAINT forum_article_submissions_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_post_likes forum_post_likes_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_likes
+    ADD CONSTRAINT forum_post_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_post_likes forum_post_likes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_likes
+    ADD CONSTRAINT forum_post_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_posts forum_posts_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_posts forum_posts_deleted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_posts forum_posts_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_reports forum_reports_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_reports forum_reports_reporter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.forum_tags(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_threads forum_threads_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_threads forum_threads_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.forum_categories(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: forum_threads forum_threads_last_post_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_last_post_author_id_fkey FOREIGN KEY (last_post_author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_threads forum_threads_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: friends friends_addressee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12779,6 +13921,13 @@ CREATE POLICY "Allow authenticated users to view campaign members" ON public.cam
 
 
 --
+-- Name: campaign_portraits Allow authenticated users to view campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view campaign portraits" ON public.campaign_portraits FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: campaign_territories Allow authenticated users to view campaign territories; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13322,6 +14471,47 @@ CREATE POLICY "Authenticated users can create battle sessions" ON public.battle_
 
 
 --
+-- Name: forum_article_submissions Authors and moderators can update submissions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors and moderators can update submissions" ON public.forum_article_submissions FOR UPDATE TO authenticated USING ((( SELECT private.is_forum_moderator() AS is_forum_moderator) OR (EXISTS ( SELECT 1
+   FROM public.forum_threads t
+  WHERE ((t.id = forum_article_submissions.thread_id) AND (t.author_id = ( SELECT auth.uid() AS uid)))))));
+
+
+--
+-- Name: forum_threads Authors and moderators can update threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors and moderators can update threads" ON public.forum_threads FOR UPDATE TO authenticated USING (((author_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_forum_moderator() AS is_forum_moderator))) WITH CHECK (((author_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_forum_moderator() AS is_forum_moderator)));
+
+
+--
+-- Name: forum_article_submissions Authors and moderators can view submissions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors and moderators can view submissions" ON public.forum_article_submissions FOR SELECT TO authenticated USING ((( SELECT private.is_forum_moderator() AS is_forum_moderator) OR (EXISTS ( SELECT 1
+   FROM public.forum_threads t
+  WHERE ((t.id = forum_article_submissions.thread_id) AND (t.author_id = ( SELECT auth.uid() AS uid)))))));
+
+
+--
+-- Name: forum_posts Authors can edit their posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors can edit their posts" ON public.forum_posts FOR UPDATE TO authenticated USING ((author_id = ( SELECT auth.uid() AS uid))) WITH CHECK (((author_id = ( SELECT auth.uid() AS uid)) AND (deleted_at IS NULL)));
+
+
+--
+-- Name: forum_article_submissions Authors can submit their threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors can submit their threads" ON public.forum_article_submissions FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.forum_threads t
+  WHERE ((t.id = forum_article_submissions.thread_id) AND (t.author_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
 -- Name: campaign_battles Battle participants or campaign admins can delete battles; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13505,6 +14695,41 @@ CREATE POLICY "Fighter owner, admin or arb can update exotic beasts" ON public.f
 
 
 --
+-- Name: forum_categories Forum categories are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum categories are viewable by everyone" ON public.forum_categories FOR SELECT USING (true);
+
+
+--
+-- Name: forum_posts Forum posts are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum posts are viewable by everyone" ON public.forum_posts FOR SELECT USING (true);
+
+
+--
+-- Name: forum_tags Forum tags are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum tags are viewable by everyone" ON public.forum_tags FOR SELECT USING (true);
+
+
+--
+-- Name: forum_thread_tags Forum thread tags are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum thread tags are viewable by everyone" ON public.forum_thread_tags FOR SELECT USING (true);
+
+
+--
+-- Name: forum_threads Forum threads are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum threads are viewable by everyone" ON public.forum_threads FOR SELECT USING (true);
+
+
+--
 -- Name: fighter_ooa_records Gang owner, admin or arb can delete fighter ooa records; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13595,6 +14820,48 @@ CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON publi
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
    FROM public.campaign_gangs cg
   WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: forum_threads Moderators can delete threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can delete threads" ON public.forum_threads FOR DELETE TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_reports Moderators can dismiss reports; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can dismiss reports" ON public.forum_reports FOR DELETE TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_posts Moderators can edit and remove posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can edit and remove posts" ON public.forum_posts FOR UPDATE TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator)) WITH CHECK (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_post_revisions Moderators can view post revisions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can view post revisions" ON public.forum_post_revisions FOR SELECT TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_reports Moderators can view reports; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can view reports" ON public.forum_reports FOR SELECT TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: campaign_portraits Only admin can create campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create campaign portraits" ON public.campaign_portraits FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -13763,6 +15030,13 @@ CREATE POLICY "Only admin can create trading_post_equipment entries" ON public.t
 --
 
 CREATE POLICY "Only admin can create trading_post_types entries" ON public.trading_post_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_portraits Only admin can delete campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete campaign portraits" ON public.campaign_portraits FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -13973,6 +15247,13 @@ CREATE POLICY "Only admin can insert gang_origin_categories" ON public.gang_orig
 --
 
 CREATE POLICY "Only admin can insert gang_origins" ON public.gang_origins FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_portraits Only admin can update campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update campaign portraits" ON public.campaign_portraits FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -14899,6 +16180,22 @@ CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT
 
 
 --
+-- Name: forum_post_likes Users can like posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can like posts" ON public.forum_post_likes FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.forum_posts p
+  WHERE ((p.id = forum_post_likes.post_id) AND (p.deleted_at IS NULL) AND (p.author_id IS DISTINCT FROM ( SELECT auth.uid() AS uid)))))));
+
+
+--
+-- Name: forum_thread_reads Users can mark threads read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can mark threads read" ON public.forum_thread_reads FOR INSERT TO authenticated WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: fighter_injuries Users can only create fighter_injuries for their own fighters; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14950,6 +16247,29 @@ CREATE POLICY "Users can only create their own gangs" ON public.gangs FOR INSERT
 
 
 --
+-- Name: forum_posts Users can post; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can post" ON public.forum_posts FOR INSERT TO authenticated WITH CHECK ((author_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: forum_post_likes Users can remove their likes; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can remove their likes" ON public.forum_post_likes FOR DELETE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: forum_reports Users can report posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can report posts" ON public.forum_reports FOR INSERT TO authenticated WITH CHECK (((reporter_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.forum_posts p
+  WHERE ((p.id = forum_reports.post_id) AND (p.deleted_at IS NULL) AND (p.author_id IS DISTINCT FROM ( SELECT auth.uid() AS uid)))))));
+
+
+--
 -- Name: campaign_join_requests Users can request to join campaigns that allow it; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14958,6 +16278,15 @@ CREATE POLICY "Users can request to join campaigns that allow it" ON public.camp
   WHERE ((c.id = campaign_join_requests.campaign_id) AND (c.allow_join_requests = true)))) AND (NOT (EXISTS ( SELECT 1
    FROM public.campaign_members cm
   WHERE ((cm.campaign_id = campaign_join_requests.campaign_id) AND (cm.user_id = ( SELECT auth.uid() AS uid))))))));
+
+
+--
+-- Name: forum_threads Users can start threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can start threads" ON public.forum_threads FOR INSERT TO authenticated WITH CHECK (((author_id = ( SELECT auth.uid() AS uid)) AND (( SELECT private.is_forum_moderator() AS is_forum_moderator) OR (NOT (EXISTS ( SELECT 1
+   FROM public.forum_categories c
+  WHERE ((c.id = forum_threads.category_id) AND c.moderators_only)))))));
 
 
 --
@@ -15051,6 +16380,13 @@ CREATE POLICY "Users can update their own notifications" ON public.notifications
 
 
 --
+-- Name: forum_thread_reads Users can update their reads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update their reads" ON public.forum_thread_reads FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: gang_logs Users can view logs for their gangs or campaigns they moderate; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -15069,6 +16405,13 @@ CREATE POLICY "Users can view their own friendships" ON public.friends FOR SELEC
 
 
 --
+-- Name: forum_post_likes Users can view their own likes; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view their own likes" ON public.forum_post_likes FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: user_notification_preferences Users can view their own notification preferences; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -15080,6 +16423,13 @@ CREATE POLICY "Users can view their own notification preferences" ON public.user
 --
 
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT TO authenticated USING ((( SELECT auth.uid() AS uid) = receiver_id));
+
+
+--
+-- Name: forum_thread_reads Users can view their own reads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view their own reads" ON public.forum_thread_reads FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -15195,6 +16545,12 @@ ALTER TABLE public.campaign_maps ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.campaign_members ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_portraits; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_portraits ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_resources; Type: ROW SECURITY; Schema: public; Owner: -
@@ -15876,6 +17232,87 @@ CREATE POLICY fighter_types_admin_update_policy ON public.fighter_types FOR UPDA
 --
 
 ALTER TABLE public.fighters ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_article_submissions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_article_submissions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_categories; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_categories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_categories forum_categories_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_categories_admin_delete_policy ON public.forum_categories FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_categories forum_categories_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_categories_admin_insert_policy ON public.forum_categories FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_categories forum_categories_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_categories_admin_update_policy ON public.forum_categories FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_post_likes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_post_likes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_post_revisions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_post_revisions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_posts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_posts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_reports; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_reports ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_thread_reads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_thread_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_thread_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_thread_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_threads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_threads ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: friends; Type: ROW SECURITY; Schema: public; Owner: -

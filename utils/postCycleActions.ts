@@ -4,6 +4,7 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
+import type { FighterSkills } from '@/types/fighter';
 import { hasGangTacticsCards } from '@/types/edition';
 import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -111,7 +112,9 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
 };
 
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
-  OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false;
+  (OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false) ||
+  // The Connected skill opens Visit Trading Post to any fighter who has it.
+  (action === 'visit_trading_post' && fighter.skills?.Connected !== undefined);
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
@@ -163,7 +166,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_trading_post: {
     id: 'visit_trading_post',
     label: 'Visit Trading Post',
-    summary: 'Logged only',
+    summary: 'Gain Trade Points',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   lead_ritual: {
@@ -271,6 +274,7 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
+  skills?: FighterSkills;
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
@@ -287,6 +291,16 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
   const owned = (fighter.fighter_subtypes ?? []).map((s) => s.toLowerCase());
   return subtypes.some((wanted) => owned.includes(wanted));
 }
+
+/**
+ * Visit Trading Post: a Leader brings back 2 Trade Points, any other visitor 1.
+ * The Finest Merchandise lets an Underhive Trader visit as if they were a Leader.
+ */
+export const tradingPostTradePoints = (performer: PostCycleFighter): number =>
+  hasSubtype(performer, LEADER) || performer.fighter_type?.toLowerCase() === 'underhive trader' ? 2 : 1;
+
+export const tradePointsText = (points: number): string =>
+  `${points} Trade Point${points === 1 ? '' : 's'}`;
 
 /** What the gang has, beyond its fighters, that some actions depend on. */
 export interface PostCycleAvailability {
@@ -308,13 +322,17 @@ const CHAOS_HELOTS_GANG_TYPE = 'chaos helots';
 const CHAOS_CORRUPTED_GANG_SUBTYPE = 'chaos corrupted';
 const CHYMIST_CULT_GANG_TYPE = 'chymist cult';
 const FURNACE_BRUTES_GANG_TYPE = 'furnace brutes';
+const SPYRE_HUNTERS_GANG_TYPE = 'spyre hunters';
+
+const gangTypeName = (gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>): string =>
+  gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
 
 /**
  * Gang types and subtypes are matched by name, like isVenatorGang. A custom
  * gang type's name is the user's own, so it never counts.
  */
 export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailability {
-  const gangType = gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
+  const gangType = gangTypeName(gang);
   const subtypes = gang.subtypeNames.map((name) => name.toLowerCase());
 
   return {
@@ -326,6 +344,18 @@ export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailabilit
     enhanceWeaponAvailable: gangType === FURNACE_BRUTES_GANG_TYPE,
   };
 }
+
+const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
+
+/**
+ * Collect Income from one held Territory: its credits, except that a Spyre
+ * Hunters gang takes a flat 15 from each Territory instead of its Boon.
+ */
+export const territoryIncome = (
+  territory: { credits: number | null },
+  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>
+): number =>
+  gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE ? SPYRE_HUNTERS_TERRITORY_INCOME : (territory.credits ?? 0);
 
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,

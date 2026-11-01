@@ -23,7 +23,8 @@ export interface CampaignPermissions extends UserPermissions {
   campaignRole: 'OWNER' | 'ARBITRATOR' | 'MEMBER' | null;
 }
 
-export type UserRole = 'admin' | 'user';
+export const USER_ROLES = ['user', 'moderator', 'admin'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 export type CampaignRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 export interface UserProfile {

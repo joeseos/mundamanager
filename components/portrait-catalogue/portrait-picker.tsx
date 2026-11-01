@@ -1,65 +1,133 @@
 'use client';
 
-import { useEffect, useState, type SyntheticEvent } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Modal from '@/components/ui/modal';
 import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
-import { gangPortraitPublicUrl, UNKNOWN_GANG_IMAGE_URL, type DefaultImageCredit } from '@/types/gang';
+import type { DefaultImageCredit } from '@/types/gang';
 import {
   alternativePortraits,
   gallerySections,
   portraitCaption,
+  PORTRAIT_COGWHEEL_URL,
   type CatalogueSlot,
-  type GangPortrait,
-} from '@/utils/gang-portraits';
+  type Portrait,
+} from '@/utils/portrait-catalogue';
 
-const COGWHEEL_URL =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp';
+export interface PortraitAlternateOption {
+  heading: string;
+  label: string;
+  imageUrl?: string | null;
+  selected: boolean;
+  onSelect: () => void;
+}
 
-interface CreateGangPortraitPickerProps {
-  portraits: GangPortrait[];
+interface PortraitPickerProps {
+  portraits: Portrait[];
   catalogueSlot: CatalogueSlot | null;
   selectedPortraitId: string | null;
-  gangTypeName: string;
+  subjectName: string;
   onSelect: (portraitId: string) => void;
-  /** Shown when no catalogue portrait is selected, such as the gang's current index image. */
+  imageUrl: (storagePath: string) => string | undefined;
   fallbackImageUrl?: string | null;
   fallbackCredit?: DefaultImageCredit | null;
-  /** Edit flow: replace the catalogue portrait with the gang type's silhouette. */
-  silhouetteImageUrl?: string | null;
-  onUseSilhouette?: () => void;
-  silhouetteSelected?: boolean;
+  /** Shown when a portrait has no image, or when an image fails and imageErrorUrl is unset. */
+  emptyFallback: ReactNode;
+  /** Replaces a broken image. Gangs use the silhouette. */
+  imageErrorUrl?: string;
+  galleryTitle: string;
+  galleryHelper: string;
+  alternateOption?: PortraitAlternateOption;
   catalogueLoadFailed?: boolean;
   onRetryCatalogue?: () => void;
 }
 
-function handleImageError(event: SyntheticEvent<HTMLImageElement, Event>) {
-  event.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
+function CatalogueImage({
+  src,
+  alt,
+  className,
+  sizes,
+  quality,
+  priority,
+  fill,
+  width,
+  height,
+  imageErrorUrl,
+  emptyFallback,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  sizes?: string;
+  quality?: number;
+  priority?: boolean;
+  fill?: boolean;
+  width?: number;
+  height?: number;
+  imageErrorUrl?: string;
+  emptyFallback: ReactNode;
+}) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === src;
+
+  if (failed && !imageErrorUrl) {
+    return (
+      <span className={`flex items-center justify-center bg-secondary text-muted-foreground ${fill ? 'absolute inset-0' : className ?? ''}`}>
+        {emptyFallback}
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={failed && imageErrorUrl ? imageErrorUrl : src}
+      alt={alt}
+      fill={fill}
+      width={fill ? undefined : width}
+      height={fill ? undefined : height}
+      sizes={sizes}
+      className={className}
+      priority={priority}
+      quality={quality}
+      onError={() => {
+        console.error('Failed to load image:', src);
+        setFailedSrc(src);
+      }}
+    />
+  );
 }
 
-export function CreateGangPortraitPicker({
+export function PortraitPicker({
   portraits,
   catalogueSlot,
   selectedPortraitId,
-  gangTypeName,
+  subjectName,
   onSelect,
+  imageUrl,
   fallbackImageUrl,
   fallbackCredit,
-  silhouetteImageUrl,
-  onUseSilhouette,
-  silhouetteSelected = false,
+  emptyFallback,
+  imageErrorUrl,
+  galleryTitle,
+  galleryHelper,
+  alternateOption,
   catalogueLoadFailed,
   onRetryCatalogue,
-}: CreateGangPortraitPickerProps) {
+}: PortraitPickerProps) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const selected = portraits.find((portrait) => portrait.id === selectedPortraitId) ?? null;
   const alternatives = alternativePortraits(portraits, selected, catalogueSlot);
   const selectedUrl = selected
-    ? gangPortraitPublicUrl(selected.storage_path)
+    ? imageUrl(selected.storage_path)
     : fallbackImageUrl || undefined;
   const displayCredit = selected?.credit ?? (selected ? null : fallbackCredit);
-  const currentGroupLabel = selected?.group_label ?? catalogueSlot?.groupLabel ?? null;
+  const currentSectionKey =
+    selected?.campaign_type_id
+    || catalogueSlot?.campaignTypeId
+    || selected?.group_label
+    || catalogueSlot?.groupLabel
+    || null;
 
   useEffect(() => {
     if (!galleryOpen) return;
@@ -79,24 +147,25 @@ export function CreateGangPortraitPicker({
         <div className="flex flex-col items-center shrink-0">
           <div className="relative flex size-[200px] md:size-[250px] items-center justify-center">
             {selectedUrl ? (
-              <Image
+              <CatalogueImage
                 src={selectedUrl}
-                alt={gangTypeName || 'Gang portrait'}
+                alt={subjectName || 'Portrait'}
                 width={180}
                 height={180}
                 className="absolute z-10 mt-1 size-[145px] rounded-full object-cover md:size-[180px]"
                 priority={false}
                 quality={100}
-                onError={handleImageError}
+                imageErrorUrl={imageErrorUrl}
+                emptyFallback={emptyFallback}
               />
             ) : (
-              <div className="absolute z-10 flex size-[180px] items-center justify-center rounded-full bg-secondary text-2xl">
-                {gangTypeName.charAt(0)}
+              <div className="absolute z-10 flex size-[180px] items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                {emptyFallback}
               </div>
             )}
             <div className="pointer-events-none absolute z-20 size-[200px] md:size-[250px]">
               <Image
-                src={COGWHEEL_URL}
+                src={PORTRAIT_COGWHEEL_URL}
                 alt=""
                 width={250}
                 height={250}
@@ -111,7 +180,7 @@ export function CreateGangPortraitPicker({
 
         <div className="flex h-[200px] md:h-[250px] shrink-0 flex-col justify-center gap-1">
           {alternatives.map((portrait) => {
-            const url = gangPortraitPublicUrl(portrait.storage_path);
+            const url = imageUrl(portrait.storage_path);
             const caption = portraitCaption(portrait);
             return (
               <button
@@ -122,14 +191,15 @@ export function CreateGangPortraitPicker({
                 aria-label={caption}
               >
                 {url && (
-                  <Image
+                  <CatalogueImage
                     src={url}
                     alt=""
                     fill
                     sizes="72px"
                     className="object-cover"
                     quality={75}
-                    onError={handleImageError}
+                    imageErrorUrl={imageErrorUrl}
+                    emptyFallback={emptyFallback}
                   />
                 )}
               </button>
@@ -162,18 +232,23 @@ export function CreateGangPortraitPicker({
               if (event.key === 'Enter') event.stopPropagation();
             }}
           >
-          <GangPortraitGallery
+          <PortraitGallery
             portraits={portraits}
-            currentGroupLabel={currentGroupLabel}
+            currentSectionKey={currentSectionKey}
             selectedPortraitId={selectedPortraitId}
-            gangTypeName={gangTypeName}
-            silhouetteImageUrl={onUseSilhouette ? silhouetteImageUrl : undefined}
-            silhouetteSelected={silhouetteSelected}
-            onUseSilhouette={
-              onUseSilhouette
-                ? () => {
-                    onUseSilhouette();
-                    setGalleryOpen(false);
+            imageUrl={imageUrl}
+            emptyFallback={emptyFallback}
+            imageErrorUrl={imageErrorUrl}
+            galleryTitle={galleryTitle}
+            galleryHelper={galleryHelper}
+            alternateOption={
+              alternateOption
+                ? {
+                    ...alternateOption,
+                    onSelect: () => {
+                      alternateOption.onSelect();
+                      setGalleryOpen(false);
+                    },
                   }
                 : undefined
             }
@@ -190,49 +265,53 @@ export function CreateGangPortraitPicker({
   );
 }
 
-function GangPortraitGallery({
+function PortraitGallery({
   portraits,
-  currentGroupLabel,
+  currentSectionKey,
   selectedPortraitId,
-  gangTypeName,
-  silhouetteImageUrl,
-  silhouetteSelected = false,
-  onUseSilhouette,
+  imageUrl,
+  emptyFallback,
+  imageErrorUrl,
+  galleryTitle,
+  galleryHelper,
+  alternateOption,
   onSelect,
   onClose,
 }: {
-  portraits: GangPortrait[];
-  currentGroupLabel: string | null;
+  portraits: Portrait[];
+  currentSectionKey: string | null;
   selectedPortraitId: string | null;
-  gangTypeName: string;
-  silhouetteImageUrl?: string | null;
-  silhouetteSelected?: boolean;
-  onUseSilhouette?: () => void;
+  imageUrl: (storagePath: string) => string | undefined;
+  emptyFallback: ReactNode;
+  imageErrorUrl?: string;
+  galleryTitle: string;
+  galleryHelper: string;
+  alternateOption?: PortraitAlternateOption;
   onSelect: (portraitId: string) => void;
   onClose: () => void;
 }) {
-  const sections = gallerySections(portraits, currentGroupLabel);
+  const sections = gallerySections(portraits, currentSectionKey);
 
   return (
     <Modal
-      title="Gang Portraits"
-      helper="Choose a portrait for this gang."
+      title={galleryTitle}
+      helper={galleryHelper}
       onClose={onClose}
       width="4xl"
     >
-      {sections.length === 0 && !onUseSilhouette ? (
+      {sections.length === 0 && !alternateOption ? (
         <p className="text-sm text-muted-foreground">No portraits are available yet.</p>
       ) : (
         <div className="space-y-6">
           {sections.map((section, index) => (
             <section
-              key={section.groupLabel}
+              key={section.key}
               className={index === 1 ? 'border-t border-border pt-6' : undefined}
             >
               <h4 className="text-xl font-semibold mb-3">{section.groupLabel}</h4>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5">
                 {section.portraits.map((portrait) => {
-                  const url = gangPortraitPublicUrl(portrait.storage_path);
+                  const url = imageUrl(portrait.storage_path);
                   const authorName = portrait.credit?.name?.trim();
                   const isSelected = portrait.id === selectedPortraitId;
                   return (
@@ -247,16 +326,21 @@ function GangPortraitGallery({
                       aria-pressed={isSelected}
                     >
                       <span className="relative size-24 sm:size-32 rounded-full overflow-hidden bg-secondary">
-                        {url && (
-                          <Image
+                        {url ? (
+                          <CatalogueImage
                             src={url}
                             alt=""
                             fill
                             sizes="128px"
                             className="object-cover"
                             quality={75}
-                            onError={handleImageError}
+                            imageErrorUrl={imageErrorUrl}
+                            emptyFallback={emptyFallback}
                           />
+                        ) : (
+                          <span className="flex size-full items-center justify-center text-muted-foreground">
+                            {emptyFallback}
+                          </span>
                         )}
                       </span>
                       <span className="text-xs text-center leading-tight">
@@ -271,34 +355,35 @@ function GangPortraitGallery({
               </div>
             </section>
           ))}
-          {onUseSilhouette && (
+          {alternateOption && (
             <section className={sections.length > 0 ? 'border-t border-border pt-6' : undefined}>
-              <h4 className="text-xl font-semibold mb-3">Silhouette</h4>
+              <h4 className="text-xl font-semibold mb-3">{alternateOption.heading}</h4>
               <button
                 type="button"
-                onClick={onUseSilhouette}
+                onClick={alternateOption.onSelect}
                 className={`flex flex-col items-center gap-1 rounded-md p-1 hover:bg-muted ${
-                  silhouetteSelected ? 'ring-2 ring-foreground' : ''
+                  alternateOption.selected ? 'ring-2 ring-foreground' : ''
                 }`}
-                aria-label="Use silhouette"
-                aria-pressed={silhouetteSelected}
+                aria-label={alternateOption.label}
+                aria-pressed={alternateOption.selected}
               >
-                <span className="relative flex size-24 sm:size-32 items-center justify-center rounded-full overflow-hidden bg-secondary">
-                  {silhouetteImageUrl ? (
-                    <Image
-                      src={silhouetteImageUrl}
+                <span className="relative flex size-24 sm:size-32 items-center justify-center overflow-hidden rounded-full bg-secondary text-muted-foreground">
+                  {alternateOption.imageUrl ? (
+                    <CatalogueImage
+                      src={alternateOption.imageUrl}
                       alt=""
                       fill
                       sizes="128px"
                       className="object-cover"
                       quality={75}
-                      onError={handleImageError}
+                      imageErrorUrl={imageErrorUrl}
+                      emptyFallback={emptyFallback}
                     />
                   ) : (
-                    <span className="text-2xl">{gangTypeName.charAt(0)}</span>
+                    emptyFallback
                   )}
                 </span>
-                <span className="text-xs text-center leading-tight">Silhouette</span>
+                <span className="text-xs text-center leading-tight">{alternateOption.label}</span>
               </button>
             </section>
           )}

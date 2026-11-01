@@ -17,9 +17,9 @@ interface UserSearchBarProps {
   excludeIds?: string[]
 }
 
-const SEARCH_DEBOUNCE_MS = 300
+export const SEARCH_DEBOUNCE_MS = 300
 
-async function searchUsers(query: string, signal: AbortSignal): Promise<UserSearchResult[]> {
+export async function searchUsers(query: string, signal: AbortSignal): Promise<UserSearchResult[]> {
   const response = await fetch(`/api/search-users?query=${encodeURIComponent(query)}`, { signal })
 
   if (!response.ok) {

@@ -5,13 +5,14 @@ import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import { campaignTerritories } from '@/utils/db/schema';
 import type { CampaignAllegiance } from '@/utils/campaigns/allegiances';
-import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
+import { getWinnerIds, getClaimerGangId } from '@/utils/battle-winners';
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_FIELDS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
 import { sumFighterKills } from '@/app/lib/shared/gang-data';
 import { groupBy } from '@/utils/gang-assembly';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
+import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import type { CampaignMapBundle } from '@/types/campaign';
 
 // No TTL - infinite cache with server action invalidation only
@@ -29,6 +30,7 @@ async function _getCampaignBasic(campaignId: string) {
       custom_trading_posts: true,
       note: true,
       image_url: true,
+      campaign_portrait_id: true,
       discord_guild_id: true,
       discord_channel_id: true,
       allow_join_requests: true,
@@ -44,13 +46,15 @@ async function _getCampaignBasic(campaignId: string) {
         columns: { campaign_type_name: true, image_url: true },
         with: { editions: { columns: { slug: true } } },
       },
+      campaign_portrait: { columns: { storage_path: true } },
     },
   });
   if (!campaign) return null;
 
-  const { campaign_type, ...campaignRow } = campaign;
+  const { campaign_type, campaign_portrait, ...campaignRow } = campaign;
   return {
     ...campaignRow,
+    campaign_portrait_url: campaignPortraitPublicUrl(campaign_portrait?.storage_path) ?? null,
     campaign_types: campaign_type?.campaign_type_name ? {
       campaign_type_name: campaign_type.campaign_type_name,
       image_url: campaign_type.image_url || '',
@@ -208,7 +212,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       deployment_name: true,
       objective_name: true,
       crew_selection_name: true,
-      winner_id: true,
       note: true,
       participants: true,
       campaign_territory_id: true,
@@ -234,9 +237,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
   const gangIdSet = new Set<string>();
   const parsedParticipantsMap = new Map<string, any[]>();
   battles.forEach(b => {
-    // Legacy winner_id is still added for back-compat (single-winner rows
-    // where no participant carries the is_winner flag).
-    if (b.winner_id) gangIdSet.add(b.winner_id);
     if (b.participants) {
       try {
         const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
@@ -266,15 +266,14 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
     const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
-    // Multi-winner enrichment: use the FromParsed overloads so the already-parsed
-    // participants array is passed directly — no re-parse of the raw JSON column.
+    // The already-parsed participants array is passed, so the raw JSON column isn't re-parsed.
     const parsed = parsedParticipants ?? [];
-    const effectiveWinnerIds = getWinnerIdsFromParsed(parsed, battle.winner_id);
+    const effectiveWinnerIds = getWinnerIds({ participants: parsed });
     const winners = effectiveWinnerIds.map((id) => ({
       id,
       name: gangMap.get(id)?.name || 'Unknown',
     }));
-    const claimerId = getClaimerGangIdFromParsed(parsed, battle.winner_id);
+    const claimerId = getClaimerGangId({ participants: parsed });
     const territory_claimer = claimerId
       ? { id: claimerId, name: gangMap.get(claimerId)?.name || 'Unknown' }
       : null;
@@ -292,7 +291,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       deployment_name: battle.deployment_name,
       objective_name: battle.objective_name,
       crew_selection_name: battle.crew_selection_name,
-      winner_id: battle.winner_id,
       note: battle.note,
       participants: battle.participants,
       campaign_territory_id: battle.campaign_territory_id,
@@ -310,10 +308,7 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
         id: defenderId,
         name: gangMap.get(defenderId)?.name || 'Unknown'
       } : undefined,
-      winner: battle.winner_id ? {
-        id: battle.winner_id,
-        name: gangMap.get(battle.winner_id)?.name || 'Unknown'
-      } : undefined,
+      winner: territory_claimer ?? winners[0],
       winners,
       territory_claimer,
     };
@@ -416,9 +411,9 @@ export const getCampaignBasic = async (campaignId: string) => {
     async () => {
       return _getCampaignBasic(campaignId);
     },
-    [`campaign-basic-v3-${campaignId}`],
+    [`campaign-basic-v4-${campaignId}`],
     {
-      tags: [TAGS.campaignCore(campaignId)],
+      tags: [TAGS.campaignCore(campaignId), TAGS.globalCampaignPortraits()],
       revalidate: false
     }
   )();

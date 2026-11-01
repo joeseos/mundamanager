@@ -530,7 +530,7 @@ export const getGangFightersBundle = async (gangId: string): Promise<GangFighter
   const [{ gangScope, ...roster }, rules] = await Promise.all([
     unstable_cache(
       async () => flattenRoster(gangId, await rosterQuery(getAppDb(), gangId)),
-      [`gang-fighters-bundle-v7-${gangId}`],
+      [`gang-fighters-bundle-v8-${gangId}`],
       {
         tags: [TAGS.gangRoster(gangId)],
         revalidate: false
@@ -761,6 +761,7 @@ function rosterQuery(db: AppDb, gangId: string) {
             },
           },
           fighter_specialisations: { columns: { id: true, specialisation_name: true } },
+          custom_fighter_type: { columns: { gang_type_id: true, custom_gang_type_id: true } },
           // Fighter-held items only; vehicle-mounted ones come through vehicles below
           fighter_equipment: { ...EQUIPMENT_QUERY, where: (item, { isNull }) => isNull(item.vehicle_id) },
           fighter_skills: {
@@ -900,6 +901,7 @@ export const getGangFightersList = async (
  */
 export const getUserProfile = async (userId: string): Promise<{
   username: string;
+  avatar_url: string | null;
   patreon_tier_id: string | null;
   patreon_tier_title: string | null;
   patron_status: string | null;
@@ -909,12 +911,12 @@ export const getUserProfile = async (userId: string): Promise<{
   return unstable_cache(
     async () => {
       const profile = await getAppDb().query.profiles.findFirst({
-        columns: { username: true, patreon_tier_id: true, patreon_tier_title: true, patron_status: true },
+        columns: { username: true, avatar_url: true, patreon_tier_id: true, patreon_tier_title: true, patron_status: true },
         where: (profile, { eq }) => eq(profile.id, userId),
       });
       return profile ?? null;
     },
-    [`user-profile-v2-${userId}`],
+    [`user-profile-v3-${userId}`],
     {
       tags: [TAGS.user(userId)],
       revalidate: false

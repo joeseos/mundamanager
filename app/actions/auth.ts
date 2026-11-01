@@ -5,17 +5,60 @@ import { createClient } from "@/utils/supabase/server";
 import { headers } from "next/headers";
 import { cookies } from 'next/headers';
 import { safePostSignInPath } from '@/utils/auth';
+import type { AuthError } from '@supabase/supabase-js';
 
 // Returned instead of calling redirect(), so the caller can do a full document
 // load - a client-side navigation leaves the browser Supabase client stale.
 type AuthRedirect = { redirectTo: string };
 type AuthActionResult = { error: string } | AuthRedirect;
 
+const EMAIL_TAKEN_ERROR = "This email is already registered. Please sign in instead";
+
+/**
+ * Auth's error message, or a generic one when Auth rejected the CAPTCHA token.
+ * That rejection names its cause (e.g. a wrong secret in the dashboard), so it
+ * is logged rather than shown.
+ */
+function authErrorMessage(error: AuthError): string {
+  if (error.code !== 'captcha_failed') {
+    return error.message;
+  }
+
+  console.error('Supabase Auth rejected the CAPTCHA token:', error.message);
+  return "Security verification failed. Please try again.";
+}
+
+/**
+ * The form's Turnstile token, for Supabase Auth to verify (Authentication > Bot and
+ * Abuse Protection > CAPTCHA). Auth rejects sign-in, sign-up and password reset
+ * without one, including requests that skip these forms and call it directly.
+ * The token is not verified here as well: it is single-use, so a siteverify call
+ * here would spend it before Auth sees it.
+ */
+function readCaptchaToken(formData: FormData): { captchaToken?: string } | { error: string } {
+  const captchaToken = (formData.get("cf-turnstile-response") as string | null) || undefined;
+
+  // The widget renders only with a site key, and the local stack runs without CAPTCHA
+  const isRequired = process.env.NODE_ENV !== "development" && !!process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+  if (isRequired && !captchaToken) {
+    return { error: "Please complete the security verification challenge" };
+  }
+
+  return { captchaToken };
+}
+
 export const signUpAction = async (formData: FormData) => {
   const origin = (await headers()).get("origin");
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const username = formData.get("username") as string;
+
+  const captcha = readCaptchaToken(formData);
+  if ('error' in captcha) {
+    return { error: captcha.error };
+  }
+
   const supabase = await createClient();
 
   try {
@@ -30,30 +73,8 @@ export const signUpAction = async (formData: FormData) => {
       return { error: "Username already taken" };
     }
 
-    // Check if email is already registered before signUp to prevent confirmation email.
-    // We use a direct GoTrue API call with the filter param since the JS client
-    // doesn't expose email filtering on listUsers, and fetching all users won't scale.
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    const userLookup = await fetch(
-      `${supabaseUrl}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&per_page=1`,
-      {
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          apikey: serviceRoleKey,
-        },
-      }
-    );
-    if (userLookup.ok) {
-      const { users } = await userLookup.json();
-      if (users?.some((u: { email?: string }) => u.email === email)) {
-        return { error: "This email is already registered. Please sign in instead" };
-      }
-    } else {
-      console.error('GoTrue admin user lookup failed:', userLookup.status, await userLookup.text());
-    }
-
-    // Sign up the user with metadata
+    // Sign up the user with metadata. Whether the email is taken is read from the
+    // response, so it is only revealed once Supabase has verified the CAPTCHA token.
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -61,7 +82,8 @@ export const signUpAction = async (formData: FormData) => {
         emailRedirectTo: `${origin}/auth/callback`,
         data: {
           username: username
-        }
+        },
+        captchaToken: captcha.captchaToken
       }
     });
 
@@ -73,15 +95,22 @@ export const signUpAction = async (formData: FormData) => {
           return { error: "Please enter a valid email address" };
         case 'weak_password':
           return { error: "Password is too weak. Please use a stronger password" };
-        case 'email_taken':
-          return { error: "This email is already registered. Please sign in instead" };
+        // A registered email, when email confirmation is off
+        case 'user_already_exists':
+          return { error: EMAIL_TAKEN_ERROR };
         default:
-          return { error: signUpError.message || 'Failed to create account' };
+          return { error: authErrorMessage(signUpError) || 'Failed to create account' };
       }
     }
 
     if (!signUpData.user) {
       return { error: "Failed to create account. Please try again" };
+    }
+
+    // A registered email, when email confirmation is on: Supabase sends no email
+    // and returns a stand-in user with no identities
+    if (signUpData.user.identities?.length === 0) {
+      return { error: EMAIL_TAKEN_ERROR };
     }
 
     invalidateUserCount();
@@ -97,28 +126,11 @@ export const signUpAction = async (formData: FormData) => {
 export const signInAction = async (formData: FormData): Promise<AuthActionResult> => {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const turnstileToken = formData.get("cf-turnstile-response") as string;
   const nextParam = formData.get('next') as string | undefined;
 
-  // Check if Turnstile is configured
-  const hasTurnstileConfig = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY && process.env.TURNSTILE_SECRET_KEY;
-
-  if (process.env.NODE_ENV === "development") {
-    console.log("Skipping Turnstile verification in development mode.");
-  }
-  else if (hasTurnstileConfig) {
-    if (!turnstileToken) {
-      return { error: "Please complete the security verification challenge" };
-    }
-
-    // Verify Turnstile token
-    const turnstileVerification = await verifyTurnstileToken(turnstileToken);
-    if (!turnstileVerification.success) {
-      console.error('Turnstile verification failed:', turnstileVerification);
-      return { error: "Security verification failed. Please try again." };
-    }
-  } else {
-    console.warn('Turnstile not configured - proceeding without verification');
+  const captcha = readCaptchaToken(formData);
+  if ('error' in captcha) {
+    return { error: captcha.error };
   }
 
   const supabase = await createClient();
@@ -126,10 +138,11 @@ export const signInAction = async (formData: FormData): Promise<AuthActionResult
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
+    options: { captchaToken: captcha.captchaToken },
   });
 
   if (error) {
-    return { error: error.message };
+    return { error: authErrorMessage(error) };
   }
 
   // Clear this user's permission entries - they are cached with revalidate: false.
@@ -140,40 +153,17 @@ export const signInAction = async (formData: FormData): Promise<AuthActionResult
   return { redirectTo: safePostSignInPath(nextParam) };
 };
 
-async function verifyTurnstileToken(token: string) {
-  if (!token) {
-    console.error('No Turnstile token provided');
-    return { success: false, error: 'No token provided' };
-  }
-
-  try {
-    const response = await fetch(
-      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          secret: process.env.TURNSTILE_SECRET_KEY,
-          response: token,
-        }),
-      }
-    );
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error verifying Turnstile token:', error);
-    return { success: false, error: 'Verification failed' };
-  }
-}
-
 export const forgotPasswordAction = async (formData: FormData) => {
   const supabase = await createClient();
   const email = formData.get("email") as string;
 
   if (!email) {
     return { error: "Email is required" };
+  }
+
+  const captcha = readCaptchaToken(formData);
+  if ('error' in captcha) {
+    return { error: captcha.error };
   }
 
   // From the request, as signUpAction does - an unset env var here silently
@@ -187,11 +177,12 @@ export const forgotPasswordAction = async (formData: FormData) => {
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/reset-password/update`,
+    captchaToken: captcha.captchaToken,
   });
 
   if (error) {
     console.error('Error sending password reset email:', error);
-    return { error: error.message };
+    return { error: authErrorMessage(error) };
   }
 
   // Redirect to the reset-password page with a success message

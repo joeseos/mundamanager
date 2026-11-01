@@ -14,7 +14,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
 import { XP_CASES, xpAwardsFor, type XpCaseDef, type XpCaseId } from '@/utils/xpCases';
 import { hasCumulativeXp } from '@/types/edition';
-import { nextTierStartFor } from '@/utils/advancementRanks';
+import { xpTowardNextTier } from '@/utils/advancementRanks';
 import { XpLadderTooltip } from '@/components/ui/xp-ladder-tooltip';
 import { toast } from 'sonner';
 
@@ -46,6 +46,8 @@ interface FighterXpModalProps {
   gangId?: string;
   /** The campaign to scope target gangs to (the fighter gang's first campaign). */
   campaignId?: string;
+  /** Limits the target gangs to these, e.g. a battle session's opponents. */
+  targetGangIds?: string[];
   /**
    * The gang's (or battle session's) edition, which decides the award list.
    * Taken from the gang rather than the fighter type: a fighter-derived slug is
@@ -68,6 +70,7 @@ export function FighterXpModal({
   helperFighterName,
   gangId,
   campaignId,
+  targetGangIds,
   editionSlug,
   hideBattleParticipation = false,
   onClose,
@@ -118,7 +121,7 @@ export function FighterXpModal({
   // ---------------------------------------------------------------------------
   // Optional OOA / Wreck target selectors
   // ---------------------------------------------------------------------------
-  const showTargets = !!gangId;
+  const showTargets = !!gangId && targetGangIds?.length !== 0;
 
   const [expandedTargets, setExpandedTargets] = useState<Record<string, boolean>>({
     outOfAction: false,
@@ -131,12 +134,15 @@ export function FighterXpModal({
     vehicleWrecked: [],
   });
 
-  const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
+  const { data: fetchedGangs = [], isLoading: gangsLoading } = useQuery({
     queryKey: ['campaign-gangs-fighters', gangId, campaignId],
     queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
     enabled: showTargets,
     staleTime: 60_000,
   });
+  const campaignGangs = targetGangIds
+    ? fetchedGangs.filter((g) => targetGangIds.includes(g.gang_id))
+    : fetchedGangs;
 
   const { getFighterOptions } = useCampaignGangFighterOptions(campaignGangs, editionSlug);
 
@@ -376,7 +382,7 @@ export function FighterXpModal({
               >
                 <span className="mr-2 text-sm text-muted-foreground">XP</span>
                 <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-                  {`${currentXp}/${nextTierStartFor(editionSlug, currentXp) ?? '–'}`}
+                  {xpTowardNextTier(editionSlug, currentXp)}
                 </span>
               </div>
               <XpLadderTooltip

@@ -5,11 +5,20 @@
 -- campaign member (not only members with an accepted gang) and are capped at 5 sends
 -- per campaign per UTC day, and at 10 campaign messages per sender per UTC day.
 --
+-- Admin all-user sends may pass p_logged_in_since. Those recipients are profiles
+-- who logged in at or after that instant, either via auth.users.last_sign_in_at
+-- or a session refresh. auth.sessions.refreshed_at is a UTC timestamp without a
+-- time zone. A null value keeps every profile. A cutoff on a campaign message or
+-- a hand-picked list is rejected.
+--
 -- service_role only. The Next.js routes check the caller is an admin, or a campaign
 -- owner, arbitrator, or app admin, before calling this.
 --
 -- Apply supabase/migrations/20261021234309_notification_sends.sql before this file
--- is deployed: the function inserts into notification_sends.
+-- is deployed: the function inserts into notification_sends. The replacement
+-- signature is also in supabase/migrations/20261023153535_notification_send_logged_in_since.sql.
+
+DROP FUNCTION IF EXISTS public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]);
 
 CREATE OR REPLACE FUNCTION public.create_notification_send(
   p_sender_id uuid,
@@ -18,7 +27,8 @@ CREATE OR REPLACE FUNCTION public.create_notification_send(
   p_text text,
   p_expires_in_days integer,
   p_audience text,
-  p_receiver_ids uuid[]
+  p_receiver_ids uuid[],
+  p_logged_in_since timestamptz DEFAULT NULL
 ) RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -65,6 +75,11 @@ BEGIN
     WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
   END;
 
+  IF p_logged_in_since IS NOT NULL
+     AND (p_type = 'campaign_message' OR p_audience = 'selected') THEN
+    RAISE EXCEPTION 'logged_in_since only applies to all-user sends';
+  END IF;
+
   IF p_audience = 'all' AND p_type = 'campaign_message' THEN
     SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -72,9 +87,20 @@ BEGIN
     WHERE cm.campaign_id = p_campaign_id
       AND cm.user_id IS NOT NULL;
   ELSIF p_audience = 'all' THEN
+    -- Null keeps every profile. Otherwise keep a login or a session refresh at or
+    -- after the cutoff. refreshed_at has no time zone and is stored as UTC.
     SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
     INTO v_receiver_ids
-    FROM public.profiles p;
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p_logged_in_since IS NULL
+       OR u.last_sign_in_at >= p_logged_in_since
+       OR EXISTS (
+         SELECT 1
+         FROM auth.sessions s
+         WHERE s.user_id = u.id
+           AND (s.refreshed_at AT TIME ZONE 'UTC') >= p_logged_in_since
+       );
   ELSE
     SELECT COALESCE(array_agg(DISTINCT receiver.receiver_id), '{}'::uuid[])
     INTO v_receiver_ids
@@ -155,14 +181,16 @@ BEGIN
     campaign_id,
     text,
     recipient_count,
-    sample_receiver_ids
+    sample_receiver_ids,
+    logged_in_since
   ) VALUES (
     p_sender_id,
     p_type,
     p_campaign_id,
     p_text,
     cardinality(v_receiver_ids),
-    v_sample
+    v_sample,
+    p_logged_in_since
   )
   RETURNING id INTO v_send_id;
 
@@ -193,7 +221,7 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM anon;
-REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[]) TO service_role;
+REVOKE ALL ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamptz) TO service_role;

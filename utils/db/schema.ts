@@ -641,6 +641,14 @@ export const gangPortraits = pgTable('gang_portraits', {
   label: text('label'),
 });
 
+export const campaignPortraits = pgTable('campaign_portraits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  storage_path: text('storage_path').notNull(),
+  credit: json('credit').notNull(),
+  style: text('style').notNull(),
+  campaign_type_id: uuid('campaign_type_id').notNull(),
+});
+
 export const gangSkillSetRanks = pgTable('gang_skill_set_ranks', {
   gang_id: uuid('gang_id').notNull(),
   rank: integer('rank').notNull(),
@@ -686,6 +694,7 @@ export const campaigns = pgTable('campaigns', {
   custom_trading_posts: json('custom_trading_posts').$type<string[]>(),
   allow_join_requests: boolean('allow_join_requests').default(false).notNull(),
   current_cycle: integer('current_cycle'),
+  campaign_portrait_id: uuid('campaign_portrait_id'),
 });
 
 export const campaignMembers = pgTable('campaign_members', {
@@ -830,6 +839,7 @@ export const profiles = pgTable('profiles', {
   id: uuid('id').primaryKey(),
   username: text('username').notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`).notNull(),
+  avatar_url: text('avatar_url'),
   user_role: text('user_role').default(sql`'user'::text`),
   patreon_user_id: text('patreon_user_id'),
   patron_status: text('patron_status'),
@@ -943,10 +953,7 @@ export const scenarios = pgTable('scenarios', {
 export const campaignBattles = pgTable('campaign_battles', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  attacker_id: uuid('attacker_id'),
-  defender_id: uuid('defender_id'),
   scenario_id: uuid('scenario_id'),
-  winner_id: uuid('winner_id'),
   note: text('note'),
   campaign_id: uuid('campaign_id'),
   participants: json('participants').$type<BattleParticipant[] | string>(),
@@ -1012,6 +1019,86 @@ export const customCollections = pgTable('custom_collections', {
   items: json('items').$type<CollectionItem[]>().default(sql`'[]'::jsonb`).notNull(),
   edition_id: uuid('edition_id'),
 });
+
+export const forumCategories = pgTable('forum_categories', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  slug: text('slug').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  image_url: text('image_url'),
+  position: integer('position').default(0).notNull(),
+  moderators_only: boolean('moderators_only').default(false).notNull(),
+  thread_count: integer('thread_count').default(0).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+});
+
+export const forumThreads = pgTable('forum_threads', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  number: bigint('number', { mode: 'number' }).notNull(),
+  category_id: uuid('category_id').notNull(),
+  title: text('title').notNull(),
+  author_id: uuid('author_id'),
+  is_pinned: boolean('is_pinned').default(false).notNull(),
+  is_locked: boolean('is_locked').default(false).notNull(),
+  post_count: integer('post_count').default(0).notNull(),
+  last_post_at: timestamp('last_post_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  last_post_author_id: uuid('last_post_author_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  updated_by: uuid('updated_by'),
+  article_published_at: timestamp('article_published_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const forumPosts = pgTable('forum_posts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  thread_id: uuid('thread_id').notNull(),
+  post_number: integer('post_number').notNull(),
+  author_id: uuid('author_id'),
+  content: text('content').notNull(),
+  like_count: integer('like_count').default(0).notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),
+  deleted_by: uuid('deleted_by'),
+});
+
+export const forumPostLikes = pgTable('forum_post_likes', {
+  post_id: uuid('post_id').notNull(),
+  user_id: uuid('user_id').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.post_id, table.user_id] })]);
+
+export const forumReports = pgTable('forum_reports', {
+  post_id: uuid('post_id').notNull(),
+  reporter_id: uuid('reporter_id').notNull(),
+  reason: text('reason').notNull(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+}, (table) => [primaryKey({ columns: [table.post_id, table.reporter_id] })]);
+
+export const forumArticleSubmissions = pgTable('forum_article_submissions', {
+  thread_id: uuid('thread_id').primaryKey(),
+  status: text('status').$type<'submitted' | 'changes_requested' | 'declined'>().default('submitted').notNull(),
+  review_note: text('review_note'),
+  submitted_at: timestamp('submitted_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  reviewed_at: timestamp('reviewed_at', { withTimezone: true, mode: 'string' }),
+  reviewed_by: uuid('reviewed_by'),
+});
+
+export const forumTags = pgTable('forum_tags', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  name: text('name').notNull(),
+});
+
+export const forumThreadTags = pgTable('forum_thread_tags', {
+  thread_id: uuid('thread_id').notNull(),
+  tag_id: uuid('tag_id').notNull(),
+}, (table) => [primaryKey({ columns: [table.thread_id, table.tag_id] })]);
+
+export const forumThreadReads = pgTable('forum_thread_reads', {
+  user_id: uuid('user_id').notNull(),
+  thread_id: uuid('thread_id').notNull(),
+  last_read_at: timestamp('last_read_at', { withTimezone: true, mode: 'string' }).notNull(),
+}, (table) => [primaryKey({ columns: [table.user_id, table.thread_id] })]);
 
 // A one() that names its join columns (fields/references) needs nothing more.
 // A many() is matched to the one() pointing back at its table, so where two
@@ -1107,10 +1194,21 @@ export const campaignGangsRelations = relations(campaignGangs, ({ one, many }) =
   }),
 }));
 
+export const campaignPortraitsRelations = relations(campaignPortraits, ({ one }) => ({
+  campaign_type: one(campaignTypes, {
+    fields: [campaignPortraits.campaign_type_id],
+    references: [campaignTypes.id],
+  }),
+}));
+
 export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   campaign_type: one(campaignTypes, {
     fields: [campaigns.campaign_type_id],
     references: [campaignTypes.id],
+  }),
+  campaign_portrait: one(campaignPortraits, {
+    fields: [campaigns.campaign_portrait_id],
+    references: [campaignPortraits.id],
   }),
   campaign_territories: many(campaignTerritories),
   campaign_resources: many(campaignResources),

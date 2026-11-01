@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { updateGangImage } from '@/app/actions/update-gang-image';
-import { CreateGangPortraitPicker } from '@/components/gang/create-gang-portrait-picker';
+import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker';
 import { ImageEditModal } from '@/components/ui/image-edit-modal';
-import { useGangPortraits } from '@/hooks/use-gang-portraits';
-import { gangPortraitPublicUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
+import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue';
+import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { catalogueSlotForGangType } from '@/utils/gang-portraits';
+import { portraitPublicUrl, PORTRAIT_CATALOGUES } from '@/utils/portrait-catalogue';
 
 interface GangImageEditModalProps {
   onClose: () => void;
@@ -34,7 +35,9 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
   onImageUpdate,
   onPortraitUpdate,
 }) => {
-  const { portraits, status: portraitsStatus } = useGangPortraits();
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('gang');
+  const gangPortraitUrl = (storagePath: string) =>
+    portraitPublicUrl(PORTRAIT_CATALOGUES.gang.publicBase, storagePath);
   const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(gangPortraitId ?? null);
   const [clearedPortrait, setClearedPortrait] = useState(false);
 
@@ -72,7 +75,7 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
     }
     if (!selectedPortraitId) return { success: false, error: 'No portrait selected' };
     const selected = portraits.find((portrait) => portrait.id === selectedPortraitId);
-    const portraitUrl = selected ? gangPortraitPublicUrl(selected.storage_path) : undefined;
+    const portraitUrl = selected ? gangPortraitUrl(selected.storage_path) : undefined;
     if (!portraitUrl) return { success: false, error: 'Portrait image is missing' };
 
     const result = await updateGangImage(gangId, undefined, selectedPortraitId);
@@ -89,22 +92,33 @@ export const GangImageEditModal: React.FC<GangImageEditModalProps> = ({
       title="Edit Gang Portrait"
       onImageUpdate={onImageUpdate}
       portraitPicker={
-        <CreateGangPortraitPicker
+        <PortraitPicker
           portraits={portraits}
           catalogueSlot={catalogueSlot}
           selectedPortraitId={selectedPortraitId}
-          gangTypeName={gangType}
+          subjectName={gangType}
           onSelect={(portraitId) => {
             setClearedPortrait(false);
             setSelectedPortraitId(portraitId);
           }}
+          imageUrl={gangPortraitUrl}
           fallbackImageUrl={fallbackImageUrl}
-          silhouetteImageUrl={UNKNOWN_GANG_IMAGE_URL}
-          silhouetteSelected={selectedPortraitId === null && (clearedPortrait || alreadyOnSilhouette)}
-          onUseSilhouette={() => {
-            setClearedPortrait(true);
-            setSelectedPortraitId(null);
+          emptyFallback={<span className="text-2xl">{gangType.charAt(0)}</span>}
+          imageErrorUrl={UNKNOWN_GANG_IMAGE_URL}
+          galleryTitle="Gang Portraits"
+          galleryHelper="Choose a portrait for this gang."
+          alternateOption={{
+            heading: 'Silhouette',
+            label: 'Silhouette',
+            imageUrl: UNKNOWN_GANG_IMAGE_URL,
+            selected: selectedPortraitId === null && (clearedPortrait || alreadyOnSilhouette),
+            onSelect: () => {
+              setClearedPortrait(true);
+              setSelectedPortraitId(null);
+            },
           }}
+          catalogueLoadFailed={portraitsStatus === 'error'}
+          onRetryCatalogue={retryPortraits}
         />
       }
       portraitChanged={portraitChanged}

@@ -9,9 +9,7 @@ import { getUserCampaigns, getUserShareCampaigns } from '@/app/lib/get-user-camp
 import { FaDiscord, FaPatreon } from "react-icons/fa6";
 import HomeTabs from '@/components/home-tabs';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
-import { getCampaignTypes, getTradingPostTypesCached } from '@/app/lib/reference-data';
 import { GrHelpBook } from "react-icons/gr";
-import { Button } from '@/components/ui/button';
 import { PwaInstallButton } from '@/components/pwa-install-button';
 import { getUserCustomEquipment } from "@/app/lib/customise/custom-equipment";
 import { getUserCustomFighterTypes } from "@/app/lib/customise/custom-fighters";
@@ -21,8 +19,6 @@ import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-po
 import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { editionSlugFromJoin, withEditionSlug } from "@/types/edition";
-import type { UserCampaign } from "@/types/campaign";
 
 export default async function Home() {
   const supabase = await createClient();
@@ -34,7 +30,8 @@ export default async function Home() {
     redirect(signInPath("/"));
   }
 
-  // Single invocation that gets gangs, campaigns, and customise data
+  // Single invocation that gets gangs, campaigns, and customise data, plus the
+  // user's share-modal campaigns (cached under the user-{id} tag).
   const [
     gangs,
     campaigns,
@@ -43,7 +40,8 @@ export default async function Home() {
     customSkills,
     customGangTypes,
     customTradingPosts,
-    customCollections
+    customCollections,
+    userCampaigns
   ] = await Promise.all([
     getUserGangs(user.id),
     getUserCampaigns(user.id),
@@ -52,20 +50,13 @@ export default async function Home() {
     getUserCustomSkills(user.id),
     getUserCustomGangTypes(user.id),
     getUserCustomTradingPosts(user.id),
-    getUserCustomCollections(user.id)
-  ]);
-  
-  // Reference data for the create-campaign modal and the user's share-modal
-  // campaigns — all cached (campaign-types / global / user-{id} tags).
-  const [campaignTypes, tradingPostTypes, userCampaigns] = await Promise.all([
-    getCampaignTypes(),
-    getTradingPostTypesCached(),
+    getUserCustomCollections(user.id),
     getUserShareCampaigns(user.id)
   ]);
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-4 md:p-4">
           <div className="mb-0">
             <h1 className="text-xl md:text-2xl font-bold mb-2">Welcome to Munda Manager</h1>
@@ -96,7 +87,7 @@ export default async function Home() {
                   <CreateGangButton />
                 </div>
                 <div className="flex-1 min-w-[135px] sm:w-auto w-full">
-                  <CreateCampaignButton initialCampaignTypes={campaignTypes} initialTradingPostTypes={tradingPostTypes} userId={user.id} />
+                  <CreateCampaignButton userId={user.id} />
                 </div>
               </div>
             </div>

@@ -111,7 +111,8 @@ function UpdatePasswordFormContent() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col w-full max-w-sm mx-auto text-white">
+    // POST, so a submit before hydration keeps the password out of the URL
+    <form method="post" onSubmit={handleSubmit} className="flex flex-col w-full max-w-sm mx-auto text-white">
       <h1 className="text-2xl font-medium text-white mb-2">Set New Password</h1>
       <p className="text-sm text-white mb-8">
         Please enter your new password below.

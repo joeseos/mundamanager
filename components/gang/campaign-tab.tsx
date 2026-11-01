@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
+import { formatLocalDate } from '@/utils/local-date';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { createClient } from "@/utils/supabase/client";
@@ -95,7 +96,7 @@ const getRoleTitle = (role: MemberRole | string | undefined): string => {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
 export default function GangTerritories({ gangId, campaigns = [], editionSlug = null }: GangTerritoriesProps) {
@@ -147,7 +148,6 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
             objective:scenario_table_entries!campaign_battles_objective_id_fkey (name),
             deployment_name,
             objective_name,
-            winner_id,
             note,
             participants,
             campaign_territory_id,
@@ -161,13 +161,8 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
 
         if (error) throw error;
 
-        // Filter battles where the gang is involved. Multi-winner battles may
-        // flag this gang via participants[*].is_winner even when the legacy
-        // winner_id points to a different (claimer) gang, so we check both
-        // sides via the helper.
+        // Filter battles where the gang is involved.
         const gangBattles = (battles || []).filter(battle => {
-          if (getWinnerIds(battle as any).includes(gangId)) return true;
-
           if (battle.participants) {
             try {
               const participants = typeof battle.participants === 'string'
@@ -185,12 +180,9 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
           return false;
         });
 
-        // Extract all gang IDs from participants and every flagged winner
-        // (covers both multi-winner battles and legacy winner_id-only rows).
+        // Extract all gang IDs from participants.
         const allGangIds = new Set<string>();
         gangBattles.forEach(battle => {
-          getWinnerIds(battle as any).forEach((id) => allGangIds.add(id));
-
           if (battle.participants) {
             try {
               const participants = typeof battle.participants === 'string'
@@ -298,11 +290,6 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
               id: defenderId,
               name: gangMap.get(defenderId)?.name || 'Unknown',
               gang_colour: gangColourMap.get(defenderId) || '#000000'
-            } : undefined,
-            winner: battle.winner_id ? {
-              id: battle.winner_id,
-              name: gangMap.get(battle.winner_id)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(battle.winner_id) || '#000000'
             } : undefined,
             winners: winnersEnriched,
           };

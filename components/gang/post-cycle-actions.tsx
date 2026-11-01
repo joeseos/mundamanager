@@ -13,6 +13,7 @@ import type { GangTacticsCard, TacticsCard } from '@/types/tactics-card';
 import { UserPermissions } from '@/types/user-permissions';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { tracksXp, xpTowardNextTier } from '@/utils/advancementRanks';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
@@ -31,13 +32,15 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  territoryIncome,
+  tradePointsText,
+  tradingPostTradePoints,
   validatePostCycleAssignment,
   type PostCycleActionId,
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
 import {
-  collectIncome,
-  resolvePostCycleAction,
+  applyPostCycleSequence,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
 
@@ -60,7 +63,7 @@ interface PostCycleActionsProps {
   tacticsCards: GangTacticsCard[];
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
-  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
+  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number; trade_points?: number }) => void;
   onTacticsCardAdded?: (card: GangTacticsCard) => void;
 }
 
@@ -300,14 +303,16 @@ export default function PostCycleActions({
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
   const reputation = gangReputation ?? 0;
   const income = reputationIncome(reputation);
-  const incomeTerritories = territories.filter((territory) => territory.credits);
+  const incomeTerritories = territories
+    .map((territory) => ({ ...territory, income: territoryIncome(territory, { gangType, isCustomGangType }) }))
+    .filter((territory) => territory.income);
   const pickedTerritories = incomeTerritories.filter((territory) =>
     collectTerritoryIds.includes(territory.id)
   );
   const collecting = collectReputation || pickedTerritories.length > 0;
   const collected =
     (collectReputation ? income : 0) +
-    pickedTerritories.reduce((sum, territory) => sum + (territory.credits ?? 0), 0);
+    pickedTerritories.reduce((sum, territory) => sum + territory.income, 0);
   const cannotAfford = totalSpend > gangCredits + collected;
   const readyToApply =
     (pendingStates.length > 0 || collecting) &&
@@ -402,6 +407,9 @@ export default function PostCycleActions({
   const effectOf = (assignment: PostCycleAssignment | null) => {
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
+    if (assignment.action === 'visit_trading_post') {
+      return `+${tradePointsText(tradingPostTradePoints(fighterById.get(assignment.fighterId)!))}`;
+    }
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
     const delta = assignmentCreditsDelta(assignment, fighterById.get(assignment.fighterId)!);
     // A Doc discount can make an action free, which is still worth saying.
@@ -433,7 +441,7 @@ export default function PostCycleActions({
   };
 
   /**
-   * Applies every picked action. One server call each, in roster order, so each
+   * Applies every picked action in one server call, in roster order, so each
    * is checked against what the ones before it saved. An applied row is cleared.
    * A failure does not stop the rest; its row keeps its pick and shows why.
    */
@@ -447,65 +455,59 @@ export default function PostCycleActions({
     setApplying(true);
     setFailures({});
     setIncomeFailure(null);
+    const sequence = await applyPostCycleSequence({
+      gangId,
+      income: collecting
+        ? {
+            reputation: collectReputation,
+            territoryIds: pickedTerritories.map((territory) => territory.id),
+          }
+        : undefined,
+      assignments: queue,
+    }).catch(() => null);
+    setApplying(false);
+    if (!sequence) {
+      toast.error('The Post-cycle Sequence may be partly applied. Reload the page before trying again.');
+      return;
+    }
     let failed = 0;
 
-    // First, so the actions can spend the income.
-    if (collecting) {
-      try {
-        const result = await collectIncome({
-          gangId,
-          reputation: collectReputation,
-          territoryIds: pickedTerritories.map((territory) => territory.id),
+    if (sequence.income) {
+      if (sequence.income.gang) onGangFinancialsUpdate?.(sequence.income.gang);
+      if (sequence.income.success) {
+        setCollectReputation(false);
+        setCollectTerritoryIds([]);
+      } else {
+        failed++;
+        setIncomeFailure(sequence.income.error || 'Collecting income failed.');
+      }
+    }
+
+    for (const [i, result] of sequence.actions.entries()) {
+      const { fighterId } = queue[i];
+
+      // skipRatingUpdate: the authoritative rating arrives with the gang below.
+      for (const change of result.outcome?.changes ?? []) {
+        const current = fighterById.get(change.fighterId);
+        if (current) onFighterUpdate?.(applyChange(current, change), true);
+      }
+      if (result.gang) onGangFinancialsUpdate?.(result.gang);
+      if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
+
+      if (!result.success) {
+        failed++;
+        setFailures((prev) => ({ ...prev, [fighterId]: result.error || 'The action failed.' }));
+      }
+
+      // A partial failure still spent the action, so its row is cleared too.
+      if (result.landed) {
+        setRows((prev) => {
+          const { [fighterId]: _done, ...rest } = prev;
+          return rest;
         });
-        if (result.gang) onGangFinancialsUpdate?.(result.gang);
-        if (result.success) {
-          setCollectReputation(false);
-          setCollectTerritoryIds([]);
-        } else {
-          failed++;
-          setIncomeFailure(result.error || 'Collecting income failed.');
-        }
-      } catch (error) {
-        failed++;
-        setIncomeFailure(error instanceof Error ? error.message : 'Collecting income failed.');
       }
     }
 
-    for (const assignment of queue) {
-      const { fighterId } = assignment;
-      try {
-        const result = await resolvePostCycleAction({ gangId, assignment });
-
-        // skipRatingUpdate: the authoritative rating arrives with the gang below.
-        for (const change of result.outcome?.changes ?? []) {
-          const current = fighterById.get(change.fighterId);
-          if (current) onFighterUpdate?.(applyChange(current, change), true);
-        }
-        if (result.gang) onGangFinancialsUpdate?.(result.gang);
-        if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
-
-        if (!result.success) {
-          failed++;
-          setFailures((prev) => ({ ...prev, [fighterId]: result.error || 'The action failed.' }));
-        }
-
-        // A partial failure still spent the action, so its row is cleared too.
-        if (result.landed) {
-          setRows((prev) => {
-            const { [fighterId]: _done, ...rest } = prev;
-            return rest;
-          });
-        }
-      } catch (error) {
-        failed++;
-        setFailures((prev) => ({
-          ...prev,
-          [fighterId]: error instanceof Error ? error.message : 'The action failed.',
-        }));
-      }
-    }
-
-    setApplying(false);
     if (failed > 0) {
       const total = queue.length + (collecting ? 1 : 0);
       toast.error(`${failed} of ${total} Post-cycle steps failed. See the marked rows.`);
@@ -556,7 +558,7 @@ export default function PostCycleActions({
             >
               {territory.territory_name}
               <span className="ml-2 font-normal text-muted-foreground">
-                (+{territory.credits} credits)
+                (+{territory.income} credits)
               </span>
             </label>
           </div>
@@ -593,7 +595,14 @@ export default function PostCycleActions({
                   >
                     <div className="flex items-start justify-between gap-3 mb-2 md:mb-0 md:pt-2 min-w-0">
                       <div className="min-w-0">
-                        <div className="font-medium truncate">{fighter.fighter_name}</div>
+                        <div className="flex items-baseline gap-2 min-w-0">
+                          <span className="font-medium truncate">{fighter.fighter_name}</span>
+                          {tracksXp(fighter.starting_xp, fighter.xp) && (
+                            <span className="shrink-0 text-sm text-muted-foreground">
+                              ({xpTowardNextTier(editionSlug, fighter.xp)} XP)
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {`${fighter.fighter_type} (${formatFighterSubtypeDisplay(
                             fighter.fighter_subtypes,

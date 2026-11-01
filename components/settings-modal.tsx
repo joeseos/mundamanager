@@ -17,7 +17,7 @@ import { useNotificationToasts, useNotificationsRealtime, useUnreadNotificationC
 import dynamic from 'next/dynamic';
 
 // Icons
-import { LuSettings, LuLogOut, LuUser, LuMenu } from "react-icons/lu";
+import { LuSettings, LuLogOut, LuUser, LuMenu, LuFlag } from "react-icons/lu";
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { MdOutlineColorLens } from "react-icons/md";
@@ -37,13 +37,14 @@ export function NotificationsSection({ userId }: { userId: string }) {
 interface SettingsModalProps {
   user: SupabaseUser;
   isAdmin?: boolean;
+  isForumModerator?: boolean;
   username?: string;
   patreonTierId?: string;
   patreonTierTitle?: string;
   patronStatus?: string;
 }
 
-export default function SettingsModal({ user, isAdmin, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
+export default function SettingsModal({ user, isAdmin, isForumModerator, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
   const [open, setOpen] = useState(false);
   const notificationCount = useUnreadNotificationCount(user.id);
 
@@ -192,16 +193,24 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             </div>
           </div>
 
+          {(isForumModerator || isAdmin) && <DropdownMenuSeparator />}
+
+          {isForumModerator && (
+            <DropdownMenuItem asChild onClick={handleLinkClick}>
+              <Link href="/forum/moderation" prefetch={false} className="w-full cursor-pointer">
+                <LuFlag className="mr-2 h-4 w-4" />
+                Moderation
+              </Link>
+            </DropdownMenuItem>
+          )}
+
           {isAdmin && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild onClick={handleLinkClick}>
-                <Link href="/admin" prefetch={false} className="w-full cursor-pointer">
-                  <LuSettings className="mr-2 h-4 w-4" />
-                  Admin
-                </Link>
-              </DropdownMenuItem>
-            </>
+            <DropdownMenuItem asChild onClick={handleLinkClick}>
+              <Link href="/admin" prefetch={false} className="w-full cursor-pointer">
+                <LuSettings className="mr-2 h-4 w-4" />
+                Admin
+              </Link>
+            </DropdownMenuItem>
           )}
 
           <DropdownMenuSeparator />

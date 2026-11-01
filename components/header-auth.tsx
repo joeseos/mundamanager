@@ -1,6 +1,7 @@
 'use client';
 
 import { useClaims } from '@/hooks/use-claims';
+import { isForumModeratorRole } from '@/utils/auth';
 import SettingsModal from '@/components/settings-modal';
 import { ThemeToggleDropdown } from '@/components/theme-toggle';
 
@@ -29,6 +30,7 @@ export default function HeaderAuth() {
       <SettingsModal
         user={{ id: userId, email: email ?? undefined } as any}
         isAdmin={profile?.user_role === 'admin'}
+        isForumModerator={isForumModeratorRole(profile?.user_role)}
         username={profile?.username ?? undefined}
         patreonTierId={profile?.patreon_tier_id ?? undefined}
         patreonTierTitle={profile?.patreon_tier_title ?? undefined}

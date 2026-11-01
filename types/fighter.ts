@@ -141,6 +141,9 @@ export interface FighterProps {
   fighter_type: string;
   fighter_type_id?: string;
   custom_fighter_type_id?: string | null;
+  /** The fighter type's gang. N23 composition counts only this gang's own models. */
+  fighter_gang_type_id?: string | null;
+  fighter_custom_gang_type_id?: string | null;
   /** Gang-scoped count_limits for this fighter's type. Null when the type has no rule. */
   min_count?: number | null;
   max_count?: number | null;

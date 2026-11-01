@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { LuFileText } from 'react-icons/lu'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
+import { formatLocalDate } from '@/utils/local-date'
 import { SENT_NOTIFICATIONS_FETCH_LIMIT } from '@/utils/notifications'
 import '@/components/ui/rich-text-editor.css'
 
@@ -17,6 +18,8 @@ export type SentNotificationRow = {
   recipientUsernames: string[]
   preview: string
   text: string
+  /** Login cutoff for an admin all-user send. Null means every user. Omitted for other sends. */
+  loggedInSince?: string | null
 }
 
 export function selectedViewButtonClass(selected: boolean) {
@@ -39,19 +42,28 @@ function sentDateLabel(sentAt: string): string {
   const date = new Date(sentAt)
   if (Number.isNaN(date.getTime())) return sentAt
   const pad = (value: number) => String(value).padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return `${formatLocalDate(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function loginRuleLabel(loggedInSince: string | null): string {
+  if (!loggedInSince) return 'Date ignored'
+  const date = new Date(loggedInSince)
+  if (Number.isNaN(date.getTime())) return 'Date ignored'
+  return `Logged in on or after ${formatLocalDate(date)}`
 }
 
 export function SentNotificationsList<T extends SentNotificationRow>({
   sends,
   status,
   recipientNoun,
+  showLoginRule = false,
   typeLabel,
   typeIcon,
 }: {
   sends: T[]
   status: SentHistoryStatus
   recipientNoun: 'user' | 'player'
+  showLoginRule?: boolean
   typeLabel: (send: T) => string
   typeIcon: (send: T) => ReactNode
 }) {
@@ -96,7 +108,12 @@ export function SentNotificationsList<T extends SentNotificationRow>({
                 </td>
                 <td className="truncate py-2 pr-3 text-muted-foreground">{sentDateLabel(send.sentAt)}</td>
                 <td className="truncate py-2 pr-3 font-medium">{send.senderUsername}</td>
-                <td className="truncate py-2 pr-3 text-muted-foreground">{recipientLabel(send, recipientNoun)}</td>
+                <td className="py-2 pr-3 text-muted-foreground">
+                  <div className="truncate">{recipientLabel(send, recipientNoun)}</div>
+                  {showLoginRule && (
+                    <div className="truncate text-xs">{loginRuleLabel(send.loggedInSince ?? null)}</div>
+                  )}
+                </td>
                 <td className="truncate py-2 pr-3">{send.preview}</td>
                 <td className="py-2">
                   <InfoTooltip

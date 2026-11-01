@@ -1,13 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
+import { StatsTable, StatsType, formatCharacteristic } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { hasSaveCharacteristic } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
-import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
+import { countAdvancementsTaken, openAdvancementsFor, tracksXp } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 import { injuryAggregationLabel } from '@/utils/injuryTarget';
 import { TbMeatOff } from "react-icons/tb";
@@ -419,10 +419,7 @@ const FighterCard = memo(function FighterCard({
 
   // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
-    // A model whose type cannot gain XP has no recruitment value, and the
-    // roster reads N/A for it. The number takes over the moment the model
-    // actually holds XP, so a group house-ruling XP onto it still sees it.
-    const xpDisplay = starting_xp == null && !xp ? 'N/A' : xp;
+    const xpDisplay = tracksXp(starting_xp, xp) ? xp : 'N/A';
 
     if (isCrew) {
       return {
@@ -433,29 +430,29 @@ const FighterCard = memo(function FighterCard({
         'HP': vehicleStats ? vehicleStats.hull_points : '*',
         'Hnd': vehicleStats ? `${vehicleStats.handling}+` : '*',
         'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-        'Ld': `${adjustedStats.leadership}+`,
-        'Cl': `${adjustedStats.cool}+`,
-        'Wil': `${adjustedStats.willpower}+`,
-        'Int': `${adjustedStats.intelligence}+`,
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+        'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+        'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+        'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+        'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
         'XP': xpDisplay
       };
     }
     
     return {
-      'M': `${adjustedStats.movement}"`,
-      'WS': `${adjustedStats.weapon_skill}+`,
-      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-      'S': adjustedStats.strength,
-      'T': adjustedStats.toughness,
-      'W': adjustedStats.wounds,
-      'I': `${adjustedStats.initiative}+`,
-      'A': adjustedStats.attacks,
-      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-' }),
-      'Ld': `${adjustedStats.leadership}+`,
-      'Cl': `${adjustedStats.cool}+`,
-      'Wil': `${adjustedStats.willpower}+`,
-      'Int': `${adjustedStats.intelligence}+`,
+      'M': formatCharacteristic(adjustedStats.movement, '"'),
+      'WS': formatCharacteristic(adjustedStats.weapon_skill, '+'),
+      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+      'S': formatCharacteristic(adjustedStats.strength),
+      'T': formatCharacteristic(adjustedStats.toughness),
+      'W': formatCharacteristic(adjustedStats.wounds),
+      'I': formatCharacteristic(adjustedStats.initiative, '+'),
+      'A': formatCharacteristic(adjustedStats.attacks),
+      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': formatCharacteristic(adjustedStats.save, '+') }),
+      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+      'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
       'XP': xpDisplay
     };
   }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);

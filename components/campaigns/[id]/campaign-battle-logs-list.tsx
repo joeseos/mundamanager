@@ -17,8 +17,8 @@ import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
 import { LuTrash2, LuSquarePen, LuSwords } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioLabel as scenarioLabelOf } from '@/types/campaign';
-import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
+import { formatLocalDate } from '@/utils/local-date';
+import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioLabel as scenarioLabelOf, battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
 import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
@@ -78,7 +78,7 @@ const formatRole = (role: MemberRole | undefined) => {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
 export default function CampaignBattleLogsList(props: CampaignBattleLogsListProps) {

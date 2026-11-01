@@ -10,6 +10,7 @@ import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
 import Image from 'next/image';
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
+import { resolveCampaignImageUrl } from '@/utils/campaign-image';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
@@ -22,6 +23,7 @@ import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territor
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
+import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
@@ -121,6 +123,8 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     campaign_type_image_url?: string;
+    campaign_portrait_id?: string | null;
+    campaign_portrait_url?: string | null;
     edition_slug?: string | null;
     image_url?: string;
     status: string | null;
@@ -190,7 +194,7 @@ interface CampaignPageContentProps {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
 export default function CampaignPageContent({ 
@@ -420,6 +424,11 @@ export default function CampaignPageContent({
   };
 
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
+  const shownImageUrl = resolveCampaignImageUrl({
+    imageUrl: campaignData.image_url,
+    portraitUrl: campaignData.campaign_portrait_url,
+    typeImageUrl: campaignData.campaign_type_image_url,
+  });
 
   return (
     <main className="campaign-page flex min-h-screen flex-col items-center print:min-h-0">
@@ -503,9 +512,9 @@ export default function CampaignPageContent({
           <div id="campaign_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
             {/* Left Section: Campaign Image */}
             <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
-              {campaignData.image_url || campaignData.campaign_type_image_url ? (
+              {shownImageUrl ? (
                 <Image
-                  src={campaignData.image_url || campaignData.campaign_type_image_url || ''}
+                  src={shownImageUrl}
                   alt={campaignData.campaign_name}
                   width={180}
                   height={180}
@@ -1083,8 +1092,23 @@ export default function CampaignPageContent({
             onClose={() => setShowImageModal(false)}
             currentImageUrl={campaignData.image_url || ''}
             campaignId={campaignData.id}
-            onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
-            defaultImageUrl={campaignData.campaign_type_image_url}
+            campaignTypeId={campaignData.campaign_type_id}
+            campaignTypeName={campaignData.campaign_type_name}
+            campaignPortraitId={campaignData.campaign_portrait_id}
+            currentPortraitUrl={campaignData.campaign_portrait_url}
+            typeImageUrl={campaignData.campaign_type_image_url}
+            onImageUpdate={(newUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: newUrl,
+              campaign_portrait_id: null,
+              campaign_portrait_url: null,
+            }))}
+            onPortraitUpdate={(portraitId, portraitUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: '',
+              campaign_portrait_id: portraitId,
+              campaign_portrait_url: portraitUrl,
+            }))}
           />
         )}
 
