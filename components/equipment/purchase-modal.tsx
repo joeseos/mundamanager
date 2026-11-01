@@ -10,6 +10,7 @@ import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
+import { isEditableEffect } from '@/utils/effect-modifiers';
 
 export interface PurchaseConfirmOptions {
   cost: number;
@@ -50,6 +51,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [upgradeEffect, setUpgradeEffect] = useState<{ id: string; name: string } | null>(null);
+  const [equipmentTarget, setEquipmentTarget] = useState<PurchaseConfirmOptions['equipmentTarget']>();
 
   // Grants selection state
   const [showGrantsSelection, setShowGrantsSelection] = useState(false);
@@ -218,6 +220,8 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             )
             .map((effect: any) => effect.id) || [];
           setSelectedEffectIds(fixedFighterEffectIds);
+          // Upgrades picked for the weapon after it is chosen (e.g. Enhance weapon)
+          setEffectTypes(fetchedEffectTypes.filter(isEditableEffect));
 
           setUpgradeEffect({ id: equipmentUpgrade.id, name: equipmentUpgrade.effect_name });
           setShowTargetSelection(true);
@@ -262,6 +266,14 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   };
 
   const handleEffectSelectionComplete = async (effectIds: string[]) => {
+    if (equipmentTarget) {
+      onConfirm(buildConfirmOptions({
+        cost: Number(manualCost),
+        selectedEffectIds: [...selectedEffectIds, ...effectIds],
+        equipmentTarget,
+      }));
+      return;
+    }
     setSelectedEffectIds(effectIds);
     setShowEffectSelection(false);
     setEffectTypes([]);
@@ -300,6 +312,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 target_equipment_id: targetEquipmentId,
                 effect_type_id: upgradeEffect?.id as string
               };
+              if (effectTypes.length > 0) {
+                setEquipmentTarget(equipmentTargetData);
+                setShowTargetSelection(false);
+                setShowEffectSelection(true);
+                setIsEffectSelectionValid(false);
+                return;
+              }
               onConfirm(buildConfirmOptions({
                 cost: Number(manualCost),
                 selectedEffectIds,
@@ -319,7 +338,9 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         }
         onClose={onClose}
         onConfirm={async () => {
-          return await effectSelectionRef.current?.handleConfirm() || false;
+          const applied = await effectSelectionRef.current?.handleConfirm() || false;
+          // Stay open when the upgrade pick follows
+          return applied && effectTypes.length === 0;
         }}
         confirmText="Confirm"
         confirmDisabled={!isEffectSelectionValid}

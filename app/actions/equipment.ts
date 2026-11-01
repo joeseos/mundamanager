@@ -715,6 +715,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // BATCH: Handle fighter effects using helper function
     let appliedEffects: any[] = [];
+    const chosenTargetId = params.equipment_target?.target_equipment_id || params.target_equipment_id;
 
     if (params.selected_effect_ids && params.selected_effect_ids.length > 0 && !params.buy_for_gang_stash && !params.custom_equipment_id) {
       try {
@@ -741,7 +742,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                 fighter_id: params.fighter_id || null,
                 vehicle_id: params.vehicle_id || null,
                 fighter_equipment_id: newEquipmentId,
-                target_equipment_id: null,
+                // An upgrade picked for an attached item modifies the weapon it is attached to
+                target_equipment_id: isEditableEffect(effectType) ? chosenTargetId ?? null : null,
                 effect_type_id: effectType.id,
                 user_id: user.id
               },
@@ -1048,7 +1050,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
 
       // If client already provided a target, apply effect now (purchase + attach in one go)
-      const chosenTargetId = params.equipment_target?.target_equipment_id || params.target_equipment_id;
       const chosenEffectTypeId = params.equipment_target?.effect_type_id;
 
       if (
