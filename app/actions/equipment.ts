@@ -11,7 +11,7 @@ import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, Fighte
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantedSkillFromEffect, isEditableEffect, equipmentEffectsFilter, effectsCredits } from '@/utils/effect-modifiers';
+import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -321,26 +321,6 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     if (!params.buy_for_gang_stash && (!params.fighter_id && !params.vehicle_id)) {
       throw new Error('fighter_id or vehicle_id is required for non-stash purchases');
-    }
-
-    const chosenTargetId = params.equipment_target?.target_equipment_id || params.target_equipment_id;
-    // Effects picked with the purchase, read up front so an attached item's upgrade limit holds before anything is bought
-    const selectedEffectTypes = params.selected_effect_ids?.length && !params.buy_for_gang_stash && !params.custom_equipment_id
-      ? (await supabase
-          .from('fighter_effect_types')
-          .select(`
-            id,
-            effect_name,
-            type_specific_data,
-            fighter_effect_categories (
-              id,
-              category_name
-            )
-          `)
-          .in('id', params.selected_effect_ids)).data ?? []
-      : [];
-    if (chosenTargetId && selectedEffectTypes.filter(isEditableEffect).length > 1) {
-      throw new Error('Attached equipment takes a single upgrade');
     }
 
     // PARALLEL: Gang info and vehicle data
@@ -750,41 +730,55 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // BATCH: Handle fighter effects using helper function
     let appliedEffects: any[] = [];
 
-    if (selectedEffectTypes.length > 0) {
+    if (params.selected_effect_ids && params.selected_effect_ids.length > 0 && !params.buy_for_gang_stash && !params.custom_equipment_id) {
       try {
-        // Insert each effect using helper function
-        for (const effectType of selectedEffectTypes) {
-          const result = await insertEffectWithModifiers(
-            supabase,
-            {
-              fighter_id: params.fighter_id || null,
-              vehicle_id: params.vehicle_id || null,
-              fighter_equipment_id: newEquipmentId,
-              // An upgrade picked for an attached item modifies the weapon it is attached to
-              target_equipment_id: isEditableEffect(effectType) ? chosenTargetId ?? null : null,
-              effect_type_id: effectType.id,
-              user_id: user.id
-            },
-            { includeOperation: true }
-          );
+        // Fetch effect type metadata for rating calculation
+        const { data: effectTypes } = await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            type_specific_data,
+            fighter_effect_categories (
+              id,
+              category_name
+            )
+          `)
+          .in('id', params.selected_effect_ids);
 
-          if (result.success && result.effect_id) {
-            appliedEffects.push({
-              id: result.effect_id,
-              fighter_equipment_id: newEquipmentId,
-              effect_name: effectType.effect_name,
-              type_specific_data: effectType.type_specific_data,
-              created_at: new Date().toISOString(),
-              category_name: (effectType.fighter_effect_categories as any)?.category_name,
-              fighter_effect_modifiers: [] // Could fetch if needed
-            });
+        if (effectTypes && effectTypes.length > 0) {
+          // Insert each effect using helper function
+          for (const effectType of effectTypes) {
+            const result = await insertEffectWithModifiers(
+              supabase,
+              {
+                fighter_id: params.fighter_id || null,
+                vehicle_id: params.vehicle_id || null,
+                fighter_equipment_id: newEquipmentId,
+                target_equipment_id: null,
+                effect_type_id: effectType.id,
+                user_id: user.id
+              },
+              { includeOperation: true }
+            );
 
-            // Rating delta calculation
-            const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
-            if (params.fighter_id) {
-              ratingDelta += creditsIncrease;
-            } else if (params.vehicle_id && vehicleAssignedFighterId) {
-              ratingDelta += creditsIncrease;
+            if (result.success && result.effect_id) {
+              appliedEffects.push({
+                id: result.effect_id,
+                effect_name: effectType.effect_name,
+                type_specific_data: effectType.type_specific_data,
+                created_at: new Date().toISOString(),
+                category_name: (effectType.fighter_effect_categories as any)?.category_name,
+                fighter_effect_modifiers: [] // Could fetch if needed
+              });
+
+              // Rating delta calculation
+              const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
+              if (params.fighter_id) {
+                ratingDelta += creditsIncrease;
+              } else if (params.vehicle_id && vehicleAssignedFighterId) {
+                ratingDelta += creditsIncrease;
+              }
             }
           }
         }
@@ -1058,7 +1052,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // Add effect information if any were applied
       if (appliedEffects.length > 0) {
         responseData.success = true;
-        responseData.applied_effects = appliedEffects;
+        responseData.equipment_effect = appliedEffects[0]; // Include first effect in response
         if (params.fighter_id) {
           responseData.fighter = {
             id: params.fighter_id,
@@ -1068,6 +1062,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
 
       // If client already provided a target, apply effect now (purchase + attach in one go)
+      const chosenTargetId = params.equipment_target?.target_equipment_id || params.target_equipment_id;
       const chosenEffectTypeId = params.equipment_target?.effect_type_id;
 
       if (
@@ -1182,8 +1177,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       await clearHardpointReference(supabase, params.fighter_equipment_id, equipmentBefore.vehicle_id);
     }
 
-    // Get associated fighter effects before deletion (they'll be cascade deleted).
-    // Include effects targeting this equipment (e.g. upgrades from an attached accessory)
+    // Get associated fighter effects before deletion (they'll be cascade deleted)
     const { data: associatedEffects } = await supabase
       .from('fighter_effects')
       .select(`
@@ -1195,7 +1189,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           numeric_value
         )
       `)
-      .or(equipmentEffectsFilter(params.fighter_equipment_id));
+      .eq('fighter_equipment_id', params.fighter_equipment_id);
 
     // Determine rating delta prior to deletion
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
@@ -1222,7 +1216,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       if (fighterIsActive) {
         ratingDelta -= (equipmentBefore.purchase_cost || 0);
         // subtract associated effects credits if any
-        ratingDelta -= effectsCredits(associatedEffects);
+        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+        ratingDelta -= effectsCredits;
       }
     } else if (equipmentBefore.vehicle_id) {
       // Only count if vehicle assigned to an active fighter
@@ -1234,7 +1229,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
       if (countsTowardRating(veh?.fighters as FighterStatus | null | undefined)) {
         ratingDelta -= (equipmentBefore.purchase_cost || 0);
-        ratingDelta -= effectsCredits(associatedEffects);
+        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+        ratingDelta -= effectsCredits;
       }
     }
 
@@ -1514,29 +1510,6 @@ export async function applySelfUpgradesToEquipment(params: {
       return { success: false, error: 'Ownership mismatch' };
     }
 
-    // Fail on a read error: treating it as "not attached" would skip the one-upgrade check
-    const { data: accessoryEffects, error: effectsErr } = await supabase
-      .from('fighter_effects')
-      .select('target_equipment_id, type_specific_data')
-      .eq('fighter_equipment_id', params.fighter_equipment_id);
-    if (effectsErr) {
-      return { success: false, error: `Failed to read the equipment's effects: ${effectsErr.message}` };
-    }
-
-    // Attached equipment (Enhance weapon) upgrades the weapon its anchor effect points at
-    const targetEquipmentId: string | null =
-      accessoryEffects.find(e => e.target_equipment_id)?.target_equipment_id ?? null;
-
-    // One upgrade per attached item; Spyrer weapons and bionics aren't attached and keep stacking
-    if (targetEquipmentId) {
-      if (params.effect_type_ids.length > 1) {
-        return { success: false, error: 'Attached equipment takes a single upgrade' };
-      }
-      if (accessoryEffects.some(isEditableEffect)) {
-        return { success: false, error: 'This equipment already has an upgrade. Remove it to pick another.' };
-      }
-    }
-
     // Insert all effects
     const results: { effect_type_id: string; success: boolean; error?: string }[] = [];
 
@@ -1547,7 +1520,7 @@ export async function applySelfUpgradesToEquipment(params: {
           fighter_id: params.fighter_id,
           vehicle_id: null,
           fighter_equipment_id: params.fighter_equipment_id,
-          target_equipment_id: targetEquipmentId,
+          target_equipment_id: null,
           effect_type_id,
           user_id: user.id
         },
