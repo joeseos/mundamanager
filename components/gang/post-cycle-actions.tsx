@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,6 +24,7 @@ import {
   TRAIN_XP,
   assignmentCreditsDelta,
   eligiblePostCycleActions,
+  enhanceableWeaponsOf,
   hasCriticalInjury,
   lastingDamagesOf,
   patientOf,
@@ -41,6 +43,7 @@ import {
 } from '@/utils/postCycleActions';
 import {
   applyPostCycleSequence,
+  getEnhanceWeaponUpgrades,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
 
@@ -76,11 +79,14 @@ interface RowState {
   tacticsCard?: Pick<TacticsCard, 'id' | 'name'>;
   /** Visit Chop Shop: the vehicle's Lasting Damage to repair. */
   damageIds?: string[];
+  /** Enhance Weapon: the fighter's weapon and the upgrade it gets. */
+  weaponId?: string;
+  upgradeId?: string;
 }
 
 /** Null while the row still lacks a pick its action needs. */
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  const { action, targetFighterId, injuryIds, tacticsCard, damageIds } = row;
+  const { action, targetFighterId, injuryIds, tacticsCard, damageIds, weaponId, upgradeId } = row;
   switch (action) {
     case 'medical_escort':
       return targetFighterId ? { fighterId, action, targetFighterId } : null;
@@ -92,6 +98,8 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
       return tacticsCard ? { fighterId, action, tacticsCardId: tacticsCard.id } : null;
     case 'visit_chop_shop':
       return damageIds?.length ? { fighterId, action, damageIds } : null;
+    case 'enhance_weapon':
+      return weaponId && upgradeId ? { fighterId, action, weaponId, upgradeId } : null;
     default:
       return { fighterId, action };
   }
@@ -259,6 +267,13 @@ export default function PostCycleActions({
     [rows, actorIds]
   );
 
+  const { data: enhanceUpgrades = [] } = useQuery({
+    queryKey: ['enhance-weapon-upgrades'],
+    queryFn: () => getEnhanceWeaponUpgrades(),
+    enabled: [...activeRows.values()].some((row) => row.action === 'enhance_weapon'),
+    staleTime: Infinity,
+  });
+
   /** One validated assignment per pending row, keyed by the fighter taking it. */
   const rowStates = useMemo(() => {
     const states = new Map<
@@ -368,6 +383,8 @@ export default function PostCycleActions({
           : null;
       case 'suit_maintenance':
         return rigGlitchesOf(fighter).length > 0 ? null : 'No Rig Glitches';
+      case 'enhance_weapon':
+        return enhanceableWeaponsOf(fighter).length > 0 ? null : 'No weapon to enhance';
       default:
         return null;
     }
@@ -491,6 +508,7 @@ export default function PostCycleActions({
         const current = fighterById.get(change.fighterId);
         if (current) onFighterUpdate?.(applyChange(current, change), true);
       }
+      if (result.outcome?.updatedFighter) onFighterUpdate?.(result.outcome.updatedFighter as FighterProps, true);
       if (result.gang) onGangFinancialsUpdate?.(result.gang);
       if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
 
@@ -684,6 +702,33 @@ export default function PostCycleActions({
                         >
                           Choose Lasting Damage
                         </Button>
+                      )}
+
+                      {row?.action === 'enhance_weapon' && (
+                        <>
+                          <Combobox
+                            options={enhanceableWeaponsOf(fighter).map((weapon) => ({
+                              value: weapon.fighter_weapon_id,
+                              label: weapon.weapon_name,
+                            }))}
+                            value={row.weaponId ?? ''}
+                            onValueChange={(id) => setRow(fighter.id, { weaponId: id || undefined })}
+                            placeholder="Weapon to enhance"
+                            clearable
+                            disabled={!canEdit || applying}
+                          />
+                          <Combobox
+                            options={enhanceUpgrades.map((upgrade) => ({
+                              value: upgrade.id,
+                              label: upgrade.effect_name,
+                            }))}
+                            value={row.upgradeId ?? ''}
+                            onValueChange={(id) => setRow(fighter.id, { upgradeId: id || undefined })}
+                            placeholder="Upgrade"
+                            clearable
+                            disabled={!canEdit || applying}
+                          />
+                        </>
                       )}
 
                       {row?.action === 'develop_tactics' && (
