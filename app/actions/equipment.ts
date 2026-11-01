@@ -11,7 +11,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantedSkillFromEffect, isEditableEffect } from '@/utils/effect-modifiers';
+import { grantedSkillFromEffect, isEditableEffect, equipmentEffectsFilter, effectsCredits } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -321,6 +321,26 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     if (!params.buy_for_gang_stash && (!params.fighter_id && !params.vehicle_id)) {
       throw new Error('fighter_id or vehicle_id is required for non-stash purchases');
+    }
+
+    const chosenTargetId = params.equipment_target?.target_equipment_id || params.target_equipment_id;
+    // Effects picked with the purchase, read up front so an attached item's upgrade limit holds before anything is bought
+    const selectedEffectTypes = params.selected_effect_ids?.length && !params.buy_for_gang_stash && !params.custom_equipment_id
+      ? (await supabase
+          .from('fighter_effect_types')
+          .select(`
+            id,
+            effect_name,
+            type_specific_data,
+            fighter_effect_categories (
+              id,
+              category_name
+            )
+          `)
+          .in('id', params.selected_effect_ids)).data ?? []
+      : [];
+    if (chosenTargetId && selectedEffectTypes.filter(isEditableEffect).length > 1) {
+      throw new Error('Attached equipment takes a single upgrade');
     }
 
     // PARALLEL: Gang info and vehicle data
@@ -715,58 +735,42 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // BATCH: Handle fighter effects using helper function
     let appliedEffects: any[] = [];
-    const chosenTargetId = params.equipment_target?.target_equipment_id || params.target_equipment_id;
 
-    if (params.selected_effect_ids && params.selected_effect_ids.length > 0 && !params.buy_for_gang_stash && !params.custom_equipment_id) {
+    if (selectedEffectTypes.length > 0) {
       try {
-        // Fetch effect type metadata for rating calculation
-        const { data: effectTypes } = await supabase
-          .from('fighter_effect_types')
-          .select(`
-            id,
-            effect_name,
-            type_specific_data,
-            fighter_effect_categories (
-              id,
-              category_name
-            )
-          `)
-          .in('id', params.selected_effect_ids);
+        // Insert each effect using helper function
+        for (const effectType of selectedEffectTypes) {
+          const result = await insertEffectWithModifiers(
+            supabase,
+            {
+              fighter_id: params.fighter_id || null,
+              vehicle_id: params.vehicle_id || null,
+              fighter_equipment_id: newEquipmentId,
+              // An upgrade picked for an attached item modifies the weapon it is attached to
+              target_equipment_id: isEditableEffect(effectType) ? chosenTargetId ?? null : null,
+              effect_type_id: effectType.id,
+              user_id: user.id
+            },
+            { includeOperation: true }
+          );
 
-        if (effectTypes && effectTypes.length > 0) {
-          // Insert each effect using helper function
-          for (const effectType of effectTypes) {
-            const result = await insertEffectWithModifiers(
-              supabase,
-              {
-                fighter_id: params.fighter_id || null,
-                vehicle_id: params.vehicle_id || null,
-                fighter_equipment_id: newEquipmentId,
-                // An upgrade picked for an attached item modifies the weapon it is attached to
-                target_equipment_id: isEditableEffect(effectType) ? chosenTargetId ?? null : null,
-                effect_type_id: effectType.id,
-                user_id: user.id
-              },
-              { includeOperation: true }
-            );
+          if (result.success && result.effect_id) {
+            appliedEffects.push({
+              id: result.effect_id,
+              fighter_equipment_id: newEquipmentId,
+              effect_name: effectType.effect_name,
+              type_specific_data: effectType.type_specific_data,
+              created_at: new Date().toISOString(),
+              category_name: (effectType.fighter_effect_categories as any)?.category_name,
+              fighter_effect_modifiers: [] // Could fetch if needed
+            });
 
-            if (result.success && result.effect_id) {
-              appliedEffects.push({
-                id: result.effect_id,
-                effect_name: effectType.effect_name,
-                type_specific_data: effectType.type_specific_data,
-                created_at: new Date().toISOString(),
-                category_name: (effectType.fighter_effect_categories as any)?.category_name,
-                fighter_effect_modifiers: [] // Could fetch if needed
-              });
-
-              // Rating delta calculation
-              const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
-              if (params.fighter_id) {
-                ratingDelta += creditsIncrease;
-              } else if (params.vehicle_id && vehicleAssignedFighterId) {
-                ratingDelta += creditsIncrease;
-              }
+            // Rating delta calculation
+            const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
+            if (params.fighter_id) {
+              ratingDelta += creditsIncrease;
+            } else if (params.vehicle_id && vehicleAssignedFighterId) {
+              ratingDelta += creditsIncrease;
             }
           }
         }
@@ -1040,7 +1044,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // Add effect information if any were applied
       if (appliedEffects.length > 0) {
         responseData.success = true;
-        responseData.equipment_effect = appliedEffects[0]; // Include first effect in response
+        responseData.applied_effects = appliedEffects;
         if (params.fighter_id) {
           responseData.fighter = {
             id: params.fighter_id,
@@ -1177,7 +1181,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           numeric_value
         )
       `)
-      .or(`fighter_equipment_id.eq.${params.fighter_equipment_id},target_equipment_id.eq.${params.fighter_equipment_id}`);
+      .or(equipmentEffectsFilter(params.fighter_equipment_id));
 
     // Determine rating delta prior to deletion
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
@@ -1204,8 +1208,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       if (fighterIsActive) {
         ratingDelta -= (equipmentBefore.purchase_cost || 0);
         // subtract associated effects credits if any
-        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-        ratingDelta -= effectsCredits;
+        ratingDelta -= effectsCredits(associatedEffects);
       }
     } else if (equipmentBefore.vehicle_id) {
       // Only count if vehicle assigned to an active fighter
@@ -1227,8 +1230,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
 
         if (vehicleFighterIsActive) {
           ratingDelta -= (equipmentBefore.purchase_cost || 0);
-          const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-          ratingDelta -= effectsCredits;
+          ratingDelta -= effectsCredits(associatedEffects);
         }
       }
     }

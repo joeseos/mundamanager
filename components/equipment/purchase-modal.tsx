@@ -51,7 +51,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   const [effectTypes, setEffectTypes] = useState<any[]>([]);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] } | null>(null);
   const [upgradeEffect, setUpgradeEffect] = useState<{ id: string; name: string } | null>(null);
-  const [equipmentTarget, setEquipmentTarget] = useState<PurchaseConfirmOptions['equipmentTarget']>();
+  const [chosenTarget, setChosenTarget] = useState<PurchaseConfirmOptions['equipmentTarget']>();
 
   // Grants selection state
   const [showGrantsSelection, setShowGrantsSelection] = useState(false);
@@ -202,12 +202,12 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         // Separate equipment upgrades from fighter effects
         const equipmentUpgrade = fetchedEffectTypes?.find((effect: any) =>
           effect.type_specific_data?.applies_to === 'equipment' &&
-          !effect.type_specific_data?.is_editable
+          !isEditableEffect(effect)
         );
 
         const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>
           effect.type_specific_data?.applies_to !== 'equipment' &&
-          effect.type_specific_data?.is_editable !== true
+          !isEditableEffect(effect)
         );
 
         // Priority 1: Check for equipment upgrade (applies_to=equipment)
@@ -220,7 +220,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
             )
             .map((effect: any) => effect.id) || [];
           setSelectedEffectIds(fixedFighterEffectIds);
-          // Upgrades picked for the weapon after it is chosen (e.g. Enhance weapon)
           setEffectTypes(fetchedEffectTypes.filter(isEditableEffect));
 
           setUpgradeEffect({ id: equipmentUpgrade.id, name: equipmentUpgrade.effect_name });
@@ -266,11 +265,11 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   };
 
   const handleEffectSelectionComplete = async (effectIds: string[]) => {
-    if (equipmentTarget) {
+    if (chosenTarget) {
       onConfirm(buildConfirmOptions({
         cost: Number(manualCost),
         selectedEffectIds: [...selectedEffectIds, ...effectIds],
-        equipmentTarget,
+        equipmentTarget: chosenTarget,
       }));
       return;
     }
@@ -283,6 +282,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
   const handleEffectSelectionCancel = () => {
     setShowEffectSelection(false);
+    setChosenTarget(undefined);
     setSelectedEffectIds([]);
     setIsEffectSelectionValid(false);
     setEffectTypes([]);
@@ -293,6 +293,8 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   };
 
   if (showTargetSelection) {
+    // Attached items with editable upgrades (Enhance weapon) pick one after the weapon
+    const upgradePickFollows = effectTypes.length > 0;
     return (
       <Modal
         title="Select Weapon"
@@ -312,8 +314,8 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 target_equipment_id: targetEquipmentId,
                 effect_type_id: upgradeEffect?.id as string
               };
-              if (effectTypes.length > 0) {
-                setEquipmentTarget(equipmentTargetData);
+              if (upgradePickFollows) {
+                setChosenTarget(equipmentTargetData);
                 setShowTargetSelection(false);
                 setShowEffectSelection(true);
                 setIsEffectSelectionValid(false);
@@ -339,8 +341,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         onClose={onClose}
         onConfirm={async () => {
           const applied = await effectSelectionRef.current?.handleConfirm() || false;
-          // Stay open when the upgrade pick follows
-          return applied && effectTypes.length === 0;
+          return applied && !upgradePickFollows;
         }}
         confirmText="Confirm"
         confirmDisabled={!isEffectSelectionValid}

@@ -21,7 +21,7 @@ import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
-import { applyWeaponModifiers, isEditableEffect } from '@/utils/effect-modifiers';
+import { applyWeaponModifiers, isEditableEffect, effectsCredits } from '@/utils/effect-modifiers';
 import { FighterLoadout } from '@/types/equipment';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
@@ -182,7 +182,10 @@ export function WeaponList({
             target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
           } as Equipment];
 
-          onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
+          onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost + effectsCredits(data?.applied_effects), newGangCredits);
+          if (data?.applied_effects?.length && onEffectsUpdate) {
+            onEffectsUpdate({ ...fighterEffects, equipment: [...(fighterEffects.equipment || []), ...data.applied_effects] });
+          }
 
           const newGangTradePoints = data?.updategangsCollection?.records?.[0]?.trade_points;
           if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
@@ -203,7 +206,7 @@ export function WeaponList({
         }
       });
     }
-  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate]);
+  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate, fighterEffects, onEffectsUpdate]);
 
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     // Snapshot for rollback
@@ -381,9 +384,8 @@ export function WeaponList({
         throw new Error('Failed to fetch effects');
       }
       const effectTypes = await response.json();
-      // Filter to only show editable effects (is_editable: true in type_specific_data)
       const editableEffects = effectTypes
-        .filter((et: any) => et.type_specific_data?.is_editable === true)
+        .filter(isEditableEffect)
         .sort((a: FighterEffectType, b: FighterEffectType) =>
           (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)
         );
