@@ -791,9 +791,7 @@ export function WeaponList({
   };
 
   // Render equipment effects as child rows beneath the equipment they apply to
-  // Show all effects; only editable ones can be removed. Under attached equipment
-  // (isChild) only the editable ones are shown: the fixed effect linking it to its
-  // parent is already conveyed by the nesting.
+  // Show all effects; only editable ones can be removed. Attached equipment (isChild) shows only its editable ones
   const renderEffectRows = (item: Equipment, isChild: boolean = false) => {
     const equipmentEffects = allEffects
       .filter((e) => e.fighter_equipment_id === item.fighter_equipment_id)

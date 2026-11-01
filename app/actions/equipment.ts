@@ -1514,8 +1514,7 @@ export async function applySelfUpgradesToEquipment(params: {
       return { success: false, error: 'Ownership mismatch' };
     }
 
-    // A failed read must not fall through as "not attached": the upgrade would land on
-    // the accessory and skip the one-upgrade check below.
+    // Fail on a read error: treating it as "not attached" would skip the one-upgrade check
     const { data: accessoryEffects, error: effectsErr } = await supabase
       .from('fighter_effects')
       .select('target_equipment_id, type_specific_data')
@@ -1524,15 +1523,11 @@ export async function applySelfUpgradesToEquipment(params: {
       return { success: false, error: `Failed to read the equipment's effects: ${effectsErr.message}` };
     }
 
-    // Equipment attached to a weapon (e.g. Enhance weapon) is linked to it by the
-    // anchor effect written at purchase. Route the upgrades to that weapon, otherwise
-    // they land on the accessory, which has no profile to modify.
+    // Attached equipment (Enhance weapon) upgrades the weapon its anchor effect points at
     const targetEquipmentId: string | null =
       accessoryEffects.find(e => e.target_equipment_id)?.target_equipment_id ?? null;
 
-    // Attached equipment takes one Edit with one pick: each Enhance weapon buys a single
-    // upgrade, and a weapon gets more by taking more of them. Spyrer weapons and bionics
-    // are not attached, so they keep stacking theirs across Edits.
+    // One upgrade per attached item; Spyrer weapons and bionics aren't attached and keep stacking
     if (targetEquipmentId) {
       if (params.effect_type_ids.length > 1) {
         return { success: false, error: 'Attached equipment takes a single upgrade' };
