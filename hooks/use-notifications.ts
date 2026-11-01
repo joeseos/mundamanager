@@ -225,18 +225,23 @@ export function useNotificationToasts(userId: string) {
   const router = useRouter();
   const pathname = usePathname();
   const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
   const cursorRef = useRef<ToastCursor | null>(null);
   const readyRef = useRef(false);
   const userIdRef = useRef(userId);
 
-  if (userIdRef.current !== userId) {
-    userIdRef.current = userId;
-    cursorRef.current = null;
-    readyRef.current = false;
-  }
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
 
   useEffect(() => {
+    // A user switch must drop the previous cursor before this effect reads it.
+    // Doing that here keeps the ref writes out of render.
+    if (userIdRef.current !== userId) {
+      userIdRef.current = userId;
+      cursorRef.current = null;
+      readyRef.current = false;
+    }
+
     if (!isSuccess || !data) return;
 
     const stored = laterCursor(readyRef.current ? cursorRef.current : null, readToastCursor(userId));
