@@ -328,8 +328,11 @@ const SPYRE_HUNTERS_GANG_TYPE = 'spyre hunters';
  * Gang types and subtypes are matched by name, like isVenatorGang. A custom
  * gang type's name is the user's own, so it never counts.
  */
+const gangTypeName = (gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>): string =>
+  gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
+
 export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailability {
-  const gangType = gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
+  const gangType = gangTypeName(gang);
   const subtypes = gang.subtypeNames.map((name) => name.toLowerCase());
 
   return {
@@ -343,23 +346,16 @@ export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailabilit
 }
 
 const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
-/** By catalog id, since campaigns rename their territories. */
-const N26_SPYRER_BASE_CAMP_TERRITORY_ID = '83c0b9c2-f88d-4d89-b979-ccae8f8c3566';
 
 /**
  * Collect Income from one held Territory: its credits, except that a Spyre
- * Hunting Party takes a flat 15 from each Territory but its Spyrer Base Camp.
+ * Hunting Party takes a flat 15 from each Territory instead of its Boon.
  */
-export function territoryIncome(
-  territory: { territory_id: string | null; credits: number | null },
+export const territoryIncome = (
+  territory: { credits: number | null },
   gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>
-): number {
-  const spyreHunters =
-    !gang.isCustomGangType && gang.gangType?.toLowerCase() === SPYRE_HUNTERS_GANG_TYPE;
-  return spyreHunters && territory.territory_id !== N26_SPYRER_BASE_CAMP_TERRITORY_ID
-    ? SPYRE_HUNTERS_TERRITORY_INCOME
-    : (territory.credits ?? 0);
-}
+): number =>
+  gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE ? SPYRE_HUNTERS_TERRITORY_INCOME : (territory.credits ?? 0);
 
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,
