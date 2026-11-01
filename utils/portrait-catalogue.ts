@@ -10,9 +10,6 @@ const STYLE_RANK: Record<string, number> = {
   'ai-assisted': 2,
 };
 
-export const PORTRAIT_COGWHEEL_URL =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp';
-
 const PUBLIC_STORAGE_BASE =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/';
 
