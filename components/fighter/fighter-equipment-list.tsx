@@ -21,7 +21,7 @@ import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { FighterEffectType, FighterEffect } from '@/types/fighter-effect';
 import { applySelfUpgradesToEquipment } from '@/app/actions/equipment';
-import { applyWeaponModifiers } from '@/utils/effect-modifiers';
+import { applyWeaponModifiers, isEditableEffect, effectsCredits } from '@/utils/effect-modifiers';
 import { FighterLoadout } from '@/types/equipment';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
@@ -182,7 +182,10 @@ export function WeaponList({
             target_equipment_id: params?.equipment_target?.target_equipment_id || params?.target_equipment_id || item.target_equipment_id,
           } as Equipment];
 
-          onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost, newGangCredits);
+          onEquipmentUpdate(updated, previousFighterCredits + serverRatingCost + effectsCredits(data?.applied_effects), newGangCredits);
+          if (data?.applied_effects?.length && onEffectsUpdate) {
+            onEffectsUpdate({ ...fighterEffects, equipment: [...(fighterEffects.equipment || []), ...data.applied_effects] });
+          }
 
           const newGangTradePoints = data?.updategangsCollection?.records?.[0]?.trade_points;
           if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
@@ -203,7 +206,7 @@ export function WeaponList({
         }
       });
     }
-  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate]);
+  }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate, fighterEffects, onEffectsUpdate]);
 
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     // Snapshot for rollback
@@ -381,9 +384,8 @@ export function WeaponList({
         throw new Error('Failed to fetch effects');
       }
       const effectTypes = await response.json();
-      // Filter to only show editable effects (is_editable: true in type_specific_data)
       const editableEffects = effectTypes
-        .filter((et: any) => et.type_specific_data?.is_editable === true)
+        .filter(isEditableEffect)
         .sort((a: FighterEffectType, b: FighterEffectType) =>
           (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity)
         );
@@ -457,9 +459,11 @@ export function WeaponList({
         };
       });
 
-      // Apply optimistic update: add effect_names and update weapon profiles
+      // Apply optimistic update: add effect_names and update weapon profiles.
+      // Equipment attached to a weapon upgrades that weapon, not itself.
+      const upgradedEquipmentId = equipmentData.target_equipment_id || equipmentData.fighter_equipment_id;
       const optimisticEquipment = equipment.map(item => {
-        if (item.fighter_equipment_id === equipmentData.fighter_equipment_id) {
+        if (item.fighter_equipment_id === upgradedEquipmentId) {
           const existingEffectNames = item.effect_names || [];
           const newEffectNames = selectedEffects.map(e => e.effect_name);
 
@@ -574,9 +578,12 @@ export function WeaponList({
       const previousEquipment = [...equipment];
       const previousFighterEffects = { ...fighterEffects };
 
-      // Optimistically remove the effect_name from the equipment
+      // Optimistically remove the effect_name from the equipment it upgrades
+      // (the weapon, for equipment attached to one)
+      const upgradedEquipmentId = equipment.find(item => item.fighter_equipment_id === params.fighterEquipmentId)?.target_equipment_id
+        || params.fighterEquipmentId;
       const updatedEquipment = equipment.map(item => {
-        if (item.fighter_equipment_id === params.fighterEquipmentId) {
+        if (item.fighter_equipment_id === upgradedEquipmentId) {
           return {
             ...item,
             effect_names: (item.effect_names || []).filter(name => name !== params.effectName)
@@ -661,12 +668,18 @@ export function WeaponList({
     setActiveLoadoutMutation.mutate(loadoutId);
   };
 
+  const allEffects = Object.values(fighterEffects).flat();
+
   const renderRow = (item: Equipment, isChild: boolean = false) => {
     // Check if this equipment is in the active loadout (or if no loadout is active)
     const isInActiveLoadout = isEquipmentInActiveLoadout(item.fighter_equipment_id, loadouts, activeLoadoutId);
     // Apply muted styling if a loadout is active and this equipment is not in it
     const shouldMute = activeLoadoutId !== null && !isInActiveLoadout;
     const mutedClass = shouldMute ? "text-muted-foreground" : "";
+    // Attached equipment takes one Edit; to pick another upgrade, delete the current one
+    const upgradeUsed = !!item.target_equipment_id && allEffects.some(e =>
+      e.fighter_equipment_id === item.fighter_equipment_id && isEditableEffect(e)
+    );
 
     return (
       <tr
@@ -710,7 +723,7 @@ export function WeaponList({
         </td>
       <td className="px-1 py-1">
         <div className="flex justify-end gap-1">
-          {item.is_editable && (
+          {item.is_editable && !upgradeUsed && (
             <Button
               variant="outline"
               size="sm"
@@ -778,11 +791,11 @@ export function WeaponList({
   };
 
   // Render equipment effects as child rows beneath the equipment they apply to
-  // Show all effects; only editable ones can be removed
-  const renderEffectRows = (item: Equipment) => {
-    const allEffects = Object.values(fighterEffects).flat();
+  // Show all effects; only editable ones can be removed. Attached equipment (isChild) shows only its editable ones
+  const renderEffectRows = (item: Equipment, isChild: boolean = false) => {
     const equipmentEffects = allEffects
       .filter((e) => e.fighter_equipment_id === item.fighter_equipment_id)
+      .filter((e) => !isChild || isEditableEffect(e))
       .sort((a, b) => (a.sort_order ?? Infinity) - (b.sort_order ?? Infinity));
 
     if (equipmentEffects.length === 0) return null;
@@ -819,7 +832,7 @@ export function WeaponList({
           </td>
           <td className="px-1 py-1">
             <div className="flex justify-end gap-1">
-              {typeData?.is_editable === true && (
+              {isEditableEffect(effect) && (
                 <Button
                   variant="outline_remove"
                   size="sm"
@@ -852,7 +865,12 @@ export function WeaponList({
       <React.Fragment key={item.fighter_equipment_id}>
         {renderRow(item, false)}
         {renderEffectRows(item)}
-        {children.map(child => renderRow(child, true))}
+        {children.map(child => (
+          <React.Fragment key={child.fighter_equipment_id}>
+            {renderRow(child, true)}
+            {renderEffectRows(child, true)}
+          </React.Fragment>
+        ))}
       </React.Fragment>
     );
   };
