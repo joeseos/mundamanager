@@ -32,6 +32,7 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  territoryIncome,
   tradePointsText,
   tradingPostTradePoints,
   validatePostCycleAssignment,
@@ -565,7 +566,7 @@ export interface CollectIncomeParams {
   gangId: string;
   /** Collect 10x the gang's Reputation. */
   reputation: boolean;
-  /** campaign_territories ids; each adds its credits. */
+  /** campaign_territories ids; each adds its territoryIncome. */
   territoryIds: string[];
 }
 
@@ -609,10 +610,12 @@ async function collectIncome({
       for (const id of new Set(territoryIds)) {
         const territory = held.get(id);
         if (!territory) return { success: false, error: 'The gang does not hold that territory' };
-        if (!territory.credits) {
-          return { success: false, error: `${territory.territory_name} gives no credits` };
-        }
-        sources.push({ name: territory.territory_name, credits: territory.credits });
+        const credits = territoryIncome(territory, {
+          gangType: gang.gang_type,
+          isCustomGangType: Boolean(gang.custom_gang_type_id),
+        });
+        if (!credits) return { success: false, error: `${territory.territory_name} gives no credits` };
+        sources.push({ name: territory.territory_name, credits });
       }
     }
     if (sources.length === 0) return { success: false, error: 'Nothing to collect' };
