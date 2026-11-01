@@ -259,15 +259,15 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
       });
     }, [canSave, canDelete, hasSelection, isBusy, isProcessing, isCreateMode, pendingAction]);
 
-    const clearPendingImage = () => {
+    const clearPendingImage = useCallback(() => {
       setPendingImage(null);
       setCrop({ x: 0, y: 0 });
       setZoom(1);
       setCroppedAreaPixels(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-    };
+    }, []);
 
-    const clearFields = () => {
+    const clearFields = useCallback(() => {
       setGroupLabel('');
       setCampaignTypeId('');
       setStyle(PORTRAIT_STYLES[0]);
@@ -276,9 +276,9 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
       setCreditUrl('');
       setCreditSuffix('');
       clearPendingImage();
-    };
+    }, [clearPendingImage]);
 
-    const applyPortrait = (portrait: Portrait) => {
+    const applyPortrait = useCallback((portrait: Portrait) => {
       setGroupLabel(portrait.group_label ?? '');
       setCampaignTypeId(portrait.campaign_type_id ?? '');
       setStyle(portrait.style || PORTRAIT_STYLES[0]);
@@ -287,7 +287,7 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
       setCreditUrl(portrait.credit?.url ?? '');
       setCreditSuffix(portrait.credit?.suffix ?? '');
       clearPendingImage();
-    };
+    }, [clearPendingImage]);
 
     const handleSelect = (portraitId: string) => {
       setSelectedId(portraitId);
@@ -346,10 +346,10 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
       }
     };
 
-    const refreshPortraits = async () => {
+    const refreshPortraits = useCallback(async () => {
       await queryClient.invalidateQueries({ queryKey: [config.adminQueryKey] });
       await queryClient.invalidateQueries({ queryKey: [config.queryKey] });
-    };
+    }, [config.adminQueryKey, config.queryKey, queryClient]);
 
     const handleSave = useCallback(async () => {
       if (!metadataValid || isBusy) return;
@@ -429,6 +429,7 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
         setPendingAction(null);
       }
     }, [
+      applyPortrait,
       campaignTypeId,
       catalogue,
       config.bucket,
@@ -445,6 +446,7 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
       metadataValid,
       pendingImage,
       portraits,
+      refreshPortraits,
       selectedId,
       selectedPortrait?.storage_path,
       style,
@@ -491,7 +493,7 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
         setIsBusy(false);
         setPendingAction(null);
       }
-    }, [catalogue, isBusy, selectedId, selectedPortrait]);
+    }, [catalogue, clearFields, config.bucket, isBusy, refreshPortraits, selectedId, selectedPortrait]);
 
     useImperativeHandle(ref, () => ({
       save: () => { void handleSave(); },
@@ -499,7 +501,7 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
         if (!selectedId || !selectedPortrait || isBusy) return;
         setDeleteConfirmOpen(true);
       },
-    }), [handleDelete, handleSave, isBusy, selectedId, selectedPortrait]);
+    }), [handleSave, isBusy, selectedId, selectedPortrait]);
 
     const previewUrl = !isCreateMode && selectedPortrait
       ? portraitPublicUrl(config.publicBase, selectedPortrait.storage_path)
