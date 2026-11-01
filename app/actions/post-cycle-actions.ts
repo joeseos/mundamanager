@@ -11,7 +11,6 @@ import {
   getGangSubtypes,
 } from '@/app/lib/shared/gang-data';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
-import { isEditableEffect } from '@/utils/effect-modifiers';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard } from '@/types/tactics-card';
 import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
@@ -413,6 +412,7 @@ async function readEnhanceWeaponUpgrades(supabase: any) {
     .from('fighter_effect_types')
     .select('id, effect_name, type_specific_data')
     .eq('type_specific_data->>selection_group', ENHANCE_WEAPON_GROUP)
+    .eq('type_specific_data->>is_editable', 'true')
     .order('sort_order');
   if (error) throw new Error(`Failed to read the Enhance Weapon upgrades: ${error.message}`);
 
@@ -421,7 +421,7 @@ async function readEnhanceWeaponUpgrades(supabase: any) {
     effect_name: string;
     type_specific_data: { credits_increase?: number } | null;
   }> = data;
-  return effectTypes.filter(isEditableEffect).map(({ id, effect_name, type_specific_data }) => ({
+  return effectTypes.map(({ id, effect_name, type_specific_data }) => ({
     id,
     effect_name,
     credits_increase: type_specific_data?.credits_increase ?? 0,
