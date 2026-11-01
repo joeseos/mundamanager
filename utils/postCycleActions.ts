@@ -349,7 +349,7 @@ const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
 
 /**
  * Collect Income from one held Territory: its credits, except that a Spyre
- * Hunting Party takes a flat 15 from each Territory instead of its Boon.
+ * Hunters gang takes a flat 15 from each Territory instead of its Boon.
  */
 export const territoryIncome = (
   territory: { credits: number | null },
