@@ -11,7 +11,7 @@ import {
   getGangSubtypes,
 } from '@/app/lib/shared/gang-data';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
-import { isEditableEffect } from '@/utils/effect-modifiers';
+import { isEditableEffect, isEquipmentUpgradeEffect } from '@/utils/effect-modifiers';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard } from '@/types/tactics-card';
 import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
@@ -407,8 +407,6 @@ async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcom
 
 /** Must match the catalog's equipment_name exactly. */
 const ENHANCE_WEAPON_EQUIPMENT_NAME = 'Enhance weapon';
-/** It costs 10 credits but adds only 5 to the weapon's Credit Value. */
-const ENHANCE_WEAPON_VALUE = 5;
 
 /**
  * The Enhance weapon equipment: its id, the fixed effect that attaches it to a
@@ -432,7 +430,7 @@ async function getEnhanceWeapon(supabase: any) {
   const types: Array<{ id: string; effect_name: string; type_specific_data: unknown }> = effectTypes;
   return {
     equipmentId: equipment.id as string,
-    attachEffectId: types.find((type) => !isEditableEffect(type))?.id,
+    attachEffectId: types.find(isEquipmentUpgradeEffect)?.id,
     upgrades: types.filter(isEditableEffect).map(({ id, effect_name }) => ({ id, effect_name })),
   };
 }
@@ -466,8 +464,6 @@ async function handleEnhanceWeapon(
     gang_id: ctx.gangId,
     fighter_id: ctx.performer.id,
     manual_cost: ENHANCE_WEAPON_COST,
-    use_base_cost_for_rating: true,
-    listed_cost: ENHANCE_WEAPON_VALUE,
     selected_effect_ids: [upgrade.id],
     equipment_target: { target_equipment_id: weaponId, effect_type_id: enhance.attachEffectId },
   });
@@ -475,8 +471,7 @@ async function handleEnhanceWeapon(
     return { outcome: `Failed to enhance the weapon: ${bought.error}`, creditsDelta: 0, failed: true };
   }
 
-  // Only for the page: the purchase has landed, so a failed read must not fail the action.
-  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug }).catch(() => []);
+  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
   return {
     outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}. Cost ${ENHANCE_WEAPON_COST} credits.`,
     creditsDelta: 0,
