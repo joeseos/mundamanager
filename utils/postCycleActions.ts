@@ -324,13 +324,13 @@ const CHYMIST_CULT_GANG_TYPE = 'chymist cult';
 const FURNACE_BRUTES_GANG_TYPE = 'furnace brutes';
 const SPYRE_HUNTERS_GANG_TYPE = 'spyre hunters';
 
+const gangTypeName = (gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>): string =>
+  gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
+
 /**
  * Gang types and subtypes are matched by name, like isVenatorGang. A custom
  * gang type's name is the user's own, so it never counts.
  */
-const gangTypeName = (gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>): string =>
-  gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
-
 export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailability {
   const gangType = gangTypeName(gang);
   const subtypes = gang.subtypeNames.map((name) => name.toLowerCase());
