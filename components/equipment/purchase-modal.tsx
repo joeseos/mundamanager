@@ -10,7 +10,7 @@ import FighterEffectSelection from '@/components/fighter-effect-selection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
-import { isEditableEffect, isEquipmentUpgradeEffect } from '@/utils/effect-modifiers';
+import { isEditableEffect } from '@/utils/effect-modifiers';
 
 export interface PurchaseConfirmOptions {
   cost: number;
@@ -200,7 +200,10 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
         const fetchedEffectTypes = await response.json();
 
         // Separate equipment upgrades from fighter effects
-        const equipmentUpgrade = fetchedEffectTypes?.find(isEquipmentUpgradeEffect);
+        const equipmentUpgrade = fetchedEffectTypes?.find((effect: any) =>
+          effect.type_specific_data?.applies_to === 'equipment' &&
+          !isEditableEffect(effect)
+        );
 
         const fighterEffects = fetchedEffectTypes?.filter((effect: any) =>
           effect.type_specific_data?.applies_to !== 'equipment' &&

@@ -33,7 +33,7 @@ import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
 import { Tooltip } from 'react-tooltip';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
-import { applyWeaponModifiers, isEquipmentUpgradeEffect } from '@/utils/effect-modifiers';
+import { applyWeaponModifiers, isEditableEffect } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 
 // Loads its code on first open, not with the page. ssr: false also gives it
@@ -319,7 +319,9 @@ export default function GangInventory({
         let equipmentTarget: { target_equipment_id: string; effect_type_id: string } | undefined;
 
         if (effectTypes && effectTypes.length > 0) {
-          const equipmentUpgrade = effectTypes.find(isEquipmentUpgradeEffect);
+          const equipmentUpgrade = effectTypes.find((e: any) =>
+            e?.type_specific_data?.applies_to === 'equipment' && !isEditableEffect(e)
+          );
           const fighterEffects = effectTypes.filter((e: any) =>
             e?.type_specific_data?.applies_to !== 'equipment'
           );

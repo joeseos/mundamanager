@@ -325,12 +325,6 @@ export function isEditableEffect(effect: { type_specific_data?: unknown }): bool
   return typeof tsd === 'object' && tsd !== null && (tsd as { is_editable?: unknown }).is_editable === true;
 }
 
-/** The fixed effect an item puts on the weapon it targets (e.g. Enhance weapon's), as opposed to its fighter effects and editable upgrades */
-export function isEquipmentUpgradeEffect(effect: { type_specific_data?: unknown }): boolean {
-  const tsd = effect.type_specific_data;
-  return typeof tsd === 'object' && tsd !== null && (tsd as { applies_to?: unknown }).applies_to === 'equipment' && !isEditableEffect(effect);
-}
-
 /** PostgREST `.or()` filter for the effects that go with an equipment row: its own and those targeting it (e.g. an attached accessory's upgrades) */
 export function equipmentEffectsFilter(fighterEquipmentId: string): string {
   return `fighter_equipment_id.eq.${fighterEquipmentId},target_equipment_id.eq.${fighterEquipmentId}`;

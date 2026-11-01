@@ -11,13 +11,13 @@ import {
   getGangSubtypes,
 } from '@/app/lib/shared/gang-data';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
-import { isEditableEffect, isEquipmentUpgradeEffect } from '@/utils/effect-modifiers';
+import { isEditableEffect } from '@/utils/effect-modifiers';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard } from '@/types/tactics-card';
 import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
-import { buyEquipmentForFighter } from './equipment';
+import { applySelfUpgradesToEquipment } from './equipment';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
@@ -73,8 +73,8 @@ export interface PostCycleActionOutcome {
   roll?: RollOutcome;
   /**
    * What is billed once the handler is done: what actually moved, so a failed or
-   * partial action is not billed in full. Zero for Visit Chop Shop, Suit
-   * Maintenance and Enhance Weapon, whose helpers charge the gang themselves.
+   * partial action is not billed in full. Zero for Visit Chop Shop and Suit
+   * Maintenance, whose helpers charge the gang themselves.
    */
   creditsDelta: number;
   /** Visit Trading Post: what it adds to the gang's Trade Points. */
@@ -82,7 +82,7 @@ export interface PostCycleActionOutcome {
   changes?: PostCycleFighterChange[];
   /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
   addedTacticsCard?: GangTacticsCard;
-  /** Enhance Weapon: the fighter re-read with the new equipment, for the page to swap in. */
+  /** Enhance Weapon: the fighter re-read with the upgraded weapon, for the page to swap in. */
   updatedFighter?: Fighter;
   failed?: boolean;
 }
@@ -404,47 +404,42 @@ async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcom
   };
 }
 
-/** Must match the catalog's equipment_name exactly. */
-const ENHANCE_WEAPON_EQUIPMENT_NAME = 'Enhance weapon';
+/** The selection group of the upgrades in the catalog. */
+const ENHANCE_WEAPON_GROUP = 'Enhance weapon';
 
-/**
- * The Enhance weapon equipment: its id, the fixed effect that attaches it to a
- * weapon, and the upgrades to pick one from.
- */
-async function getEnhanceWeapon(supabase: any) {
-  const { data: equipment, error } = await supabase
-    .from('equipment')
-    .select('id')
-    .eq('equipment_name', ENHANCE_WEAPON_EQUIPMENT_NAME)
-    .single();
-  if (error) throw new Error(`Failed to read the Enhance weapon equipment: ${error.message}`);
-
-  const { data: effectTypes, error: effectsError } = await supabase
+/** The upgrades Enhance Weapon picks one from, with what each adds to the weapon's value. */
+async function readEnhanceWeaponUpgrades(supabase: any) {
+  const { data, error } = await supabase
     .from('fighter_effect_types')
     .select('id, effect_name, type_specific_data')
-    .eq('type_specific_data->>equipment_id', equipment.id)
+    .eq('type_specific_data->>selection_group', ENHANCE_WEAPON_GROUP)
     .order('sort_order');
-  if (effectsError) throw new Error(`Failed to read the Enhance weapon upgrades: ${effectsError.message}`);
+  if (error) throw new Error(`Failed to read the Enhance Weapon upgrades: ${error.message}`);
 
-  const types: Array<{ id: string; effect_name: string; type_specific_data: unknown }> = effectTypes;
-  return {
-    equipmentId: equipment.id as string,
-    attachEffectId: types.find(isEquipmentUpgradeEffect)?.id,
-    upgrades: types.filter(isEditableEffect).map(({ id, effect_name }) => ({ id, effect_name })),
-  };
+  const effectTypes: Array<{
+    id: string;
+    effect_name: string;
+    type_specific_data: { credits_increase?: number } | null;
+  }> = data;
+  return effectTypes.filter(isEditableEffect).map(({ id, effect_name, type_specific_data }) => ({
+    id,
+    effect_name,
+    credits_increase: type_specific_data?.credits_increase ?? 0,
+  }));
 }
 
 /** The upgrades the panel offers for Enhance Weapon. */
 export async function getEnhanceWeaponUpgrades() {
   const supabase = await createClient();
   await getAuthenticatedUser(supabase);
-  return (await getEnhanceWeapon(supabase)).upgrades;
+  const upgrades = await readEnhanceWeaponUpgrades(supabase);
+  return upgrades.map(({ id, effect_name }) => ({ id, effect_name }));
 }
 
 /**
- * Buys the Enhance weapon equipment for the fighter, attached to the chosen
- * weapon with the chosen upgrade, the way the fighter page does. The purchase
- * charges the gang itself, so nothing is billed after.
+ * Puts the chosen upgrade on the weapon itself, the way the fighter page adds
+ * a Spyrer weapon's upgrades, so the weapon's value rises by the upgrade's
+ * credits increase. The action's own cost is billed after, like any other.
  */
 async function handleEnhanceWeapon(
   ctx: HandlerContext,
@@ -452,28 +447,26 @@ async function handleEnhanceWeapon(
   upgradeId: string
 ): Promise<HandlerOutcome> {
   const weapon = ctx.performer.weapons.find((w) => w.fighter_weapon_id === weaponId)!;
-  const enhance = await getEnhanceWeapon(ctx.supabase);
-  const upgrade = enhance.upgrades.find((u) => u.id === upgradeId);
-  if (!upgrade || !enhance.attachEffectId) {
-    return { outcome: 'Choose one of the Enhance weapon upgrades.', creditsDelta: 0, failed: true };
+  const upgrade = (await readEnhanceWeaponUpgrades(ctx.supabase)).find((u) => u.id === upgradeId);
+  if (!upgrade) {
+    return { outcome: 'Choose one of the Enhance Weapon upgrades.', creditsDelta: 0, failed: true };
   }
 
-  const bought = await buyEquipmentForFighter({
-    equipment_id: enhance.equipmentId,
-    gang_id: ctx.gangId,
+  const applied = await applySelfUpgradesToEquipment({
+    fighter_equipment_id: weapon.fighter_weapon_id,
+    effect_type_ids: [upgrade.id],
     fighter_id: ctx.performer.id,
-    manual_cost: ENHANCE_WEAPON_COST,
-    selected_effect_ids: [upgrade.id],
-    equipment_target: { target_equipment_id: weaponId, effect_type_id: enhance.attachEffectId },
+    gang_id: ctx.gangId,
+    credits_increase: upgrade.credits_increase,
   });
-  if (!bought.success) {
-    return { outcome: `Failed to enhance the weapon: ${bought.error}`, creditsDelta: 0, failed: true };
+  if (!applied.success) {
+    return { outcome: `Failed to enhance ${weapon.weapon_name}: ${applied.error}`, creditsDelta: 0, failed: true };
   }
 
   const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
   return {
-    outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}. Cost ${ENHANCE_WEAPON_COST} credits.`,
-    creditsDelta: 0,
+    outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}.`,
+    creditsDelta: -ENHANCE_WEAPON_COST,
     updatedFighter: fighters.find((f) => f.id === ctx.performer.id),
   };
 }
