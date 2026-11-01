@@ -277,7 +277,7 @@ export interface PostCycleFighter {
   recovery?: boolean;
   kill_count?: number;
   skills?: FighterSkills;
-  weapons?: Pick<WeaponProps, 'fighter_weapon_id' | 'weapon_name'>[];
+  weapons?: Pick<WeaponProps, 'fighter_weapon_id'>[];
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];

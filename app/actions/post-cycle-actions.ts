@@ -403,37 +403,19 @@ async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcom
   };
 }
 
-/** The selection group of the upgrades in the catalog. */
-const ENHANCE_WEAPON_GROUP = 'Enhance weapon';
-
 /** The upgrades Enhance Weapon picks one from, with what each adds to the weapon's value. */
-async function readEnhanceWeaponUpgrades(supabase: any) {
+export async function getEnhanceWeaponUpgrades() {
+  const ENHANCE_WEAPON_EQUIPMENT_ID = '7ab2d8fd-9a6b-4638-b7dc-567fb22ea5d5';
+  const supabase = await createClient();
+  await getAuthenticatedUser(supabase);
   const { data, error } = await supabase
     .from('fighter_effect_types')
-    .select('id, effect_name, type_specific_data')
-    .eq('type_specific_data->>selection_group', ENHANCE_WEAPON_GROUP)
+    .select('id, effect_name, credits_increase:type_specific_data->credits_increase')
+    .eq('type_specific_data->>equipment_id', ENHANCE_WEAPON_EQUIPMENT_ID)
     .eq('type_specific_data->>is_editable', 'true')
     .order('sort_order');
   if (error) throw new Error(`Failed to read the Enhance Weapon upgrades: ${error.message}`);
-
-  const effectTypes: Array<{
-    id: string;
-    effect_name: string;
-    type_specific_data: { credits_increase?: number } | null;
-  }> = data;
-  return effectTypes.map(({ id, effect_name, type_specific_data }) => ({
-    id,
-    effect_name,
-    credits_increase: type_specific_data?.credits_increase ?? 0,
-  }));
-}
-
-/** The upgrades the panel offers for Enhance Weapon. */
-export async function getEnhanceWeaponUpgrades() {
-  const supabase = await createClient();
-  await getAuthenticatedUser(supabase);
-  const upgrades = await readEnhanceWeaponUpgrades(supabase);
-  return upgrades.map(({ id, effect_name }) => ({ id, effect_name }));
+  return data as Array<{ id: string; effect_name: string; credits_increase: number | null }>;
 }
 
 /**
@@ -447,17 +429,17 @@ async function handleEnhanceWeapon(
   upgradeId: string
 ): Promise<HandlerOutcome> {
   const weapon = ctx.performer.weapons.find((w) => w.fighter_weapon_id === weaponId)!;
-  const upgrade = (await readEnhanceWeaponUpgrades(ctx.supabase)).find((u) => u.id === upgradeId);
+  const upgrade = (await getEnhanceWeaponUpgrades()).find((u) => u.id === upgradeId);
   if (!upgrade) {
     return { outcome: 'Choose one of the Enhance Weapon upgrades.', creditsDelta: 0, failed: true };
   }
 
   const applied = await applySelfUpgradesToEquipment({
-    fighter_equipment_id: weapon.fighter_weapon_id,
-    effect_type_ids: [upgrade.id],
+    fighter_equipment_id: weaponId,
+    effect_type_ids: [upgradeId],
     fighter_id: ctx.performer.id,
     gang_id: ctx.gangId,
-    credits_increase: upgrade.credits_increase,
+    credits_increase: upgrade.credits_increase ?? 0,
   });
   if (!applied.success) {
     return { outcome: `Failed to enhance ${weapon.weapon_name}: ${applied.error}`, creditsDelta: 0, failed: true };

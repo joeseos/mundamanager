@@ -266,13 +266,6 @@ export default function PostCycleActions({
     [rows, actorIds]
   );
 
-  const { data: enhanceUpgrades = [] } = useQuery({
-    queryKey: ['enhance-weapon-upgrades'],
-    queryFn: () => getEnhanceWeaponUpgrades(),
-    enabled: [...activeRows.values()].some((row) => row.action === 'enhance_weapon'),
-    staleTime: Infinity,
-  });
-
   /** One validated assignment per pending row, keyed by the fighter taking it. */
   const rowStates = useMemo(() => {
     const states = new Map<
@@ -341,6 +334,13 @@ export default function PostCycleActions({
     }
     return counts;
   }, [activeRows]);
+
+  const { data: enhanceUpgrades = [] } = useQuery({
+    queryKey: ['enhance-weapon-upgrades'],
+    queryFn: () => getEnhanceWeaponUpgrades(),
+    enabled: takenCounts.has('enhance_weapon'),
+    staleTime: Infinity,
+  });
 
   const setRow = (fighterId: string, next: Partial<RowState>) =>
     setRows((prev) => {
