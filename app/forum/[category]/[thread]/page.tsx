@@ -24,7 +24,7 @@ import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import { ForumArticleSuggestion, ForumThreadMenu } from '@/components/forum/forum-thread-menu';
 import { ForumMarkThreadRead, ForumThreadViewerProvider } from '@/components/forum/forum-viewer';
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
-import { UserAvatar } from '@/components/ui/user-avatar';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { UserRoleBadge } from '@/components/ui/user-role-badge';
 import '@/components/ui/rich-text-editor.css';
 
@@ -194,7 +194,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
                   </div>
                   <ForumPagination path={path} page={page} pageCount={pageCount} className="border-b pb-4" />
                   <div className="mt-2 flex items-center gap-3">
-                    <UserAvatar username={post.author} avatarUrl={post.author_avatar_url} className="size-18 text-lg" />
+                    <CogwheelPortrait name={post.author} src={post.author_avatar_url} className="size-18 text-lg" />
                     <ForumPostByline post={post} opening />
                   </div>
                   <ForumArticleSuggestion />
@@ -213,9 +213,9 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
                   className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 sm:gap-x-3 py-4 first:pt-0 last:pb-0 scroll-mt-24"
                 >
                   {/* Beside the name on mobile, a column of its own from sm up */}
-                  <UserAvatar
-                    username={post.author}
-                    avatarUrl={post.author_avatar_url}
+                  <CogwheelPortrait
+                    name={post.author}
+                    src={post.author_avatar_url}
                     className="size-12 text-sm self-center sm:size-16 sm:text-lg sm:self-start sm:row-span-2"
                   />
                   <ForumPostByline post={post} />

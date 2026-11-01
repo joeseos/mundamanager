@@ -9,7 +9,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { StashItem, ResourceUpdate, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
-import Image from 'next/image';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { DraggableFighters } from './draggable-fighters';
 import { GiAncientRuins } from "react-icons/gi";
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
@@ -540,17 +540,10 @@ export default function Gang({
     };
   }, [viewMode]);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
-  };
-
-  const getDefaultImageUrl = useCallback((): string => {
-    return resolveGangImageUrl({
-      imageUrl: currentGangImageUrl,
-      portraitUrl: currentPortraitUrl,
-    });
-  }, [currentGangImageUrl, currentPortraitUrl]);
+  const gangImageUrl = resolveGangImageUrl({
+    imageUrl: currentGangImageUrl,
+    portraitUrl: currentPortraitUrl,
+  });
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
@@ -1018,71 +1011,35 @@ export default function Gang({
         <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           
           {/* Gang Image */}
-          <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
-            {getDefaultImageUrl() ? (
-              <Image
-                src={getDefaultImageUrl()!}
-                alt={name}
-                width={180}
-                height={180}
-                className="size-[145px] md:size-[180px] absolute rounded-full object-cover mt-1 z-10"
-                priority={false}
-                quality={100}
-                onError={handleImageError}
-              />
-            ) : (
-              <div className="absolute size-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                {name.charAt(0)}
-              </div>
-            )}
-			      <div className={`absolute z-20 size-[200px] md:size-[250px] ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-			        onClick={handleGangImageClick}
-			      >
-              <Image
-                src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                alt="Cogwheel"
-                width={250}
-                height={250}
-                className="absolute z-20"
-                priority
-                quality={100}
-              />
-			      </div>
+          <div
+            className={`hidden sm:block mt-1 shrink-0 print:hidden ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+            onClick={handleGangImageClick}
+          >
+            <CogwheelPortrait
+              src={gangImageUrl}
+              alt={name}
+              name={name}
+              errorSrc={UNKNOWN_GANG_IMAGE_URL}
+              preload
+              large
+            />
           </div>
 
           <div className="grow w-full">
             <div className="flex justify-between items-center sm:items-start mb-1 gap-2">
-              <div className="sm:hidden relative size-[72px] shrink-0 items-center justify-center print:hidden flex">
-                {getDefaultImageUrl() ? (
-                  <Image
-                    src={getDefaultImageUrl()!}
-                    alt={name}
-                    width={72}
-                    height={72}
-                    className="size-[58px] absolute rounded-full object-cover z-10"
-                    priority={false}
-                    quality={100}
-                    onError={handleImageError}
-                  />
-                ) : (
-                  <div className="absolute size-[58px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                    {name.charAt(0)}
-                  </div>
-                )}
-                <div
-                  className={`absolute z-20 size-[72px] ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                  onClick={handleGangImageClick}
-                >
-                  <Image
-                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                    alt="Cogwheel"
-                    width={72}
-                    height={72}
-                    className="absolute z-20"
-                    priority
-                    quality={100}
-                  />
-                </div>
+              <div
+                className={`sm:hidden shrink-0 print:hidden ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                onClick={handleGangImageClick}
+              >
+                <CogwheelPortrait
+                  src={gangImageUrl}
+                  alt={name}
+                  name={name}
+                  errorSrc={UNKNOWN_GANG_IMAGE_URL}
+                  preload
+                  className="size-[72px]"
+                  imageClassName="size-[58px]"
+                />
               </div>
 
               {/* Gang Name */}

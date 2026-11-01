@@ -17,7 +17,7 @@ import {
 } from '@/app/lib/forum';
 import { ForumPagination, ForumThreadPageLinks } from '@/components/forum/forum-pagination';
 import { ForumRelativeTime } from '@/components/forum/forum-relative-time';
-import { UserAvatar } from '@/components/ui/user-avatar';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { ForumCategoryImage } from '@/components/forum/forum-category-image';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
@@ -98,7 +98,7 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
                 >
                   <div className="group relative flex flex-1 min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
                     <div className="flex flex-1 min-w-0 items-center gap-3">
-                      <UserAvatar username={thread.author} avatarUrl={thread.author_avatar_url} className="size-14 text-base" />
+                      <CogwheelPortrait name={thread.author} src={thread.author_avatar_url} className="size-14 text-base" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
                           {thread.is_pinned && <LuPin className="h-4 w-4 shrink-0 text-red-800" aria-label="Pinned" />}

@@ -4,13 +4,13 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Modal from '@/components/ui/modal';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
 import type { DefaultImageCredit } from '@/types/gang';
 import {
   alternativePortraits,
   gallerySections,
   portraitCaption,
-  PORTRAIT_COGWHEEL_URL,
   type CatalogueSlot,
   type Portrait,
 } from '@/utils/portrait-catalogue';
@@ -145,36 +145,14 @@ export function PortraitPicker({
     <div className="my-4" data-portrait-picker>
       <div className="flex items-start justify-center gap-6 md:gap-10">
         <div className="flex flex-col items-center shrink-0">
-          <div className="relative flex size-[200px] md:size-[250px] items-center justify-center">
-            {selectedUrl ? (
-              <CatalogueImage
-                src={selectedUrl}
-                alt={subjectName || 'Portrait'}
-                width={180}
-                height={180}
-                className="absolute z-10 mt-1 size-[145px] rounded-full object-cover md:size-[180px]"
-                priority={false}
-                quality={100}
-                imageErrorUrl={imageErrorUrl}
-                emptyFallback={emptyFallback}
-              />
-            ) : (
-              <div className="absolute z-10 flex size-[180px] items-center justify-center rounded-full bg-secondary text-muted-foreground">
-                {emptyFallback}
-              </div>
-            )}
-            <div className="pointer-events-none absolute z-20 size-[200px] md:size-[250px]">
-              <Image
-                src={PORTRAIT_COGWHEEL_URL}
-                alt=""
-                width={250}
-                height={250}
-                className="absolute z-20"
-                priority
-                quality={100}
-              />
-            </div>
-          </div>
+          <CogwheelPortrait
+            src={selectedUrl}
+            alt={subjectName || 'Portrait'}
+            fallback={emptyFallback}
+            errorSrc={imageErrorUrl}
+            preload
+            large
+          />
           <DefaultImageCreditLine credit={displayCredit} />
         </div>
 
