@@ -20,11 +20,7 @@ export type AvailableSkill = {
   cost: number;
 };
 
-/**
- * Every skill the fighter could take, shared by the Advancement modal and the
- * Skills list. Not kept once both close (gcTime 0): costs and `available`
- * change with every skill or Advancement the fighter gains or loses.
- */
+/** gcTime 0: costs and `available` change with every skill or Advancement the fighter gains or loses. */
 export function useAvailableSkills(fighterId: string, enabled: boolean) {
   return useQuery({
     queryKey: ['fighter-available-skills', fighterId],

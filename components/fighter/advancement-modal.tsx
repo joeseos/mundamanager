@@ -402,15 +402,8 @@ export function AdvancementModal({
   const needsAdvancementCatalog =
     isGangerOrExoticBeastSubtype || isCumulativeXp || advancementType === 'characteristic';
 
-  /**
-   * The one read of get_fighter_available_advancements. It feeds the
-   * characteristic dropdown, the cost panel behind it, and the Ganger/Exotic Beast
-   * roll UI.
-   *
-   * Not kept once the modal closes (gcTime 0): the response carries
-   * times_increased, the escalating xp_cost and has_enough_xp, all of which move
-   * the moment an Advancement is added.
-   */
+  // gcTime 0: times_increased, xp_cost and has_enough_xp change with every Advancement,
+  // so the catalog is dropped when the modal closes.
   const {
     data: advancementCatalog,
     isFetched: characteristicsLoaded,
@@ -1908,10 +1901,9 @@ export function AdvancementModal({
       : '';
   const {
     data: availableSkills,
-    isPending: availableSkillsPending,
+    isLoading: skillsLoading,
     error: availableSkillsError,
   } = useAvailableSkills(fighterId, !!skillFetchKey);
-  const skillsLoading = !!skillFetchKey && availableSkillsPending;
   const skillAdvancements = useMemo<AvailableAdvancement[] | null>(() => {
     if (!skillFetchKey || !availableSkills) return null;
     return availableSkills
