@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createCampaign } from "@/app/actions/create-campaign"
 import { toast } from 'sonner';
-import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
 import { getCampaignRank } from '@/utils/campaigns/campaignRank'
@@ -72,8 +71,6 @@ export function CreateCampaignButton({ userId }: { userId?: string }) {
 // Modal component
 export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProps) {
   
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { editionSlug, setEditionSlug } = useHomeEdition();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
@@ -209,14 +206,8 @@ export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProp
       setSelectedTradingPosts([])
       onClose()
       
-      // Check if we're currently on the campaigns tab, if not redirect to it
-      const currentTab = searchParams.get('tab');
-      if (currentTab !== 'campaigns') {
-        router.push('/?tab=campaigns');
-      } else {
-        // Trigger router refresh to update server state
-        router.refresh();
-      }
+      // createCampaign revalidates the campaign list, so only the tab needs switching
+      window.dispatchEvent(new CustomEvent('homeTabSwitch', { detail: 'campaigns' }));
 
       toast.success("Success!", { description: `${campaignName} has been created successfully.` });
     } catch (err) {
