@@ -4,7 +4,12 @@ import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaignCor
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
+import { checkCampaignArbitrator } from '@/utils/user-permissions';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { isUuidArray } from '@/utils/uuid';
+import { CAMPAIGN_PHASE_MAX_LENGTH } from '@/types/campaign';
+import { createGangLog } from '../../logs/gang-logs';
+import { formatFinancialChanges } from '../../logs/log-helpers';
 
 export interface UpdateCampaignSettingsParams {
   campaignId: string;
@@ -93,6 +98,105 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to update campaign settings' 
+    };
+  }
+}
+
+export interface UpdateCampaignPhaseAndCycleParams {
+  campaignId: string;
+  phase: string | null;
+  cycle: number;
+  clearTradePoints: boolean;
+  /** Credits given to every accepted gang; 0 for none. */
+  credits: number;
+}
+
+export interface CampaignPhaseAndCycle {
+  current_phase: string | null;
+  current_cycle: number;
+  updated_at: string;
+}
+
+export interface CampaignGangBalance {
+  gangId: string;
+  wealth: number;
+  trade_points: number;
+}
+
+/**
+ * Set the campaign's phase and cycle and, in the same step, optionally clear
+ * every accepted gang's Trade Points and grant each of them credits.
+ */
+export async function updateCampaignPhaseAndCycle(params: UpdateCampaignPhaseAndCycleParams) {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+    const { campaignId, cycle, clearTradePoints, credits } = params;
+    const phase = params.phase?.trim() || null;
+
+    if (!Number.isInteger(cycle) || cycle < 1) {
+      return { success: false as const, error: 'Cycle must be a whole number of 1 or more' };
+    }
+    if (phase && phase.length > CAMPAIGN_PHASE_MAX_LENGTH) {
+      return { success: false as const, error: `Phase must be ${CAMPAIGN_PHASE_MAX_LENGTH} characters or less` };
+    }
+    if (!Number.isInteger(credits) || credits < 0) {
+      return { success: false as const, error: 'Credits must be a whole number of 0 or more' };
+    }
+    if (!(await checkCampaignArbitrator(user.id, campaignId))) {
+      return { success: false as const, error: 'Only the campaign arbitrators can change the phase and cycle' };
+    }
+
+    const campaign: CampaignPhaseAndCycle = { current_phase: phase, current_cycle: cycle, updated_at: new Date().toISOString() };
+    const { error: updateError } = await supabase.from('campaigns').update(campaign).eq('id', campaignId);
+    if (updateError) throw updateError;
+    invalidateCampaignCore(campaignId);
+
+    if (!clearTradePoints && credits === 0) {
+      return { success: true as const, campaign, balances: [] as CampaignGangBalance[], failed: 0 };
+    }
+
+    const { data: campaignGangs, error: gangsError } = await supabase
+      .from('campaign_gangs')
+      .select('gangs!inner(id, user_id, trade_points)')
+      .eq('campaign_id', campaignId)
+      .eq('status', 'ACCEPTED');
+    if (gangsError) throw gangsError;
+
+    const gangs = (campaignGangs ?? [])
+      .map((row) => row.gangs as unknown as { id: string; user_id: string; trade_points: number })
+      .filter((gang) => credits > 0 || gang.trade_points > 0);
+
+    const results = await Promise.all(gangs.map(async (gang): Promise<CampaignGangBalance | null> => {
+      const result = await updateGangFinancials(supabase, { gangId: gang.id, creditsDelta: credits, clearTradePoints });
+      if (!result.success || !result.oldValues || !result.newValues) return null;
+      const { oldValues: from, newValues: to } = result;
+
+      // Logs go to the gang owner, as for other arbitrator edits.
+      await Promise.all([
+        to.trade_points !== from.trade_points && createGangLog({
+          gang_id: gang.id,
+          user_id: gang.user_id,
+          action_type: 'campaign_trade_points_cleared',
+          description: `Trade Points cleared in cycle ${cycle}. Trade Points: ${from.trade_points} → ${to.trade_points}`,
+        }),
+        credits > 0 && createGangLog({
+          gang_id: gang.id,
+          user_id: gang.user_id,
+          action_type: 'campaign_credits_granted',
+          description: `Granted ${credits} credits in cycle ${cycle}. ${formatFinancialChanges(from.credits, to.credits, from.rating, to.rating, from.wealth, to.wealth)}`,
+        }),
+      ]);
+      return { gangId: gang.id, wealth: to.wealth, trade_points: to.trade_points };
+    }));
+
+    const balances = results.filter((balance) => balance !== null);
+    return { success: true as const, campaign, balances, failed: gangs.length - balances.length };
+  } catch (error) {
+    console.error('Error updating campaign phase and cycle:', error);
+    return {
+      success: false as const,
+      error: error instanceof Error ? error.message : 'Failed to update the phase and cycle'
     };
   }
 }

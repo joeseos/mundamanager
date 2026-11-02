@@ -1436,6 +1436,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
           canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
           newChallenge={addingChallenge}
+          defaultCycle={currentCycle}
         />
       )}
 
