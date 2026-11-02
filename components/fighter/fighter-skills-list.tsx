@@ -5,11 +5,10 @@ import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOpt
 import { FighterSkills } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
 import { isEquipmentInActiveLoadout } from '@/components/fighter/fighter-equipment-list';
-import { createClient } from '@/utils/supabase/client';
 import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
@@ -104,14 +103,9 @@ interface SkillData {
   skill_id: string;
   skill_name: string;
   skill_type_id: string;
-  available_acquisition_types: string[];
   available: boolean;
   is_custom: boolean;
   cost: number;
-}
-
-interface SkillResponse {
-  skills: SkillData[];
 }
 
 interface SkillAccess {
@@ -125,12 +119,31 @@ interface SkillAccess {
 export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [skillsData, setSkillsData] = useState<SkillResponse | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<string>('');
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [editableCost, setEditableCost] = useState<number>(0);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(true);
+
+  const { data: availableSkills, error: availableSkillsError } = useQuery({
+    queryKey: ['fighter-available-skills', fighterId],
+    queryFn: async (): Promise<SkillData[]> => {
+      const response = await fetch(`/api/fighters/${fighterId}/available-skills`);
+      if (!response.ok) throw new Error('Failed to fetch available skills');
+      return (await response.json()).skills;
+    },
+    enabled: !!selectedCategory,
+    // Costs and `available` change with every skill or Advancement gained or lost.
+    gcTime: 0,
+  });
+  const skillsInSet = useMemo(
+    () => availableSkills?.filter((skill) => skill.skill_type_id === selectedCategory),
+    [availableSkills, selectedCategory]
+  );
+
+  useEffect(() => {
+    if (availableSkillsError) toast.error('Failed to load skills');
+  }, [availableSkillsError]);
 
   const queryClient = useQueryClient();
 
@@ -146,7 +159,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     onMutate: async (variables) => {
       // Get the selected skill details for optimistic update
       let skillName = 'Unknown Skill';
-      const selectedSkillData = skillsData?.skills.find(
+      const selectedSkillData = skillsInSet?.find(
         (s) => s.skill_id === (variables.skill_id || variables.custom_skill_id)
       );
       skillName = selectedSkillData?.skill_name || skillName;
@@ -220,36 +233,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     fetchCategoriesAndAccess();
   }, [fighterId]);
 
-  // Fetch skills when category is selected
-  useEffect(() => {
-    if (!selectedCategory) return;
-
-    const fetchSkills = async () => {
-      try {
-        const supabase = createClient();
-        const { data, error } = await supabase.rpc('get_available_skills', {
-          fighter_id: fighterId
-        });
-
-        if (error) {
-          throw new Error('Failed to fetch skills');
-        }
-
-        // Filter skills by the selected type
-        const skillsForType = data.skills.filter(
-          (skill: SkillData) => skill.skill_type_id === selectedCategory
-        );
-
-        setSkillsData({ skills: skillsForType });
-      } catch (error) {
-        console.error('Error fetching skills:', error);
-        toast.error('Failed to load skills');
-      }
-    };
-
-    fetchSkills();
-  }, [selectedCategory, fighterId]);
-
   /**
    * Skill Set combobox options grouped by rank (Custom Skill Sets first, then standard groups).
    * Group headers are rendered as disabled rows so the Combobox treats them as section headers.
@@ -293,8 +276,8 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
 
   /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
   const skillComboboxOptions = useMemo(() => {
-    if (!skillsData) return [];
-    return skillsData.skills.map((skill) => {
+    if (!skillsInSet) return [];
+    return skillsInSet.map((skill) => {
       const customSuffix = skill.is_custom ? ' (Custom)' : '';
       const ownedSuffix = !skill.available ? ' (already owned)' : '';
       const display = `${skill.skill_name}${customSuffix}${ownedSuffix}`;
@@ -309,7 +292,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
         disabled: !skill.available
       };
     });
-  }, [skillsData]);
+  }, [skillsInSet]);
 
   const handleSubmit = async () => {
     if (!selectedSkill) return false;
@@ -365,13 +348,13 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
         )}
       </div>
 
-      {selectedCategory && skillsData && (
+      {selectedCategory && skillsInSet && (
         <div className="space-y-2">
           <label className="text-sm font-medium">Skill</label>
           <Combobox
             value={selectedSkill}
             onValueChange={(v) => {
-              const skill = skillsData?.skills.find((s) => s.skill_id === v);
+              const skill = skillsInSet?.find((s) => s.skill_id === v);
               setSelectedSkill(v);
               setIsCustomSkillSelected(skill?.is_custom ?? false);
               setEditableCost(skill?.cost || 0);
@@ -382,7 +365,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
           />
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
-          {(skillsData?.skills.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0 && (
+          {(skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0 && (
             <div className="space-y-1 mt-2">
               <label className="text-sm font-medium">
                 Cost{gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}

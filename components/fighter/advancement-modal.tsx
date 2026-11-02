@@ -4,7 +4,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
-import { createClient } from '@/utils/supabase/client';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
 import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
 import { characteristicRank } from "@/utils/characteristicRank";
@@ -103,24 +102,20 @@ interface AvailableAdvancement {
   is_custom?: boolean;
 }
 
-interface SkillResponse {
-  skills: {
-    skill_id: string;
-    skill_name: string;
-    skill_type_id: string;
-    available_acquisition_types: AcquisitionType[];
-    available: boolean;
-    is_custom: boolean;
-  }[];
-  fighter_id: string;
-  fighter_subtypes: string[];
-}
-
 type AcquisitionType = {
   name: string;
   type_id: string;
   xp_cost: number;
   credit_cost: number;
+};
+
+type AvailableSkill = {
+  skill_id: string;
+  skill_name: string;
+  skill_type_id: string;
+  available_acquisition_types: AcquisitionType[];
+  available: boolean;
+  is_custom: boolean;
 };
 
 // Type guard function
@@ -345,6 +340,17 @@ type CharacteristicAdvancement = {
   can_purchase: boolean;
 };
 
+type GangerSpecialistCosts = { xp_cost: number; credits_increase: number };
+
+/** The parts of get_fighter_available_advancements' response the modal reads. */
+type AdvancementCatalog = {
+  characteristics: Record<string, CharacteristicAdvancement>;
+  ganger_to_specialist_advancement: GangerSpecialistCosts | null;
+};
+
+const NO_CHARACTERISTICS: Record<string, CharacteristicAdvancement> = {};
+const DEFAULT_GANGER_SPECIALIST_COSTS: GangerSpecialistCosts = { xp_cost: 6, credits_increase: 20 };
+
 type AdvancementTypeValue = 'characteristic' | 'skill' | 'promotion_to_champion' | '';
 
 type ChampionPendingPromotion = FighterPromotionResult;
@@ -381,7 +387,6 @@ export function AdvancementModal({
   const [selectedAdvancement, setSelectedAdvancement] = useState<AvailableAdvancement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [skillSetsLoading, setSkillSetsLoading] = useState(true);
-  const [skillsLoading, setSkillsLoading] = useState(false);
   const [advancementType, setAdvancementType] = useState<AdvancementTypeValue>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
   const [editableXpCost, setEditableXpCost] = useState<number>(0);
@@ -399,19 +404,46 @@ export function AdvancementModal({
   /** In-app 2D6 total, when they used Roll. Null if they skipped the button. */
   const [n26RollTotal, setN26RollTotal] = useState<number | null>(null);
   const [n26CharacteristicName, setN26CharacteristicName] = useState('');
-  const [characteristicAdvancements, setCharacteristicAdvancements] = useState<Record<string, CharacteristicAdvancement>>({});
-  /** Whether the RPC has answered — distinct from it having returned rows, so an
-   *  edition with no Advancements ends the spinner instead of hanging on it. */
-  const [characteristicsLoaded, setCharacteristicsLoaded] = useState(false);
-  /** Why the catalog is missing, when it is. Held separately from `error` because
-   *  the fetch can fail before an advancement type is picked — the characteristic
-   *  UI surfaces it whenever it renders, and the Ganger roll UI ignores it. */
-  const [characteristicsError, setCharacteristicsError] = useState<string | null>(null);
-
   // N26 earns Advancements by rank and spends no XP, so every fighter rolls on
   // one table and no XP price is ever paid. The N23 subtype-specific tables and
   // escalating costs do not apply.
   const isCumulativeXp = hasCumulativeXp(editionSlug);
+
+  const isGangerOrExoticBeastSubtype =
+    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
+
+  // N26 resolves a characteristic to its effect type id when a result's radio is
+  // clicked, which happens before an advancement type is set — so it loads on open.
+  const needsAdvancementCatalog =
+    isGangerOrExoticBeastSubtype || isCumulativeXp || advancementType === 'characteristic';
+
+  // gcTime 0: times_increased, xp_cost and has_enough_xp change with every Advancement,
+  // so the catalog is dropped when the modal closes.
+  const {
+    data: advancementCatalog,
+    isFetched: characteristicsLoaded,
+    error: characteristicsQueryError,
+  } = useQuery({
+    queryKey: ['fighter-available-advancements', fighterId],
+    queryFn: async (): Promise<AdvancementCatalog> => {
+      const response = await fetch(`/api/fighters/${fighterId}/available-advancements`);
+      if (!response.ok) {
+        throw new Error(
+          response.status === 401
+            ? 'Session expired — reload to load characteristics'
+            : 'Failed to load characteristics'
+        );
+      }
+      return response.json();
+    },
+    enabled: needsAdvancementCatalog && !!fighterId,
+    gcTime: 0,
+  });
+  const characteristicAdvancements = advancementCatalog?.characteristics ?? NO_CHARACTERISTICS;
+  const gangerSpecialistCosts =
+    advancementCatalog?.ganger_to_specialist_advancement ?? DEFAULT_GANGER_SPECIALIST_COSTS;
+  /** Shown by the characteristic UI whenever it renders; the Ganger roll UI ignores it. */
+  const characteristicsError = characteristicsQueryError?.message ?? null;
 
   /** Wyrd Powers count as skills for this model — this fighter's Wyrd subtype or Wyrd archetype. */
   const wyrdPowersCountAsSkills = hasWyrdFighterSubtype([
@@ -447,16 +479,6 @@ export function AdvancementModal({
         ? false
         : skillSetsLoading;
 
-  // A failed catalog fetch clears the spinner and leaves the dropdown empty, so
-  // say why instead of showing an unexplained empty list. Read at render rather
-  // than branched on inside the fetch, which cannot see the advancement type the
-  // user picks after it has already run.
-  const displayedError =
-    advancementType === 'characteristic' ? (characteristicsError ?? error) : error;
-  const [gangerSpecialistCosts, setGangerSpecialistCosts] = useState<{ xp_cost: number; credits_increase: number }>({
-    xp_cost: 6,
-    credits_increase: 20
-  });
   const [gangerPairStatName, setGangerPairStatName] = useState('');
   const [gangerPreviewSkillAccess, setGangerPreviewSkillAccess] = useState<SkillAccess[]>([]);
   const [gangerPreviewSkillAccessLoading, setGangerPreviewSkillAccessLoading] = useState(false);
@@ -688,9 +710,6 @@ export function AdvancementModal({
     }
   }
 
-  const isGangerOrExoticBeastSubtype =
-    fighterSubtypes.includes('Ganger') || fighterSubtypes.includes('Exotic Beast');
-
   // Edition matters as much as subtype: N26 never renders the Ganger picker, so a
   // Ganger-subtyped N26 fighter would route Buy through a flow it can never satisfy.
   const rollsOnSubtypeTable =
@@ -721,77 +740,6 @@ export function AdvancementModal({
     enabled: !!gangId && !!(gangTypeId || customGangTypeId) && (gangerPromotionOpen || championPromotionOpen),
     staleTime: 10 * 60 * 1000,
   });
-
-  /**
-   * The one read of get_fighter_available_advancements. It feeds the
-   * characteristic dropdown, the cost panel behind it, and the Ganger/Exotic Beast
-   * roll UI, all of which used to fetch for themselves.
-   *
-   * Deliberately uncached: the response carries times_increased, the escalating
-   * xp_cost and has_enough_xp, all of which move the moment an Advancement is
-   * added.
-   */
-  // N26 resolves a characteristic to its effect type id when a result's radio is
-  // clicked, which happens before an advancement type is set — so it loads on open.
-  const needsAdvancementCatalog =
-    isGangerOrExoticBeastSubtype || isCumulativeXp || advancementType === 'characteristic';
-
-  useEffect(() => {
-    if (!needsAdvancementCatalog || !fighterId) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        const response = await fetch(
-          `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/get_fighter_available_advancements`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-              'Authorization': `Bearer ${session?.access_token || ''}`
-            },
-            body: JSON.stringify({ fighter_id: fighterId })
-          }
-        );
-        if (cancelled) return;
-        if (!response.ok) {
-          // 401 here is an expired session: the RPC is granted to authenticated
-          // only. Either way the dropdown would otherwise just come up empty.
-          setCharacteristicsError(
-            response.status === 401
-              ? 'Session expired — reload to load characteristics'
-              : 'Failed to load characteristics'
-          );
-          return;
-        }
-        const data = await response.json();
-        if (cancelled) return;
-        const ch = data?.characteristics as Record<string, CharacteristicAdvancement> | undefined;
-        if (ch && typeof ch === 'object') setCharacteristicAdvancements(ch);
-        setCharacteristicsError(null);
-        const spec = data?.ganger_to_specialist_advancement as
-          | { xp_cost?: number; credits_increase?: number }
-          | undefined;
-        if (spec && typeof spec.xp_cost === 'number') {
-          setGangerSpecialistCosts({
-            xp_cost: spec.xp_cost,
-            credits_increase: typeof spec.credits_increase === 'number' ? spec.credits_increase : 0
-          });
-        }
-      } catch {
-        if (!cancelled) setCharacteristicsError('Failed to load characteristics');
-      } finally {
-        // Answered, for better or worse: release anything waiting on the catalog.
-        if (!cancelled) setCharacteristicsLoaded(true);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [fighterId, needsAdvancementCatalog]);
 
   const gangerPromotionTypeId = gangerPendingPromotion?.fighter_type_id;
   const shouldFetchPreviewSkillAccess = gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId;
@@ -1966,67 +1914,67 @@ export function AdvancementModal({
     (advancementType === 'skill' || advancementType === 'promotion_to_champion') && selectedCategory
       ? `${advancementType}:${selectedCategory}:${fighterId}`
       : '';
+  const {
+    data: availableSkills,
+    isLoading: skillsLoading,
+    error: availableSkillsError,
+  } = useQuery({
+    queryKey: ['fighter-available-skills', fighterId],
+    queryFn: async (): Promise<AvailableSkill[]> => {
+      const response = await fetch(`/api/fighters/${fighterId}/available-skills`);
+      if (!response.ok) throw new Error('Failed to fetch available skills');
+      return (await response.json()).skills;
+    },
+    enabled: !!skillFetchKey,
+    // Costs and `available` change with every skill or Advancement gained or lost.
+    gcTime: 0,
+  });
+  const skillAdvancements = useMemo<AvailableAdvancement[] | null>(() => {
+    if (!skillFetchKey || !availableSkills) return null;
+    return availableSkills
+      .filter((skill) => skill.skill_type_id === selectedCategory)
+      .map((skill) => ({
+        id: skill.skill_id,
+        skill_id: skill.skill_id,
+        xp_cost: 0,
+        stat_change: 1,
+        can_purchase: skill.available,
+        stat_change_name: skill.skill_name,
+        credits_increase: 0,
+        has_enough_xp: true,
+        available_acquisition_types: skill.available_acquisition_types,
+        skill_type_id: skill.skill_type_id,
+        is_available: skill.available,
+        is_custom: skill.is_custom
+      }));
+  }, [skillFetchKey, availableSkills, selectedCategory]);
+
   const [prevSkillFetchKey, setPrevSkillFetchKey] = useState('');
   if (skillFetchKey !== prevSkillFetchKey) {
     setPrevSkillFetchKey(skillFetchKey);
     if (skillFetchKey) {
       setAvailableAdvancements([]);
       setSelectedAdvancement(null);
-      setSkillsLoading(true);
     }
   }
 
-  useEffect(() => {
-    if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
-    if (!selectedCategory) return;
+  const [prevSkillAdvancements, setPrevSkillAdvancements] = useState(skillAdvancements);
+  if (skillAdvancements !== prevSkillAdvancements) {
+    setPrevSkillAdvancements(skillAdvancements);
+    if (skillAdvancements) {
+      setAvailableAdvancements(skillAdvancements);
+      setError(null);
+    }
+  }
 
-    let cancelled = false;
-    const fetchSkills = async () => {
-      try {
-        const supabase = createClient();
-        const { data: skillsData, error: skillsError } = await supabase.rpc('get_available_skills', {
-          fighter_id: fighterId
-        });
-
-        if (skillsError) {
-          throw new Error('Failed to fetch available skills');
-        }
-        if (cancelled) return;
-
-        const data = skillsData as unknown as SkillResponse;
-        const skillsForType = data.skills.filter(
-          (skill) => skill.skill_type_id === selectedCategory
-        );
-
-        setAvailableAdvancements(skillsForType.map((skill) => ({
-          id: skill.skill_id,
-          skill_id: skill.skill_id,
-          xp_cost: 0,
-          stat_change: 1,
-          can_purchase: skill.available,
-          stat_change_name: skill.skill_name,
-          credits_increase: 0,
-          has_enough_xp: true,
-          available_acquisition_types: skill.available_acquisition_types,
-          skill_type_id: skill.skill_type_id,
-          is_available: skill.available,
-          is_custom: skill.is_custom
-        })));
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        console.error('Full error details:', err);
-        setError(`Failed to load ${advancementType} details: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      } finally {
-        if (!cancelled) setSkillsLoading(false);
-      }
-    };
-
-    void fetchSkills();
-    return () => {
-      cancelled = true;
-    };
-  }, [advancementType, selectedCategory, fighterId]);
+  // A failed catalog fetch clears the spinner and leaves the dropdown empty, so
+  // say why instead of showing an unexplained empty list.
+  const displayedError =
+    advancementType === 'characteristic'
+      ? (characteristicsError ?? error)
+      : skillFetchKey && availableSkillsError
+        ? `Failed to load ${advancementType} details: ${availableSkillsError.message}`
+        : error;
 
   // Set initial values when an advancement/acquisition type is selected
   const [prevSelectedAdvancement, setPrevSelectedAdvancement] = useState(selectedAdvancement);
@@ -2485,12 +2433,7 @@ export function AdvancementModal({
                         )}
                       </div>
                     )}
-                    {gangerPendingPromotion && gangerSelectedSkillSetId && gangerSkillsInSetLoading && (
-                      <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
-                    )}
-                    {gangerPendingPromotion &&
-                      gangerSelectedSkillSetId &&
-                      !gangerSkillsInSetLoading && (
+                    {gangerPendingPromotion && gangerSelectedSkillSetId && (
                     <div className="space-y-2">
                       <label className="text-sm text-muted-foreground font-medium">Skill</label>
                       <div className="flex flex-wrap items-center gap-2">
@@ -2500,6 +2443,7 @@ export function AdvancementModal({
                           onClick={rollGangerSkillInSet}
                           disabled={
                             !userPermissions.canEdit ||
+                            gangerSkillsInSetLoading ||
                             logGangerSubRollMutation.isPending
                           }
                         >
@@ -2524,7 +2468,7 @@ export function AdvancementModal({
                         }}
                         placeholder="Select a Skill"
                         options={gangerSkillInSetComboboxOptions}
-                        disabled={!userPermissions.canEdit}
+                        disabled={!userPermissions.canEdit || gangerSkillsInSetLoading}
                       />
                     </div>
                     )}
@@ -2621,13 +2565,7 @@ export function AdvancementModal({
                   </div>
                 )}
 
-                {championPendingPromotion && selectedCategory && skillsLoading && (
-                  <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
-                )}
-
-                {championPendingPromotion &&
-                  selectedCategory &&
-                  !skillsLoading && (
+                {championPendingPromotion && selectedCategory && (
                     <div className="space-y-2">
                       <label className="text-sm text-muted-foreground font-medium">Skill</label>
                       <div className="flex flex-wrap items-center gap-2">
@@ -2666,6 +2604,7 @@ export function AdvancementModal({
                         }}
                         placeholder="Select a Skill"
                         options={skillComboboxOptions}
+                        disabled={skillsLoading}
                       />
                     </div>
                   )}
@@ -2760,24 +2699,20 @@ export function AdvancementModal({
                   )}
                 </div>
 
-                {selectedCategory && skillsLoading && (
-                  <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
-                )}
-
                 {selectedCategory &&
-                  !skillsLoading &&
                   !isCumulativeXp &&
-                  acquisitionTypeComboboxOptions.length > 0 && (
+                  (skillsLoading || acquisitionTypeComboboxOptions.length > 0) && (
                   <Combobox
                     value={skillAcquisitionType}
                     onValueChange={applyAcquisitionTypeSelection}
                     placeholder="Select Acquisition Type"
                     options={acquisitionTypeComboboxOptions}
+                    disabled={skillsLoading}
                     dropdownPlacement="down"
                   />
                 )}
 
-                {selectedCategory && !skillsLoading && skillAcquisitionType && availableAdvancements.length > 0 && (
+                {selectedCategory && skillAcquisitionType && (skillsLoading || availableAdvancements.length > 0) && (
                   <div className="space-y-2">
                     {isRandomAcquisitionType && (
                       <div className="flex flex-wrap items-center gap-2">
@@ -2821,6 +2756,7 @@ export function AdvancementModal({
                           : 'Select a Skill'
                       }
                       options={skillComboboxOptions}
+                      disabled={skillsLoading}
                     />
                   </div>
                 )}
