@@ -16,10 +16,12 @@ import type { GangTacticsCard } from '@/types/tactics-card';
 import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
+import { applySelfUpgradesToEquipment } from './equipment';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
+  ENHANCE_WEAPON_COST,
   SUIT_MAINTENANCE_COST,
   TRAIN_XP,
   assignmentCreditsDelta,
@@ -79,6 +81,8 @@ export interface PostCycleActionOutcome {
   changes?: PostCycleFighterChange[];
   /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
   addedTacticsCard?: GangTacticsCard;
+  /** Enhance Weapon: the fighter re-read with the upgraded weapon, for the page to swap in. */
+  updatedFighter?: Fighter;
   failed?: boolean;
 }
 
@@ -399,6 +403,56 @@ async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcom
   };
 }
 
+/** The upgrades Enhance Weapon picks one from, with what each adds to the weapon's value. */
+export async function getEnhanceWeaponUpgrades() {
+  const ENHANCE_WEAPON_EQUIPMENT_ID = '7ab2d8fd-9a6b-4638-b7dc-567fb22ea5d5';
+  const supabase = await createClient();
+  await getAuthenticatedUser(supabase);
+  const { data, error } = await supabase
+    .from('fighter_effect_types')
+    .select('id, effect_name, credits_increase:type_specific_data->credits_increase')
+    .eq('type_specific_data->>equipment_id', ENHANCE_WEAPON_EQUIPMENT_ID)
+    .eq('type_specific_data->>is_editable', 'true')
+    .order('sort_order');
+  if (error) throw new Error(`Failed to read the Enhance Weapon upgrades: ${error.message}`);
+  return data as Array<{ id: string; effect_name: string; credits_increase: number | null }>;
+}
+
+/**
+ * Puts the chosen upgrade on the weapon itself, the way the fighter page adds
+ * a Spyrer weapon's upgrades, so the weapon's value rises by the upgrade's
+ * credits increase. The action's own cost is billed after, like any other.
+ */
+async function handleEnhanceWeapon(
+  ctx: HandlerContext,
+  weaponId: string,
+  upgradeId: string
+): Promise<HandlerOutcome> {
+  const weapon = ctx.performer.weapons.find((w) => w.fighter_weapon_id === weaponId)!;
+  const upgrade = (await getEnhanceWeaponUpgrades()).find((u) => u.id === upgradeId);
+  if (!upgrade) {
+    return { outcome: 'Choose one of the Enhance Weapon upgrades.', creditsDelta: 0, failed: true };
+  }
+
+  const applied = await applySelfUpgradesToEquipment({
+    fighter_equipment_id: weaponId,
+    effect_type_ids: [upgradeId],
+    fighter_id: ctx.performer.id,
+    gang_id: ctx.gangId,
+    credits_increase: upgrade.credits_increase ?? 0,
+  });
+  if (!applied.success) {
+    return { outcome: `Failed to enhance ${weapon.weapon_name}: ${applied.error}`, creditsDelta: 0, failed: true };
+  }
+
+  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
+  return {
+    outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}.`,
+    creditsDelta: -ENHANCE_WEAPON_COST,
+    updatedFighter: fighters.find((f) => f.id === ctx.performer.id),
+  };
+}
+
 async function runHandler(
   ctx: HandlerContext,
   assignment: PostCycleAssignment
@@ -414,6 +468,8 @@ async function runHandler(
       return handleDevelopTactics(ctx, assignment.tacticsCardId);
     case 'visit_chop_shop':
       return handleVisitChopShop(ctx, assignment.damageIds);
+    case 'enhance_weapon':
+      return handleEnhanceWeapon(ctx, assignment.weaponId, assignment.upgradeId);
     case 'suit_maintenance':
       return handleSuitMaintenance(ctx);
     case 'visit_trading_post':

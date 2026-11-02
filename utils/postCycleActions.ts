@@ -4,7 +4,7 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
-import type { FighterSkills } from '@/types/fighter';
+import type { FighterSkills, WeaponProps } from '@/types/fighter';
 import { hasGangTacticsCards } from '@/types/edition';
 import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -67,6 +67,7 @@ const GRUBS_UP_INCOME = 20;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 export const SUIT_MAINTENANCE_COST = 100;
+export const ENHANCE_WEAPON_COST = 10;
 const REPUTATION_INCOME_PER_POINT = 10;
 
 /** Collect Income: credits equal to 10x Reputation, on top of the territory Boons. */
@@ -194,9 +195,10 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   enhance_weapon: {
     id: 'enhance_weapon',
     label: 'Enhance Weapon',
-    summary: 'Logged only',
+    summary: 'Upgrade a weapon',
     performer: { kind: 'fighter' },
     requires: 'enhanceWeaponAvailable',
+    credits: -ENHANCE_WEAPON_COST,
   },
   suit_evolution: {
     id: 'suit_evolution',
@@ -275,6 +277,7 @@ export interface PostCycleFighter {
   recovery?: boolean;
   kill_count?: number;
   skills?: FighterSkills;
+  weapons?: Pick<WeaponProps, 'fighter_weapon_id'>[];
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
@@ -446,11 +449,13 @@ export type PostCycleAssignment =
   | { fighterId: string; action: 'develop_tactics'; tacticsCardId: string }
   /** The vehicle's own Lasting Damage to repair. */
   | { fighterId: string; action: 'visit_chop_shop'; damageIds: string[] }
+  /** The fighter's weapon (fighter_equipment id) and one of Enhance weapon's upgrades. */
+  | { fighterId: string; action: 'enhance_weapon'; weaponId: string; upgradeId: string }
   | {
       fighterId: string;
       action: Exclude<
         PostCycleActionId,
-        'medical_escort' | 'fit_bionics' | 'develop_tactics' | 'visit_chop_shop'
+        'medical_escort' | 'fit_bionics' | 'develop_tactics' | 'visit_chop_shop' | 'enhance_weapon'
       >;
     };
 
@@ -520,6 +525,12 @@ export function validatePostCycleAssignment(
       }
       break;
     }
+
+    case 'enhance_weapon':
+      if (!performer.weapons?.some((weapon) => weapon.fighter_weapon_id === assignment.weaponId)) {
+        issues.push(`Choose a weapon that ${label} has.`);
+      }
+      break;
 
     case 'suit_evolution':
       if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {
