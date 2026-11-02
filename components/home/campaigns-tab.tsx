@@ -2,13 +2,12 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import type { Campaign } from '@/app/lib/get-user-campaigns'
-import { DndContext, closestCenter } from '@dnd-kit/core'
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react'
+import { move } from '@dnd-kit/helpers'
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
-import { useIsMounted } from '@/hooks/use-is-mounted'
+import { dndSensors, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
@@ -20,8 +19,6 @@ interface CampaignsTabProps {
 
 export function CampaignsTab({ campaigns }: CampaignsTabProps) {
   const [localCampaigns, setLocalCampaigns] = useState<Campaign[]>(campaigns);
-  const isMounted = useIsMounted();
-  const sensors = useDndSensorsConfig();
   const suppressClickAfterDrag = useSuppressClickAfterDrag('.home-favourite-card-link');
   const { editionSlug, setEditionSlug } = useHomeEdition();
 
@@ -76,20 +73,14 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
     }
   }, [localCampaigns]);
 
-  const handleCampaignDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null; activatorEvent?: Event | null }) => {
+  const handleCampaignDragEnd = useCallback(async (event: DragEndEvent) => {
     // Always consider suppress for pointer drags — including same-position drops — because a
     // real drag still produces a trailing click.
-    suppressClickAfterDrag(event.activatorEvent);
+    suppressClickAfterDrag(event.operation.activatorEvent);
 
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = favouriteCampaigns.findIndex(c => c.campaign_member_id === active.id);
-    const newIndex = favouriteCampaigns.findIndex(c => c.campaign_member_id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reordered = arrayMove(favouriteCampaigns, oldIndex, newIndex);
-    const newMemberIds = reordered.map(c => c.campaign_member_id);
+    const currentIds = favouriteCampaigns.map(c => c.campaign_member_id);
+    const newMemberIds = move(currentIds, event);
+    if (newMemberIds === currentIds) return;
 
     setLocalCampaigns(prev => {
       const updated = [...prev];
@@ -121,40 +112,18 @@ export function CampaignsTab({ campaigns }: CampaignsTabProps) {
           {favouriteCampaigns.length > 0 && (
             <>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Favourites</h3>
-              {isMounted ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleCampaignDragEnd}
-                  onDragCancel={(event) => suppressClickAfterDrag(event.activatorEvent)}
-                >
-                  <SortableContext
-                    items={favouriteCampaigns.map(c => c.campaign_member_id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="space-y-3">
-                      {favouriteCampaigns.map(campaign => (
-                        <SortableCampaignCard
-                          key={campaign.campaign_member_id}
-                          campaign={campaign}
-                          onToggleFavourite={handleToggleCampaignFavourite}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              ) : (
+              <DragDropProvider sensors={dndSensors} onDragEnd={handleCampaignDragEnd}>
                 <ul className="space-y-3">
-                  {favouriteCampaigns.map(campaign => (
-                    <li key={campaign.campaign_member_id}>
-                      <CampaignCardContent
-                        campaign={campaign}
-                        onToggleFavourite={handleToggleCampaignFavourite}
-                      />
-                    </li>
+                  {favouriteCampaigns.map((campaign, index) => (
+                    <SortableCampaignCard
+                      key={campaign.campaign_member_id}
+                      campaign={campaign}
+                      index={index}
+                      onToggleFavourite={handleToggleCampaignFavourite}
+                    />
                   ))}
                 </ul>
-              )}
+              </DragDropProvider>
               {nonFavouriteCampaigns.length > 0 && (
                 <hr className="border-border my-4" />
               )}

@@ -2,13 +2,12 @@
 
 import { useState, useCallback, useMemo } from 'react'
 import type { Gang } from '@/app/lib/get-user-gangs'
-import { DndContext, closestCenter } from '@dnd-kit/core'
-import { arrayMove, SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react'
+import { move } from '@dnd-kit/helpers'
 import { toggleFavourite } from '@/app/actions/toggle-favourite'
 import { reorderFavourites } from '@/app/actions/reorder-favourites'
 import { toast } from 'sonner'
-import { useDndSensorsConfig, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
-import { useIsMounted } from '@/hooks/use-is-mounted'
+import { dndSensors, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
 import { EditionToggle } from '@/components/home/edition-toggle'
@@ -20,8 +19,6 @@ interface GangsTabProps {
 
 export function GangsTab({ gangs }: GangsTabProps) {
   const [localGangs, setLocalGangs] = useState<Gang[]>(gangs);
-  const isMounted = useIsMounted();
-  const sensors = useDndSensorsConfig();
   const suppressClickAfterDrag = useSuppressClickAfterDrag('.home-favourite-card-link');
   const { editionSlug, setEditionSlug } = useHomeEdition();
 
@@ -76,20 +73,14 @@ export function GangsTab({ gangs }: GangsTabProps) {
     }
   }, [localGangs]);
 
-  const handleDragEnd = useCallback(async (event: { active: { id: string | number }; over: { id: string | number } | null; activatorEvent?: Event | null }) => {
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
     // Always consider suppress for pointer drags — including same-position drops — because a
     // real drag still produces a trailing click.
-    suppressClickAfterDrag(event.activatorEvent);
+    suppressClickAfterDrag(event.operation.activatorEvent);
 
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-
-    const oldIndex = favouriteGangs.findIndex(g => g.id === active.id);
-    const newIndex = favouriteGangs.findIndex(g => g.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-
-    const reordered = arrayMove(favouriteGangs, oldIndex, newIndex);
-    const newGangIds = reordered.map(g => g.id);
+    const currentIds = favouriteGangs.map(g => g.id);
+    const newGangIds = move(currentIds, event);
+    if (newGangIds === currentIds) return;
 
     setLocalGangs(prev => {
       const updated = [...prev];
@@ -121,40 +112,18 @@ export function GangsTab({ gangs }: GangsTabProps) {
           {favouriteGangs.length > 0 && (
             <>
               <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Favourites</h3>
-              {isMounted ? (
-                <DndContext
-                  sensors={sensors}
-                  collisionDetection={closestCenter}
-                  onDragEnd={handleDragEnd}
-                  onDragCancel={(event) => suppressClickAfterDrag(event.activatorEvent)}
-                >
-                  <SortableContext
-                    items={favouriteGangs.map(g => g.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    <ul className="space-y-3">
-                      {favouriteGangs.map(gang => (
-                        <SortableGangCard
-                          key={gang.id}
-                          gang={gang}
-                          onToggleFavourite={handleToggleFavourite}
-                        />
-                      ))}
-                    </ul>
-                  </SortableContext>
-                </DndContext>
-              ) : (
+              <DragDropProvider sensors={dndSensors} onDragEnd={handleDragEnd}>
                 <ul className="space-y-3">
-                  {favouriteGangs.map(gang => (
-                    <li key={gang.id}>
-                      <GangCardContent
-                        gang={gang}
-                        onToggleFavourite={handleToggleFavourite}
-                      />
-                    </li>
+                  {favouriteGangs.map((gang, index) => (
+                    <SortableGangCard
+                      key={gang.id}
+                      gang={gang}
+                      index={index}
+                      onToggleFavourite={handleToggleFavourite}
+                    />
                   ))}
                 </ul>
-              )}
+              </DragDropProvider>
               {nonFavouriteGangs.length > 0 && (
                 <hr className="border-border my-4" />
               )}
