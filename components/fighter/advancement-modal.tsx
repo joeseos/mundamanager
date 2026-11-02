@@ -2408,12 +2408,7 @@ export function AdvancementModal({
                         )}
                       </div>
                     )}
-                    {gangerPendingPromotion && gangerSelectedSkillSetId && gangerSkillsInSetLoading && (
-                      <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
-                    )}
-                    {gangerPendingPromotion &&
-                      gangerSelectedSkillSetId &&
-                      !gangerSkillsInSetLoading && (
+                    {gangerPendingPromotion && gangerSelectedSkillSetId && (
                     <div className="space-y-2">
                       <label className="text-sm text-muted-foreground font-medium">Skill</label>
                       <div className="flex flex-wrap items-center gap-2">
@@ -2423,6 +2418,7 @@ export function AdvancementModal({
                           onClick={rollGangerSkillInSet}
                           disabled={
                             !userPermissions.canEdit ||
+                            gangerSkillsInSetLoading ||
                             logGangerSubRollMutation.isPending
                           }
                         >
@@ -2447,7 +2443,7 @@ export function AdvancementModal({
                         }}
                         placeholder="Select a Skill"
                         options={gangerSkillInSetComboboxOptions}
-                        disabled={!userPermissions.canEdit}
+                        disabled={!userPermissions.canEdit || gangerSkillsInSetLoading}
                       />
                     </div>
                     )}
@@ -2544,13 +2540,7 @@ export function AdvancementModal({
                   </div>
                 )}
 
-                {championPendingPromotion && selectedCategory && skillsLoading && (
-                  <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
-                )}
-
-                {championPendingPromotion &&
-                  selectedCategory &&
-                  !skillsLoading && (
+                {championPendingPromotion && selectedCategory && (
                     <div className="space-y-2">
                       <label className="text-sm text-muted-foreground font-medium">Skill</label>
                       <div className="flex flex-wrap items-center gap-2">
@@ -2560,6 +2550,7 @@ export function AdvancementModal({
                           onClick={rollSkillFromSet}
                           disabled={
                             !userPermissions?.canEdit ||
+                            skillsLoading ||
                             logSkillAdvancementRollMutation.isPending ||
                             availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
@@ -2589,6 +2580,7 @@ export function AdvancementModal({
                         }}
                         placeholder="Select a Skill"
                         options={skillComboboxOptions}
+                        disabled={skillsLoading}
                       />
                     </div>
                   )}
@@ -2683,24 +2675,20 @@ export function AdvancementModal({
                   )}
                 </div>
 
-                {selectedCategory && skillsLoading && (
-                  <p className="text-sm text-muted-foreground animate-pulse">Loading skills…</p>
-                )}
-
                 {selectedCategory &&
-                  !skillsLoading &&
                   !isCumulativeXp &&
-                  acquisitionTypeComboboxOptions.length > 0 && (
+                  (skillsLoading || acquisitionTypeComboboxOptions.length > 0) && (
                   <Combobox
                     value={skillAcquisitionType}
                     onValueChange={applyAcquisitionTypeSelection}
                     placeholder="Select Acquisition Type"
                     options={acquisitionTypeComboboxOptions}
+                    disabled={skillsLoading}
                     dropdownPlacement="down"
                   />
                 )}
 
-                {selectedCategory && !skillsLoading && skillAcquisitionType && availableAdvancements.length > 0 && (
+                {selectedCategory && skillAcquisitionType && (skillsLoading || availableAdvancements.length > 0) && (
                   <div className="space-y-2">
                     {isRandomAcquisitionType && (
                       <div className="flex flex-wrap items-center gap-2">
@@ -2710,6 +2698,7 @@ export function AdvancementModal({
                           onClick={rollSkillFromSet}
                           disabled={
                             !userPermissions?.canEdit ||
+                            skillsLoading ||
                             logSkillAdvancementRollMutation.isPending ||
                             availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
@@ -2744,6 +2733,7 @@ export function AdvancementModal({
                           : 'Select a Skill'
                       }
                       options={skillComboboxOptions}
+                      disabled={skillsLoading}
                     />
                   </div>
                 )}
