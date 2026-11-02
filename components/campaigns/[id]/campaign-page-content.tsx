@@ -33,7 +33,7 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
-import type { PickerGang } from "@/components/campaigns/[id]/campaign-members-table";
+import type { PickerGang } from "@/app/lib/get-user-gangs";
 
 const CampaignEditModal = dynamic(() => import('@/components/campaigns/[id]/campaign-edit-modal'), { ssr: false });
 const CampaignMessageModal = dynamic(

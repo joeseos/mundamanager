@@ -28,9 +28,8 @@ import {
   getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
-import { getUserGangs } from "@/app/lib/get-user-gangs";
+import { getUserGangs, type PickerGang } from "@/app/lib/get-user-gangs";
 import { sameEditionForDisplay } from "@/types/edition";
-import type { PickerGang } from "@/components/campaigns/[id]/campaign-members-table";
 
 export default async function CampaignPage(props: {
   params: Promise<{ id: string }>;
@@ -151,25 +150,22 @@ export default async function CampaignPage(props: {
       hasPendingJoinRequest = !!joinRequest;
     }
 
+    const editionSlug = campaignBasic.campaign_types?.edition_slug ?? null;
+
     // Gangs for the Add Gang picker: owners and arbitrators add for any member, members only their own
-    const canAddForAnyMember = permissions.isOwner || permissions.isArbitrator || permissions.isAdmin;
-    const pickerUserIds = canAddForAnyMember
+    const pickerUserIds = permissions.canManageMembers
       ? [...new Set(campaignMembers.map((member) => member.user_id))]
       : permissions.isMember ? [userId] : [];
-    const editionSlug = campaignBasic.campaign_types?.edition_slug ?? null;
+    // A failed read only empties that member's picker rather than failing the page.
     const getPickerGangs = async (pickerUserId: string): Promise<PickerGang[]> =>
-      (await getUserGangs(pickerUserId))
+      (await getUserGangs(pickerUserId).catch((error) => {
+        console.error('Error loading gangs for the Add Gang picker:', error);
+        return [];
+      }))
         .filter((gang) => sameEditionForDisplay(gang.edition_slug, editionSlug))
-        .map((gang) => ({
-          id: gang.id,
-          name: gang.name ?? '',
-          gang_type: gang.gang_type ?? '',
-          parent_gang_type_name: gang.parent_gang_type_name,
-          gang_colour: gang.gang_colour,
-          rating: gang.rating,
-          wealth: gang.wealth ?? undefined,
-          reputation: gang.reputation ?? undefined,
-          isInCampaign: gang.campaigns.length > 0,
+        .map(({ id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation, campaigns }) => ({
+          id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation,
+          isInCampaign: campaigns.length > 0,
         }));
 
     // The reads that depend on another: triumphs are keyed by campaign type, picker gangs by member.
@@ -188,7 +184,7 @@ export default async function CampaignPage(props: {
       campaign_type_image_url: campaignBasic.campaign_types?.image_url || '',
       campaign_portrait_id: campaignBasic.campaign_portrait_id ?? null,
       campaign_portrait_url: campaignBasic.campaign_portrait_url ?? null,
-      edition_slug: campaignBasic.campaign_types?.edition_slug ?? null,
+      edition_slug: editionSlug,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,

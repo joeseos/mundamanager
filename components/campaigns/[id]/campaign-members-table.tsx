@@ -18,6 +18,7 @@ import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
 import { compactGangTypeLabel, detailGangTypeLabel } from "@/utils/gang-type-label";
+import type { PickerGang } from '@/app/lib/get-user-gangs';
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -63,19 +64,6 @@ interface Member {
     } | null;
   }[];
   index?: number;
-}
-
-/** A gang in the Add Gang picker, loaded by the campaign page. */
-export interface PickerGang {
-  id: string;
-  name: string;
-  gang_type: string;
-  parent_gang_type_name?: string | null;
-  gang_colour: string | null;
-  rating?: number;
-  wealth?: number;
-  reputation?: number;
-  isInCampaign?: boolean;
 }
 
 const NO_GANGS: PickerGang[] = [];
@@ -332,8 +320,8 @@ export default function MembersTable({
       const optimisticGang = {
         campaign_gang_id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
         id: variables.gangId,
-        name: gangData.name,
-        gang_type: gangData.gang_type,
+        name: gangData.name ?? '',
+        gang_type: gangData.gang_type ?? '',
         parent_gang_type_name: gangData.parent_gang_type_name ?? null,
         gang_colour: gangData.gang_colour || '#000000',
         status: isOwnGang ? 'ACCEPTED' : 'PENDING',
@@ -574,7 +562,7 @@ export default function MembersTable({
         Choose a gang for <span className="font-bold">{selectedMember?.profile.username}</span>:
       </p>
       <div className="space-y-2">
-        {[...userGangs].sort((a, b) => a.name.localeCompare(b.name)).map(gang => (
+        {[...userGangs].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')).map(gang => (
           <button
             key={gang.id}
             onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
