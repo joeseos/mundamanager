@@ -574,13 +574,13 @@ export function WeaponList({
       const previousEquipment = [...equipment];
       const previousFighterEffects = { ...fighterEffects };
 
-      // Optimistically remove the effect_name from the equipment
+      // Optimistically remove the effect_name from the equipment, once: an upgrade can be on it more than once
       const updatedEquipment = equipment.map(item => {
         if (item.fighter_equipment_id === params.fighterEquipmentId) {
-          return {
-            ...item,
-            effect_names: (item.effect_names || []).filter(name => name !== params.effectName)
-          };
+          const effectNames = [...(item.effect_names || [])];
+          const index = effectNames.indexOf(params.effectName);
+          if (index !== -1) effectNames.splice(index, 1);
+          return { ...item, effect_names: effectNames };
         }
         return item;
       });
