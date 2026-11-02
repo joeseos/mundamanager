@@ -1,6 +1,11 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims, safePostSignInPath, signInPath } from './utils/auth'
+import {
+  applyAuthCacheHeaders,
+  copyAuthResponse,
+  recordFromAuthHeaders,
+} from './utils/supabase/auth-cache-headers'
 import { lowerCaseUuids } from './utils/uuid'
 
 function createSupabaseProxyClient(request: NextRequest) {
@@ -18,14 +23,12 @@ function createSupabaseProxyClient(request: NextRequest) {
         },
         setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          authCacheHeaders = { ...authCacheHeaders, ...headers };
+          authCacheHeaders = { ...authCacheHeaders, ...recordFromAuthHeaders(headers) };
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
-          Object.entries(authCacheHeaders).forEach(([key, value]) => {
-            response.headers.set(key, value);
-          });
+          applyAuthCacheHeaders(response, authCacheHeaders);
         },
       },
     }
@@ -36,18 +39,10 @@ function createSupabaseProxyClient(request: NextRequest) {
     getResponse() {
       return response;
     },
+    copyTo(target: NextResponse) {
+      return copyAuthResponse(response, target, Object.keys(authCacheHeaders));
+    },
   };
-}
-
-function copyAuthResponse(source: NextResponse, target: NextResponse) {
-  source.cookies.getAll().forEach((cookie) => {
-    target.cookies.set(cookie);
-  });
-  for (const header of ['cache-control', 'expires', 'pragma']) {
-    const value = source.headers.get(header);
-    if (value) target.headers.set(header, value);
-  }
-  return target;
 }
 
 export async function proxy(request: NextRequest) {
@@ -75,20 +70,20 @@ export async function proxy(request: NextRequest) {
   const authPages = ['/sign-in', '/sign-up'];
 
   if (authPages.includes(pathname)) {
-    const { supabase, getResponse } = createSupabaseProxyClient(request);
+    const { supabase, getResponse, copyTo } = createSupabaseProxyClient(request);
 
     const userId = await getUserIdFromClaims(supabase);
 
     if (userId) {
       const destination = safePostSignInPath(request.nextUrl.searchParams.get('next'));
       const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
-      return copyAuthResponse(getResponse(), redirectResponse);
+      return copyTo(redirectResponse);
     }
     return getResponse();
   }
 
   // Create response and Supabase client bound to the incoming request/response (Edge-safe)
-  const { supabase, getResponse } = createSupabaseProxyClient(request);
+  const { supabase, getResponse, copyTo } = createSupabaseProxyClient(request);
 
   // Check authentication
   const userId = await getUserIdFromClaims(supabase);
@@ -105,7 +100,7 @@ export async function proxy(request: NextRequest) {
     const redirectPath = `${cleanUrl.pathname}${cleanUrl.search}`;
 
     const redirectResponse = NextResponse.redirect(new URL(signInPath(redirectPath), request.url));
-    return copyAuthResponse(getResponse(), redirectResponse);
+    return copyTo(redirectResponse);
   }
 
   return getResponse();

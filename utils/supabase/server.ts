@@ -23,8 +23,9 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // Server Components cannot set cookies or cache headers.
-            // proxy.ts refreshes the session and applies them instead.
+            // Server Components cannot set cookies or cache headers. Page
+            // requests are refreshed in proxy.ts. /api/*, /auth/callback and
+            // server actions skip the proxy; Next already treats them as dynamic/no-store.
           }
         },
       },

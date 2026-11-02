@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { safePostSignInPath } from "@/utils/auth";
 import { invalidateUserPermissions } from "@/utils/cache-tags";
+import { applyAuthCacheHeaders } from "@/utils/supabase/auth-cache-headers";
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -37,5 +38,7 @@ export async function GET(request: Request) {
   }
 
   const destination = safePostSignInPath(requestUrl.searchParams.get("next"));
-  return NextResponse.redirect(`${origin}${destination}`);
+  const redirectResponse = NextResponse.redirect(`${origin}${destination}`);
+  applyAuthCacheHeaders(redirectResponse);
+  return redirectResponse;
 }
