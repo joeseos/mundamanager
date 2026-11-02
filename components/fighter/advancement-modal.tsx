@@ -9,7 +9,6 @@ import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } f
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useAvailableSkills, type AcquisitionType } from '@/hooks/use-available-skills';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
@@ -102,6 +101,22 @@ interface AvailableAdvancement {
   characteristic_code?: string;
   is_custom?: boolean;
 }
+
+type AcquisitionType = {
+  name: string;
+  type_id: string;
+  xp_cost: number;
+  credit_cost: number;
+};
+
+type AvailableSkill = {
+  skill_id: string;
+  skill_name: string;
+  skill_type_id: string;
+  available_acquisition_types: AcquisitionType[];
+  available: boolean;
+  is_custom: boolean;
+};
 
 // Type guard function
 function isStatChangeCategory(category: StatChangeCategory | SkillType): category is StatChangeCategory {
@@ -1903,7 +1918,17 @@ export function AdvancementModal({
     data: availableSkills,
     isLoading: skillsLoading,
     error: availableSkillsError,
-  } = useAvailableSkills(fighterId, !!skillFetchKey);
+  } = useQuery({
+    queryKey: ['fighter-available-skills', fighterId],
+    queryFn: async (): Promise<AvailableSkill[]> => {
+      const response = await fetch(`/api/fighters/${fighterId}/available-skills`);
+      if (!response.ok) throw new Error('Failed to fetch available skills');
+      return (await response.json()).skills;
+    },
+    enabled: !!skillFetchKey,
+    // Costs and `available` change with every skill or Advancement gained or lost.
+    gcTime: 0,
+  });
   const skillAdvancements = useMemo<AvailableAdvancement[] | null>(() => {
     if (!skillFetchKey || !availableSkills) return null;
     return availableSkills

@@ -8,8 +8,7 @@ import { isEquipmentInActiveLoadout } from '@/components/fighter/fighter-equipme
 import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAvailableSkills } from '@/hooks/use-available-skills';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
@@ -100,6 +99,15 @@ interface Category {
   is_custom?: boolean;
 }
 
+interface SkillData {
+  skill_id: string;
+  skill_name: string;
+  skill_type_id: string;
+  available: boolean;
+  is_custom: boolean;
+  cost: number;
+}
+
 interface SkillAccess {
   skill_type_id: string;
   access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
@@ -117,7 +125,17 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(true);
 
-  const { data: availableSkills, error: availableSkillsError } = useAvailableSkills(fighterId, !!selectedCategory);
+  const { data: availableSkills, error: availableSkillsError } = useQuery({
+    queryKey: ['fighter-available-skills', fighterId],
+    queryFn: async (): Promise<SkillData[]> => {
+      const response = await fetch(`/api/fighters/${fighterId}/available-skills`);
+      if (!response.ok) throw new Error('Failed to fetch available skills');
+      return (await response.json()).skills;
+    },
+    enabled: !!selectedCategory,
+    // Costs and `available` change with every skill or Advancement gained or lost.
+    gcTime: 0,
+  });
   const skillsInSet = useMemo(
     () => availableSkills?.filter((skill) => skill.skill_type_id === selectedCategory),
     [availableSkills, selectedCategory]
