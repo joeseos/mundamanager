@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Modal from '@/components/ui/modal';
-import { RichTextEditor, type RichTextEditorHandle } from '@/components/ui/rich-text-editor';
+import type { RichTextEditorHandle } from '@/components/ui/rich-text-editor';
+import { LazyRichTextEditor } from '@/components/ui/lazy-rich-text-editor';
 import { EditionSelect, editionSlugOf, useEditions } from '@/components/edition-select';
 import {
   EDITION_N23,
@@ -199,8 +200,9 @@ export function AdminUserGuidesModal({ onClose }: AdminUserGuidesModalProps) {
           </p>
         ) : (
           <div key={activeSlug} className="bg-white rounded-md">
-            <RichTextEditor
-              ref={editorRef}
+            <LazyRichTextEditor
+              editorRef={editorRef}
+              fallbackHtml={saved[activeSlug]}
               content={saved[activeSlug]}
               onChange={setDraft}
               placeholder={`Write the ${editionLabel(activeSlug)} user guide here...`}
