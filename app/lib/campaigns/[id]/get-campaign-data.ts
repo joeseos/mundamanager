@@ -14,6 +14,8 @@ import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
 import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import type { CampaignMapBundle } from '@/types/campaign';
+import { getUserGangs, type Gang } from '@/app/lib/get-user-gangs';
+import { sameEditionForDisplay } from '@/types/edition';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -724,4 +726,25 @@ export async function getCampaignSharedTradingPosts(campaignId: string) {
       revalidate: false
     }
   )();
+}
+
+/** A gang in the campaign Add Gang picker. */
+export type PickerGang = Pick<
+  Gang,
+  'id' | 'name' | 'gang_type' | 'parent_gang_type_name' | 'gang_colour' | 'rating' | 'wealth' | 'reputation'
+> & { isInCampaign: boolean };
+
+/**
+ * A member's gangs of the campaign's edition, for the Add Gang picker.
+ * Built from getUserGangs, so the list is cached and invalidated with it.
+ */
+export async function getCampaignMemberGangs(campaignId: string, userId: string): Promise<PickerGang[]> {
+  const [campaign, gangs] = await Promise.all([getCampaignBasic(campaignId), getUserGangs(userId)]);
+  const editionSlug = campaign?.campaign_types?.edition_slug ?? null;
+  return gangs
+    .filter((gang) => sameEditionForDisplay(gang.edition_slug, editionSlug))
+    .map(({ id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation, campaigns }) => ({
+      id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation,
+      isInCampaign: campaigns.length > 0,
+    }));
 }

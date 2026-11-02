@@ -86,8 +86,6 @@ export default function FighterActionModal({
   const [showXpModal, setShowXpModal] = useState(false);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
   const isSpyrer = gangFighter?.is_spyrer ?? false;
-  const [fighterData, setFighterData] = useState<{ xp: number; kills: number; kill_count: number } | null>(null);
-  const [loadingXp, setLoadingXp] = useState(false);
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
     fighter.session_record?.conditions ?? []
   );
@@ -109,24 +107,6 @@ export default function FighterActionModal({
     .filter((c) => !visibilityMarkerKeys.has(c.key) && c.key !== 'injured')
     .sort((a, b) => markerName(a, editionSlug).localeCompare(markerName(b, editionSlug)));
   const visibilityMarkers = conditionMarkers.filter((c) => visibilityMarkerKeys.has(c.key));
-
-  const openXpModal = async () => {
-    setLoadingXp(true);
-    try {
-      const { createClient } = await import('@/utils/supabase/client');
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('fighters')
-        .select('xp, kills, kill_count')
-        .eq('id', fighter.fighter_id)
-        .single();
-      if (data) { setFighterData(data); setShowXpModal(true); }
-    } catch {
-      toast.error('Failed to load fighter data');
-    } finally {
-      setLoadingXp(false);
-    }
-  };
 
   const currentConditions = fighter.session_record?.conditions ?? [];
 
@@ -180,12 +160,12 @@ export default function FighterActionModal({
         <div className="space-y-4">
           <div className="flex gap-2">
             <Button
-              onClick={openXpModal}
-              disabled={loadingXp}
+              onClick={() => setShowXpModal(true)}
               variant="outline"
               className="flex-1"
+              disabled={!gangFighter}
             >
-              {loadingXp ? 'Loading...' : 'Add XP'}
+              Add XP
             </Button>
             <Button
               onClick={() => setShowInjuryModal(true)}
@@ -298,13 +278,13 @@ export default function FighterActionModal({
         </div>
       </Modal>
 
-      {showXpModal && fighterData && (
+      {showXpModal && gangFighter && (
         <FighterXpModal
           fighterId={fighter.fighter_id}
-          currentXp={fighterData.xp}
-          currentTotalXp={fighterData.xp}
-          currentKills={fighterData.kills}
-          currentKillCount={fighterData.kill_count}
+          currentXp={gangFighter.xp}
+          currentTotalXp={gangFighter.xp}
+          currentKills={gangFighter.kills}
+          currentKillCount={gangFighter.kill_count}
           gangId={gangId}
           campaignId={campaignId ?? undefined}
           targetGangIds={candidateGangs.map((g) => g.gang_id)}
@@ -313,7 +293,7 @@ export default function FighterActionModal({
           onClose={() => setShowXpModal(false)}
           // Back to this modal rather than closing it, which would drop unsaved drafts.
           onXpUpdated={(newXp) => {
-            const delta = newXp - (fighterData?.xp ?? 0);
+            const delta = newXp - gangFighter.xp;
             onXpChanged(delta);
             setShowXpModal(false);
           }}

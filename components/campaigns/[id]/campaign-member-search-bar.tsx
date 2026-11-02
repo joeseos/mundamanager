@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from "@/utils/supabase/client"
 import { toast } from 'sonner';
 import { addMemberToCampaign } from "@/app/actions/campaigns/[id]/campaign-members"
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
@@ -34,42 +33,29 @@ interface Member {
 
 interface MemberSearchBarProps {
   campaignId: string;
-  campaignMembers: Member[];
   onMemberAdd: (member: Member) => void;
   disabled?: boolean;
 }
 
 export default function MemberSearchBar({
   campaignId,
-  campaignMembers: _campaignMembers,
   onMemberAdd,
   disabled = false
 }: MemberSearchBarProps) {
   const [isAdding, setIsAdding] = useState(false)
-  const supabase = createClient()
 
   const handleAddMember = async (user: UserSearchResult) => {
     setIsAdding(true)
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-
-      if (!authUser) {
-        throw new Error('Not authenticated');
-      }
-
-      // ✅ Use server action with proper cache invalidation
       const result = await addMemberToCampaign({
         campaignId,
         userId: user.id,
-        role: 'MEMBER',
-        invitedBy: authUser.id
+        role: 'MEMBER'
       });
 
       if (!result.success) {
         throw new Error(result.error);
       }
-
-      console.log("Member added successfully:", result.data);
 
       // Create member object for local state update (allow existing members to be added again)
       const newMember: Member = {

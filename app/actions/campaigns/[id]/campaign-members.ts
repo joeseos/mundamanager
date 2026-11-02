@@ -43,7 +43,6 @@ export interface AddMemberToCampaignParams {
   campaignId: string;
   userId: string;
   role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
-  invitedBy: string;
 }
 
 /**
@@ -415,8 +414,8 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
     const supabase = await createClient();
     
     // Authenticate user
-    await getAuthenticatedUser(supabase);
-    const { campaignId, userId, role, invitedBy } = params;
+    const user = await getAuthenticatedUser(supabase);
+    const { campaignId, userId, role } = params;
 
     // Check if the user already exists in the campaign
     const { data: existingMembers, error: existingError } = await supabase
@@ -439,7 +438,7 @@ export async function addMemberToCampaign(params: AddMemberToCampaignParams) {
         user_id: userId,
         role: finalRole,
         invited_at: new Date().toISOString(),
-        invited_by: invitedBy
+        invited_by: user.id
       })
       .select()
       .single();
