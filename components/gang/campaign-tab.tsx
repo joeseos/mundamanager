@@ -10,6 +10,7 @@ import { formatLocalDate } from '@/utils/local-date';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import type { GangBattleLog } from '@/app/lib/campaigns/[id]/get-campaign-data';
+import type { BattleParticipant } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
 import Modal from "@/components/ui/modal";
 import { BiSolidNotepad } from "react-icons/bi";
@@ -123,6 +124,8 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
       if (!response.ok) throw new Error('Failed to fetch battle logs');
       return response.json() as Promise<GangBattleLog[]>;
     },
+    // Refetch on each tab open, like before, so a battle logged on the campaign page shows straight away
+    staleTime: 0,
   });
 
   // Fetch captives held by this gang
@@ -420,77 +423,11 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                       result = 'Defeat';
                     }
 
-                    // Get all participating gangs with roles - mirror campaign-battle-logs-list logic:
-                    // When participants array exists with gang data, use ONLY participants for roles.
-                    // Only fall back to attacker/defender when participants don't provide the data.
-                    type GangWithRole = { id: string; name: string; gang_colour: string; role?: 'attacker' | 'defender' };
-                    let participatingGangs: GangWithRole[] = [];
-
-                    let participants: any[] = [];
-                    if (battle.participants) {
-                      try {
-                        participants = typeof battle.participants === 'string'
-                          ? JSON.parse(battle.participants)
-                          : Array.isArray(battle.participants) ? battle.participants : [];
-                      } catch (e) {
-                        participants = [];
-                      }
-                    }
-
-                    const hasParticipantGangs = participants.some((p: any) => p && p.gang_id);
-
-                    if (hasParticipantGangs) {
-                      // Use participants as source of truth - role only from participant.role
-                      participatingGangs = participants
-                        .filter((p: any) => p.gang_id)
-                        .map((p: any) => ({
-                          id: p.gang_id,
-                          name: p.gang_name || 'Unknown',
-                          gang_colour: p.gang_colour || '#000000',
-                          role: p.role === 'attacker' || p.role === 'defender' ? p.role : undefined
-                        }));
-                      // Deduplicate by gang_id, keeping first occurrence
-                      const seen = new Set<string>();
-                      participatingGangs = participatingGangs.filter(g => {
-                        if (seen.has(g.id)) return false;
-                        seen.add(g.id);
-                        return true;
-                      });
-                      // Fill in names/colours from attacker/defender when participant lacks them
-                      if (battle.attacker?.id && battle.attacker?.name) {
-                        const g = participatingGangs.find(x => x.id === battle.attacker!.id);
-                        if (g && g.name === 'Unknown') g.name = battle.attacker.name;
-                        if (g && !g.gang_colour) g.gang_colour = battle.attacker.gang_colour || '#000000';
-                      }
-                      if (battle.defender?.id && battle.defender?.name) {
-                        const g = participatingGangs.find(x => x.id === battle.defender!.id);
-                        if (g && g.name === 'Unknown') g.name = battle.defender.name;
-                        if (g && !g.gang_colour) g.gang_colour = battle.defender.gang_colour || '#000000';
-                      }
-                    } else {
-                      // Fallback: no participants with gang data - use attacker/defender structure
-                      if (battle.attacker && battle.attacker.id) {
-                        participatingGangs.push({
-                          id: battle.attacker.id,
-                          name: battle.attacker.name,
-                          gang_colour: battle.attacker.gang_colour || '#000000',
-                          role: 'attacker'
-                        });
-                      }
-                      if (battle.defender && battle.defender.id) {
-                        participatingGangs.push({
-                          id: battle.defender.id,
-                          name: battle.defender.name,
-                          gang_colour: battle.defender.gang_colour || '#000000',
-                          role: 'defender'
-                        });
-                      }
-                    }
-
-                    // Filter out the user's own gang and sort: attacker first, then defender
-                    const roleOrder = (r: 'attacker' | 'defender' | undefined) => r === 'attacker' ? 0 : r === 'defender' ? 1 : 99;
-                    const opponentGangs = participatingGangs
-                      .filter(gang => gang.id !== gangId)
+                    // Opponents, each gang once: attacker first, then defender, then by name
+                    const roleOrder = (r: BattleParticipant['role']) => r === 'attacker' ? 0 : r === 'defender' ? 1 : 99;
+                    const opponentGangs = battle.participants
+                      .filter((p, index, all) => p.gang_id && p.gang_id !== gangId && all.findIndex((q) => q.gang_id === p.gang_id) === index)
+                      .map((p) => ({ id: p.gang_id, name: p.gang_name, gang_colour: p.gang_colour, role: p.role }))
                       .sort((a, b) => {
                         const roleA = roleOrder(a.role);
                         const roleB = roleOrder(b.role);

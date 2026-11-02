@@ -14,7 +14,7 @@ import { groupBy } from '@/utils/gang-assembly';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
 import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
-import { isPlayedBattle, scenarioLabel, type Battle, type CampaignMapBundle } from '@/types/campaign';
+import { isPlayedBattle, scenarioLabel, type Battle, type BattleParticipant, type CampaignMapBundle } from '@/types/campaign';
 import { getUserGangs, type Gang } from '@/app/lib/get-user-gangs';
 import { sameEditionForDisplay } from '@/types/edition';
 
@@ -751,7 +751,10 @@ export async function getCampaignMemberGangs(campaignId: string, userId: string)
 }
 
 /** A gang's played battle in one of its campaigns, for the gang page's Campaign tab. */
-export type GangBattleLog = Battle & { campaign_id: string };
+export type GangBattleLog = Omit<Battle, 'participants'> & {
+  campaign_id: string;
+  participants: (BattleParticipant & { gang_name: string; gang_colour: string })[];
+};
 
 /**
  * A gang's played battles in all its campaigns, newest first. Built from the
@@ -770,6 +773,8 @@ export async function getGangBattleLogs(gangId: string): Promise<GangBattleLog[]
     return battles.flatMap((battle): GangBattleLog[] => {
       const participants = parseParticipants(battle.participants);
       if (!isPlayedBattle(battle) || !participants.some((p) => p.gang_id === gangId)) return [];
+      // A gang that left the campaign is no longer a member, but the battle still names it if it attacked, defended or won
+      const named = [battle.attacker, battle.defender, ...battle.winners];
 
       return [{
         ...battle,
@@ -782,7 +787,7 @@ export async function getGangBattleLogs(gangId: string): Promise<GangBattleLog[]
         ),
         participants: participants.map((p) => ({
           ...p,
-          gang_name: gangs.get(p.gang_id)?.name || 'Unknown',
+          gang_name: gangs.get(p.gang_id)?.name || named.find((gang) => gang?.id === p.gang_id)?.name || 'Unknown',
           gang_colour: gangs.get(p.gang_id)?.gang_colour || '#000000',
         })),
       }];
