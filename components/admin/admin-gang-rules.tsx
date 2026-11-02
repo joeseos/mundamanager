@@ -13,6 +13,7 @@ import { STAT_MAPPINGS } from '@/components/admin/admin-fighter-effects';
 import { WEAPON_NUMERIC_FIELDS } from '@/utils/effect-modifiers';
 import { useEditions } from '@/components/edition-select';
 import { GangOriginOptions, GangSubtypeOptions, formatGangScope } from '@/components/admin/gang-scope-options';
+import { toList, fromList } from '@/components/admin/comma-list';
 import { FighterEffectCategory, FighterEffectTypeModifier, TypeSpecificData } from '@/types/fighter-effect';
 
 interface GangRuleRow {
@@ -34,9 +35,6 @@ const WEAPON_STATS = STAT_MAPPINGS.filter(m => WEAPON_NUMERIC_FIELDS.includes(m.
 
 const CATEGORY_NAME = 'gang-rules';
 const NEW_RULE = 'new';
-
-const toList = (value: string) => value.split(',').map(t => t.trim()).filter(Boolean);
-const fromList = (value: string[] | undefined) => value?.join(', ') ?? '';
 
 async function request(url: string, init?: RequestInit) {
   const response = await fetch(url, init);

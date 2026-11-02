@@ -313,7 +313,7 @@ const WeaponTable: React.FC<WeaponTableProps> = ({ weapons, entity, viewMode, ed
                           {weaponName}
                           {hardpointLocation && ` (${hardpointLocation})`}
                           {isMasterCrafted && ` (MC)`}
-                          {effectNames && effectNames.length > 0 && ` (${[...new Set(effectNames)].join(', ')})`}
+                          {effectNames && effectNames.length > 0 && ` (${effectNames.join(', ')})`}
                           {!multipleBaseNames && duplicate > 1 && ` (x${duplicate})`}
                         </>
                       ) : (
