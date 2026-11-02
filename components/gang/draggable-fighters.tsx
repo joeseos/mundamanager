@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DragDropProvider, type DragEndEvent, type DragOverEvent, type DragStartEvent } from '@dnd-kit/react';
+import { arrayMove } from '@dnd-kit/helpers';
 import { dndSensors, useSuppressClickAfterDrag } from '@/hooks/use-dnd-sensors';
 import { MyFighters } from './my-fighters';
 import { FighterProps } from '@/types/fighter';
@@ -57,6 +58,12 @@ const positionsAreEqual = (
     aEntries.every(([position, fighterId]) => b[Number(position)] === fighterId);
 };
 
+const positionsFromIds = (ids: string[]) =>
+  ids.reduce<Record<number, string>>((acc, id, index) => {
+    acc[index] = id;
+    return acc;
+  }, {});
+
 const positionsSignature = (positions: Record<number, string>) =>
   Object.entries(positions)
     .sort(([a], [b]) => Number(a) - Number(b))
@@ -78,7 +85,10 @@ export function DraggableFighters({
   // The order changes live during a drag (handleDragOver), so saving and the parent callbacks
   // wait until the drag settles.
   const [isSorting, setIsSorting] = useState(false);
-  const dragStartPositions = useRef<Record<number, string> | null>(null);
+  // The order at drag start, and the live order during the drag. Kept in refs so handleDragEnd
+  // reads the last move even if its render hasn't committed yet.
+  const dragStartIds = useRef<string[] | null>(null);
+  const dragIds = useRef<string[] | null>(null);
   // Grid rows are as tall as their tallest card, so moving a killed card into a row of other
   // killed cards shrinks that row, which moves the swap point past the pointer and flips the
   // order back. All rows keep the tallest height while a drag is in progress.
@@ -114,7 +124,7 @@ export function DraggableFighters({
   const suppressClickAfterDrag = useSuppressClickAfterDrag('.fighter-card-bg');
 
   const handleDragStart = (event: DragStartEvent) => {
-    dragStartPositions.current = normalizedPositions;
+    dragStartIds.current = dragIds.current = sortedFighters.map(fighter => fighter.id);
     setIsSorting(true);
 
     const grid = viewMode !== 'normal' ? event.operation.source?.element?.parentElement : null;
@@ -131,23 +141,15 @@ export function DraggableFighters({
   const handleDragOver = (event: DragOverEvent) => {
     event.preventDefault();
     const { source, target } = event.operation;
-    if (!source || !target || source.id === target.id) return;
 
-    setCurrentPositions(prev => {
-      const ids = Object.entries(prev)
-        .sort(([a], [b]) => Number(a) - Number(b))
-        .map(([, id]) => id);
-      const from = ids.indexOf(String(source.id));
-      const to = ids.indexOf(String(target.id));
-      if (from === -1 || to === -1 || from === to) return prev;
+    const ids = dragIds.current;
+    if (!ids || !source || !target || source.id === target.id) return;
+    const from = ids.indexOf(String(source.id));
+    const to = ids.indexOf(String(target.id));
+    if (from === -1 || to === -1) return;
 
-      ids.splice(from, 1);
-      ids.splice(to, 0, String(source.id));
-      return ids.reduce<Record<number, string>>((acc, id, index) => {
-        acc[index] = id;
-        return acc;
-      }, {});
-    });
+    dragIds.current = arrayMove(ids, from, to);
+    setCurrentPositions(positionsFromIds(dragIds.current));
   };
 
   // Keep this synchronous: the drop animation waits for the React update it triggers, and a
@@ -159,16 +161,20 @@ export function DraggableFighters({
     suppressClickAfterDrag(event.operation.activatorEvent);
     setIsSorting(false);
     setDragRowHeight(null);
-    const startPositions = dragStartPositions.current;
-    dragStartPositions.current = null;
+    const startIds = dragStartIds.current;
+    const endIds = dragIds.current;
+    dragStartIds.current = dragIds.current = null;
+    if (!startIds || !endIds) return;
 
     if (event.canceled) {
-      if (startPositions) setCurrentPositions(startPositions);
+      setCurrentPositions(positionsFromIds(startIds));
       return;
     }
 
-    if (startPositions && !positionsAreEqual(startPositions, normalizedPositions)) {
-      onFightersReorder?.(sortedFighters);
+    if (endIds.some((id, index) => id !== startIds[index])) {
+      onFightersReorder?.(endIds
+        .map(id => fighters.find(f => f.id === id))
+        .filter(Boolean) as FighterProps[]);
     }
   };
 

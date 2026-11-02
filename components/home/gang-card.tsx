@@ -13,14 +13,13 @@ import { detailGangTypeLabel } from '@/utils/gang-type-label'
 export interface GangCardProps {
   gang: Gang;
   onToggleFavourite: (gangId: string, isFavourite: boolean) => void;
-  /** Set only on a sortable favourite: the card's drag handle ref. */
-  drag?: { handleRef: (element: Element | null) => void };
+  dragHandle?: (element: Element | null) => void;
   isDragging?: boolean;
   disableLink?: boolean;
 }
 
-export function GangCardContent({ gang, onToggleFavourite, drag, isDragging, disableLink = false }: GangCardProps) {
-  const isDraggable = Boolean(drag);
+export function GangCardContent({ gang, onToggleFavourite, dragHandle, isDragging, disableLink = false }: GangCardProps) {
+  const isDraggable = dragHandle !== undefined;
 
   const imageUrl = resolveGangImageUrl({
     imageUrl: gang.image_url,
@@ -58,7 +57,7 @@ export function GangCardContent({ gang, onToggleFavourite, drag, isDragging, dis
   return (
     <div
       className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${isDraggable ? 'cursor-grab' : ''}`}
-      ref={drag?.handleRef}
+      ref={dragHandle}
       {...dragSurfaceProps(isDraggable)}
     >
       {/* Always rendered — never swapped for a bare div when `disableLink` flips on drag start,
@@ -104,7 +103,7 @@ export function SortableGangCard({ gang, index, onToggleFavourite }: SortableGan
       <GangCardContent
         gang={gang}
         onToggleFavourite={onToggleFavourite}
-        drag={{ handleRef }}
+        dragHandle={handleRef}
         isDragging={isDragging}
         disableLink={isDragging}
       />

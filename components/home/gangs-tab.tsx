@@ -73,7 +73,7 @@ export function GangsTab({ gangs }: GangsTabProps) {
     }
   }, [localGangs]);
 
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     // Always consider suppress for pointer drags — including same-position drops — because a
     // real drag still produces a trailing click.
     suppressClickAfterDrag(event.operation.activatorEvent);
@@ -93,10 +93,14 @@ export function GangsTab({ gangs }: GangsTabProps) {
       return updated;
     });
 
-    const result = await reorderFavourites({ type: 'gang', ids: newGangIds });
-    if (!result.success) {
-      toast.error(result.error || 'Failed to reorder favourites');
-    }
+    // dnd-kit runs this handler inside a React transition that its drop animation waits for.
+    // Saving after it returns keeps the card from freezing until the server answers.
+    queueMicrotask(async () => {
+      const result = await reorderFavourites({ type: 'gang', ids: newGangIds });
+      if (!result.success) {
+        toast.error(result.error || 'Failed to reorder favourites');
+      }
+    });
   }, [favouriteGangs, suppressClickAfterDrag]);
 
   return (

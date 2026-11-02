@@ -12,14 +12,13 @@ import { resolveCampaignImageUrl } from '@/utils/campaign-image'
 export interface CampaignCardProps {
   campaign: Campaign;
   onToggleFavourite: (campaignMemberId: string, isFavourite: boolean) => void;
-  /** Set only on a sortable favourite: the card's drag handle ref. */
-  drag?: { handleRef: (element: Element | null) => void };
+  dragHandle?: (element: Element | null) => void;
   isDragging?: boolean;
   disableLink?: boolean;
 }
 
-export function CampaignCardContent({ campaign, onToggleFavourite, drag, isDragging, disableLink = false }: CampaignCardProps) {
-  const isDraggable = Boolean(drag);
+export function CampaignCardContent({ campaign, onToggleFavourite, dragHandle, isDragging, disableLink = false }: CampaignCardProps) {
+  const isDraggable = dragHandle !== undefined;
   const imageUrl = resolveCampaignImageUrl({
     imageUrl: campaign.image_url,
     portraitUrl: campaign.campaign_portrait_url,
@@ -60,7 +59,7 @@ export function CampaignCardContent({ campaign, onToggleFavourite, drag, isDragg
   return (
     <div
       className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${isDraggable ? 'cursor-grab' : ''}`}
-      ref={drag?.handleRef}
+      ref={dragHandle}
       {...dragSurfaceProps(isDraggable)}
     >
       {/* Always rendered — never swapped for a bare div when `disableLink` flips on drag start,
@@ -106,7 +105,7 @@ export function SortableCampaignCard({ campaign, index, onToggleFavourite }: Sor
       <CampaignCardContent
         campaign={campaign}
         onToggleFavourite={onToggleFavourite}
-        drag={{ handleRef }}
+        dragHandle={handleRef}
         isDragging={isDragging}
         disableLink={isDragging}
       />
