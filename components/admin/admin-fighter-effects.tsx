@@ -10,12 +10,14 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { toList, fromList } from "@/components/admin/comma-list";
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
   FighterEffectCategory 
 } from "@/types/fighter-effect";
+
+const toList = (value: string) => value.split(',').map(t => t.trim()).filter(Boolean);
+const fromList = (value: string[] | undefined) => value?.join(', ') ?? '';
 
 // Mapping of stat_name (database value) to display_name (UI label)
 export const STAT_MAPPINGS = [
