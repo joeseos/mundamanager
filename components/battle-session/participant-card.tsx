@@ -537,7 +537,10 @@ export default function ParticipantCard({
               {(() => {
                 const subtypesOf = (fighterId: string) => gangFightersList.find((gf) => gf.id === fighterId)?.fighter_subtypes;
                 const exoticBeastCount = localFighters.filter((f) => isCrewBeast(subtypesOf(f.fighter_id))).length;
-                const supportCount = localFighters.filter((f) => isSupportFighter(subtypesOf(f.fighter_id))).length;
+                const supportCount = localFighters.filter((f) => {
+                  const subtypes = subtypesOf(f.fighter_id);
+                  return isSupportFighter(subtypes) && !isCrewBeast(subtypes);
+                }).length;
                 const crewCount = localFighters.length - exoticBeastCount - supportCount;
                 const excluded = [
                   exoticBeastCount > 0 && `${exoticBeastCount} ${beastSubtypeName(session.edition_slug)}${exoticBeastCount !== 1 ? 's' : ''}`,
