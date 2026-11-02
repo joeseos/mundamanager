@@ -16,7 +16,9 @@ import {
   markersForEdition,
   type SessionMarkerDef,
 } from '@/components/battle-session/session-markers';
-import InjuryPickerModal from '@/components/battle-session/injury-picker-modal';
+import { InjuriesList } from '@/components/fighter/fighter-injury-list';
+import { addSessionInjury } from '@/app/actions/battle-sessions';
+import type { GangFighter } from '@/types/gang';
 import type { BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 import { canLeaveBattlefield, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
 
@@ -62,9 +64,7 @@ export default function FighterActionModal({
   campaignId,
   editionSlug,
   candidateGangs,
-  isSkirmish,
-  isSpyrer,
-  fighterWeapons,
+  gangFighter,
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
@@ -76,9 +76,7 @@ export default function FighterActionModal({
   campaignId?: string | null;
   editionSlug?: string | null;
   candidateGangs: CampaignGangWithFighters[];
-  isSkirmish: boolean;
-  isSpyrer: boolean;
-  fighterWeapons: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
+  gangFighter: GangFighter | undefined;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
@@ -87,6 +85,7 @@ export default function FighterActionModal({
 }) {
   const [showXpModal, setShowXpModal] = useState(false);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const isSpyrer = gangFighter?.is_spyrer ?? false;
   const [fighterData, setFighterData] = useState<{ xp: number; kills: number; kill_count: number } | null>(null);
   const [loadingXp, setLoadingXp] = useState(false);
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
@@ -192,6 +191,7 @@ export default function FighterActionModal({
               onClick={() => setShowInjuryModal(true)}
               variant="outline"
               className="flex-1"
+              disabled={!gangFighter}
             >
               {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
             </Button>
@@ -320,18 +320,59 @@ export default function FighterActionModal({
         />
       )}
 
-      {showInjuryModal && (
-        <InjuryPickerModal
-          fighter={fighter}
-          editionSlug={editionSlug}
-          candidateGangs={candidateGangs}
-          isSkirmish={isSkirmish}
-          isSpyrer={isSpyrer}
-          fighterWeapons={fighterWeapons}
+      {showInjuryModal && gangFighter && (
+        <Modal
+          title={isSpyrer ? 'Add Rig Glitches' : 'Add Lasting Injuries'}
+          helper={gangFighter.fighter_name}
           onClose={() => setShowInjuryModal(false)}
-          onInjuryAdded={onInjuryAdded}
-          onBroadcast={onBroadcast}
-        />
+          width="md"
+        >
+          <InjuriesList
+            addFormOnly
+            onRequestClose={() => setShowInjuryModal(false)}
+            injuries={[
+              ...(gangFighter.effects?.injuries ?? []),
+              ...(gangFighter.effects?.['rig-glitches'] ?? []),
+            ]}
+            fighterId={fighter.fighter_id}
+            fighterGangId={gangId}
+            fighterCampaigns={campaignId ? [{ campaign_id: campaignId }] : []}
+            candidateGangs={campaignId ? candidateGangs : []}
+            fighterRecovery={gangFighter.recovery}
+            fighterKilled={gangFighter.killed}
+            fighterCaptured={gangFighter.captured}
+            editionSlug={editionSlug}
+            // This modal only opens for the gang's owner or the arbitrator.
+            userPermissions={{ canEdit: true }}
+            fighter_subtypes={gangFighter.fighter_subtypes}
+            is_spyrer={isSpyrer}
+            kill_count={gangFighter.kill_count ?? 0}
+            skills={gangFighter.skills}
+            fighterWeapons={gangFighter.weapons.map((w) => ({
+              id: w.fighter_weapon_id,
+              name: w.weapon_name,
+              equipment_category: w.equipment_category,
+              effect_names: w.effect_names,
+            }))}
+            onInjuryAdded={(injury, status) => {
+              const sessionInjury: SessionInjuryRecord = {
+                fighter_effect_id: injury.id,
+                fighter_effect_type_id: injury.fighter_effect_type_id,
+                effect_name: injury.effect_name,
+                ...status,
+              };
+              addSessionInjury({ session_fighter_id: fighter.id, injury: sessionInjury })
+                .then((result) => {
+                  if (!result.success) throw new Error(result.error);
+                  onInjuryAdded(sessionInjury);
+                  onBroadcast?.();
+                })
+                .catch((err) =>
+                  toast.error(err instanceof Error && err.message ? err.message : 'Failed to record the injury in this battle')
+                );
+            }}
+          />
+        </Modal>
       )}
     </>
   );
