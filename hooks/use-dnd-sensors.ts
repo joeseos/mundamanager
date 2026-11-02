@@ -47,8 +47,8 @@ const dragSurfaceStyle = {
 } as const;
 
 // Props for a drag surface that wraps a link. A long press over an `<a href>` makes the browser
-// offer its own menu ("Open in New Tab"), which on iOS steals the gesture before the TouchSensor
-// delay elapses. Cancelling `contextmenu` is what stops it — the same trick
+// offer its own menu ("Open in New Tab"), which on iOS steals the gesture before the touch
+// activation delay elapses. Cancelling `contextmenu` is what stops it — the same trick
 // fighter-card-action-menu.tsx uses for its menu trigger. dnd-kit has a contextmenu guard of its
 // own, but only once a drag has activated, which is too late. The CSS is belt-and-braces for
 // iOS; `-webkit-touch-callout` and `user-select` inherit, so they cover the link inside.

@@ -125,15 +125,14 @@ export function FighterCardActionMenu({
       return;
     }
 
-    // Prevent card drag when pressing on menu trigger
+    // Keep the press from reaching the card underneath
     event.stopPropagation();
     event.preventDefault();
 
     openMenuAt(event.clientX, event.clientY);
   };
 
-  // Handle touch events separately for mobile - dnd-kit's TouchSensor listens
-  // for native touchstart events, not pointer events, so we need to stop those too
+  // Handle touch events separately for mobile, so a long press on the icon opens our menu
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
     if (disableLink) return;
 
@@ -143,7 +142,7 @@ export function FighterCardActionMenu({
       return;
     }
 
-    // Prevent card drag (dnd-kit TouchSensor) when touching menu trigger
+    // Keep the press from reaching the card underneath
     event.stopPropagation();
     // Prevent browser's native long-press context menu (e.g. "Open in new tab" on the link).
     event.preventDefault();
