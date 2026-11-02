@@ -10,6 +10,7 @@ import {
 } from '@/app/lib/shared/gang-data';
 import { assembleFighterView, selectGangFighterIndex } from '@/utils/gang-assembly';
 import { isUuid } from '@/utils/uuid';
+import { calculateFighterCost } from '@/utils/fighter-cost';
 
 // =============================================================================
 // BASE DATA FUNCTIONS - Drizzle reads over the direct connection (utils/db)
@@ -140,11 +141,6 @@ function fighterCostQuery(db: AppDb, fighterId: string) {
   });
 }
 
-/** An effect's type_specific_data.credits_increase, or 0 when it has none. */
-function creditsIncrease(typeSpecificData: unknown): number {
-  return (typeSpecificData as { credits_increase?: number } | null)?.credits_increase || 0;
-}
-
 /**
  * Calculate fighter's total cost (base + equipment + skills + effects +
  * vehicles + owned beasts).
@@ -161,49 +157,7 @@ export const getFighterTotalCost = async (fighterId: string): Promise<number> =>
   const fighter = await fighterCostQuery(getAppDb(), fighterId);
   if (!fighter) return 0;
 
-  // Fighters owned by another fighter (exotic beasts) always cost 0
-  if (fighter.beast_link) return 0;
-
-  const equipmentCost = fighter.fighter_equipment.reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0);
-  const skillsCost = fighter.fighter_skills.reduce((sum, skill) => sum + (skill.credits_increase || 0), 0);
-  const effectsCost = fighter.fighter_effects.reduce(
-    (sum, effect) => sum + creditsIncrease(effect.type_specific_data), 0
-  );
-
-  const vehicleCost = fighter.vehicles.reduce((sum, vehicle) => {
-    let vehicleTotal = vehicle.cost || 0;
-    vehicleTotal += vehicle.fighter_equipment.reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
-    vehicleTotal += vehicle.fighter_effects.reduce((s, effect) => s + creditsIncrease(effect.type_specific_data), 0);
-    return sum + vehicleTotal;
-  }, 0);
-
-  // Owned exotic beasts roll their cost into the owner
-  const beastLinks = fighter.fighter_exotic_beasts;
-  const stashedBeastIds = new Set(
-    beastLinks.filter((b) => b.fighter_equipment?.gang_stash).map((b) => b.fighter_pet_id)
-  );
-  // Each active beast with a fighter type, once even if two links point at it
-  const beasts = new Map(
-    beastLinks.flatMap(({ pet }) =>
-      pet?.fighter_types && pet.killed === false && pet.retired === false &&
-      pet.enslaved === false && pet.captured === false
-        ? [[pet.id, pet] as const]
-        : []
-    )
-  );
-  const beastsCost = [...beasts.values()].reduce((sum, beast) => {
-    // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
-    const beastEquipment = stashedBeastIds.has(beast.id)
-      ? 0
-      : beast.fighter_equipment.reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
-    const beastSkills = beast.fighter_skills.reduce((s, skill) => s + (skill.credits_increase || 0), 0);
-    const beastEffects = beast.fighter_effects.reduce((s, effect) => s + creditsIncrease(effect.type_specific_data), 0);
-    const baseBeastCost = beast.fighter_types?.cost || 0;
-    return sum + baseBeastCost + beastEquipment + beastSkills + beastEffects + (beast.cost_adjustment || 0);
-  }, 0);
-
-  return (fighter.credits || 0) + equipmentCost + skillsCost + effectsCost + vehicleCost +
-         (fighter.cost_adjustment || 0) + beastsCost;
+  return calculateFighterCost(fighter);
 };
 
 // =============================================================================

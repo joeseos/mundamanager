@@ -1,4 +1,5 @@
 import 'server-only';
+import { totalFighterValue } from './fighter-cost';
 import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
@@ -648,8 +649,9 @@ export function assembleGangFighters(
           }, 0);
 
           // Total cost for gang rating uses ALL equipment (not filtered by loadout)
-          totalCost = fighter.credits + allEquipmentCost + skillsCost + effectsCost + vehicleCost +
-                      (fighter.cost_adjustment || 0) + beastCosts;
+          totalCost = totalFighterValue({ base: fighter.credits, equipment: allEquipmentCost,
+            skills: skillsCost, effects: effectsCost, vehicles: vehicleCost,
+            adjustment: fighter.cost_adjustment || 0, beasts: beastCosts });
         }
 
         // Separate equipment into weapons and wargear (filtered by active loadout if set)
