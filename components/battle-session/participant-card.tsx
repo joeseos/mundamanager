@@ -40,6 +40,7 @@ import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionPartic
 import { beastSubtypeName, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
+import { isCrewBeast, isSupportFighter } from '@/utils/crew-subtypes';
 
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
 
@@ -534,16 +535,19 @@ export default function ParticipantCard({
                   : `Gang Rating: ${participant.gang?.rating ?? 0}`}
               </span>
               {(() => {
-                const exoticBeastCount = localFighters.filter((f) => {
-                  const gf = gangFightersList.find((gf) => gf.id === f.fighter_id);
-                  return gf?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
-                }).length;
-                const crewCount = localFighters.length - exoticBeastCount;
+                const subtypesOf = (fighterId: string) => gangFightersList.find((gf) => gf.id === fighterId)?.fighter_subtypes;
+                const exoticBeastCount = localFighters.filter((f) => isCrewBeast(subtypesOf(f.fighter_id))).length;
+                const supportCount = localFighters.filter((f) => isSupportFighter(subtypesOf(f.fighter_id))).length;
+                const crewCount = localFighters.length - exoticBeastCount - supportCount;
+                const excluded = [
+                  exoticBeastCount > 0 && `${exoticBeastCount} ${beastSubtypeName(session.edition_slug)}${exoticBeastCount !== 1 ? 's' : ''}`,
+                  supportCount > 0 && `${supportCount} Support`,
+                ].filter(Boolean);
                 return (
                   <span>
                     Crew Size: {crewCount}
-                    {exoticBeastCount > 0 && (
-                      <span className="text-neutral-400"> (Excluding {exoticBeastCount} {beastSubtypeName(session.edition_slug)}{exoticBeastCount !== 1 ? 's' : ''})</span>
+                    {excluded.length > 0 && (
+                      <span className="text-neutral-400"> (Excluding {excluded.join(', ')})</span>
                     )}
                   </span>
                 );
@@ -784,8 +788,7 @@ export default function ParticipantCard({
                     ) ?? gangFightersList.find((gf) => gf.id === f.fighter_id);
                     const rawName = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
                     const isAssociatedExoticBeast =
-                      fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') &&
-                      Boolean(fullMatch?.owner_id);
+                      isCrewBeast(fullMatch?.fighter_subtypes) && Boolean(fullMatch?.owner_id);
                     const name = isAssociatedExoticBeast ? `— ${rawName}` : rawName;
                     const cost = match?.credits ?? f.fighter?.credits ?? undefined;
                     const xp = f.session_record?.xp_earned ?? 0;

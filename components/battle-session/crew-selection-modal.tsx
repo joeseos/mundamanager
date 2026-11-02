@@ -14,6 +14,7 @@ import { countsTowardRating } from '@/utils/fighter-status';
 import { shuffle } from '@/utils/dice';
 import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { isCrewBeast, isSupportFighter } from '@/utils/crew-subtypes';
 
 interface GangFighterOption {
   id: string;
@@ -35,12 +36,12 @@ interface GangFighterOption {
 }
 
 function isBeast(f: GangFighterOption) {
-  return f.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
+  return isCrewBeast(f.fighter_subtypes);
 }
 
 /** Beasts follow their owner and Support fighters are taken freely: neither counts toward the Choose/Random limit. */
 function countsTowardLimit(f: GangFighterOption) {
-  return !isBeast(f) && !f.fighter_subtypes?.some((c) => c.toLowerCase() === 'support');
+  return !isBeast(f) && !isSupportFighter(f.fighter_subtypes);
 }
 
 function formatFighterDetails(f: GangFighterOption, editionSlug?: string | null): string {
