@@ -25,11 +25,10 @@ import {
   getCampaignCaptives,
   getCampaignSharedTradingPosts,
   getCampaignMapWithObjects,
-  getCampaignOoaCounts
+  getCampaignOoaCounts,
+  getCampaignMemberGangs
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
-import { getUserGangs, type PickerGang } from "@/app/lib/get-user-gangs";
-import { sameEditionForDisplay } from "@/types/edition";
 
 export default async function CampaignPage(props: {
   params: Promise<{ id: string }>;
@@ -152,27 +151,10 @@ export default async function CampaignPage(props: {
 
     const editionSlug = campaignBasic.campaign_types?.edition_slug ?? null;
 
-    // Gangs for the Add Gang picker: owners and arbitrators add for any member, members only their own
-    const pickerUserIds = permissions.canManageMembers
-      ? [...new Set(campaignMembers.map((member) => member.user_id))]
-      : permissions.isMember ? [userId] : [];
-    // A failed read only empties that member's picker rather than failing the page.
-    const getPickerGangs = async (pickerUserId: string): Promise<PickerGang[]> =>
-      (await getUserGangs(pickerUserId).catch((error) => {
-        console.error('Error loading gangs for the Add Gang picker:', error);
-        return [];
-      }))
-        .filter((gang) => sameEditionForDisplay(gang.edition_slug, editionSlug))
-        .map(({ id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation, campaigns }) => ({
-          id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation,
-          isInCampaign: campaigns.length > 0,
-        }));
-
     // The reads that depend on another: triumphs are keyed by campaign type, picker gangs by member.
     const [campaignTriumphs, memberGangs] = await Promise.all([
       getCampaignTriumphs(campaignBasic.campaign_type_id),
-      Promise.all(pickerUserIds.map(async (id) => [id, await getPickerGangs(id)] as const))
-        .then((entries) => Object.fromEntries(entries)),
+      getCampaignMemberGangs(campaignMembers.map((member) => member.user_id), editionSlug),
     ]);
 
     // Combine the data

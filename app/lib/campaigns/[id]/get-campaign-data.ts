@@ -14,6 +14,8 @@ import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
 import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import type { CampaignMapBundle } from '@/types/campaign';
+import { getUserGangs, type PickerGang } from '@/app/lib/get-user-gangs';
+import { sameEditionForDisplay } from '@/types/edition';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -724,4 +726,31 @@ export async function getCampaignSharedTradingPosts(campaignId: string) {
       revalidate: false
     }
   )();
+}
+
+/**
+ * Each member's gangs of the campaign's edition, for the Add Gang picker, by user id.
+ * Built from getUserGangs, so each member's list is cached and invalidated with it.
+ */
+export async function getCampaignMemberGangs(
+  memberUserIds: string[],
+  editionSlug: string | null
+): Promise<Record<string, PickerGang[]>> {
+  const entries = await Promise.all(
+    [...new Set(memberUserIds)].map(async (userId) => {
+      // A failed read only empties that member's picker rather than failing the page.
+      const gangs = await getUserGangs(userId).catch((error) => {
+        console.error('Error loading gangs for the Add Gang picker:', error);
+        return [];
+      });
+      const pickerGangs = gangs
+        .filter((gang) => sameEditionForDisplay(gang.edition_slug, editionSlug))
+        .map(({ id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation, campaigns }) => ({
+          id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation,
+          isInCampaign: campaigns.length > 0,
+        }));
+      return [userId, pickerGangs] as const;
+    })
+  );
+  return Object.fromEntries(entries);
 }
