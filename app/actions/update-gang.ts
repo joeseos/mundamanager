@@ -38,6 +38,8 @@ interface UpdateGangParams {
   }>;
   gang_subtypes?: string[];
   note?: string;
+  note_backstory?: string;
+  note_private?: string;
   hidden?: boolean;
 }
 
@@ -60,6 +62,7 @@ interface UpdateGangResult {
     gang_origin_name?: string;
     gang_colour: string;
     last_updated: string;
+    note_private_updated_at?: string;
     gang_subtypes: Array<{id: string, subtype: string}>;
     resources?: Array<{
       resource_id: string;
@@ -114,9 +117,18 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       updates.name = params.name.trimEnd();
     }
 
-    // Add note if provided
+    // Add notes if provided
     if (params.note !== undefined) {
       updates.note = params.note;
+    }
+
+    if (params.note_backstory !== undefined) {
+      updates.note_backstory = params.note_backstory;
+    }
+
+    if (params.note_private !== undefined) {
+      updates.note_private = params.note_private;
+      updates.note_private_updated_at = updates.last_updated;
     }
 
     // Add alignment if provided
@@ -238,7 +250,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         gang_affiliation_id,
         gang_origin_id,
         gang_colour,
-        last_updated
+        last_updated,
+        note_private_updated_at
       `)
       .single();
 
@@ -409,6 +422,12 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       invalidateGang(params.gang_id);
       invalidateGangOverview(params.gang_id);
     }
+
+    // Notes show only on the gang's own pages
+    if (params.note !== undefined || params.note_backstory !== undefined ||
+        params.note_private !== undefined) {
+      invalidateGang(params.gang_id);
+    }
     
     // Credits, rating and wealth were updated above
     if (creditsChanged || ratingDelta !== 0) {
@@ -537,6 +556,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         gang_origin_name: undefined, // Frontend handles display
         gang_colour: updatedGang.gang_colour,
         last_updated: updatedGang.last_updated,
+        note_private_updated_at: updatedGang.note_private_updated_at ?? undefined,
         gang_subtypes: gangSubtypes,
         resources: updatedResources.length > 0 ? updatedResources : undefined,
         failedResources: failedResources.length > 0 ? failedResources : undefined
