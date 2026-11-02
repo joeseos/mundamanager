@@ -1259,8 +1259,8 @@ export async function bulkAddFightersToSession(params: {
 
     const { error } = await supabase
       .from('battle_session_fighters')
-      // Mid-battle, never overwrite a fighter already in the crew: that would reset its session record.
-      .upsert(rows, { onConflict: 'battle_session_id,fighter_id', ignoreDuplicates: session.status === 'active' });
+      // Never overwrite a fighter already in the crew: that would reset its session record.
+      .upsert(rows, { onConflict: 'battle_session_id,fighter_id', ignoreDuplicates: true });
 
     if (error) return { success: false, error: error.message };
 

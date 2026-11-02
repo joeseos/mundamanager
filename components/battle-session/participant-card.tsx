@@ -106,7 +106,8 @@ export default function ParticipantCard({
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
   const [localResourceChanges, setLocalResourceChanges] = useState(participant.resource_changes ?? []);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
-  const [showCrewModal, setShowCrewModal] = useState(false);
+  // The phase the crew modal was opened in, so a phase change while it is open can't switch its mode.
+  const [crewModalMode, setCrewModalMode] = useState<'crew' | 'reinforcements' | null>(null);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
@@ -589,7 +590,7 @@ export default function ParticipantCard({
                 </>
               )}
               {(canEdit || canInteract) && (
-                <Button onClick={() => setShowCrewModal(true)}>
+                <Button onClick={() => setCrewModalMode(canInteract ? 'reinforcements' : 'crew')}>
                   {canInteract ? 'Reinforcements' : 'Select Crew'}
                 </Button>
               )}
@@ -662,15 +663,15 @@ export default function ParticipantCard({
           </Modal>,
           document.body
         )}
-        {showCrewModal && (
+        {crewModalMode && (
           <CrewSelectionModal
             gangId={participant.gang_id}
             gangFighters={gangFighters}
             selectedFighters={selectedFighters}
             editionSlug={session.edition_slug}
-            reinforcements={battleActive}
+            reinforcements={crewModalMode === 'reinforcements'}
             loading={false}
-            onClose={() => setShowCrewModal(false)}
+            onClose={() => setCrewModalMode(null)}
             onConfirm={async (toAdd, toRemove, toUpdate) => {
               const snapshot = [...localFighters];
 
@@ -710,7 +711,7 @@ export default function ParticipantCard({
                 return false;
               }
 
-              toast.success(battleActive ? 'Reinforcements added' : 'Crew updated');
+              toast.success(crewModalMode === 'reinforcements' ? 'Reinforcements added' : 'Crew updated');
               onBroadcast?.();
               return true;
             }}
