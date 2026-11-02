@@ -5,15 +5,16 @@ import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import { campaignTerritories } from '@/utils/db/schema';
 import type { CampaignAllegiance } from '@/utils/campaigns/allegiances';
-import { getWinnerIds, getClaimerGangId } from '@/utils/battle-winners';
+import { getWinnerIds, getClaimerGangId, parseParticipants } from '@/utils/battle-winners';
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_FIELDS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
-import { sumFighterKills } from '@/app/lib/shared/gang-data';
+import { getGangCampaigns, sumFighterKills } from '@/app/lib/shared/gang-data';
+import { getScenarioTablesCached } from '@/app/lib/reference-data';
 import { groupBy } from '@/utils/gang-assembly';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
 import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
-import type { CampaignMapBundle } from '@/types/campaign';
+import { isPlayedBattle, scenarioLabel, type Battle, type BattleParticipant, type CampaignMapBundle } from '@/types/campaign';
 import { getUserGangs, type Gang } from '@/app/lib/get-user-gangs';
 import { sameEditionForDisplay } from '@/types/edition';
 
@@ -747,4 +748,51 @@ export async function getCampaignMemberGangs(campaignId: string, userId: string)
       id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation,
       isInCampaign: campaigns.length > 0,
     }));
+}
+
+/** A gang's played battle in one of its campaigns, for the gang page's Campaign tab. */
+export type GangBattleLog = Omit<Battle, 'participants'> & {
+  campaign_id: string;
+  participants: (BattleParticipant & { gang_name: string; gang_colour: string })[];
+};
+
+/**
+ * A gang's played battles in all its campaigns, newest first. Built from the
+ * campaign page's cached battles and members, so it shares their cache entries.
+ */
+export async function getGangBattleLogs(gangId: string): Promise<GangBattleLog[]> {
+  const [campaigns, scenarioTables] = await Promise.all([getGangCampaigns(gangId), getScenarioTablesCached()]);
+  const entryNames = new Map(
+    scenarioTables.flatMap((table) => table.entries.map((entry) => [entry.id, entry.name] as const))
+  );
+
+  const perCampaign = await Promise.all(campaigns.map(async ({ campaign_id }) => {
+    const [battles, members] = await Promise.all([getCampaignBattles(campaign_id), getCampaignMembers(campaign_id)]);
+    const gangs = new Map(members.flatMap((member) => member.gangs.map((gang) => [gang.id, gang] as const)));
+
+    return battles.flatMap((battle): GangBattleLog[] => {
+      const participants = parseParticipants(battle.participants);
+      if (!isPlayedBattle(battle) || !participants.some((p) => p.gang_id === gangId)) return [];
+      // A gang that left the campaign is no longer a member, but the battle still names it if it attacked, defended or won
+      const named = [battle.attacker, battle.defender, ...battle.winners];
+
+      return [{
+        ...battle,
+        campaign_id,
+        // Named like on the campaign page: its scenario, or else its Deployment and Objective
+        scenario: scenarioLabel(
+          battle.scenario,
+          battle.deployment_id ? entryNames.get(battle.deployment_id) : battle.deployment_name,
+          battle.objective_id ? entryNames.get(battle.objective_id) : battle.objective_name
+        ),
+        participants: participants.map((p) => ({
+          ...p,
+          gang_name: gangs.get(p.gang_id)?.name || named.find((gang) => gang?.id === p.gang_id)?.name || 'Unknown',
+          gang_colour: gangs.get(p.gang_id)?.gang_colour || '#000000',
+        })),
+      }];
+    });
+  }));
+
+  return perCampaign.flat().sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 }
