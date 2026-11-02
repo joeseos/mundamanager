@@ -38,6 +38,11 @@ function isBeast(f: GangFighterOption) {
   return f.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
 }
 
+/** Beasts follow their owner and Support fighters are taken freely: neither counts toward the Choose/Random limit. */
+function countsTowardLimit(f: GangFighterOption) {
+  return !isBeast(f) && !f.fighter_subtypes?.some((c) => c.toLowerCase() === 'support');
+}
+
 function formatFighterDetails(f: GangFighterOption, editionSlug?: string | null): string {
   const subtypeDisplay = formatFighterSubtypeDisplay(f.fighter_subtypes, editionSlug);
   return [
@@ -171,10 +176,10 @@ export default function CrewSelectionModal({
   const getBeastsForOwner = (ownerId: string) =>
     gangFighters.filter((f) => isBeast(f) && f.owner_id === ownerId);
 
-  const availableNonBeasts = useMemo(() => {
+  const limitedFighters = useMemo(() => {
     const seen = new Set<string>();
     return gangFighters.filter((f) => {
-      if (!countsTowardRating(f) || f.recovery || isBeast(f) || lockedIds.has(f.id)) return false;
+      if (!countsTowardRating(f) || f.recovery || !countsTowardLimit(f) || lockedIds.has(f.id)) return false;
       if (seen.has(f.id)) return false;
       seen.add(f.id);
       return true;
@@ -189,7 +194,7 @@ export default function CrewSelectionModal({
     selected.forEach((_, fighterId) => {
       if (randomlySelected.has(fighterId) || lockedIds.has(fighterId)) return;
       const f = gangFighters.find((gf) => gf.id === fighterId);
-      if (f && !isBeast(f)) count++;
+      if (f && countsTowardLimit(f)) count++;
     });
     return count;
   }, [selected, randomlySelected, gangFighters, lockedIds]);
@@ -213,17 +218,17 @@ export default function CrewSelectionModal({
   };
 
   const handlePickChange = (value: number) => {
-    const clamped = Math.max(0, Math.min(value, availableNonBeasts.length));
+    const clamped = Math.max(0, Math.min(value, limitedFighters.length));
     setPickCount(clamped);
-    if (randomCount > availableNonBeasts.length - clamped) {
-      const newRandom = Math.max(0, availableNonBeasts.length - clamped);
+    if (randomCount > limitedFighters.length - clamped) {
+      const newRandom = Math.max(0, limitedFighters.length - clamped);
       setRandomCount(newRandom);
       if (newRandom < randomCount) handleReset();
     }
   };
 
   const handleRandomChange = (value: number) => {
-    const max = availableNonBeasts.length - pickCount;
+    const max = limitedFighters.length - pickCount;
     const clamped = Math.max(0, Math.min(value, max));
     setRandomCount(clamped);
     handleReset();
@@ -243,7 +248,7 @@ export default function CrewSelectionModal({
         manualOnly.set(id, loadoutId);
       });
 
-      const pool = availableNonBeasts.filter((f) => !manualOnly.has(f.id));
+      const pool = limitedFighters.filter((f) => !manualOnly.has(f.id));
       const picked = shuffle(pool).slice(0, randomCount);
 
       const newRandomIds = new Set(picked.map((f) => f.id));
