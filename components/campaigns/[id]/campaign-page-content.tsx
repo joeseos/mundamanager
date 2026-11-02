@@ -33,6 +33,7 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
+import type { PickerGang } from "@/components/campaigns/[id]/campaign-members-table";
 
 const CampaignEditModal = dynamic(() => import('@/components/campaigns/[id]/campaign-edit-modal'), { ssr: false });
 const CampaignMessageModal = dynamic(
@@ -163,6 +164,8 @@ interface CampaignPageContentProps {
   userId?: string;
   permissions: CampaignPermissions | null;
   hasPendingJoinRequest?: boolean;
+  /** Gangs of the members the user can add a gang for, by user id. */
+  memberGangs: Record<string, PickerGang[]>;
   /** The campaign edition's scenario tables, for the N26 battle log pickers. */
   scenarioTables?: ScenarioTableWithEntries[];
   /** The tab to open on load, as its index in the tab bar. */
@@ -204,6 +207,7 @@ export default function CampaignPageContent({
   userId,
   permissions,
   hasPendingJoinRequest = false,
+  memberGangs,
   scenarioTables = [],
   initialTab = 0,
   campaignTypes, 
@@ -793,6 +797,7 @@ export default function CampaignPageContent({
                 campaignEditionSlug={campaignData.edition_slug ?? null}
                 isAdmin={isAdmin}
                 members={campaignData.members}
+                memberGangs={memberGangs}
                 userId={userId}
                 initialAllegiances={campaignAllegiances}
                 onMemberUpdate={({ removedMemberId, removedGangIds, updatedMember, roleChange, restoredMembers }) => {

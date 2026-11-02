@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/utils/supabase/client"
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal"
 import Link from 'next/link'
@@ -18,8 +17,7 @@ import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-alle
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
-import { compactGangTypeLabel, detailGangTypeLabel, joinedParentGangTypeName } from "@/utils/gang-type-label";
-import { gangEditionSlug, sameEditionForDisplay } from '@/types/edition';
+import { compactGangTypeLabel, detailGangTypeLabel } from "@/utils/gang-type-label";
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -67,7 +65,8 @@ interface Member {
   index?: number;
 }
 
-interface Gang {
+/** A gang in the Add Gang picker, loaded by the campaign page. */
+export interface PickerGang {
   id: string;
   name: string;
   gang_type: string;
@@ -77,21 +76,9 @@ interface Gang {
   wealth?: number;
   reputation?: number;
   isInCampaign?: boolean;
-  edition_slug?: string | null;
 }
 
-type GangWithCampaignCheck = {
-  id: string;
-  name: string;
-  gang_type: string;      // Database column name
-  gang_colour: string | null;  // Database column name
-  rating?: number;
-  wealth?: number;
-  reputation?: number;
-  campaign_gangs?: Array<{ gang_id: string }>;
-  gang_types?: { parent_gang_type_name?: string | null; editions?: { slug: string } | null } | null;
-  custom_gang_types?: { editions?: { slug: string } | null } | null;
-}
+const NO_GANGS: PickerGang[] = [];
 
 interface GangToRemove {
   memberId: string;
@@ -107,6 +94,8 @@ interface MembersTableProps {
   campaignEditionSlug?: string | null;
   isAdmin: boolean;
   members: Member[];
+  /** Gangs of the campaign's edition for the members the user can add a gang for, by user id. */
+  memberGangs: Record<string, PickerGang[]>;
   userId?: string;
   onMemberUpdate: (args: {
     removedMemberId?: string;
@@ -141,6 +130,7 @@ export default function MembersTable({
   campaignEditionSlug = null,
   isAdmin,
   members,
+  memberGangs,
   userId,
   onMemberUpdate,
   isCampaignAdmin,
@@ -151,8 +141,7 @@ export default function MembersTable({
   const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
   const [showGangModal, setShowGangModal] = useState(false)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [userGangs, setUserGangs] = useState<Gang[]>([])
-  const [selectedGang, setSelectedGang] = useState<Gang | null>(null)
+  const [selectedGang, setSelectedGang] = useState<PickerGang | null>(null)
   const [selectedAllegiance, setSelectedAllegiance] = useState<{ id: string; is_custom: boolean } | null>(null)
   const [showRemoveGangModal, setShowRemoveGangModal] = useState(false)
   const [gangToRemove, setGangToRemove] = useState<GangToRemove | null>(null)
@@ -168,8 +157,6 @@ export default function MembersTable({
   // Allegiance state
   const [editingAllegiance, setEditingAllegiance] = useState<{ gangId: string; memberIndex: number } | null>(null)
   
-  const supabase = createClient()
-
   // Fetch allegiances using TanStack Query
   // Shares the same query key as campaign-allegiances-actions to see optimistic updates
   const { data: availableAllegiances = initialAllegiances } = useQuery({
@@ -300,66 +287,10 @@ export default function MembersTable({
     }
   };
 
-  const fetchUserGangs = async (userId: string) => {
-    try {
-      // Single optimized query with LEFT JOIN to check campaign membership
-      const { data: gangs, error } = await supabase
-        .from('gangs')
-        .select(`
-          id,
-          name,
-          gang_type,
-          gang_colour,
-          rating,
-          wealth,
-          reputation,
-          campaign_gangs(gang_id),
-          gang_types!gang_type_id (
-            parent_gang_type_name,
-            editions:edition_id (slug)
-          ),
-          custom_gang_types!custom_gang_type_id (
-            editions:edition_id (slug)
-          )
-        `)
-        .eq('user_id', userId)
-        .returns<GangWithCampaignCheck[]>();
+  const userGangs = (selectedMember && memberGangs[selectedMember.user_id]) || NO_GANGS;
 
-      if (error) throw error;
-
-      // Transform data to include isInCampaign flag and map database column names to clean field names
-      const gangsWithAvailability = (gangs ?? [])
-        .map(gang => {
-          // If campaign_gangs array exists and has entries, the gang is in a campaign
-          const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
-          const edition_slug = gangEditionSlug(gang);
-
-          // Remove the campaign_gangs join data and map database column names
-          const { campaign_gangs, gang_type, gang_colour, gang_types, custom_gang_types, ...gangData } = gang;
-
-          return {
-            ...gangData,
-            gang_type,
-            parent_gang_type_name: joinedParentGangTypeName(gang_types),
-            gang_colour,
-            edition_slug,
-            isInCampaign
-          };
-        })
-        // Only gangs whose gang type edition matches this campaign's campaign type edition
-        .filter(gang => sameEditionForDisplay(gang.edition_slug, campaignEditionSlug));
-
-      setUserGangs(gangsWithAvailability);
-    } catch (error) {
-      console.error('Error fetching gangs:', error);
-      toast.error("Failed to load gangs");
-    }
-  };
-
-  const handleGangClick = async (member: Member) => {
+  const handleGangClick = (member: Member) => {
     setSelectedMember(member);
-    
-    await fetchUserGangs(member.user_id);
     setShowGangModal(true);
   };
 
@@ -369,7 +300,7 @@ export default function MembersTable({
       gangId: string; 
       userId: string; 
       campaignMemberId?: string; 
-      gangData: Gang;
+      gangData: PickerGang;
       allegianceId?: string | null;
       isCustomAllegiance?: boolean;
     }) => {

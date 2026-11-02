@@ -28,6 +28,9 @@ import {
   getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
+import { getUserGangs } from "@/app/lib/get-user-gangs";
+import { sameEditionForDisplay } from "@/types/edition";
+import type { PickerGang } from "@/components/campaigns/[id]/campaign-members-table";
 
 export default async function CampaignPage(props: {
   params: Promise<{ id: string }>;
@@ -148,8 +151,33 @@ export default async function CampaignPage(props: {
       hasPendingJoinRequest = !!joinRequest;
     }
 
-    // The only read that depends on another: triumphs are keyed by campaign type.
-    const campaignTriumphs = await getCampaignTriumphs(campaignBasic.campaign_type_id);
+    // Gangs for the Add Gang picker: owners and arbitrators add for any member, members only their own
+    const canAddForAnyMember = permissions.isOwner || permissions.isArbitrator || permissions.isAdmin;
+    const pickerUserIds = canAddForAnyMember
+      ? [...new Set(campaignMembers.map((member) => member.user_id))]
+      : permissions.isMember ? [userId] : [];
+    const editionSlug = campaignBasic.campaign_types?.edition_slug ?? null;
+    const getPickerGangs = async (pickerUserId: string): Promise<PickerGang[]> =>
+      (await getUserGangs(pickerUserId))
+        .filter((gang) => sameEditionForDisplay(gang.edition_slug, editionSlug))
+        .map((gang) => ({
+          id: gang.id,
+          name: gang.name ?? '',
+          gang_type: gang.gang_type ?? '',
+          parent_gang_type_name: gang.parent_gang_type_name,
+          gang_colour: gang.gang_colour,
+          rating: gang.rating,
+          wealth: gang.wealth ?? undefined,
+          reputation: gang.reputation ?? undefined,
+          isInCampaign: gang.campaigns.length > 0,
+        }));
+
+    // The reads that depend on another: triumphs are keyed by campaign type, picker gangs by member.
+    const [campaignTriumphs, memberGangs] = await Promise.all([
+      getCampaignTriumphs(campaignBasic.campaign_type_id),
+      Promise.all(pickerUserIds.map(async (id) => [id, await getPickerGangs(id)] as const))
+        .then((entries) => Object.fromEntries(entries)),
+    ]);
 
     // Combine the data
     const campaignData = {
@@ -198,6 +226,7 @@ export default async function CampaignPage(props: {
       campaignMap,
       campaignMapObjects,
       hasPendingJoinRequest,
+      memberGangs,
       // The battle log pickers only need the campaign's own edition.
       scenarioTables: allScenarioTables.filter((table) => table.edition_slug === campaignData.edition_slug),
     };
@@ -235,6 +264,7 @@ export default async function CampaignPage(props: {
         mapData={pageProps.campaignMap}
         mapObjects={pageProps.campaignMapObjects}
         hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
+        memberGangs={pageProps.memberGangs}
         scenarioTables={pageProps.scenarioTables}
         // Challenge notifications link to ?tab=battles.
         initialTab={tab === 'battles' ? 2 : 0}
