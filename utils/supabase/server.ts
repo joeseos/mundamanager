@@ -17,15 +17,15 @@ export async function createClient() {
         getAll() {
           return cookieStore.getAll()
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, _headers) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             )
           } catch {
-            // The `setAll` method was called from a Server Component.
-            // This can be ignored if you have middleware refreshing
-            // user sessions.
+            // Server Components cannot set cookies or cache headers. Page
+            // requests are refreshed in proxy.ts. /api/*, /auth/callback and
+            // server actions skip the proxy; Next already treats them as dynamic/no-store.
           }
         },
       },
