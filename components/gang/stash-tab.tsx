@@ -6,10 +6,8 @@ import { useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
-import { createClient } from "@/utils/supabase/client";
 import { FighterProps, Vehicle } from '@/types/fighter';
 import { StashItem } from '@/types/gang';
-import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 import { hasChemAlchemy } from '@/types/edition';
@@ -98,7 +96,6 @@ export default function GangInventory({
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
   const [stash, setStash] = useState<StashItem[]>(initialStash);
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
@@ -205,15 +202,6 @@ export default function GangInventory({
   const isVehicleCompatible = (item: StashItem) => 
     vehicleCompatibleCategories.includes(item.equipment_category || '');
 
-  useEffect(() => {
-    const getSession = async () => {
-      const supabase = createClient();
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, []);
-
   const getItemName = (item: StashItem): string => {
     const baseName = item.vehicle_name || item.equipment_name || 'Unknown Item';
     return baseName;
@@ -266,7 +254,7 @@ export default function GangInventory({
   };
 
   const handleMoveToFighter = async () => {
-    if (selectedItems.length === 0 || !selectedFighter || !session) return;
+    if (selectedItems.length === 0 || !selectedFighter) return;
 
     setIsLoading(true);
     let rollbackStash: StashItem[] | null = null;
