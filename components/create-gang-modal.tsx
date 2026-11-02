@@ -13,8 +13,6 @@ import { getGangListRank } from "@/utils/gangListRank"
 import { getGangSubtypeRank } from "@/utils/gangSubtypeRank"
 import { gangVariantsFor, hasParentGangType } from "@/utils/gangTypeVariants"
 import { createGang } from "@/app/actions/create-gang"
-import { useRouter } from "next/navigation"
-import { useSearchParams } from "next/navigation"
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
 import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker'
 import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue'
@@ -97,8 +95,6 @@ export function CreateGangButton() {
 
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { editionSlug, setEditionSlug } = useHomeEdition();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
@@ -421,14 +417,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         setShowSubtypes(false)
         onClose()
         
-        // Check if we're currently on the gangs tab, if not redirect to it
-        const currentTab = searchParams.get('tab');
-        if (currentTab !== 'gangs') {
-          router.push('/?tab=gangs');
-        } else {
-          // Trigger router refresh to update server state
-          router.refresh();
-        }
+        // createGang revalidates the gang list, so only the tab needs switching
+        window.dispatchEvent(new CustomEvent('homeTabSwitch', { detail: 'gangs' }));
         
         toast.success("Success!", { description: `${gangName} has been created successfully.` });
       } catch (err) {

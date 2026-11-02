@@ -1,5 +1,6 @@
 'use server';
 
+import { refresh } from 'next/cache';
 import { after } from 'next/server';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
@@ -539,6 +540,9 @@ export async function dismissForumPostReports(params: { postId: string; reported
       .lte('created_at', params.reportedUntil)
       .select('post_id');
     if (error) throw error;
+    // The moderation page reads reports uncached, so re-render it in this response,
+    // also when another moderator already handled them
+    refresh();
     if (!data.length) return { success: false, error: 'These reports were already handled' };
     return { success: true };
   } catch (error) {
