@@ -5,6 +5,8 @@ import { lowerCaseUuids } from './utils/uuid'
 
 function createSupabaseProxyClient(request: NextRequest) {
   let response = NextResponse.next({ request });
+  // Cache headers arrive only on the first setAll; keep them across response recreations.
+  let authCacheHeaders: Record<string, string> = {};
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -14,12 +16,16 @@ function createSupabaseProxyClient(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          authCacheHeaders = { ...authCacheHeaders, ...headers };
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
+          Object.entries(authCacheHeaders).forEach(([key, value]) => {
+            response.headers.set(key, value);
+          });
         },
       },
     }
@@ -33,10 +39,14 @@ function createSupabaseProxyClient(request: NextRequest) {
   };
 }
 
-function copyResponseCookies(source: NextResponse, target: NextResponse) {
+function copyAuthResponse(source: NextResponse, target: NextResponse) {
   source.cookies.getAll().forEach((cookie) => {
     target.cookies.set(cookie);
   });
+  for (const header of ['cache-control', 'expires', 'pragma']) {
+    const value = source.headers.get(header);
+    if (value) target.headers.set(header, value);
+  }
   return target;
 }
 
@@ -72,7 +82,7 @@ export async function proxy(request: NextRequest) {
     if (userId) {
       const destination = safePostSignInPath(request.nextUrl.searchParams.get('next'));
       const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
-      return copyResponseCookies(getResponse(), redirectResponse);
+      return copyAuthResponse(getResponse(), redirectResponse);
     }
     return getResponse();
   }
@@ -95,7 +105,7 @@ export async function proxy(request: NextRequest) {
     const redirectPath = `${cleanUrl.pathname}${cleanUrl.search}`;
 
     const redirectResponse = NextResponse.redirect(new URL(signInPath(redirectPath), request.url));
-    return copyResponseCookies(getResponse(), redirectResponse);
+    return copyAuthResponse(getResponse(), redirectResponse);
   }
 
   return getResponse();
