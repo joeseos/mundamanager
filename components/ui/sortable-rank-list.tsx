@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useRef } from 'react';
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { CSS } from '@dnd-kit/utilities';
+import { DragDropProvider, type DragEndEvent } from '@dnd-kit/react';
+import { useSortable } from '@dnd-kit/react/sortable';
+import { move } from '@dnd-kit/helpers';
+import { RestrictToVerticalAxis } from '@dnd-kit/abstract/modifiers';
+import { RestrictToElement } from '@dnd-kit/dom/modifiers';
 import { LuGripVertical, LuX } from 'react-icons/lu';
 import { Button } from '@/components/ui/button';
-import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
+import { dndSensorsDistance, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 
 export interface SortableRankItem {
   id: string;
@@ -20,36 +21,27 @@ export interface SortableRankItem {
 
 function SortableRankRow({
   id,
-  rank,
+  index,
   name,
   secondary,
   detail,
   onRemove,
 }: {
   id: string;
-  rank: number;
+  index: number;
   name: string;
   secondary?: string;
   detail?: string | number;
   onRemove?: () => void;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
+  const { ref, isDragging } = useSortable({ id, index });
 
   const surface = dragSurfaceProps(true);
 
   return (
     <div
-      ref={setNodeRef}
+      ref={ref}
       style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
         zIndex: isDragging ? 50 : 'auto',
         position: 'relative',
         // Prefer none over dragSurfaceProps' "manipulation" so vertical drags
@@ -65,10 +57,8 @@ function SortableRankRow({
       }`}
       aria-label={`Drag to reorder ${name}`}
       onContextMenu={surface.onContextMenu}
-      {...attributes}
-      {...listeners}
     >
-      <span className="inline-flex w-5 shrink-0 items-center justify-center text-sm text-muted-foreground">{rank}</span>
+      <span className="inline-flex w-5 shrink-0 items-center justify-center text-sm text-muted-foreground">{index + 1}</span>
       <span className="shrink-0 p-1 text-muted-foreground" aria-hidden="true">
         <LuGripVertical className="h-4 w-4" />
       </span>
@@ -85,7 +75,6 @@ function SortableRankRow({
           variant="ghost"
           size="sm"
           className="h-8 w-8 shrink-0 cursor-pointer touch-auto p-0"
-          onPointerDown={(e) => e.stopPropagation()}
           onClick={onRemove}
           aria-label={`Remove ${name}`}
         >
@@ -95,6 +84,14 @@ function SortableRankRow({
     </div>
   );
 }
+
+// Rows only move up and down, and never leave the list.
+const rankListModifiers = [
+  RestrictToVerticalAxis,
+  RestrictToElement.configure({
+    element: (operation) => operation.source?.element?.parentElement ?? null,
+  }),
+];
 
 /**
  * Numbered drag-to-reorder list for use inside a modal. Rows are ranked from 1
@@ -109,7 +106,6 @@ export function SortableRankList<T extends SortableRankItem>({
   onReorder: (items: T[]) => void;
   onRemove?: (id: string) => void;
 }) {
-  const sensors = useDndSensorsConfig('distance');
   const listRef = useRef<HTMLDivElement | null>(null);
   const lockedScrollParentRef = useRef<{
     el: HTMLElement;
@@ -148,38 +144,30 @@ export function SortableRankList<T extends SortableRankItem>({
 
   const handleDragEnd = (event: DragEndEvent) => {
     unlockModalScroll();
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const oldIndex = items.findIndex((item) => item.id === active.id);
-    const newIndex = items.findIndex((item) => item.id === over.id);
-    if (oldIndex === -1 || newIndex === -1) return;
-    onReorder(arrayMove(items, oldIndex, newIndex));
+    const reordered = move(items, event);
+    if (reordered !== items) onReorder(reordered);
   };
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+    <DragDropProvider
+      sensors={dndSensorsDistance}
+      modifiers={rankListModifiers}
       onDragStart={lockModalScroll}
       onDragEnd={handleDragEnd}
-      onDragCancel={unlockModalScroll}
     >
-      <SortableContext items={items.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-        <div ref={listRef} className="space-y-2" style={{ touchAction: 'none' }}>
-          {items.map((item, i) => (
-            <SortableRankRow
-              key={item.id}
-              id={item.id}
-              rank={i + 1}
-              name={item.name}
-              secondary={item.secondary}
-              detail={item.detail}
-              onRemove={onRemove ? () => onRemove(item.id) : undefined}
-            />
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
+      <div ref={listRef} className="space-y-2" style={{ touchAction: 'none' }}>
+        {items.map((item, i) => (
+          <SortableRankRow
+            key={item.id}
+            id={item.id}
+            index={i}
+            name={item.name}
+            secondary={item.secondary}
+            detail={item.detail}
+            onRemove={onRemove ? () => onRemove(item.id) : undefined}
+          />
+        ))}
+      </div>
+    </DragDropProvider>
   );
 }
