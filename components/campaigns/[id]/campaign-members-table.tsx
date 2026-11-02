@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal"
 import Link from 'next/link'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { 
   addGangToCampaign, 
   removeMemberFromCampaign, 
@@ -82,8 +82,6 @@ interface MembersTableProps {
   campaignEditionSlug?: string | null;
   isAdmin: boolean;
   members: Member[];
-  /** Gangs of the campaign's edition for the members the user can add a gang for, by user id. */
-  memberGangs: Record<string, PickerGang[]>;
   userId?: string;
   onMemberUpdate: (args: {
     removedMemberId?: string;
@@ -118,7 +116,6 @@ export default function MembersTable({
   campaignEditionSlug = null,
   isAdmin,
   members,
-  memberGangs,
   userId,
   onMemberUpdate,
   isCampaignAdmin,
@@ -269,7 +266,23 @@ export default function MembersTable({
     }
   };
 
-  const userGangs = (selectedMember && memberGangs[selectedMember.user_id]) || NO_GANGS;
+  // The selected member's gangs of this campaign's edition, loaded when the Add Gang modal opens.
+  // Dropped when a gang joins or leaves, so the next open doesn't show stale "Already in a campaign" flags.
+  const queryClient = useQueryClient();
+  const dropMemberGangs = () => queryClient.removeQueries({ queryKey: ['campaign-member-gangs', campaignId] });
+  const { data: userGangs = NO_GANGS, isLoading: isLoadingUserGangs, error: userGangsError } = useQuery({
+    queryKey: ['campaign-member-gangs', campaignId, selectedMember?.user_id],
+    queryFn: async (): Promise<PickerGang[]> => {
+      const response = await fetch(`/api/campaigns/${campaignId}/member-gangs?userId=${selectedMember!.user_id}`);
+      if (!response.ok) throw new Error('Failed to load gangs');
+      return response.json();
+    },
+    enabled: showGangModal && !!selectedMember,
+  });
+
+  useEffect(() => {
+    if (userGangsError) toast.error('Failed to load gangs');
+  }, [userGangsError]);
 
   const handleGangClick = (member: Member) => {
     setSelectedMember(member);
@@ -370,6 +383,7 @@ export default function MembersTable({
       }
 
       toast.success(`Added ${context?.gangName} to the campaign`);
+      dropMemberGangs();
 
       // Close modal
       setShowGangModal(false);
@@ -521,6 +535,7 @@ export default function MembersTable({
     // retried failure writes it again.
     onSuccess: (_result, _variables, context) => {
       toast.success(`Removed ${context?.gangName} from the campaign`);
+      dropMemberGangs();
 
       // Close modal
       setShowRemoveGangModal(false);
@@ -582,7 +597,7 @@ export default function MembersTable({
           </button>
         ))}
       </div>
-      {userGangs.length === 0 && (
+      {!isLoadingUserGangs && userGangs.length === 0 && (
         <p className="text-sm text-muted-foreground text-center">
           No gangs available for this player that match this campaign&apos;s edition.
         </p>
@@ -609,7 +624,7 @@ export default function MembersTable({
         </div>
       )}
     </div>
-  ), [userGangs, selectedGang, availableAllegiances, selectedAllegiance, selectedMember]);
+  ), [userGangs, isLoadingUserGangs, selectedGang, availableAllegiances, selectedAllegiance, selectedMember]);
 
   const roleModalContent = useMemo(() => (
     <div className="space-y-4">

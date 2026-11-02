@@ -25,8 +25,7 @@ import {
   getCampaignCaptives,
   getCampaignSharedTradingPosts,
   getCampaignMapWithObjects,
-  getCampaignOoaCounts,
-  getCampaignMemberGangs
+  getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
 
@@ -149,13 +148,8 @@ export default async function CampaignPage(props: {
       hasPendingJoinRequest = !!joinRequest;
     }
 
-    const editionSlug = campaignBasic.campaign_types?.edition_slug ?? null;
-
-    // The reads that depend on another: triumphs are keyed by campaign type, picker gangs by member.
-    const [campaignTriumphs, memberGangs] = await Promise.all([
-      getCampaignTriumphs(campaignBasic.campaign_type_id),
-      getCampaignMemberGangs(campaignMembers.map((member) => member.user_id), editionSlug),
-    ]);
+    // The only read that depends on another: triumphs are keyed by campaign type.
+    const campaignTriumphs = await getCampaignTriumphs(campaignBasic.campaign_type_id);
 
     // Combine the data
     const campaignData = {
@@ -166,7 +160,7 @@ export default async function CampaignPage(props: {
       campaign_type_image_url: campaignBasic.campaign_types?.image_url || '',
       campaign_portrait_id: campaignBasic.campaign_portrait_id ?? null,
       campaign_portrait_url: campaignBasic.campaign_portrait_url ?? null,
-      edition_slug: editionSlug,
+      edition_slug: campaignBasic.campaign_types?.edition_slug ?? null,
       image_url: campaignBasic.image_url || '',
       status: campaignBasic.status,
       description: campaignBasic.description,
@@ -204,7 +198,6 @@ export default async function CampaignPage(props: {
       campaignMap,
       campaignMapObjects,
       hasPendingJoinRequest,
-      memberGangs,
       // The battle log pickers only need the campaign's own edition.
       scenarioTables: allScenarioTables.filter((table) => table.edition_slug === campaignData.edition_slug),
     };
@@ -242,7 +235,6 @@ export default async function CampaignPage(props: {
         mapData={pageProps.campaignMap}
         mapObjects={pageProps.campaignMapObjects}
         hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
-        memberGangs={pageProps.memberGangs}
         scenarioTables={pageProps.scenarioTables}
         // Challenge notifications link to ?tab=battles.
         initialTab={tab === 'battles' ? 2 : 0}
