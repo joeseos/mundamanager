@@ -32,12 +32,6 @@ export type Gang = {
   parent_gang_type_name?: string | null;
 };
 
-/** A gang in the campaign Add Gang picker. */
-export type PickerGang = Pick<
-  Gang,
-  'id' | 'name' | 'gang_type' | 'parent_gang_type_name' | 'gang_colour' | 'rating' | 'wealth' | 'reputation'
-> & { isInCampaign: boolean };
-
 /**
  * Cached list of the user's gang ids, so the list entry below can carry
  * per-gang tags (dynamic tags must be known before the cached call).

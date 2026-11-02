@@ -18,7 +18,7 @@ import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
 import { compactGangTypeLabel, detailGangTypeLabel } from "@/utils/gang-type-label";
-import type { PickerGang } from '@/app/lib/get-user-gangs';
+import type { PickerGang } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
@@ -266,10 +266,8 @@ export default function MembersTable({
     }
   };
 
-  // The selected member's gangs of this campaign's edition, loaded when the Add Gang modal opens.
-  // Dropped when a gang joins or leaves, so the next open doesn't show stale "Already in a campaign" flags.
+  // The selected member's gangs of this campaign's edition, loaded each time the Add Gang modal opens
   const queryClient = useQueryClient();
-  const dropMemberGangs = () => queryClient.removeQueries({ queryKey: ['campaign-member-gangs', campaignId] });
   const { data: userGangs = NO_GANGS, isLoading: isLoadingUserGangs, error: userGangsError } = useQuery({
     queryKey: ['campaign-member-gangs', campaignId, selectedMember?.user_id],
     queryFn: async (): Promise<PickerGang[]> => {
@@ -283,6 +281,11 @@ export default function MembersTable({
   useEffect(() => {
     if (userGangsError) toast.error('Failed to load gangs');
   }, [userGangsError]);
+
+  // Dropped on close, so the next open never shows stale "Already in a campaign" flags
+  useEffect(() => {
+    if (!showGangModal) queryClient.removeQueries({ queryKey: ['campaign-member-gangs', campaignId] });
+  }, [showGangModal, queryClient, campaignId]);
 
   const handleGangClick = (member: Member) => {
     setSelectedMember(member);
@@ -383,7 +386,6 @@ export default function MembersTable({
       }
 
       toast.success(`Added ${context?.gangName} to the campaign`);
-      dropMemberGangs();
 
       // Close modal
       setShowGangModal(false);
@@ -535,7 +537,6 @@ export default function MembersTable({
     // retried failure writes it again.
     onSuccess: (_result, _variables, context) => {
       toast.success(`Removed ${context?.gangName} from the campaign`);
-      dropMemberGangs();
 
       // Close modal
       setShowRemoveGangModal(false);
@@ -597,7 +598,7 @@ export default function MembersTable({
           </button>
         ))}
       </div>
-      {!isLoadingUserGangs && userGangs.length === 0 && (
+      {!isLoadingUserGangs && !userGangsError && userGangs.length === 0 && (
         <p className="text-sm text-muted-foreground text-center">
           No gangs available for this player that match this campaign&apos;s edition.
         </p>
@@ -624,7 +625,7 @@ export default function MembersTable({
         </div>
       )}
     </div>
-  ), [userGangs, isLoadingUserGangs, selectedGang, availableAllegiances, selectedAllegiance, selectedMember]);
+  ), [userGangs, isLoadingUserGangs, userGangsError, selectedGang, availableAllegiances, selectedAllegiance, selectedMember]);
 
   const roleModalContent = useMemo(() => (
     <div className="space-y-4">

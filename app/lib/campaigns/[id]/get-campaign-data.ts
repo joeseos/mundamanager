@@ -14,7 +14,7 @@ import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
 import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import type { CampaignMapBundle } from '@/types/campaign';
-import { getUserGangs, type PickerGang } from '@/app/lib/get-user-gangs';
+import { getUserGangs, type Gang } from '@/app/lib/get-user-gangs';
 import { sameEditionForDisplay } from '@/types/edition';
 
 // No TTL - infinite cache with server action invalidation only
@@ -727,6 +727,12 @@ export async function getCampaignSharedTradingPosts(campaignId: string) {
     }
   )();
 }
+
+/** A gang in the campaign Add Gang picker. */
+export type PickerGang = Pick<
+  Gang,
+  'id' | 'name' | 'gang_type' | 'parent_gang_type_name' | 'gang_colour' | 'rating' | 'wealth' | 'reputation'
+> & { isInCampaign: boolean };
 
 /**
  * A member's gangs of the campaign's edition, for the Add Gang picker.
