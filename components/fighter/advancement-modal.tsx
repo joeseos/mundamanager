@@ -2550,7 +2550,6 @@ export function AdvancementModal({
                           onClick={rollSkillFromSet}
                           disabled={
                             !userPermissions?.canEdit ||
-                            skillsLoading ||
                             logSkillAdvancementRollMutation.isPending ||
                             availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
@@ -2698,7 +2697,6 @@ export function AdvancementModal({
                           onClick={rollSkillFromSet}
                           disabled={
                             !userPermissions?.canEdit ||
-                            skillsLoading ||
                             logSkillAdvancementRollMutation.isPending ||
                             availableAdvancements.filter((a) => a.is_available !== false).length === 0
                           }
