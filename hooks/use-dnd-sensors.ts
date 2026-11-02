@@ -68,8 +68,9 @@ export function dragSurfaceProps(isDraggable: boolean) {
 
 // A drag that starts and ends on the same spot still leaves the browser with a matching
 // mousedown/mouseup (or tap), so it follows the card's `<a href>` and navigates away. dnd-kit
-// stops the click propagating, which kills React's onClick, but not the anchor's default
-// action. Returns a callback that swallows that one click in the capture phase.
+// only cancels a trailing click that lands on `<body>`, where it captures the pointer; a browser
+// that sends the click to the card instead still follows the link. Returns a callback that
+// swallows that one click in the capture phase.
 //
 // `cardSelector` scopes it to draggable cards, so unrelated UI stays clickable if the listener
 // is still armed. Keyboard reorder produces no trailing click, so we skip arming for it.
