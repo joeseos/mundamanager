@@ -783,7 +783,6 @@ export default function CampaignPageContent({
               {safePermissions.canManageMembers && (
                 <MemberSearchBar
                   campaignId={campaignData.id}
-                  campaignMembers={campaignData.members}
                   onMemberAdd={(newMember) => {
                     setCampaignData(prev => ({
                       ...prev,

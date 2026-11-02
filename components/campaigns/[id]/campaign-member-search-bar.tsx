@@ -33,14 +33,12 @@ interface Member {
 
 interface MemberSearchBarProps {
   campaignId: string;
-  campaignMembers: Member[];
   onMemberAdd: (member: Member) => void;
   disabled?: boolean;
 }
 
 export default function MemberSearchBar({
   campaignId,
-  campaignMembers: _campaignMembers,
   onMemberAdd,
   disabled = false
 }: MemberSearchBarProps) {
