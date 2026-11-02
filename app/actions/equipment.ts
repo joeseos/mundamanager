@@ -1486,6 +1486,8 @@ export async function applySelfUpgradesToEquipment(params: {
   fighter_id: string;
   gang_id: string;
   credits_increase?: number;
+  /** Lets an upgrade go on again when the equipment already has it (Enhance Weapon). */
+  allow_repeats?: boolean;
 }): Promise<EquipmentActionResult> {
   if (params.effect_type_ids.length === 0) {
     return { success: false, error: 'No effects to apply' };
@@ -1525,7 +1527,7 @@ export async function applySelfUpgradesToEquipment(params: {
           user_id: user.id
         },
         {
-          checkDuplicate: true,
+          checkDuplicate: !params.allow_repeats,
           includeOperation: true
         }
       );

@@ -440,6 +440,7 @@ async function handleEnhanceWeapon(
     fighter_id: ctx.performer.id,
     gang_id: ctx.gangId,
     credits_increase: upgrade.credits_increase ?? 0,
+    allow_repeats: true,
   });
   if (!applied.success) {
     return { outcome: `Failed to enhance ${weapon.weapon_name}: ${applied.error}`, creditsDelta: 0, failed: true };
