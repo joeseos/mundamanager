@@ -438,7 +438,6 @@ export function AdvancementModal({
     },
     enabled: needsAdvancementCatalog && !!fighterId,
     gcTime: 0,
-    retry: false,
   });
   const characteristicAdvancements = advancementCatalog?.characteristics ?? NO_CHARACTERISTICS;
   const gangerSpecialistCosts =
@@ -1929,7 +1928,6 @@ export function AdvancementModal({
     enabled: !!skillFetchKey,
     // Costs and `available` change with every skill or Advancement gained or lost.
     gcTime: 0,
-    retry: false,
   });
   const skillAdvancements = useMemo<AvailableAdvancement[] | null>(() => {
     if (!skillFetchKey || !availableSkills) return null;

@@ -135,7 +135,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     enabled: !!selectedCategory,
     // Costs and `available` change with every skill or Advancement gained or lost.
     gcTime: 0,
-    retry: false,
   });
   const skillsInSet = useMemo(
     () => availableSkills?.filter((skill) => skill.skill_type_id === selectedCategory),
