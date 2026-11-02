@@ -59,8 +59,6 @@ export default function MemberSearchBar({
         throw new Error(result.error);
       }
 
-      console.log("Member added successfully:", result.data);
-
       // Create member object for local state update (allow existing members to be added again)
       const newMember: Member = {
         id: result.data?.id,

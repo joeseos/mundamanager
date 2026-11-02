@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from 'sonner';
@@ -166,12 +166,6 @@ export default function MembersTable({
     setPrevUserId(userId);
     setCurrentUserId(userId || null);
   }
-
-  useEffect(() => {
-    if (selectedMember) {
-      // Selected member tracking for modals
-    }
-  }, [selectedMember]);
 
   const sortedMembers = useMemo(() => {
     // Group members by user_id first
