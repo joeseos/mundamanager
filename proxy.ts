@@ -1,12 +1,22 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims, safePostSignInPath, signInPath } from './utils/auth'
-import {
-  applyAuthCacheHeaders,
-  copyAuthResponse,
-  recordFromAuthHeaders,
-} from './utils/supabase/auth-cache-headers'
 import { lowerCaseUuids } from './utils/uuid'
+
+function copyAuthResponse(
+  source: NextResponse,
+  target: NextResponse,
+  headerNames: Iterable<string>,
+) {
+  source.cookies.getAll().forEach((cookie) => {
+    target.cookies.set(cookie);
+  });
+  for (const header of headerNames) {
+    const value = source.headers.get(header);
+    if (value) target.headers.set(header, value);
+  }
+  return target;
+}
 
 function createSupabaseProxyClient(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -23,12 +33,14 @@ function createSupabaseProxyClient(request: NextRequest) {
         },
         setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          authCacheHeaders = { ...authCacheHeaders, ...recordFromAuthHeaders(headers) };
+          authCacheHeaders = { ...authCacheHeaders, ...headers };
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
-          applyAuthCacheHeaders(response, authCacheHeaders);
+          Object.entries(authCacheHeaders).forEach(([key, value]) => {
+            response.headers.set(key, value);
+          });
         },
       },
     }
