@@ -567,27 +567,25 @@ export default function ParticipantCard({
                 </Button>
               )}
               {(canEdit || canPostBattle) && (
-                <>
-                  <Button
-                    variant={localReady ? 'default' : 'success'}
-                    onClick={async () => {
-                      const prev = localReady;
-                      setReadyOverride(!prev);
-                      readyTimeoutRef.current = setTimeout(() => setReadyOverride(null), 10000);
-                      const result = await toggleParticipantReady(session.id, participant.id);
-                      if (!result.success) {
-                        if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
-                        setReadyOverride(null);
-                        toast.error(result.error || 'Failed to toggle ready');
-                      } else {
-                        onBroadcast?.();
-                      }
-                    }}
-                    disabled={readyOverride !== null}
-                  >
-                    {localReady ? 'Unready' : 'Ready'}
-                  </Button>
-                </>
+                <Button
+                  variant={localReady ? 'default' : 'success'}
+                  onClick={async () => {
+                    const prev = localReady;
+                    setReadyOverride(!prev);
+                    readyTimeoutRef.current = setTimeout(() => setReadyOverride(null), 10000);
+                    const result = await toggleParticipantReady(session.id, participant.id);
+                    if (!result.success) {
+                      if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
+                      setReadyOverride(null);
+                      toast.error(result.error || 'Failed to toggle ready');
+                    } else {
+                      onBroadcast?.();
+                    }
+                  }}
+                  disabled={readyOverride !== null}
+                >
+                  {localReady ? 'Unready' : 'Ready'}
+                </Button>
               )}
               {(canEdit || canInteract) && (
                 <Button onClick={() => setCrewModalMode(canInteract ? 'reinforcements' : 'crew')}>
