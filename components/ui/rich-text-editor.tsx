@@ -10,11 +10,6 @@ import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
 import { UserMention } from '@/components/ui/rich-text-mention';
 
-// On mobile the toolbar is fixed to the top of the screen instead of sitting above the text.
-const isMobileViewport = () =>
-  window.innerWidth <= 768 ||
-  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
 // Upper bound for a user-chosen display width, in CSS px.
 const MAX_IMAGE_WIDTH = 2000;
 const IMAGE_WIDTH_PRESETS = [
@@ -154,12 +149,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const [imageUrl, setImageUrl] = useState('');
   const [imageWidth, setImageWidth] = useState(''); // '' = original size
   const [isEditingImage, setIsEditingImage] = useState(false);
-  // Known on the first render (the editor only renders in the browser), so
-  // the toolbar doesn't start inline and then jump to the top of the screen.
-  const [isMobile, setIsMobile] = useState(isMobileViewport);
-  const [toolbarTop, setToolbarTop] = useState(90);
-  const [scrollY, setScrollY] = useState(0);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [isToolbarFloating, setIsToolbarFloating] = useState(false);
   const [, forceUpdate] = useState({});
   const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -167,7 +156,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const imageInputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const useViewportFixedToolbar = isMobile && !stickyWithinScrollContainer;
   
 
   // Ref to hold the image insertion function (set after editor is ready)
@@ -303,77 +291,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     };
   }, []);
 
-  // Detect mobile device and handle mobile-specific behavior
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(isMobileViewport());
-    };
-
-    window.addEventListener('resize', checkMobile);
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-    };
-  }, []);
-
-  // Handle mobile keyboard and viewport changes
-  useEffect(() => {
-    if (!isMobile || stickyWithinScrollContainer) return;
-
-    let initialViewportHeight = window.innerHeight;
-
-    const handleVisualViewportChange = () => {
-      if (window.visualViewport) {
-        // Detect if keyboard is open
-        const currentViewportHeight = window.visualViewport.height;
-        const keyboardOpen = currentViewportHeight < initialViewportHeight * 0.8;
-        setIsKeyboardOpen(keyboardOpen);
-
-        if (keyboardOpen) {
-          // Keyboard is open - use scroll-dependent positioning
-          const baseTop = 90;
-          const scrollOffset = Math.min(scrollY, baseTop); // Don't go below 0
-          const viewportOffset = window.visualViewport.offsetTop;
-          const newTop = Math.max(0, baseTop - scrollOffset + viewportOffset);
-          setToolbarTop(newTop);
-        } else {
-          // Keyboard is closed - use default position
-          setToolbarTop(90);
-        }
-      }
-    };
-
-    const handleScroll = () => {
-      setScrollY(window.scrollY);
-      
-      // Only apply scroll offset if keyboard is open
-      if (isKeyboardOpen && window.visualViewport) {
-        const baseTop = 90;
-        const scrollOffset = Math.min(window.scrollY, baseTop);
-        const viewportOffset = window.visualViewport.offsetTop;
-        const newTop = Math.max(0, baseTop - scrollOffset + viewportOffset);
-        setToolbarTop(newTop);
-      }
-    };
-
-    // Listen for visual viewport changes (keyboard open/close)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleVisualViewportChange);
-      window.visualViewport.addEventListener('scroll', handleVisualViewportChange);
-    }
-    
-    // Listen for page scroll
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleVisualViewportChange);
-        window.visualViewport.removeEventListener('scroll', handleVisualViewportChange);
-      }
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [isMobile, scrollY, isKeyboardOpen, stickyWithinScrollContainer]);
-
   // Calculate character count from HTML content
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
@@ -381,7 +298,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   };
 
   useEffect(() => {
-    if (!stickyWithinScrollContainer || isMobile) return;
+    if (!stickyWithinScrollContainer) return;
     if (!toolbarRef.current) return;
 
     const getScrollParent = (element: HTMLElement): HTMLElement | null => {
@@ -415,7 +332,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       scrollParent.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
     };
-  }, [stickyWithinScrollContainer, isMobile]);
+  }, [stickyWithinScrollContainer]);
 
   const charCount = getCharCount(content);
   const isOverLimit = charLimit && charCount > charLimit;
@@ -601,17 +518,10 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       {/* Toolbar */}
       <div
         ref={toolbarRef}
-        className={`border-b rounded-t-md p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] ${
-        useViewportFixedToolbar
-          ? 'fixed left-0 right-0 border-b-2 border-border' 
-          : stickyWithinScrollContainer
-            ? 'sticky top-[-20px]'
-            : 'sticky top-[90px]'
-      } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}
-      style={useViewportFixedToolbar ? { 
-        top: `${toolbarTop}px`,
-        position: 'fixed'
-      } : {}}>
+        className={`border-b p-1 flex flex-wrap gap-[3px] items-center bg-card z-30 sticky ${
+        // Below the fixed site header (57px) and breadcrumb bar (40px)
+        stickyWithinScrollContainer ? 'top-[-20px]' : 'top-[97px]'
+      } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}>
         {/* Text formatting */}
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -1101,9 +1011,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       </div>
 
       {/* Editor content */}
-      <div className={isMobile ? '' : ''}>
-        <EditorContent editor={editor} />
-      </div>
+      <EditorContent editor={editor} />
     </div>
   );
 }); 

@@ -30,7 +30,6 @@ export function ForumReplyBox({ threadId, path, locked, divider = true, children
   const { userId, isModerator, loading } = useForumViewer();
   // Moderators can still reply to a locked thread, e.g. to say why it was locked
   const canReply = !locked || isModerator;
-  // The editor mounts only while replying: on mobile its toolbar is pinned to the top of the screen
   const [replying, setReplying] = useState(false);
   const [initialContent, setInitialContent] = useState('');
   // Bumped to start the form again with a quote that came in while the editor was loading
