@@ -110,6 +110,8 @@ interface CrewSelectionModalProps {
   gangFighters: GangFighterOption[];
   selectedFighters: Map<string, string | undefined>;
   editionSlug?: string | null;
+  /** Mid-battle: the current crew stays locked and only remaining fighters can be added. */
+  reinforcements?: boolean;
   loading: boolean;
   onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => Promise<boolean> | void;
   onClose: () => void;
@@ -120,10 +122,16 @@ export default function CrewSelectionModal({
   gangFighters,
   selectedFighters,
   editionSlug,
+  reinforcements = false,
   loading,
   onConfirm,
   onClose,
 }: CrewSelectionModalProps) {
+  // The crew when the modal opened; only fighters outside it can be added.
+  const [lockedIds] = useState(
+    () => new Set(reinforcements ? Array.from(selectedFighters.keys()) : [])
+  );
+
   const [selected, setSelected] = useState<Map<string, string | undefined>>(
     () => {
       const initial = new Map(selectedFighters);
@@ -166,12 +174,12 @@ export default function CrewSelectionModal({
   const availableNonBeasts = useMemo(() => {
     const seen = new Set<string>();
     return gangFighters.filter((f) => {
-      if (!countsTowardRating(f) || f.recovery || isBeast(f)) return false;
+      if (!countsTowardRating(f) || f.recovery || isBeast(f) || lockedIds.has(f.id)) return false;
       if (seen.has(f.id)) return false;
       seen.add(f.id);
       return true;
     });
-  }, [gangFighters]);
+  }, [gangFighters, lockedIds]);
 
   const totalTarget = pickCount + randomCount;
   const inQuotaMode = totalTarget > 0;
@@ -179,12 +187,12 @@ export default function CrewSelectionModal({
   const manuallySelectedCount = useMemo(() => {
     let count = 0;
     selected.forEach((_, fighterId) => {
-      if (randomlySelected.has(fighterId)) return;
+      if (randomlySelected.has(fighterId) || lockedIds.has(fighterId)) return;
       const f = gangFighters.find((gf) => gf.id === fighterId);
       if (f && !isBeast(f)) count++;
     });
     return count;
-  }, [selected, randomlySelected, gangFighters]);
+  }, [selected, randomlySelected, gangFighters, lockedIds]);
 
   const handleReset = () => {
     setRandomlySelected((prevRandom) => {
@@ -221,12 +229,15 @@ export default function CrewSelectionModal({
     handleReset();
   };
 
+  const lockedSelection = () =>
+    new Map(Array.from(selected).filter(([id]) => lockedIds.has(id)));
+
   const handleRoll = async () => {
     setRolling(true);
     try {
       const manualOnly = new Map<string, string | undefined>();
       selected.forEach((loadoutId, id) => {
-        if (randomlySelected.has(id)) return;
+        if (randomlySelected.has(id) || lockedIds.has(id)) return;
         const f = gangFighters.find((gf) => gf.id === id);
         if (f && isBeast(f)) return;
         manualOnly.set(id, loadoutId);
@@ -238,7 +249,7 @@ export default function CrewSelectionModal({
       const newRandomIds = new Set(picked.map((f) => f.id));
       setRandomlySelected(newRandomIds);
 
-      const next = new Map<string, string | undefined>();
+      const next = lockedSelection();
       const addWithBeasts = (id: string, loadoutId: string | undefined) => {
         next.set(id, loadoutId);
         for (const beast of getBeastsForOwner(id)) {
@@ -257,7 +268,7 @@ export default function CrewSelectionModal({
       logCrewRollMutation.mutate({
         gang_id: gangId,
         action_type: 'crew_roll',
-        description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
+        description: `Random ${reinforcements ? 'reinforcements' : 'crew selection'}: ${picked.length} fighter(s) rolled — ${pickedNames}`,
       });
     } finally {
       setRolling(false);
@@ -265,7 +276,7 @@ export default function CrewSelectionModal({
   };
 
   const isDisabled = (f: GangFighterOption) =>
-    isBeast(f) || !isAvailable(f);
+    isBeast(f) || !isAvailable(f) || lockedIds.has(f.id);
 
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
@@ -297,9 +308,9 @@ export default function CrewSelectionModal({
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelected(new Map());
+      setSelected(lockedSelection());
     } else {
-      const next = new Map<string, string | undefined>();
+      const next = lockedSelection();
       for (const f of activeFighters) {
         if (!next.has(f.id)) {
           next.set(f.id, f.loadout_id);
@@ -314,19 +325,22 @@ export default function CrewSelectionModal({
     const toRemove: string[] = [];
     const toUpdate: FighterEntry[] = [];
 
+    // Reinforcements only ever add: the crew already in the battle is never changed or removed.
     Array.from(selected.entries()).forEach(([fighterId, loadoutId]) => {
       if (!selectedFighters.has(fighterId)) {
         toAdd.push({ fighter_id: fighterId, loadout_id: loadoutId });
-      } else if (selectedFighters.get(fighterId) !== loadoutId) {
+      } else if (!reinforcements && selectedFighters.get(fighterId) !== loadoutId) {
         toUpdate.push({ fighter_id: fighterId, loadout_id: loadoutId });
       }
     });
 
-    Array.from(selectedFighters.keys()).forEach((id) => {
-      if (!selected.has(id)) {
-        toRemove.push(id);
-      }
-    });
+    if (!reinforcements) {
+      Array.from(selectedFighters.keys()).forEach((id) => {
+        if (!selected.has(id)) {
+          toRemove.push(id);
+        }
+      });
+    }
 
     const result = await onConfirm(toAdd, toRemove, toUpdate);
     return result;
@@ -338,7 +352,7 @@ export default function CrewSelectionModal({
 
   return (
     <Modal
-      title="Select Crew"
+      title={reinforcements ? 'Reinforcements' : 'Select Crew'}
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Confirm"

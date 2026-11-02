@@ -1214,8 +1214,9 @@ export async function bulkAddFightersToSession(params: {
       .select('status')
       .eq('id', params.session_id)
       .single();
-    if (session?.status !== 'pre_battle')
-      return { success: false, error: 'Crew can only be changed during pre-battle' };
+    // Reinforcements join during the battle; changing the crew otherwise stays pre-battle only.
+    if (session?.status !== 'pre_battle' && session?.status !== 'active')
+      return { success: false, error: 'Fighters can only be added before or during the battle' };
 
     const { data: participant } = await supabase
       .from('battle_session_participants')
@@ -1258,7 +1259,8 @@ export async function bulkAddFightersToSession(params: {
 
     const { error } = await supabase
       .from('battle_session_fighters')
-      .upsert(rows, { onConflict: 'battle_session_id,fighter_id' });
+      // Never overwrite a fighter already in the crew: that would reset its session record.
+      .upsert(rows, { onConflict: 'battle_session_id,fighter_id', ignoreDuplicates: true });
 
     if (error) return { success: false, error: error.message };
 
