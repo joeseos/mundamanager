@@ -555,7 +555,7 @@ export default function ParticipantCard({
               )}
             </div>
           </div>
-          {(canEdit || canPostBattle || ((canManage || isMyGang) && editable && !isPostBattle)) && (
+          {(canEdit || canPostBattle || canInteract || ((canManage || isMyGang) && editable && !isPostBattle)) && (
             <div className="flex gap-2 self-end sm:self-auto">
               {canPostBattle && localFighters.length > 0 && (
                 <Button
@@ -586,12 +586,12 @@ export default function ParticipantCard({
                   >
                     {localReady ? 'Unready' : 'Ready'}
                   </Button>
-                  {canEdit && (
-                    <Button onClick={() => setShowCrewModal(true)}>
-                      Select Crew
-                    </Button>
-                  )}
                 </>
+              )}
+              {(canEdit || canInteract) && (
+                <Button onClick={() => setShowCrewModal(true)}>
+                  {canInteract ? 'Reinforcements' : 'Select Crew'}
+                </Button>
               )}
               {(canManage || isMyGang) && editable && !isPostBattle && (
                 <Button
@@ -668,6 +668,7 @@ export default function ParticipantCard({
             gangFighters={gangFighters}
             selectedFighters={selectedFighters}
             editionSlug={session.edition_slug}
+            reinforcements={battleActive}
             loading={false}
             onClose={() => setShowCrewModal(false)}
             onConfirm={async (toAdd, toRemove, toUpdate) => {
@@ -709,7 +710,7 @@ export default function ParticipantCard({
                 return false;
               }
 
-              toast.success('Crew updated');
+              toast.success(battleActive ? 'Reinforcements added' : 'Crew updated');
               onBroadcast?.();
               return true;
             }}
@@ -799,7 +800,8 @@ export default function ParticipantCard({
                         cost={cost}
                         xp={xp}
                         injuryCount={injuryCount}
-                        canInteract={canInteract}
+                        // A reinforcement's optimistic row has no session row id to act on until the refetch.
+                        canInteract={canInteract && !f.id.startsWith('temp-')}
                         battleActive={battleActive}
                         hasTwoActivations={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
                         gangFighter={fullMatch}
