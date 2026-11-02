@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
@@ -37,7 +37,6 @@ interface ItemModalProps {
   fighterHasLegacy?: boolean;
   fighterLegacyName?: string;
   vehicleId?: string;
-  vehicleType?: string;
   vehicleTypeId?: string;
   isVehicleEquipment?: boolean;
   allowedCategories?: string[];
@@ -88,65 +87,36 @@ interface RawEquipmentData {
   max_count?: number | null;
 }
 
-/** Formats get_equipment_detailed_data rows and groups them by category. */
+const VEHICLE_UPGRADE_SLOT_ORDER: Record<string, number> = { Body: 1, Drive: 2, Engine: 3 };
+
+/** Formats get_equipment_detailed_data rows and groups them by category, sorted by name. */
 function groupEquipmentByCategory(data: RawEquipmentData[], markFightersList: boolean): Record<string, Equipment[]> {
-  let formattedData = data
-    .map((item: RawEquipmentData) => ({
+  const byId = new Map<string, Equipment & { equipment_category: string }>();
+  for (const item of data) {
+    if (byId.has(item.id)) continue;
+    byId.set(item.id, {
       ...item,
       equipment_id: item.id,
       fighter_equipment_id: '',
       cost: item.adjusted_cost,
-      base_cost: item.base_cost,
-      adjusted_cost: item.adjusted_cost,
       trade_points: item.trade_points ?? undefined,
-      equipment_type: item.equipment_type as 'weapon' | 'wargear' | 'vehicle_upgrade',
       fighter_weapon_id: item.fighter_weapon_id || undefined,
       master_crafted: item.master_crafted || false,
-      is_custom: item.is_custom,
       vehicle_upgrade_slot: item.vehicle_upgrade_slot || undefined,
-      // In Trading Post mode with a fighter type, mark items that are also on the fighter's list.
       from_fighters_list: markFightersList && item.fighter_type_equipment
-    }));
-
-  // Remove duplicates based on equipment_id
-  formattedData = formattedData
-    .filter((item, index, array) => 
-      array.findIndex(i => i.equipment_id === item.equipment_id) === index
-    )
-    .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
-
-  // Organize equipment by category
-  const equipmentByCategory: Record<string, Equipment[]> = {};
-  formattedData.forEach(item => {
-    const category = item.equipment_category;
-    if (!equipmentByCategory[category]) {
-      equipmentByCategory[category] = [];
-    }
-    equipmentByCategory[category].push(item);
-  });
-
-  // Sort Vehicle Upgrades by slot first, then alphabetically
-  if (equipmentByCategory['Vehicle Upgrades']) {
-    equipmentByCategory['Vehicle Upgrades'].sort((a, b) => {
-      // Define slot order - items without slot info come first (0)
-      const slotOrder = { 'Body': 1, 'Drive': 2, 'Engine': 3 };
-      
-      // Get slot values, treating null/undefined as 0 (first)
-      const aSlot = a.vehicle_upgrade_slot || '';
-      const bSlot = b.vehicle_upgrade_slot || '';
-      const aOrder = slotOrder[aSlot as keyof typeof slotOrder] || 0;
-      const bOrder = slotOrder[bSlot as keyof typeof slotOrder] || 0;
-      
-      // Sort by slot first
-      if (aOrder !== bOrder) {
-        return aOrder - bOrder;
-      }
-      
-      // Then sort alphabetically
-      return a.equipment_name.localeCompare(b.equipment_name);
     });
   }
 
+  const equipmentByCategory: Record<string, Equipment[]> = {};
+  const sorted = [...byId.values()].sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
+  for (const item of sorted) {
+    (equipmentByCategory[item.equipment_category] ??= []).push(item);
+  }
+  // Vehicle Upgrades go by slot (no slot first), keeping name order within a slot.
+  equipmentByCategory['Vehicle Upgrades']?.sort((a, b) =>
+    (VEHICLE_UPGRADE_SLOT_ORDER[a.vehicle_upgrade_slot ?? ''] ?? 0) -
+    (VEHICLE_UPGRADE_SLOT_ORDER[b.vehicle_upgrade_slot ?? ''] ?? 0)
+  );
   return equipmentByCategory;
 }
 
@@ -168,7 +138,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterCredits,
   fighterHasLegacy,
   vehicleId,
-  vehicleType,
   vehicleTypeId,
   isVehicleEquipment,
   allowedCategories,
@@ -223,7 +192,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   // Gang-level access (no fighter) and custom fighters list equipment without a type.
   const missingTypeError = !resolvedTypeId && fighterId && !isCustomFighter
     ? isVehicleEquipment
-      ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
+      ? 'Vehicle type information is missing'
       : 'Fighter type information is missing'
     : null;
   // In Trading Post mode with a fighter type, SQL ORs the Trading Post and the fighter's list.
@@ -254,6 +223,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }
   const equipmentQuery = equipmentParams.toString();
 
+  const queryClient = useQueryClient();
   const { data: equipment = NO_EQUIPMENT, error: equipmentError } = useQuery({
     queryKey: ['available-equipment', gangId, equipmentQuery],
     queryFn: async () => {
@@ -263,23 +233,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return groupEquipmentByCategory(data, equipmentListType === 'fighters-tradingpost' && includesFightersList);
     },
     enabled: !missingTypeError,
-    // Costs and lists depend on the fighter, so nothing is kept once the modal closes.
-    gcTime: 0,
   });
-  const availableCategories = useMemo(() => Object.keys(equipment), [equipment]);
+  // Lists and costs depend on the fighter, so drop them when the modal closes.
+  useEffect(() => () => queryClient.removeQueries({ queryKey: ['available-equipment', gangId] }), [queryClient, gangId]);
   const error = missingTypeError ?? equipmentError?.message ?? null;
 
-  const toggleCategory = async (category: Category) => {
-    const isExpanded = expandedCategories.has(category.category_name);
+  const toggleCategory = (category: Category) => {
     const newSet = new Set(expandedCategories);
-
-    if (isExpanded) {
-      newSet.delete(category.category_name);
-    } else {
-      newSet.add(category.category_name);
-      // No need to fetch individual categories anymore - all equipment is loaded at once
-    }
-
+    if (!newSet.delete(category.category_name)) newSet.add(category.category_name);
     setExpandedCategories(newSet);
   };
 
@@ -401,11 +362,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
     });
   };
 
-  // Derive categories from available category names (no separate fetch needed)
-  const categories: Category[] = availableCategories.map(name => ({
-    id: name,
-    category_name: name
-  }));
+  const categories: Category[] = useMemo(
+    () => Object.keys(equipment).map(name => ({ id: name, category_name: name })),
+    [equipment]
+  );
 
   const useN26CategoryFormation = hasEquipmentSuperCategories(editionSlug);
 
@@ -416,13 +376,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
           ? allowedCategories.includes(category.category_name)
           : !isVehicleEquipment;
 
-        const isAvailable = availableCategories.includes(category.category_name);
-
         const hasMatchingEquipment = !searchQuery ||
           (equipment[category.category_name] &&
            filterEquipment(equipment[category.category_name]).length > 0);
 
-        return isVehicleAllowed && isAvailable && hasMatchingEquipment;
+        return isVehicleAllowed && hasMatchingEquipment;
       })
       .sort((a, b) => {
         if (useN26CategoryFormation) {
@@ -442,7 +400,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
     categories,
     isVehicleEquipment,
     allowedCategories,
-    availableCategories,
     searchQuery,
     equipment,
     costRange,

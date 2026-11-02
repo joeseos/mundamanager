@@ -1519,7 +1519,6 @@ export default function FighterPage({
               fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
               fighterCredits={fighterData.fighter.credits}
               vehicleId={vehicle?.id}
-              vehicleType={vehicle?.vehicle_type}
               vehicleTypeId={vehicle?.vehicle_type_id}
               isVehicleEquipment={Boolean(vehicle)}
               allowedCategories={vehicle ? VEHICLE_EQUIPMENT_CATEGORIES : undefined}
