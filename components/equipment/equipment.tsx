@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import React, { useCallback, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
@@ -223,7 +223,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }
   const equipmentQuery = equipmentParams.toString();
 
-  const queryClient = useQueryClient();
   const { data: equipment = NO_EQUIPMENT, error: equipmentError } = useQuery({
     queryKey: ['available-equipment', gangId, equipmentQuery],
     queryFn: async () => {
@@ -233,9 +232,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return groupEquipmentByCategory(data, equipmentListType === 'fighters-tradingpost' && includesFightersList);
     },
     enabled: !missingTypeError,
+    // Lists and costs depend on the fighter, so nothing is kept once it's off screen.
+    gcTime: 0,
   });
-  // Lists and costs depend on the fighter, so drop them when the modal closes.
-  useEffect(() => () => queryClient.removeQueries({ queryKey: ['available-equipment', gangId] }), [queryClient, gangId]);
   const error = missingTypeError ?? equipmentError?.message ?? null;
 
   const toggleCategory = (category: Category) => {
