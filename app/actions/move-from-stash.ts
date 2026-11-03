@@ -7,7 +7,7 @@ import { revalidateTag } from 'next/cache';
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
-import { grantSkillsForEffects, insertEffectWithModifiers } from './equipment';
+import { grantSkillsForEffects, insertEffectWithModifiers, type GrantedSkill } from './equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
@@ -39,6 +39,9 @@ export interface MoveFromStashResult {
   updated_gang_rating?: number;
   updated_gang_wealth?: number;
   affected_beast_ids?: string[];
+  /** Set when the gear changed the fighter's subtypes */
+  fighter_subtypes?: string[];
+  granted_skills?: GrantedSkill[];
   error?: string;
 }
 
@@ -159,6 +162,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     const allAffectedBeastIds: string[] = [];
     let hasAppliedEffects = false;
     let hasExoticBeastEquipment = false;
+    let fighterSubtypes: string[] | undefined;
+    const grantedSkills: GrantedSkill[] = [];
 
     const processItem = async (item: MoveFromStashItem): Promise<MoveFromStashItemResult> => {
       const stashData = stashDataMap.get(item.stash_id)!;
@@ -253,8 +258,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
               if (insertErr) {
                 console.error(`Failed to insert effects for ${item.stash_id}: ${insertErr.message}`);
               } else if (insertedEffects && insertedEffects.length > 0) {
-                await syncSubtypeGrants(supabase, params.fighter_id, { granted: toApply });
-                await grantSkillsForEffects(
+                fighterSubtypes = await syncSubtypeGrants(supabase, params.fighter_id, { granted: toApply }) ?? fighterSubtypes;
+                grantedSkills.push(...await grantSkillsForEffects(
                   supabase,
                   params.fighter_id,
                   insertedEffects.map((effect, index) => ({
@@ -263,7 +268,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                     type_specific_data: toApply[index]?.type_specific_data
                   })),
                   fighterOwnerId!
-                );
+                ));
 
                 const allModifiers: any[] = [];
                 toApply.forEach((et, index) => {
@@ -587,7 +592,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       item_results: itemResults,
       updated_gang_rating: updatedGangRating,
       updated_gang_wealth: updatedGangWealth,
-      ...(allAffectedBeastIds.length > 0 && { affected_beast_ids: allAffectedBeastIds })
+      ...(allAffectedBeastIds.length > 0 && { affected_beast_ids: allAffectedBeastIds }),
+      ...(fighterSubtypes && { fighter_subtypes: fighterSubtypes }),
+      ...(grantedSkills.length > 0 && { granted_skills: grantedSkills })
     };
 
   } catch (error) {
