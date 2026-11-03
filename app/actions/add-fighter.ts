@@ -16,6 +16,7 @@ import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
 import type { EquipmentGrants } from '@/types/equipment';
+import { grantedSkillFromEffect, subtypeGrantsFromEffects } from '@/utils/effect-modifiers';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -1249,6 +1250,24 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Calculate stats with effects applied for optimistic updates
     const currentStats = calculateStatsWithEffects(baseStats, allAppliedEffects);
 
+    // Default gear's effects may have added subtypes and skills after the
+    // fighter and its default skills were inserted, so read both back.
+    let fighterSubtypes = insertedFighter.fighter_subtypes ?? [];
+    let fighterSkills = insertedSkills;
+    const { add, remove } = subtypeGrantsFromEffects(allAppliedEffects);
+    if (add.length > 0 || remove.length > 0 || allAppliedEffects.some(grantedSkillFromEffect)) {
+      const { data: granted } = await supabase
+        .from('fighters')
+        .select('fighter_subtypes, fighter_skills ( skill_id, skills!skill_id ( name ) )')
+        .eq('id', fighterId)
+        .single();
+
+      if (granted) {
+        fighterSubtypes = granted.fighter_subtypes ?? [];
+        fighterSkills = granted.fighter_skills ?? [];
+      }
+    }
+
     return {
       success: true,
       warning: archetypeSkillAccessWarning,
@@ -1256,7 +1275,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
-        fighter_subtypes: insertedFighter.fighter_subtypes ?? [],
+        fighter_subtypes: fighterSubtypes,
         fighter_specialisation_id: fighterInsertData.fighter_specialisation_id,
         fighter_variant: effectiveFighterData.fighter_variant ?? null,
         free_skill: effectiveFighterData.free_skill || false,
@@ -1299,7 +1318,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         // Legacy stats field for backward compatibility (use current stats)
         stats: currentStats,
         equipment: equipmentWithProfiles,
-        skills: insertedSkills.map(skill => ({
+        skills: fighterSkills.map(skill => ({
           skill_id: skill.skill_id,
           skill_name: (skill.skills as any)?.name || ''
         })),
