@@ -3,7 +3,7 @@
 --
 
 
--- Dumped from database version 17.6
+-- Dumped from database version 17.11
 -- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
 
 SET statement_timeout = 0;
@@ -334,49 +334,35 @@ BEGIN
     IF effect_type_record.type_specific_data->>'skill_id' IS NOT NULL THEN
         skill_id_val := (effect_type_record.type_specific_data->>'skill_id')::UUID;
 
-        -- Add the skill to fighter_skills if it doesn't already exist
+        -- Always a new row, as grantSkillsForEffects does: reusing a skill the
+        -- fighter already has would let removing the injury delete it.
         INSERT INTO fighter_skills (
             fighter_id,
             skill_id,
-            user_id,
-            fighter_effect_skill_id
+            user_id
         )
-        SELECT
+        VALUES (
             in_fighter_id,
             skill_id_val,
-            v_fighter_owner_id,
-            NULL  -- Initially NULL, will update after creating relation
-        WHERE
-            NOT EXISTS (
-                SELECT 1 FROM fighter_skills
-                WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val
-            )
+            v_fighter_owner_id
+        )
         RETURNING id INTO new_fighter_skill_id;
 
-        -- If the skill already exists, get its ID
-        IF new_fighter_skill_id IS NULL THEN
-            SELECT id INTO new_fighter_skill_id
-            FROM fighter_skills
-            WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val;
-        END IF;
-
         -- Create the relation in fighter_effect_skills
-        IF new_fighter_skill_id IS NOT NULL THEN
-            INSERT INTO fighter_effect_skills (
-                fighter_effect_id,
-                fighter_skill_id
-            )
-            VALUES (
-                new_effect_id,
-                new_fighter_skill_id
-            )
-            RETURNING id INTO new_fighter_effect_skill_id;
+        INSERT INTO fighter_effect_skills (
+            fighter_effect_id,
+            fighter_skill_id
+        )
+        VALUES (
+            new_effect_id,
+            new_fighter_skill_id
+        )
+        RETURNING id INTO new_fighter_effect_skill_id;
 
-            -- Update the fighter_skills record with the relation ID
-            UPDATE fighter_skills
-            SET fighter_effect_skill_id = new_fighter_effect_skill_id
-            WHERE id = new_fighter_skill_id;
-        END IF;
+        -- Update the fighter_skills record with the relation ID
+        UPDATE fighter_skills
+        SET fighter_effect_skill_id = new_fighter_effect_skill_id
+        WHERE id = new_fighter_skill_id;
     END IF;
 
     -- Return the newly created effect
@@ -1739,13 +1725,23 @@ DECLARE
     v_origin_skill_type_id uuid;
     v_edition_id uuid;
     v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
+    v_is_vehicle boolean;
+    v_is_walker boolean;
 BEGIN
     -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, the gang's
     -- edition, and verify fighter exists
     SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id,
-           COALESCE(gt.edition_id, cgt.edition_id)
+           COALESCE(gt.edition_id, cgt.edition_id),
+           COALESCE(f.is_vehicle, false),
+           EXISTS (
+               SELECT 1
+               FROM vehicles v
+               WHERE v.fighter_id = f.id
+                 AND COALESCE(v.special_rules, '[]'::jsonb) ? 'Walker'
+           )
+           OR (COALESCE(f.is_vehicle, false) AND f.fighter_subtypes ? 'Walker')
     INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id,
-         v_edition_id
+         v_edition_id, v_is_vehicle, v_is_walker
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
     LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
@@ -1789,7 +1785,8 @@ BEGIN
                 WHERE fs.fighter_id = get_available_skills.fighter_id
                 AND fs.skill_id = s.id
             ) AS available,
-            COALESCE(skill_effect.skill_cost, 0) AS skill_cost
+            COALESCE(skill_effect.skill_cost, 0) AS skill_cost,
+            s.usable_by
         FROM skills s
         JOIN skill_types st ON st.id = s.skill_type_id
         LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = s.skill_type_id
@@ -1838,7 +1835,8 @@ BEGIN
                 WHERE fs.fighter_id = get_available_skills.fighter_id
                 AND fs.custom_skill_id = cs.id
             ) AS available,
-            0 AS skill_cost
+            0 AS skill_cost,
+            NULL::text[] AS usable_by
         FROM custom_skills cs
         LEFT JOIN skill_types st ON st.id = cs.skill_type_id
         LEFT JOIN custom_skill_types cst ON cst.id = cs.custom_skill_type_id
@@ -1890,6 +1888,13 @@ BEGIN
                     'skill_type_name', a.skill_type_name,
                     'effective_access_level', a.effective_access_level,
                     'available', a.available,
+                    'usable_by', to_jsonb(a.usable_by),
+                    'usable', (
+                        a.usable_by IS NULL
+                        OR (NOT v_is_vehicle AND 'fighter' = ANY (a.usable_by))
+                        OR (v_is_vehicle AND 'vehicle' = ANY (a.usable_by))
+                        OR (v_is_walker AND 'walker' = ANY (a.usable_by))
+                    ),
                     'cost', a.skill_cost,
                     'available_acquisition_types', CASE
                         -- Special costs for Legendary Names
@@ -7785,7 +7790,9 @@ CREATE TABLE public.skills (
     name text,
     skill_type_id uuid,
     gang_origin_id uuid,
-    grants_equipment jsonb
+    grants_equipment jsonb,
+    usable_by text[],
+    CONSTRAINT skills_usable_by_check CHECK (((usable_by IS NULL) OR ((cardinality(usable_by) > 0) AND (usable_by <@ ARRAY['fighter'::text, 'walker'::text, 'vehicle'::text]))))
 );
 
 
@@ -7794,6 +7801,13 @@ CREATE TABLE public.skills (
 --
 
 COMMENT ON COLUMN public.skills.grants_equipment IS 'Equipment a fighter receives with this skill, e.g. {"selection_type": "fixed", "options": [{"equipment_id": "...", "additional_cost": 0}]}. Same shape as equipment.grants_equipment; only fixed grants are used. Null = grants nothing.';
+
+
+--
+-- Name: COLUMN skills.usable_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.skills.usable_by IS 'N26 roster kinds that may use this skill. Null = no restriction. Allowed values: fighter, walker, vehicle. Book tags map to {fighter}, {fighter,walker}, {fighter,vehicle}.';
 
 
 --
