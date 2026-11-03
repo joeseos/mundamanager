@@ -271,10 +271,9 @@ export function InjuriesList({
 
       // Optimistically add skill if injury grants one
       const grantedSkill = injuryData?.granted_skill;
-      let grantedSkillName: string | undefined;
-
-      if (onSkillsUpdate && grantedSkill) {
-        grantedSkillName = grantedSkill.name;
+      // A granted skill never hides one the fighter bought, as in gang-assembly.ts
+      const existingSkill = grantedSkill ? skills[grantedSkill.name] : undefined;
+      if (onSkillsUpdate && grantedSkill && (!existingSkill || existingSkill.fighter_injury_id)) {
         const updatedSkills = {
           ...skills,
           [grantedSkill.name]: {
@@ -298,7 +297,6 @@ export function InjuriesList({
         previousKilled,
         previousCaptured,
         previousCapturedByGangId,
-        grantedSkillName,
         injuryName: injuryData?.effect_name,
         targetEquipmentId: variables.target_equipment_id
       };
@@ -407,9 +405,10 @@ export function InjuriesList({
         onEquipmentEffectUpdate(fighterEquipmentId, null);
       }
 
-      // Optimistically remove skill if injury granted one
+      // Optimistically remove skill if injury granted one, unless another copy
+      // of the same injury still grants it
       const injuryName = injuryToDelete.effect_name;
-      if (onSkillsUpdate) {
+      if (onSkillsUpdate && !updatedInjuries.some(i => i.effect_name === injuryName)) {
         const updatedSkills = { ...skills };
         Object.keys(updatedSkills).forEach(skillName => {
           const skill = updatedSkills[skillName];

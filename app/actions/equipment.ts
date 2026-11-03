@@ -73,7 +73,7 @@ export type GrantedSkill = { skill_id: string; skill_name: string };
  * Effect-granted skills, as add_fighter_injury.sql does it. Removal is the
  * fighter_effects -> fighter_effect_skills -> fighter_skills cascade.
  *
- * Unlike that function this never reuses an existing row: reusing means selling
+ * Like that function this never reuses an existing row: reusing means selling
  * the equipment cascades away a skill the fighter bought with XP.
  *
  * Returns the skills it granted, for callers that update the UI from the response.
