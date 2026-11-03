@@ -12,6 +12,7 @@ import {logFighterAction} from '@/app/actions/logs/fighter-logs';
 import {revalidateTag} from 'next/cache';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
+import { grantSkillsForEffects } from '@/app/actions/equipment';
 
 interface CopyFighterParams {
   fighter_id: string;
@@ -122,7 +123,11 @@ async function copySkills(
   copyAsExperienced: boolean | undefined
 ): Promise<{ skillIdMap: Map<string, string>; error?: string }> {
   const skillIdMap = new Map<string, string>();
-  const sourceSkills = sourceFighter.fighter_skills || [];
+  // Gear-granted skills are granted again from the copied gear's effects
+  // (grantCopiedEquipmentSkills), linked to the copy's own gear
+  const sourceSkills = (sourceFighter.fighter_skills || []).filter(
+    (skill: any) => !skill.fighter_effect_skills?.fighter_effects?.fighter_equipment_id
+  );
   if (sourceSkills.length === 0) return { skillIdMap };
 
   let skillsToCopy = sourceSkills;
@@ -156,6 +161,26 @@ async function copySkills(
   return { skillIdMap };
 }
 
+/** Grants the skills that the copied effects of copied gear come with. */
+async function grantCopiedEquipmentSkills(
+  supabase: any,
+  fighterId: string,
+  copiedEffects: Array<{ fighter_effect_type_id: string; type_specific_data: any; fighter_equipment_id: string | null }>,
+  insertedEffects: Array<{ id: string }>,
+  userId: string
+): Promise<void> {
+  await grantSkillsForEffects(
+    supabase,
+    fighterId,
+    copiedEffects.flatMap((effect, index) =>
+      effect.fighter_equipment_id && insertedEffects[index]
+        ? [{ id: insertedEffects[index].id, fighter_effect_type_id: effect.fighter_effect_type_id, type_specific_data: effect.type_specific_data }]
+        : []
+    ),
+    userId
+  );
+}
+
 export async function copyFighter(params: CopyFighterParams): Promise<CopyFighterResult> {
   try {
     const supabase = await createClient();
@@ -183,7 +208,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           custom_skill_id,
           credits_increase,
           xp_cost,
-          is_advance
+          is_advance,
+          fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effects(fighter_equipment_id))
         ),
         fighter_effects(
           id,
@@ -654,6 +680,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         }
 
         if (insertedEffects) {
+          await grantCopiedEquipmentSkills(supabase, newFighterId, effectsToCopy, insertedEffects, gang.user_id);
+
           const allModifiers: any[] = [];
           effectsToCopyList.forEach((sourceEffect: any, index: number) => {
             const newEffectId = insertedEffects[index]?.id;
@@ -776,7 +804,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           .select(`
             *,
             fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted, is_editable, fighter_skill_id),
-            fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance),
+            fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effects(fighter_equipment_id))),
             fighter_effects(
               id, effect_name, fighter_effect_type_id, type_specific_data,
               fighter_equipment_id, target_equipment_id, fighter_skill_id,
@@ -957,6 +985,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             }
 
             if (insertedBeastEffects) {
+              await grantCopiedEquipmentSkills(supabase, newBeastFighter.id, beastEffectsToCopy, insertedBeastEffects, gang.user_id);
+
               const allBeastModifiers: any[] = [];
               beastEffectsToCopyList.forEach((sourceEffect: any, index: number) => {
                 const newEffectId = insertedBeastEffects[index]?.id;

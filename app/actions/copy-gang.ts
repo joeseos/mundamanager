@@ -5,6 +5,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
+import { grantSkillsForEffects } from '@/app/actions/equipment';
 
 interface CopyGangInput {
   sourceGangId: string;
@@ -254,17 +255,23 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     // fighter_skill_id on skill-granted equipment and on effects)
     const skillIdMap = new Map<string, string>();
     if (oldFighterIds.length > 0) {
-      const { data: skills, error: skillsError } = await supabase
+      const { data: allSkills, error: skillsError } = await supabase
         .from('fighter_skills')
-        .select('*')
+        .select('*, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effects(fighter_equipment_id))')
         .in('fighter_id', oldFighterIds);
       if (skillsError) {
         await cleanupOnError(new Error(`Failed to load fighter skills: ${skillsError.message}`));
       }
-      if (skills && skills.length > 0) {
+      // Gear-granted skills are granted again from the copied gear's effects in
+      // step 9, linked to the copy's own gear instead of the source's
+      const skills = (allSkills || []).filter(
+        (item: any) => !item.fighter_effect_skills?.fighter_effects?.fighter_equipment_id
+      );
+      if (skills.length > 0) {
         const inserts = skills.map((item: any) => {
           const o: any = { ...item };
           delete o.id;
+          delete o.fighter_effect_skills;
           // no gang_id column on fighter_skills
           o.user_id = user.id;
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
@@ -455,6 +462,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     }
 
     const effectIdMap = new Map<string, string>();
+    const copiedEquipmentEffects: any[] = [];
 
     for (const eff of sourceEffects) {
       const insertObj: any = { ...eff };
@@ -503,6 +511,16 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       }
 
       effectIdMap.set(eff.id, newEff!.id);
+      if (newEff!.fighter_id && newEff!.fighter_equipment_id) copiedEquipmentEffects.push(newEff);
+    }
+
+    for (const fighterId of new Set(copiedEquipmentEffects.map(effect => effect.fighter_id))) {
+      await grantSkillsForEffects(
+        supabase,
+        fighterId,
+        copiedEquipmentEffects.filter(effect => effect.fighter_id === fighterId),
+        user.id
+      );
     }
 
     if (sourceEffects.length > 0) {
