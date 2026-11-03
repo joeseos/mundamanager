@@ -1218,9 +1218,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             gangType: gangData.gang_type,
             editionSlug: gangEditionForSync,
             isCustomGangType: Boolean(gangData.custom_gang_type_id),
-            subtypes: Array.isArray(insertedFighter.fighter_subtypes)
-              ? insertedFighter.fighter_subtypes
-              : [],
+            subtypes: grantedSubtypes
+              ?? (Array.isArray(insertedFighter.fighter_subtypes) ? insertedFighter.fighter_subtypes : []),
           },
           supabase,
         );
