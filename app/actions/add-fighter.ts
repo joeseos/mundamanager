@@ -908,7 +908,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     }
 
                     // Default gear can grant a subtype, e.g. a type shipping a Dirt bike
-                    grantedSubtypes = await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects }) ?? grantedSubtypes;
+                    grantedSubtypes = await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects });
                   }
                 } catch (batchError) {
                   console.error('Error in batch effect processing:', batchError);
@@ -1303,12 +1303,13 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         // Legacy stats field for backward compatibility (use current stats)
         stats: currentStats,
         equipment: equipmentWithProfiles,
+        // Granted first: the client keys skills by name, so a default skill wins
         skills: [
+          ...grantedSkills,
           ...insertedSkills.map(skill => ({
             skill_id: skill.skill_id,
             skill_name: (skill.skills as any)?.name || ''
-          })),
-          ...grantedSkills
+          }))
         ],
         special_rules: effectiveFighterData.special_rules,
         created_familiars: allCreatedFamiliars.length > 0 ? allCreatedFamiliars : undefined,
