@@ -255,49 +255,35 @@ BEGIN
     IF effect_type_record.type_specific_data->>'skill_id' IS NOT NULL THEN
         skill_id_val := (effect_type_record.type_specific_data->>'skill_id')::UUID;
 
-        -- Add the skill to fighter_skills if it doesn't already exist
+        -- Always a new row, as grantSkillsForEffects does: reusing a skill the
+        -- fighter already has would let removing the injury delete it.
         INSERT INTO fighter_skills (
             fighter_id,
             skill_id,
-            user_id,
-            fighter_effect_skill_id
+            user_id
         )
-        SELECT
+        VALUES (
             in_fighter_id,
             skill_id_val,
-            v_fighter_owner_id,
-            NULL  -- Initially NULL, will update after creating relation
-        WHERE
-            NOT EXISTS (
-                SELECT 1 FROM fighter_skills
-                WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val
-            )
+            v_fighter_owner_id
+        )
         RETURNING id INTO new_fighter_skill_id;
 
-        -- If the skill already exists, get its ID
-        IF new_fighter_skill_id IS NULL THEN
-            SELECT id INTO new_fighter_skill_id
-            FROM fighter_skills
-            WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val;
-        END IF;
-
         -- Create the relation in fighter_effect_skills
-        IF new_fighter_skill_id IS NOT NULL THEN
-            INSERT INTO fighter_effect_skills (
-                fighter_effect_id,
-                fighter_skill_id
-            )
-            VALUES (
-                new_effect_id,
-                new_fighter_skill_id
-            )
-            RETURNING id INTO new_fighter_effect_skill_id;
+        INSERT INTO fighter_effect_skills (
+            fighter_effect_id,
+            fighter_skill_id
+        )
+        VALUES (
+            new_effect_id,
+            new_fighter_skill_id
+        )
+        RETURNING id INTO new_fighter_effect_skill_id;
 
-            -- Update the fighter_skills record with the relation ID
-            UPDATE fighter_skills
-            SET fighter_effect_skill_id = new_fighter_effect_skill_id
-            WHERE id = new_fighter_skill_id;
-        END IF;
+        -- Update the fighter_skills record with the relation ID
+        UPDATE fighter_skills
+        SET fighter_effect_skill_id = new_fighter_effect_skill_id
+        WHERE id = new_fighter_skill_id;
     END IF;
 
     -- Return the newly created effect
