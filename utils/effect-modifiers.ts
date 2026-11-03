@@ -304,12 +304,14 @@ function traitListOf(
     : [];
 }
 
+/** A trait's lowercased name without its value: "Toxin (4+)" is "toxin" */
+function traitName(trait: string): string {
+  return trait.toLowerCase().replace(/\s*\(.*\)$/, '');
+}
+
 /** Lowercased traits, each also by its name alone so "Toxin" matches "Toxin (4+)" */
 function traitMatchKeys(traits: string | null | undefined): Set<string> {
-  return new Set(splitTraits(traits).flatMap(t => {
-    const lower = t.toLowerCase();
-    return [lower, lower.replace(/\s*\(.*\)$/, '')];
-  }));
+  return new Set(splitTraits(traits).flatMap(t => [t.toLowerCase(), traitName(t)]));
 }
 
 /** The fighter's requires_traits effects (e.g. multi-harness). Trait changes only: their stat modifiers are the fighter's */
@@ -392,6 +394,7 @@ export function applyWeaponModifiers(
       const tsd = typeof eff.type_specific_data === 'object' ? eff.type_specific_data || {} : {};
       const toRemove: string[] = tsd.traits_to_remove || [];
       const toAdd: string[] = tsd.traits_to_add || [];
+      const toImprove: string[] = tsd.traits_to_improve || [];
 
       if (toRemove.length > 0) {
         traitsArr = traitsArr.filter(t => !toRemove.includes(t));
@@ -400,6 +403,12 @@ export function applyWeaponModifiers(
         for (const t of toAdd) {
           if (!traitsArr.includes(t)) traitsArr.push(t);
         }
+      }
+      for (const t of toImprove) {
+        const name = traitName(t);
+        const i = traitsArr.findIndex(existing => traitName(existing) === name);
+        if (i === -1) traitsArr.push(t);
+        else traitsArr[i] = traitsArr[i].replace(/\((\d)\+\)$/, (_, n) => `(${Math.max(2, Number(n) - 1)}+)`);
       }
     });
     modified.traits = traitsArr.join(', ');

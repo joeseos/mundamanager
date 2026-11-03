@@ -470,7 +470,8 @@ export function WeaponList({
 
           return {
             ...item,
-            effect_names: [...existingEffectNames, ...newEffectNames],
+            // Each name once, like gang assembly: an upgrade can be on the weapon more than once
+            effect_names: [...new Set([...existingEffectNames, ...newEffectNames])],
             weapon_profiles: updatedProfiles,
           };
         }
@@ -574,8 +575,17 @@ export function WeaponList({
       const previousEquipment = [...equipment];
       const previousFighterEffects = { ...fighterEffects };
 
-      // Optimistically remove the effect_name from the equipment
-      const updatedEquipment = equipment.map(item => {
+      // Optimistically remove the effect from fighterEffects
+      const updatedFighterEffects: Record<string, FighterEffect[]> = {};
+      for (const [category, effects] of Object.entries(fighterEffects)) {
+        updatedFighterEffects[category] = effects.filter(e => e.id !== params.effectId);
+      }
+
+      // Optimistically remove the effect_name from the equipment, unless another copy of the upgrade is still on it
+      const nameStillOnItem = Object.values(updatedFighterEffects).flat().some(
+        e => e.fighter_equipment_id === params.fighterEquipmentId && e.effect_name === params.effectName
+      );
+      const updatedEquipment = nameStillOnItem ? equipment : equipment.map(item => {
         if (item.fighter_equipment_id === params.fighterEquipmentId) {
           return {
             ...item,
@@ -584,12 +594,6 @@ export function WeaponList({
         }
         return item;
       });
-
-      // Optimistically remove the effect from fighterEffects
-      const updatedFighterEffects: Record<string, FighterEffect[]> = {};
-      for (const [category, effects] of Object.entries(fighterEffects)) {
-        updatedFighterEffects[category] = effects.filter(e => e.id !== params.effectId);
-      }
 
       onEquipmentUpdate(updatedEquipment, fighterCredits, gangCredits);
       if (onEffectsUpdate) {
