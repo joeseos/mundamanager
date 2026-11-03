@@ -33,6 +33,7 @@ import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
+import { buildSkillsFromServerData } from '@/utils/fighter-builder';
 
 // Loads its code on first open, not with the page. ssr: false also gives it
 // its own Suspense boundary, so the page keeps updating while the code loads.
@@ -560,6 +561,14 @@ export default function GangInventory({
                 : finalFighter.effects
             };
           }
+
+          // Subtypes and skills the gear granted, e.g. a Grav Cutter's Mounted and Hit & Run.
+          // A granted skill never hides one the fighter already has.
+          finalFighter = {
+            ...finalFighter,
+            fighter_subtypes: result.fighter_subtypes ?? finalFighter.fighter_subtypes,
+            skills: { ...buildSkillsFromServerData(result.granted_skills), ...finalFighter.skills }
+          };
 
           setFighters(prev => prev.map(f => f.id === targetId ? finalFighter : f));
           onFighterUpdate?.(finalFighter, true);

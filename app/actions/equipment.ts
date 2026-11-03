@@ -67,24 +67,28 @@ type GrantingEffect = {
   type_specific_data?: any;
 };
 
+export type GrantedSkill = { skill_id: string; skill_name: string };
+
 /**
  * Effect-granted skills, as add_fighter_injury.sql does it. Removal is the
  * fighter_effects -> fighter_effect_skills -> fighter_skills cascade.
  *
  * Unlike that function this never reuses an existing row: reusing means selling
  * the equipment cascades away a skill the fighter bought with XP.
+ *
+ * Returns the skills it granted, for callers that update the UI from the response.
  */
 export async function grantSkillsForEffects(
   supabase: any,
   fighterId: string | null | undefined,
   effects: GrantingEffect[] | null | undefined,
   userId: string
-): Promise<boolean> {
+): Promise<GrantedSkill[]> {
   // N23 vehicle-only effects grant nothing; on N26 a vehicle is a fighter
-  if (!fighterId) return false;
+  if (!fighterId) return [];
 
   const candidates = (effects ?? []).filter(effect => grantedSkillFromEffect(effect));
-  if (candidates.length === 0) return false;
+  if (candidates.length === 0) return [];
 
   // On a 'skills'-category type, skill_id is the skill this effect BELONGS TO
   // (fighter-advancement.ts), not one it grants. addEquipmentEffect takes an
@@ -97,7 +101,7 @@ export async function grantSkillsForEffects(
   // Bail rather than fail open: an empty set would exclude nothing
   if (typesError || !types) {
     console.error('Failed to read effect type categories, skipping skill grants:', typesError);
-    return false;
+    return [];
   }
 
   const skillCategoryTypeIds = new Set(
@@ -109,7 +113,7 @@ export async function grantSkillsForEffects(
   // fighter_effect_skills INSERT is admin-only, and stays that way: the link is
   // derived, joining two rows this user just wrote under RLS.
   const serviceClient = createServiceRoleClient();
-  let granted = false;
+  const granted: GrantedSkill[] = [];
 
   for (const effect of candidates) {
     if (skillCategoryTypeIds.has(effect.fighter_effect_type_id)) continue;
@@ -126,7 +130,7 @@ export async function grantSkillsForEffects(
         xp_cost: 0,
         is_advance: false
       })
-      .select('id')
+      .select('id, skill_id, skills!skill_id ( name )')
       .single();
 
     if (!skill) {
@@ -160,7 +164,7 @@ export async function grantSkillsForEffects(
       continue;
     }
 
-    granted = true;
+    granted.push({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' });
   }
 
   return granted;
@@ -279,7 +283,7 @@ export async function insertEffectWithModifiers(
       }
     }
 
-    const grantedSkill = await grantSkillsForEffects(
+    await grantSkillsForEffects(
       supabase,
       params.fighter_id,
       [{
