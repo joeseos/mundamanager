@@ -448,6 +448,7 @@ export const skills = pgTable('skills', {
   skill_type_id: uuid('skill_type_id'),
   gang_origin_id: uuid('gang_origin_id'),
   grants_equipment: json('grants_equipment'),
+  usable_by: text('usable_by').array(),
 });
 
 export const customSkills = pgTable('custom_skills', {
