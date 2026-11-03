@@ -534,16 +534,24 @@ export default function ParticipantCard({
                   : `Gang Rating: ${participant.gang?.rating ?? 0}`}
               </span>
               {(() => {
-                const exoticBeastCount = localFighters.filter((f) => {
-                  const gf = gangFightersList.find((gf) => gf.id === f.fighter_id);
-                  return gf?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
-                }).length;
-                const crewCount = localFighters.length - exoticBeastCount;
+                // Beasts and Support fighters don't count toward Crew Size.
+                let exoticBeastCount = 0;
+                let supportCount = 0;
+                for (const f of localFighters) {
+                  const subtypes = gangFightersList.find((gf) => gf.id === f.fighter_id)?.fighter_subtypes?.map((c) => c.toLowerCase()) ?? [];
+                  if (subtypes.some((c) => c === 'exotic beast' || c === 'exotic beast specialist' || c === 'pet')) exoticBeastCount++;
+                  else if (subtypes.includes('support')) supportCount++;
+                }
+                const crewCount = localFighters.length - exoticBeastCount - supportCount;
+                const excluded = [
+                  exoticBeastCount > 0 && `${exoticBeastCount} ${beastSubtypeName(session.edition_slug)}${exoticBeastCount !== 1 ? 's' : ''}`,
+                  supportCount > 0 && `${supportCount} Support`,
+                ].filter(Boolean);
                 return (
                   <span>
                     Crew Size: {crewCount}
-                    {exoticBeastCount > 0 && (
-                      <span className="text-neutral-400"> (Excluding {exoticBeastCount} {beastSubtypeName(session.edition_slug)}{exoticBeastCount !== 1 ? 's' : ''})</span>
+                    {excluded.length > 0 && (
+                      <span className="text-neutral-400"> (Excluding {excluded.join(', ')})</span>
                     )}
                   </span>
                 );
