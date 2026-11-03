@@ -1156,11 +1156,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     const skillName = skillNameOf(skillData);
     if (skillName) {
       const fe = skillData.fighter_effect_skills?.fighter_effects;
-      // Gear-granted skills name the gear ("Grav Cutter"), not its effect ("Mount")
-      const grantingEquipmentName = fe?.fighter_equipment_id
-        ? equipment.find(item => item.fighter_equipment_id === fe.fighter_equipment_id)?.equipment_name
-        : undefined;
-      const injuryName = grantingEquipmentName || fe?.effect_name;
+      const injuryName = fe?.effect_name;
       const tsd =
         fe?.type_specific_data && typeof fe.type_specific_data === 'object'
           ? (fe.type_specific_data as Record<string, unknown>)
