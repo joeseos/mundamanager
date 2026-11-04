@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
+import { formatSkillUserKindSuffix } from '@/utils/skillUserKinds';
 import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
@@ -100,6 +101,8 @@ interface AvailableAdvancement {
   skill_type_id?: string;
   characteristic_code?: string;
   is_custom?: boolean;
+  usable?: boolean;
+  usable_by?: string[] | null;
 }
 
 type AcquisitionType = {
@@ -115,6 +118,8 @@ type AvailableSkill = {
   skill_type_id: string;
   available_acquisition_types: AcquisitionType[];
   available: boolean;
+  usable?: boolean;
+  usable_by?: string[] | null;
   is_custom: boolean;
 };
 
@@ -486,7 +491,7 @@ export function AdvancementModal({
   const [gangerSpecialistCategoriesLoading, setGangerSpecialistCategoriesLoading] = useState(false);
   const [gangerSelectedSkillSetId, setGangerSelectedSkillSetId] = useState('');
   const [gangerSkillsInSet, setGangerSkillsInSet] = useState<
-    { skill_id: string; skill_name: string; skill_type_id: string; available: boolean }[]
+    { skill_id: string; skill_name: string; skill_type_id: string; available: boolean; usable?: boolean; usable_by?: string[] | null }[]
   >([]);
   const [gangerSkillsInSetLoading, setGangerSkillsInSetLoading] = useState(false);
   const [gangerSkillPickRoll, setGangerSkillPickRoll] = useState<number | null>(null);
@@ -500,6 +505,7 @@ export function AdvancementModal({
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(false);
+  const skillAccessHasLoadedRef = useRef(false);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -891,7 +897,7 @@ export function AdvancementModal({
           return;
         }
         const data = (await res.json()) as {
-          skills?: { skill_id: string; skill_name: string; skill_type_id: string; available: boolean }[];
+          skills?: { skill_id: string; skill_name: string; skill_type_id: string; available: boolean; usable?: boolean; usable_by?: string[] | null }[];
         };
         if (!cancelled) setGangerSkillsInSet(data.skills ?? []);
       } catch {
@@ -1537,12 +1543,26 @@ export function AdvancementModal({
 
   const gangerSkillInSetComboboxOptions = useMemo(
     () =>
-      gangerSkillsInSet.map((s) => ({
-        value: s.skill_id,
-        label: s.available ? s.skill_name : `${s.skill_name} (unavailable)`,
-        displayValue: s.skill_name,
-        disabled: !s.available
-      })),
+      gangerSkillsInSet.map((s) => {
+        const kindSuffix = formatSkillUserKindSuffix(s.usable_by);
+        const ownedSuffix = !s.available ? ' (unavailable)' : '';
+        const display = `${s.skill_name}${kindSuffix}${ownedSuffix}`;
+        const muted = !s.available || s.usable === false;
+        return {
+          value: s.skill_id,
+          label: (
+            <span className={muted ? 'italic text-neutral-400' : undefined}>
+              {s.skill_name}
+              {kindSuffix ? (
+                <span className={muted ? 'text-xs' : 'text-xs text-muted-foreground'}>{kindSuffix}</span>
+              ) : null}
+              {ownedSuffix}
+            </span>
+          ),
+          displayValue: display,
+          disabled: !s.available
+        };
+      }),
     [gangerSkillsInSet]
   );
 
@@ -1785,20 +1805,30 @@ export function AdvancementModal({
     n26SelectedRow
   ]);
 
-  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
+  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. Unusable skills stay selectable, italic like an inaccessible Skill Set. */
   const skillComboboxOptions = useMemo(() => {
     if (!isSkillLikeAdvancementType) return [];
     return availableAdvancements.map((a) => {
-      const isAvailable = a.is_available !== false;
+      const owned = a.can_purchase === false;
+      const muted = owned || a.usable === false;
       const baseName = a.stat_change_name ?? 'Skill';
       const customSuffix = a.is_custom ? ' (Custom)' : '';
-      const ownedSuffix = !isAvailable ? ' (already owned)' : '';
-      const display = `${baseName}${customSuffix}${ownedSuffix}`;
+      const kindSuffix = formatSkillUserKindSuffix(a.usable_by);
+      const ownedSuffix = owned ? ' (already owned)' : '';
+      const display = `${baseName}${customSuffix}${kindSuffix}${ownedSuffix}`;
       return {
         value: a.id,
-        label: !isAvailable ? <span className="italic text-muted-foreground">{display}</span> : display,
+        label: (
+          <span className={muted ? 'italic text-neutral-400' : undefined}>
+            {baseName}{customSuffix}
+            {kindSuffix ? (
+              <span className={muted ? 'text-xs' : 'text-xs text-muted-foreground'}>{kindSuffix}</span>
+            ) : null}
+            {ownedSuffix}
+          </span>
+        ),
         displayValue: display,
-        disabled: !isAvailable
+        disabled: owned
       };
     });
   }, [isSkillLikeAdvancementType, availableAdvancements]);
@@ -1945,7 +1975,9 @@ export function AdvancementModal({
         available_acquisition_types: skill.available_acquisition_types,
         skill_type_id: skill.skill_type_id,
         is_available: skill.available,
-        is_custom: skill.is_custom
+        is_custom: skill.is_custom,
+        usable: skill.usable !== false,
+        usable_by: skill.usable_by ?? null
       }));
   }, [skillFetchKey, availableSkills, selectedCategory]);
 
@@ -2005,7 +2037,7 @@ export function AdvancementModal({
     if (!needsSkillAccess) return;
     const controller = new AbortController();
     const fetchSkillAccess = async () => {
-      setSkillAccessLoading(true);
+      if (!skillAccessHasLoadedRef.current) setSkillAccessLoading(true);
       try {
         const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`, {
           signal: controller.signal,
@@ -2020,7 +2052,10 @@ export function AdvancementModal({
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setSkillAccess([]);
       } finally {
-        if (!controller.signal.aborted) setSkillAccessLoading(false);
+        if (!controller.signal.aborted) {
+          skillAccessHasLoadedRef.current = true;
+          setSkillAccessLoading(false);
+        }
       }
     };
     void fetchSkillAccess();
@@ -2469,6 +2504,7 @@ export function AdvancementModal({
                         placeholder="Select a Skill"
                         options={gangerSkillInSetComboboxOptions}
                         disabled={!userPermissions.canEdit || gangerSkillsInSetLoading}
+                        showLabelWhenClosed
                       />
                     </div>
                     )}
@@ -2605,6 +2641,7 @@ export function AdvancementModal({
                         placeholder="Select a Skill"
                         options={skillComboboxOptions}
                         disabled={skillsLoading}
+                        showLabelWhenClosed
                       />
                     </div>
                   )}
@@ -2757,6 +2794,7 @@ export function AdvancementModal({
                       }
                       options={skillComboboxOptions}
                       disabled={skillsLoading}
+                      showLabelWhenClosed
                     />
                   </div>
                 )}

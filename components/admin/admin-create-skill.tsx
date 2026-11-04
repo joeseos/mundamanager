@@ -7,7 +7,10 @@ import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { GangOriginOptions } from "@/components/admin/gang-scope-options";
+import { SkillUserKindCheckboxes } from "@/components/admin/skill-user-kind-checkboxes";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { hasSkillUserKindRestrictions } from '@/types/edition';
+import type { SkillUserKind } from '@/utils/skillUserKinds';
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
@@ -21,10 +24,12 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [skillTypeName, setSkillTypeName] = useState('');
   const [gangOrigin, setGangOrigin] = useState('');
   const [editionId, setEditionId] = useState('');
+  const [usableBy, setUsableBy] = useState<SkillUserKind[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { data: editions = [] } = useEditions();
   const editionSlug = editionSlugOf(editions, editionId);
   const skillSetRank = getSkillSetRank(editionSlug);
+  const showUserKindRestrictions = hasSkillUserKindRestrictions(editionSlug);
 
   const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-skill-types'],
@@ -96,11 +101,15 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           name: skillName,
           skill_type_id: skillType,
           gang_origin_id: gangOrigin || null,
+          ...(showUserKindRestrictions ? { usable_by: usableBy.length > 0 ? usableBy : null } : {}),
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to create skill');
+        const payload = await response.json().catch(() => null);
+        throw new Error(
+          typeof payload?.error === 'string' ? payload.error : 'Failed to create skill'
+        );
       }
 
       toast.success("Skill created successfully");
@@ -116,7 +125,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       onClose();
     } catch (error) {
       console.error('Error creating skill:', error);
-      toast.error('Failed to create skill');
+      toast.error(error instanceof Error ? error.message : 'Failed to create skill');
     } finally {
       setIsLoading(false);
     }
@@ -257,6 +266,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Gang Origin.</p>
               )}
             </div>
+
+            {showUserKindRestrictions && (
+              <SkillUserKindCheckboxes
+                value={usableBy}
+                onChange={setUsableBy}
+                disabled={skillTypeName !== ''}
+              />
+            )}
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">

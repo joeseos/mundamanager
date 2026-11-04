@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { checkPermissionCached } from '@/utils/user-permissions';
 import { getUserIdFromClaims } from '@/utils/auth';
+import { isSkillUsableByRoster } from '@/utils/skillUserKinds';
 
 interface FormattedSkillAccess {
   skill_type_id: string;
@@ -51,6 +52,8 @@ export async function GET(request: Request) {
         custom_fighter_type_id,
         user_id,
         gang_id,
+        is_vehicle,
+        fighter_subtypes,
         gangs:gang_id (
           user_id,
           gang_origin_id,
@@ -235,7 +238,7 @@ export async function GET(request: Request) {
     if (skillTypeId) {
       const { data: skillsRaw, error: skillsErr } = await supabase
         .from('skills')
-        .select('id, name, skill_type_id, gang_origin_id')
+        .select('id, name, skill_type_id, gang_origin_id, usable_by')
         .eq('skill_type_id', skillTypeId);
 
       if (skillsErr) {
@@ -257,11 +260,19 @@ export async function GET(request: Request) {
 
       const ownedIds = new Set((ownedRows || []).map((o) => o.skill_id).filter(Boolean));
 
+      const isVehicle = fighter.is_vehicle === true;
+      const subtypes = Array.isArray(fighter.fighter_subtypes)
+        ? (fighter.fighter_subtypes as string[])
+        : [];
+      const isWalker = isVehicle && subtypes.includes('Walker');
+
       const skills = skillsFiltered.map((s) => ({
         skill_id: s.id,
         skill_name: s.name ?? 'Unknown',
         skill_type_id: s.skill_type_id as string,
         available: !ownedIds.has(s.id),
+        usable_by: s.usable_by ?? null,
+        usable: isSkillUsableByRoster(s.usable_by, { isVehicle, isWalker }),
       }));
 
       return NextResponse.json({

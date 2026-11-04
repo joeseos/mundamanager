@@ -28,6 +28,7 @@ import {
   N26_PROSPECT_PROMOTION_CREDITS,
 } from '@/utils/keepTypePromotionN26';
 import { hasProspectSpecialisationPromotion } from '@/types/edition';
+import { formatSkillUserKindSuffix } from '@/utils/skillUserKinds';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -104,6 +105,8 @@ interface SkillData {
   skill_name: string;
   skill_type_id: string;
   available: boolean;
+  usable?: boolean;
+  usable_by?: string[] | null;
   is_custom: boolean;
   cost: number;
 }
@@ -196,41 +199,51 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
 
   // Fetch categories (skill sets) and skill access
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
     const fetchCategoriesAndAccess = async () => {
       try {
-        // Fetch standard and custom skill types via API (filtered server-side)
-        const response = await fetch(`/api/skill-types?fighterId=${fighterId}`);
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
-        const allTypes = await response.json();
+        const [typesResult, accessResult] = await Promise.allSettled([
+          fetch(`/api/skill-types?fighterId=${fighterId}`, { signal }),
+          fetch(`/api/fighters/skill-access?fighterId=${fighterId}`, { signal }),
+        ]);
 
-        const standard = allTypes.filter((t: any) => !t.is_custom);
-        const custom = allTypes.filter((t: any) => t.is_custom);
+        if (typesResult.status === 'rejected') {
+          if (typesResult.reason instanceof DOMException && typesResult.reason.name === 'AbortError') return;
+          throw typesResult.reason;
+        }
+        const typesResponse = typesResult.value;
+        if (!typesResponse.ok) throw new Error('Failed to fetch skill sets');
+        const allTypes = await typesResponse.json();
+        const standard = allTypes.filter((t: { is_custom?: boolean }) => !t.is_custom);
+        const custom = allTypes.filter((t: { is_custom?: boolean }) => t.is_custom);
+        if (signal.aborted) return;
         setCategories([...standard, ...custom]);
 
-        // Fetch skill access for this fighter
-        setSkillAccessLoading(true);
-        try {
-          const skillAccessResponse = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
-          if (skillAccessResponse.ok) {
-            const skillAccessData = await skillAccessResponse.json();
-            setSkillAccess(skillAccessData.skill_access || []);
-          } else {
-            setSkillAccess([]);
+        if (accessResult.status === 'fulfilled' && accessResult.value.ok) {
+          const skillAccessData = await accessResult.value.json();
+          if (!signal.aborted) setSkillAccess(skillAccessData.skill_access || []);
+        } else if (!signal.aborted) {
+          if (
+            accessResult.status === 'rejected' &&
+            !(accessResult.reason instanceof DOMException && accessResult.reason.name === 'AbortError')
+          ) {
+            console.error('Error fetching skill access:', accessResult.reason);
           }
-        } catch (error) {
-          console.error('Error fetching skill access:', error);
           setSkillAccess([]);
-        } finally {
-          setSkillAccessLoading(false);
         }
-
       } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
         console.error('Error fetching skill sets:', error);
         toast.error('Failed to load skill sets');
+      } finally {
+        if (!signal.aborted) setSkillAccessLoading(false);
       }
     };
 
-    fetchCategoriesAndAccess();
+    void fetchCategoriesAndAccess();
+    return () => controller.abort();
   }, [fighterId]);
 
   /**
@@ -265,7 +278,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
   }, [categories, skillAccess, editionSlug]);
 
   // Whether the fighter has no meaningful access to the currently selected skill set.
-  // Suppressed while skill-access data is still loading to avoid false-positive warnings.
+  // Only wait on the first skill-access load so a later refresh cannot hide the warning.
   const selectedSkillSetLacksAccess = useMemo(() => {
     if (!selectedCategory || skillAccessLoading) return false;
     const access = skillAccess.find((a) => a.skill_type_id === selectedCategory);
@@ -274,28 +287,38 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     return !effective || effective === 'denied';
   }, [selectedCategory, skillAccessLoading, skillAccess]);
 
-  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
+  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. Unusable skills stay selectable, italic like an inaccessible Skill Set. */
   const skillComboboxOptions = useMemo(() => {
     if (!skillsInSet) return [];
     return skillsInSet.map((skill) => {
       const customSuffix = skill.is_custom ? ' (Custom)' : '';
+      const kindSuffix = formatSkillUserKindSuffix(skill.usable_by);
       const ownedSuffix = !skill.available ? ' (already owned)' : '';
-      const display = `${skill.skill_name}${customSuffix}${ownedSuffix}`;
+      const display = `${skill.skill_name}${customSuffix}${kindSuffix}${ownedSuffix}`;
+      const owned = !skill.available;
+      const muted = owned || skill.usable === false;
       return {
         value: skill.skill_id,
-        label: !skill.available ? (
-          <span className="italic text-muted-foreground">{display}</span>
-        ) : (
-          display
+        label: (
+          <span className={muted ? 'italic text-neutral-400' : undefined}>
+            {skill.skill_name}{customSuffix}
+            {kindSuffix ? (
+              <span className={muted ? 'text-xs' : 'text-xs text-muted-foreground'}>{kindSuffix}</span>
+            ) : null}
+            {ownedSuffix}
+          </span>
         ),
         displayValue: display,
-        disabled: !skill.available
+        disabled: owned
       };
     });
   }, [skillsInSet]);
 
+  const selectedSkillRow = skillsInSet?.find((s) => s.skill_id === selectedSkill);
+  const selectedSkillOwned = selectedSkillRow?.available === false;
+
   const handleSubmit = async () => {
-    if (!selectedSkill) return false;
+    if (!selectedSkill || selectedSkillOwned) return false;
 
     // Check for session
     if (!userId) {
@@ -362,6 +385,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
             placeholder="Select a skill"
             options={skillComboboxOptions}
             dropdownPlacement="down"
+            showLabelWhenClosed
           />
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
@@ -399,7 +423,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
+      confirmDisabled={!selectedSkill || selectedSkillOwned || addSkillMutation.isPending || (editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
     />
   );
 }
