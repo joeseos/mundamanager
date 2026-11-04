@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
-import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
+import { buildGroupedSkillSetComboboxOptions, formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
 import { FighterSkills } from '@/types/fighter';
 import { FighterLoadout } from '@/types/equipment';
 import { isEquipmentInActiveLoadout } from '@/components/fighter/fighter-equipment-list';
@@ -104,6 +104,8 @@ interface SkillData {
   skill_name: string;
   skill_type_id: string;
   available: boolean;
+  usable?: boolean;
+  usable_by?: string[] | null;
   is_custom: boolean;
   cost: number;
 }
@@ -279,11 +281,13 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     if (!skillsInSet) return [];
     return skillsInSet.map((skill) => {
       const customSuffix = skill.is_custom ? ' (Custom)' : '';
+      const kindSuffix = formatSkillUserKindSuffix(skill.usable_by);
       const ownedSuffix = !skill.available ? ' (already owned)' : '';
-      const display = `${skill.skill_name}${customSuffix}${ownedSuffix}`;
+      const display = `${skill.skill_name}${customSuffix}${kindSuffix}${ownedSuffix}`;
+      const muted = !skill.available || skill.usable === false;
       return {
         value: skill.skill_id,
-        label: !skill.available ? (
+        label: muted ? (
           <span className="italic text-muted-foreground">{display}</span>
         ) : (
           display

@@ -1,5 +1,5 @@
--- DEPLOY ORDER: apply migration 20261021070000_custom_skill_type_in_skill_access_override.sql
--- BEFORE this file deploys. This function reads fighter_skill_access_override.custom_skill_type_id,
+-- DEPLOY ORDER: apply migration 20261102171910_add_skills_usable_by.sql
+-- BEFORE this file deploys. This function reads skills.usable_by,
 -- which that migration adds.
 
 CREATE OR REPLACE FUNCTION public.get_available_skills(
@@ -27,14 +27,8 @@ BEGIN
     -- edition, and verify fighter exists
     SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id,
            COALESCE(gt.edition_id, cgt.edition_id),
-           COALESCE(f.is_vehicle, false),
-           EXISTS (
-               SELECT 1
-               FROM vehicles v
-               WHERE v.fighter_id = f.id
-                 AND COALESCE(v.special_rules, '[]'::jsonb) ? 'Walker'
-           )
-           OR (COALESCE(f.is_vehicle, false) AND f.fighter_subtypes ? 'Walker')
+           f.is_vehicle,
+           f.is_vehicle AND f.fighter_subtypes ? 'Walker'
     INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id,
          v_edition_id, v_is_vehicle, v_is_walker
     FROM fighters f

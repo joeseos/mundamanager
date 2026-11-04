@@ -9,6 +9,7 @@ interface Skill {
   skill_type_id: string;
   gang_origin_id: string | null;
   grants_equipment: EquipmentGrants | null;
+  usable_by: string[] | null;
 }
 
 // Skills only use fixed, free grants: there is no step where a player picks an
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
     // matching skill-set ids first, then filter skills with .in().
     let query = supabase
       .from('skills')
-      .select('id, name, skill_type_id, gang_origin_id, grants_equipment')
+      .select('id, name, skill_type_id, gang_origin_id, grants_equipment, usable_by')
       .order('name');
 
     if (skillTypeId) {
@@ -174,6 +175,7 @@ export async function GET(request: Request) {
           skill_type_id: skill.skill_type_id,
           gang_origin_id: skill.gang_origin_id,
           grants_equipment: skill.grants_equipment,
+          usable_by: skill.usable_by ?? null,
           effects: skillEffects
         };
       });
@@ -211,7 +213,8 @@ export async function GET(request: Request) {
         id: skill.id,
         skill_name: skill.name,
         skill_type_id: skill.skill_type_id,
-        gang_origin_id: skill.gang_origin_id
+        gang_origin_id: skill.gang_origin_id,
+        usable_by: skill.usable_by ?? null
       }));
 
       return NextResponse.json(transformedData);
@@ -317,7 +320,8 @@ export async function POST(request: Request) {
     const formattedData = {
       name: body.name,
       skill_type_id: body.skill_type_id,
-      gang_origin_id: body.gang_origin_id || null
+      gang_origin_id: body.gang_origin_id || null,
+      ...('usable_by' in body ? { usable_by: body.usable_by } : {}),
     };
 
     const { data, error } = await supabase
@@ -411,6 +415,7 @@ export async function PATCH(request: Request) {
       id: body.id,
       gang_origin_id: body.gang_origin_id || null,
       ...('grants_equipment' in body ? { grants_equipment: normalizeSkillGrants(body.grants_equipment) } : {}),
+      ...('usable_by' in body ? { usable_by: body.usable_by } : {}),
     };
 
     const { data, error } = await supabase

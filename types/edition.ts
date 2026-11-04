@@ -253,6 +253,11 @@ const EDITION_CAPABILITIES = {
   /** A fighter can leave the battlefield without going Out of Action — removed from play in a battle session. */
   leaveBattlefield:         { n23: false, n26: true  },
   venatorSkillAccess:       { n23: false, n26: true  },
+  /**
+   * Skills can be limited to Fighters, Walkers, Vehicles, or a combination
+   * (skills.usable_by). When false, skills have no roster-kind restriction.
+   */
+  skillUserKindRestrictions: { n23: false, n26: true },
   /** A Spyrer's Rig Glitches can send them into Recovery, so they get the Recovery toggle. */
   spyrerRecovery:           { n23: false, n26: true  },
   /** Spyrers spend kills on Power Boosts for their hunting rig. */
@@ -463,6 +468,9 @@ export const canLeaveBattlefield = (editionSlug?: string | null): boolean =>
 
 export const hasVenatorSkillAccess = (editionSlug: string | null | undefined): boolean =>
   can('venatorSkillAccess', editionSlug);
+
+export const hasSkillUserKindRestrictions = (editionSlug?: string | null): boolean =>
+  can('skillUserKindRestrictions', editionSlug);
 
 export const hasSpyrerRecovery = (editionSlug?: string | null): boolean =>
   can('spyrerRecovery', editionSlug);

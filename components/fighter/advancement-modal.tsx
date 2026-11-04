@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
-import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
+import { buildGroupedSkillSetComboboxOptions, formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
 import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
@@ -100,6 +100,8 @@ interface AvailableAdvancement {
   skill_type_id?: string;
   characteristic_code?: string;
   is_custom?: boolean;
+  usable?: boolean;
+  usable_by?: string[] | null;
 }
 
 type AcquisitionType = {
@@ -115,6 +117,8 @@ type AvailableSkill = {
   skill_type_id: string;
   available_acquisition_types: AcquisitionType[];
   available: boolean;
+  usable?: boolean;
+  usable_by?: string[] | null;
   is_custom: boolean;
 };
 
@@ -486,7 +490,7 @@ export function AdvancementModal({
   const [gangerSpecialistCategoriesLoading, setGangerSpecialistCategoriesLoading] = useState(false);
   const [gangerSelectedSkillSetId, setGangerSelectedSkillSetId] = useState('');
   const [gangerSkillsInSet, setGangerSkillsInSet] = useState<
-    { skill_id: string; skill_name: string; skill_type_id: string; available: boolean }[]
+    { skill_id: string; skill_name: string; skill_type_id: string; available: boolean; usable?: boolean; usable_by?: string[] | null }[]
   >([]);
   const [gangerSkillsInSetLoading, setGangerSkillsInSetLoading] = useState(false);
   const [gangerSkillPickRoll, setGangerSkillPickRoll] = useState<number | null>(null);
@@ -891,7 +895,7 @@ export function AdvancementModal({
           return;
         }
         const data = (await res.json()) as {
-          skills?: { skill_id: string; skill_name: string; skill_type_id: string; available: boolean }[];
+          skills?: { skill_id: string; skill_name: string; skill_type_id: string; available: boolean; usable?: boolean; usable_by?: string[] | null }[];
         };
         if (!cancelled) setGangerSkillsInSet(data.skills ?? []);
       } catch {
@@ -1345,21 +1349,22 @@ export function AdvancementModal({
   }
 
   const rollGangerSkillInSet = () => {
-    if (gangerSkillsInSet.length === 0) {
+    const pool = gangerSkillsInSet.filter((s) => s.usable !== false);
+    if (pool.length === 0) {
       toast.error('No skills in this set (or still loading)');
       return;
     }
     if (logGangerSubRollMutation.isPending) return;
-    const r = roll(gangerSkillsInSet.length);
-    const chosen = gangerSkillsInSet[r - 1];
+    const r = roll(pool.length);
+    const chosen = pool[r - 1];
     setGangerSkillPickRoll(r);
-    setGangerSelectedSkillIndex(r - 1);
+    setGangerSelectedSkillIndex(gangerSkillsInSet.indexOf(chosen));
     logGangerSubRollMutation.mutate({
       outcome_label: `Specialist — Skill: ${chosen.skill_name}`,
       dice_data: {
         result: r,
         dice: [r],
-        pool_size: gangerSkillsInSet.length,
+        pool_size: pool.length,
         roll_type: 'skill_in_set'
       }
     });
@@ -1367,7 +1372,7 @@ export function AdvancementModal({
 
   const rollSkillFromSet = useCallback(() => {
     if (logSkillAdvancementRollMutation.isPending) return;
-    const pool = availableAdvancements.filter((a) => a.is_available !== false);
+    const pool = availableAdvancements.filter((a) => a.is_available !== false && a.usable !== false);
     if (pool.length === 0) {
       toast.error('No available skills in this set');
       return;
@@ -1537,12 +1542,22 @@ export function AdvancementModal({
 
   const gangerSkillInSetComboboxOptions = useMemo(
     () =>
-      gangerSkillsInSet.map((s) => ({
-        value: s.skill_id,
-        label: s.available ? s.skill_name : `${s.skill_name} (unavailable)`,
-        displayValue: s.skill_name,
-        disabled: !s.available
-      })),
+      gangerSkillsInSet.map((s) => {
+        const kindSuffix = formatSkillUserKindSuffix(s.usable_by);
+        const ownedSuffix = !s.available ? ' (unavailable)' : '';
+        const display = `${s.skill_name}${kindSuffix}${ownedSuffix}`;
+        const muted = !s.available || s.usable === false;
+        return {
+          value: s.skill_id,
+          label: muted ? (
+            <span className="italic text-muted-foreground">{display}</span>
+          ) : (
+            display
+          ),
+          displayValue: display,
+          disabled: !s.available
+        };
+      }),
     [gangerSkillsInSet]
   );
 
@@ -1790,13 +1805,19 @@ export function AdvancementModal({
     if (!isSkillLikeAdvancementType) return [];
     return availableAdvancements.map((a) => {
       const isAvailable = a.is_available !== false;
+      const muted = !isAvailable || a.usable === false;
       const baseName = a.stat_change_name ?? 'Skill';
       const customSuffix = a.is_custom ? ' (Custom)' : '';
+      const kindSuffix = formatSkillUserKindSuffix(a.usable_by);
       const ownedSuffix = !isAvailable ? ' (already owned)' : '';
-      const display = `${baseName}${customSuffix}${ownedSuffix}`;
+      const display = `${baseName}${customSuffix}${kindSuffix}${ownedSuffix}`;
       return {
         value: a.id,
-        label: !isAvailable ? <span className="italic text-muted-foreground">{display}</span> : display,
+        label: muted ? (
+          <span className="italic text-muted-foreground">{display}</span>
+        ) : (
+          display
+        ),
         displayValue: display,
         disabled: !isAvailable
       };
@@ -1945,7 +1966,9 @@ export function AdvancementModal({
         available_acquisition_types: skill.available_acquisition_types,
         skill_type_id: skill.skill_type_id,
         is_available: skill.available,
-        is_custom: skill.is_custom
+        is_custom: skill.is_custom,
+        usable: skill.usable !== false,
+        usable_by: skill.usable_by ?? null
       }));
   }, [skillFetchKey, availableSkills, selectedCategory]);
 
@@ -2576,7 +2599,7 @@ export function AdvancementModal({
                           disabled={
                             !userPermissions?.canEdit ||
                             logSkillAdvancementRollMutation.isPending ||
-                            availableAdvancements.filter((a) => a.is_available !== false).length === 0
+                            availableAdvancements.filter((a) => a.is_available !== false && a.usable !== false).length === 0
                           }
                         >
                           Roll for Skill
@@ -2723,7 +2746,7 @@ export function AdvancementModal({
                           disabled={
                             !userPermissions?.canEdit ||
                             logSkillAdvancementRollMutation.isPending ||
-                            availableAdvancements.filter((a) => a.is_available !== false).length === 0
+                            availableAdvancements.filter((a) => a.is_available !== false && a.usable !== false).length === 0
                           }
                         >
                           Roll for Skill

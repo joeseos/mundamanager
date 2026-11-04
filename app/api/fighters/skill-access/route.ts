@@ -51,6 +51,8 @@ export async function GET(request: Request) {
         custom_fighter_type_id,
         user_id,
         gang_id,
+        is_vehicle,
+        fighter_subtypes,
         gangs:gang_id (
           user_id,
           gang_origin_id,
@@ -235,7 +237,7 @@ export async function GET(request: Request) {
     if (skillTypeId) {
       const { data: skillsRaw, error: skillsErr } = await supabase
         .from('skills')
-        .select('id, name, skill_type_id, gang_origin_id')
+        .select('id, name, skill_type_id, gang_origin_id, usable_by')
         .eq('skill_type_id', skillTypeId);
 
       if (skillsErr) {
@@ -257,12 +259,29 @@ export async function GET(request: Request) {
 
       const ownedIds = new Set((ownedRows || []).map((o) => o.skill_id).filter(Boolean));
 
-      const skills = skillsFiltered.map((s) => ({
-        skill_id: s.id,
-        skill_name: s.name ?? 'Unknown',
-        skill_type_id: s.skill_type_id as string,
-        available: !ownedIds.has(s.id),
-      }));
+      const isVehicle = fighter.is_vehicle === true;
+      const subtypes = Array.isArray(fighter.fighter_subtypes)
+        ? (fighter.fighter_subtypes as string[])
+        : [];
+      const isWalker = isVehicle && subtypes.includes('Walker');
+
+      const skills = skillsFiltered.map((s) => {
+        const usableBy = Array.isArray(s.usable_by) ? (s.usable_by as string[]) : null;
+        // Same rule as get_available_skills.sql: null usable_by is unrestricted.
+        const usable =
+          !usableBy ||
+          (!isVehicle && usableBy.includes('fighter')) ||
+          (isVehicle && usableBy.includes('vehicle')) ||
+          (isWalker && usableBy.includes('walker'));
+        return {
+          skill_id: s.id,
+          skill_name: s.name ?? 'Unknown',
+          skill_type_id: s.skill_type_id as string,
+          available: !ownedIds.has(s.id),
+          usable_by: usableBy,
+          usable,
+        };
+      });
 
       return NextResponse.json({
         skill_access: skillAccessWithOrigin,

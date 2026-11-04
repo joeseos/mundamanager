@@ -8,6 +8,13 @@ export type SkillSetComboboxOption = {
   disabled?: boolean;
 };
 
+/** Combobox secondary, e.g. " • Fighter" or " • Fighter or Walker". Empty when unrestricted. */
+export function formatSkillUserKindSuffix(usable_by?: readonly string[] | null): string {
+  return usable_by?.length
+    ? ` • ${usable_by.map((k) => k.charAt(0).toUpperCase() + k.slice(1)).join(' or ')}`
+    : '';
+}
+
 type SkillSetItem = {
   id: string;
   name: string;
