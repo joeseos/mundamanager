@@ -1,7 +1,6 @@
 'use client';
 
 import { Checkbox } from '@/components/ui/checkbox';
-import { formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
 
 const SKILL_USER_KINDS = ['fighter', 'walker', 'vehicle'] as const;
 export type SkillUserKind = (typeof SKILL_USER_KINDS)[number];
@@ -17,8 +16,6 @@ export function SkillUserKindCheckboxes({
   onChange,
   disabled,
 }: SkillUserKindCheckboxesProps) {
-  const suffix = formatSkillUserKindSuffix(value);
-
   const isChecked = (kind: SkillUserKind) => value.includes(kind);
 
   const toggle = (kind: SkillUserKind, checked: boolean) => {
@@ -54,7 +51,6 @@ export function SkillUserKindCheckboxes({
       </div>
       <p className="text-xs text-muted-foreground mt-1">
         None checked: no restriction. Vehicle includes Walkers.
-        {suffix ? ` Preview:${suffix}` : ''}
       </p>
     </div>
   );

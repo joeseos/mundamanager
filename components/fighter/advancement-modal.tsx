@@ -1804,12 +1804,12 @@ export function AdvancementModal({
   const skillComboboxOptions = useMemo(() => {
     if (!isSkillLikeAdvancementType) return [];
     return availableAdvancements.map((a) => {
-      const owned = a.can_purchase === false;
-      const muted = owned || a.usable === false;
+      const isAvailable = a.is_available !== false;
+      const muted = !isAvailable || a.usable === false;
       const baseName = a.stat_change_name ?? 'Skill';
       const customSuffix = a.is_custom ? ' (Custom)' : '';
       const kindSuffix = formatSkillUserKindSuffix(a.usable_by);
-      const ownedSuffix = owned ? ' (already owned)' : '';
+      const ownedSuffix = !isAvailable ? ' (already owned)' : '';
       const display = `${baseName}${customSuffix}${kindSuffix}${ownedSuffix}`;
       return {
         value: a.id,
@@ -1819,7 +1819,7 @@ export function AdvancementModal({
           display
         ),
         displayValue: display,
-        disabled: owned
+        disabled: !isAvailable
       };
     });
   }, [isSkillLikeAdvancementType, availableAdvancements]);

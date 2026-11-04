@@ -321,9 +321,7 @@ export async function POST(request: Request) {
       name: body.name,
       skill_type_id: body.skill_type_id,
       gang_origin_id: body.gang_origin_id || null,
-      ...('usable_by' in body
-        ? { usable_by: Array.isArray(body.usable_by) && body.usable_by.length > 0 ? body.usable_by : null }
-        : {}),
+      ...('usable_by' in body ? { usable_by: body.usable_by } : {}),
     };
 
     const { data, error } = await supabase
@@ -417,9 +415,7 @@ export async function PATCH(request: Request) {
       id: body.id,
       gang_origin_id: body.gang_origin_id || null,
       ...('grants_equipment' in body ? { grants_equipment: normalizeSkillGrants(body.grants_equipment) } : {}),
-      ...('usable_by' in body
-        ? { usable_by: Array.isArray(body.usable_by) && body.usable_by.length > 0 ? body.usable_by : null }
-        : {}),
+      ...('usable_by' in body ? { usable_by: body.usable_by } : {}),
     };
 
     const { data, error } = await supabase
