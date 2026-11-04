@@ -554,3 +554,15 @@ export function getForumReports(userId: string): Promise<ForumReport[]> {
       .orderBy(min(forumReports.created_at))
   );
 }
+
+/** Threads the user started or last posted in, whose cached headers and lists show their name. */
+export async function getUserForumThreads(userId: string) {
+  return getAppDb()
+    .select({
+      number: forumThreads.number,
+      category_id: forumThreads.category_id,
+      article_published_at: forumThreads.article_published_at,
+    })
+    .from(forumThreads)
+    .where(or(eq(forumThreads.author_id, userId), eq(forumThreads.last_post_author_id, userId)));
+}

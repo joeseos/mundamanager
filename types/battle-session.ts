@@ -31,7 +31,7 @@ export interface BattleSession {
   id: string;
   created_at: string;
   updated_at: string;
-  created_by: string;
+  created_by: string | null;
   campaign_id: string | null;
   scenario: string | null;
   /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */

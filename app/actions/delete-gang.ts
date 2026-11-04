@@ -3,6 +3,7 @@
 import { invalidateCampaignGang, invalidateUser, invalidatePermission, invalidateGangCount } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { gangImageFolders, removeStorageFolders } from '@/utils/storage-cleanup';
 
 export async function deleteGang(gangId: string) {
   console.log('[deleteGang] Starting:', gangId);
@@ -45,51 +46,7 @@ export async function deleteGang(gangId: string) {
       };
     }
 
-    // Clean up all images for this gang (both gang image and fighter images)
-    try {
-      const filesToRemove: string[] = [];
-
-      // 1) Remove any files directly under gangs/{gangId}/ (e.g., gang image)
-      try {
-        const { data: gangRootFiles } = await supabase.storage
-          .from('users-images')
-          .list(`gangs/${gangId}/`);
-        if (gangRootFiles && gangRootFiles.length > 0) {
-          gangRootFiles.forEach(file => {
-            // Skip directory markers; list returns only files at this level
-            if (file.name) filesToRemove.push(`gangs/${gangId}/${file.name}`);
-          });
-        }
-      } catch (e) {
-        console.log('Note: failed listing gang root files for deletion', e);
-      }
-
-      // 2) Remove any files under gangs/{gangId}/fighters/
-      try {
-        const { data: fighterFiles } = await supabase.storage
-          .from('users-images')
-          .list(`gangs/${gangId}/fighters/`);
-        if (fighterFiles && fighterFiles.length > 0) {
-          fighterFiles.forEach(file => {
-            if (file.name) filesToRemove.push(`gangs/${gangId}/fighters/${file.name}`);
-          });
-        }
-      } catch (e) {
-        console.log('Note: failed listing fighter files for deletion', e);
-      }
-
-      // 3) Remove accumulated files (if any)
-      if (filesToRemove.length > 0) {
-        await supabase.storage
-          .from('users-images')
-          .remove(filesToRemove);
-      }
-
-      // Supabase folders are virtual; once files are gone, the folder disappears in UI
-    } catch (storageError) {
-      // Log the error but don't fail the gang deletion
-      console.error('Error cleaning up gang images:', storageError);
-    }
+    await removeStorageFolders(supabase, gangImageFolders(gangId));
 
     // Invalidate user's gang cache
     invalidateUser(gang.user_id);
