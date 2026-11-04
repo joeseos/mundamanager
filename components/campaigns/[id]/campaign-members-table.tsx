@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { toast } from 'sonner';
@@ -13,12 +14,14 @@ import {
   removeGangFromCampaign
 } from "@/app/actions/campaigns/[id]/campaign-members"
 import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-allegiances"
-import MemberRoleModal, { type RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal"
+import type { RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal"
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
 import { compactGangTypeLabel, detailGangTypeLabel } from "@/utils/gang-type-label";
 import type { PickerGang } from '@/app/lib/campaigns/[id]/get-campaign-data';
+
+const MemberRoleModal = dynamic(() => import("@/components/campaigns/[id]/member-role-modal"), { ssr: false });
 
 type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 

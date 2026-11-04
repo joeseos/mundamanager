@@ -10,7 +10,7 @@ import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import { createBattleSession } from "@/app/actions/battle-sessions";
-import MemberRoleModal, { type RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal";
+import type { RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
@@ -27,6 +27,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), { ssr: false });
+const MemberRoleModal = dynamic(() => import("@/components/campaigns/[id]/member-role-modal"), { ssr: false });
 
 interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
