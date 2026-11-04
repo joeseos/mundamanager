@@ -10,7 +10,8 @@ import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import { createBattleSession } from "@/app/actions/battle-sessions";
-import { updateMemberRole } from "@/app/actions/campaigns/[id]/campaign-members";
+import type { RoleChangeTarget } from "@/components/campaigns/[id]/campaign-role-modal"
+import type { CampaignRole } from "@/types/campaign";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
@@ -27,12 +28,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
 const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), { ssr: false });
+const CampaignRoleModal = dynamic(() => import("@/components/campaigns/[id]/campaign-role-modal"), { ssr: false });
 
 interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
 }
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 interface CampaignBattleLogsListProps {
   campaignId: string;
@@ -62,7 +63,7 @@ interface CampaignBattleLogsListProps {
   battleSessions?: ReactNode;
 }
 
-const formatRole = (role: MemberRole | undefined) => {
+const formatRole = (role: CampaignRole | undefined) => {
   switch (role) {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
@@ -108,8 +109,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null);
+  const [roleChange, setRoleChange] = useState<RoleChangeTarget | null>(null);
   
   const router = useRouter();
 
@@ -563,7 +563,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
       gangColour: string;
       playerName: string;
       playerId: string;
-      playerRole: MemberRole | undefined;
+      playerRole: CampaignRole | undefined;
       allegianceName: string;
       battles: number;
       victories: number;
@@ -601,7 +601,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           gangColour: gang.gang_colour || '#000000',
           playerName: member.profile?.username || member.username || '',
           playerId: member.user_id,
-          playerRole: member.role as MemberRole | undefined,
+          playerRole: member.role as CampaignRole | undefined,
           allegianceName: gang.allegiance?.name || '',
           battles: battlesPlayed,
           victories,
@@ -880,37 +880,6 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   const handleDeleteModalClose = () => {
     setShowDeleteModal(false);
     setBattleToDelete(null);
-  };
-
-  // Handle role change confirmation
-  const handleRoleChange = async () => {
-    if (!roleChange) return false;
-    if (!isCampaignOwner && !isCampaignAdmin) {
-      toast.error("You don't have permission to change roles");
-      return false;
-    }
-    try {
-      const result = await updateMemberRole({
-        campaignId,
-        userId: roleChange.memberId,
-        newRole: roleChange.newRole,
-        previousRole: roleChange.currentRole
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onMemberRoleChange(roleChange.memberId, roleChange.newRole);
-      toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
-      setShowRoleModal(false);
-      setRoleChange(null);
-      return true;
-    } catch (error) {
-      console.error('Error updating role:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to update role");
-      return false;
-    }
   };
 
   const renderBattlesTable = (rows: Battle[], isChallengeTable: boolean, emptyText: string) => (
@@ -1368,10 +1337,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                               setRoleChange({
                                 memberId: row.playerId,
                                 username: row.playerName,
-                                currentRole: row.playerRole || 'MEMBER',
-                                newRole: row.playerRole === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                                currentRole: row.playerRole || 'MEMBER'
                               });
-                              setShowRoleModal(true);
                             }}
                             className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted hover:text-muted-foreground transition-colors"
                           >
@@ -1484,25 +1451,13 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           hideCancel
         />
       )}
-      {showRoleModal && roleChange && (
-        <Modal
-          title="Change Player Role"
-          content={
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Are you sure you want to change <span className="font-bold">{roleChange.username}</span>&apos;s role from{' '}
-                <span className="font-bold">{roleChange.currentRole}</span> to{' '}
-                <span className="font-bold">{roleChange.newRole}</span>?
-              </p>
-            </div>
-          }
-          onClose={() => {
-            setShowRoleModal(false);
-            setRoleChange(null);
-          }}
-          onConfirm={handleRoleChange}
-          confirmText="Change Role"
-          confirmDisabled={false}
+      {roleChange && (
+        <CampaignRoleModal
+          campaignId={campaignId}
+          target={roleChange}
+          canTransferOwnership={isCampaignOwner}
+          onClose={() => setRoleChange(null)}
+          onRoleChange={onMemberRoleChange}
         />
       )}
     </>

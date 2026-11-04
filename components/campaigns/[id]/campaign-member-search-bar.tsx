@@ -4,14 +4,14 @@ import { useState } from 'react'
 import { toast } from 'sonner';
 import { addMemberToCampaign } from "@/app/actions/campaigns/[id]/campaign-members"
 import UserSearchBar, { type UserSearchResult } from '@/components/shared/user-search-bar'
+import type { CampaignRole } from '@/types/campaign'
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 interface Member {
   id?: string;
   user_id: string;
   username: string;
-  role: MemberRole;
+  role: CampaignRole;
   status: string | null;
   invited_at: string;
   joined_at: string | null;
