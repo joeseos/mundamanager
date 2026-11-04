@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
 import { LuOctagonX, LuUserPlus, LuTriangleAlert, LuSwords, LuLink2, LuArrowUpRight, LuMessageSquareText, LuMegaphone, LuAtSign, LuNewspaper, LuReply } from "react-icons/lu";
 import { LuCheck } from "react-icons/lu";
 import { ImInfo } from "react-icons/im";
 import { HiX } from "react-icons/hi";
 import { cn } from '@/app/lib/utils';
-import { useDeleteNotification, useMarkNotificationsRead, useNotificationToasts, useNotifications, type Notification } from '../../hooks/use-notifications';
+import { useDeleteNotification, useMarkNotificationsRead, useNotificationToasts, useNotifications } from '../../hooks/use-notifications';
+import type { Notification } from '@/app/lib/notifications';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
@@ -17,8 +17,7 @@ import { acceptFriendRequest, declineFriendRequest } from '@/app/actions/friends
 import { acceptGangInvite, declineGangInvite } from '@/app/actions/campaigns/[id]/campaign-gangs';
 import { acceptJoinRequest, declineJoinRequest } from '@/app/actions/campaigns/[id]/campaign-join-requests';
 import { LuTrash2 } from "react-icons/lu";
-import { notificationTextToHtml, isMessageNotificationType, MM_ANNOUNCEMENT_FROM, MM_ANNOUNCEMENT_FROM_PATH, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription, campaignIdFromNotificationLink } from '@/utils/notifications';
-import { createClient } from '@/utils/supabase/client';
+import { notificationTextToHtml, isMessageNotificationType, MM_ANNOUNCEMENT_FROM, MM_ANNOUNCEMENT_FROM_PATH, type NotificationType, isSafeNotificationLink, resolveNotificationLink, getNotificationLinkLabel, getNotificationLinkDescription } from '@/utils/notifications';
 import { sanitizeNotificationHtml } from '@/utils/sanitize-notification-html';
 import '@/components/ui/rich-text-editor.css';
 
@@ -140,27 +139,6 @@ export default function NotificationsContent({ userId }: { userId: string }) {
   // Toasts run here as well: this page has the user id immediately, so arrivals
   // are announced before the mark-read effect below dismisses them.
   const { notifications, refetch } = useNotifications(userId);
-  const campaignIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const notification of notifications) {
-      if (!notification.link) continue;
-      const id = campaignIdFromNotificationLink(notification.link);
-      if (id) ids.add(id);
-    }
-    return Array.from(ids).sort();
-  }, [notifications]);
-  const { data: campaignNames } = useQuery({
-    queryKey: ['notification-campaign-names', campaignIds],
-    enabled: campaignIds.length > 0,
-    queryFn: async () => {
-      const { data, error } = await createClient()
-        .from('campaigns')
-        .select('id, campaign_name')
-        .in('id', campaignIds);
-      if (error) throw error;
-      return new Map((data ?? []).map((campaign) => [campaign.id, campaign.campaign_name]));
-    },
-  });
   useNotificationToasts(userId);
   const { mutate: markRead } = useMarkNotificationsRead(userId);
   const { mutateAsync: deleteNotification } = useDeleteNotification(userId);
@@ -276,11 +254,7 @@ export default function NotificationsContent({ userId }: { userId: string }) {
     }
 
     const { href, isExternal } = resolved;
-    const campaignId = campaignIdFromNotificationLink(notification.link);
-    const label = getNotificationLinkLabel(
-      notification.link,
-      campaignId ? campaignNames?.get(campaignId) : null
-    );
+    const label = getNotificationLinkLabel(notification.link, notification.campaign_name);
     const description = getNotificationLinkDescription(notification.link);
 
     const attachmentContent = (
