@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import Modal from '@/components/ui/modal'
 import { updateMemberRole } from '@/app/actions/campaigns/[id]/campaign-members'
-import type { CampaignRole as MemberRole } from '@/types/user-permissions'
+import type { CampaignRole } from '@/types/campaign'
 
 export interface RoleChangeTarget {
   memberId: string;
   username: string;
-  currentRole: MemberRole;
+  currentRole: CampaignRole;
 }
 
 interface MemberRoleModalProps {
@@ -18,7 +18,7 @@ interface MemberRoleModalProps {
   /** The campaign Owner (or a site admin) may hand the Owner role to an Arbitrator. */
   canTransferOwnership: boolean;
   onClose: () => void;
-  onRoleChange: (userId: string, newRole: MemberRole) => void;
+  onRoleChange: (userId: string, newRole: CampaignRole) => void;
 }
 
 export default function MemberRoleModal({
@@ -28,10 +28,10 @@ export default function MemberRoleModal({
   onClose,
   onRoleChange
 }: MemberRoleModalProps) {
-  const roleOptions: MemberRole[] = target.currentRole === 'MEMBER'
+  const roleOptions: CampaignRole[] = target.currentRole === 'MEMBER'
     ? ['ARBITRATOR']
     : canTransferOwnership ? ['MEMBER', 'OWNER'] : ['MEMBER'];
-  const [newRole, setNewRole] = useState<MemberRole>(roleOptions[0]);
+  const [newRole, setNewRole] = useState<CampaignRole>(roleOptions[0]);
   const isTransfer = newRole === 'OWNER';
 
   const handleConfirm = async () => {

@@ -478,19 +478,22 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
       }
     }
 
-    const { data: updatedMembers, error } = await supabase
+    let roleUpdate = supabase
       .from('campaign_members')
       .update({ role: newRole })
       .eq('campaign_id', campaignId)
-      .eq('user_id', userId)
-      .select('id');
+      .eq('user_id', userId);
+    // The Owner role only goes to a current Arbitrator.
+    if (isOwnershipTransfer) roleUpdate = roleUpdate.eq('role', 'ARBITRATOR');
+
+    const { data: updatedMembers, error } = await roleUpdate.select('id');
 
     if (error) throw error;
 
     // A campaign has one Owner: the previous Owner becomes an Arbitrator.
-    // Promote first, and only demote if the new Owner is still in the campaign, so it is never left without one.
+    // Promote first, and only demote if the promote happened, so the campaign is never left without an Owner.
     if (isOwnershipTransfer) {
-      if (!updatedMembers?.length) throw new Error('Player is no longer in this campaign');
+      if (!updatedMembers?.length) throw new Error('Player is no longer an Arbitrator in this campaign');
 
       const { data: previousOwners, error: demoteError } = await supabase
         .from('campaign_members')

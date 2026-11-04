@@ -15,6 +15,7 @@ import {
 } from "@/app/actions/campaigns/[id]/campaign-members"
 import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-allegiances"
 import type { RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal"
+import type { CampaignRole } from "@/types/campaign"
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
@@ -23,7 +24,6 @@ import type { PickerGang } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
 const MemberRoleModal = dynamic(() => import("@/components/campaigns/[id]/member-role-modal"), { ssr: false });
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 interface GangResource {
   resource_id: string;
@@ -36,7 +36,7 @@ interface Member {
   id?: string;
   user_id: string;
   username: string;
-  role: MemberRole;
+  role: CampaignRole;
   invited_at: string;
   joined_at: string | null;
   invited_by: string;
@@ -101,7 +101,7 @@ interface MembersTableProps {
   initialAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
 }
 
-const formatRole = (role: MemberRole | undefined) => {
+const formatRole = (role: CampaignRole | undefined) => {
   switch (role) {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;

@@ -10,7 +10,8 @@ import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import { createBattleSession } from "@/app/actions/battle-sessions";
-import type { RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal";
+import type { RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal"
+import type { CampaignRole } from "@/types/campaign";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
@@ -33,7 +34,6 @@ interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
 }
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 interface CampaignBattleLogsListProps {
   campaignId: string;
@@ -63,7 +63,7 @@ interface CampaignBattleLogsListProps {
   battleSessions?: ReactNode;
 }
 
-const formatRole = (role: MemberRole | undefined) => {
+const formatRole = (role: CampaignRole | undefined) => {
   switch (role) {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
@@ -563,7 +563,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
       gangColour: string;
       playerName: string;
       playerId: string;
-      playerRole: MemberRole | undefined;
+      playerRole: CampaignRole | undefined;
       allegianceName: string;
       battles: number;
       victories: number;
@@ -601,7 +601,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           gangColour: gang.gang_colour || '#000000',
           playerName: member.profile?.username || member.username || '',
           playerId: member.user_id,
-          playerRole: member.role as MemberRole | undefined,
+          playerRole: member.role as CampaignRole | undefined,
           allegianceName: gang.allegiance?.name || '',
           battles: battlesPlayed,
           victories,

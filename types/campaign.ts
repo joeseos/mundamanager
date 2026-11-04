@@ -380,6 +380,8 @@ export function compareScenarioTableEntries(
   return a.d6_min - b.d6_min || a.name.localeCompare(b.name);
 }
 
+export type CampaignRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+
 /**
  * Campaign member data
  */
@@ -387,7 +389,7 @@ export interface Member {
   id?: string;
   user_id: string;
   username: string;
-  role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+  role: CampaignRole;
   invited_at: string;
   joined_at: string | null;
   invited_by: string;
