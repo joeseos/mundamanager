@@ -45,3 +45,32 @@ ALTER TABLE public.custom_fighter_types
 ALTER TABLE public.custom_skills
   ADD CONSTRAINT custom_skills_user_id_fkey
     FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+-- A campaign Owner can't be deleted until they hand the campaign to an
+-- Arbitrator or delete it, so no campaign is left without an Owner. The app
+-- checks first for a friendly message; this makes it hold for every delete
+-- path (a race, a duplicate membership row, the Supabase dashboard).
+CREATE OR REPLACE FUNCTION public.prevent_campaign_owner_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM campaign_members WHERE user_id = OLD.id AND role = 'OWNER') THEN
+    RAISE EXCEPTION 'User % is the Owner of a campaign', OLD.id
+      USING HINT = 'Hand the campaign over to an Arbitrator or delete it first.';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER prevent_campaign_owner_delete
+  BEFORE DELETE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_campaign_owner_delete();
+
+-- Deleting a custom fighter type sets fighters.custom_fighter_type_id to NULL,
+-- which without an index scans all fighters (about 0.5 s each). An account
+-- with 132 custom fighter types would take over a minute; this keeps each
+-- lookup instant. Partial, since almost every fighter has no custom type.
+CREATE INDEX IF NOT EXISTS fighters_custom_fighter_type_id_idx
+  ON public.fighters (custom_fighter_type_id)
+  WHERE custom_fighter_type_id IS NOT NULL;

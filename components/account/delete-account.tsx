@@ -15,12 +15,12 @@ interface DeleteAccountProps {
 
 export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
   const [showModal, setShowModal] = useState(false);
-  const [confirmText, setConfirmText] = useState('');
+  const [password, setPassword] = useState('');
   // Keeps the button disabled while the page redirects after a delete.
   const [deleted, setDeleted] = useState(false);
 
   const handleDelete = async () => {
-    const result = await deleteAccountAction();
+    const result = await deleteAccountAction(password);
     if (!result.success || !('redirectTo' in result)) {
       toast.error(result.error || 'Failed to delete account');
       return false;
@@ -82,14 +82,15 @@ export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
                 This action cannot be undone.
               </p>
               <div className="space-y-2">
-                <p className="text-sm font-medium">
-                  Type <span className="font-bold">Delete</span> to confirm:
-                </p>
+                <label htmlFor="delete-account-password" className="block text-sm font-medium">
+                  Enter your password to confirm:
+                </label>
                 <Input
-                  type="text"
-                  value={confirmText}
-                  onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder="Delete"
+                  id="delete-account-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full"
                 />
               </div>
@@ -97,11 +98,11 @@ export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
           }
           onClose={() => {
             setShowModal(false);
-            setConfirmText('');
+            setPassword('');
           }}
           onConfirm={handleDelete}
           confirmText="Delete Account"
-          confirmDisabled={confirmText !== 'Delete' || deleted}
+          confirmDisabled={!password || deleted}
         />
       )}
     </>

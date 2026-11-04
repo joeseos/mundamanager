@@ -16,7 +16,6 @@ import {
   invalidateUserPermissions,
 } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
-import { getAuthenticatedUser } from '@/utils/auth';
 import { getOwnedCampaigns, getUserCampaigns } from '@/app/lib/get-user-campaigns';
 import { getUserForumThreads } from '@/app/lib/forum';
 import { getAccountDeleteCacheTargets } from '@/app/lib/delete-account';
@@ -165,16 +164,31 @@ export const updateAvatarAction = async (imageUrl: string | null) => {
 };
 
 /**
- * Deletes the current user's account. Refused while they own a campaign: they
- * hand it to an Arbitrator or delete it first. Everything else goes with the
- * auth user through the foreign key cascades; their gang images and avatar are
- * then removed from storage, which has no cascade.
+ * Deletes the current user's account once they confirm their password.
+ * Refused while they own a campaign: they hand it to an Arbitrator or delete
+ * it first (a trigger on profiles enforces this too). Everything else goes
+ * with the auth user through the foreign key cascades; their gang images and
+ * avatar are then removed from storage, which has no cascade.
  */
-export const deleteAccountAction = async () => {
+export const deleteAccountAction = async (password: string) => {
   const supabase = await createClient();
 
   try {
-    const user = await getAuthenticatedUser(supabase);
+    // getUser, not the JWT claims: it asks the auth server whether the session
+    // is still valid, which a destructive action should not take on trust.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    // Re-authenticate before deleting, so a session left open on another
+    // device can't delete the account. Its own client, since signing in sets
+    // that client's session; the service role skips the sign-in CAPTCHA.
+    const { data: verified, error: passwordError } = await createServiceRoleClient()
+      .auth.signInWithPassword({ email: user.email, password });
+    if (passwordError || verified.user?.id !== user.id) {
+      return { success: false, error: "Incorrect password" };
+    }
 
     const ownedCampaigns = await getOwnedCampaigns(user.id);
     if (ownedCampaigns.length > 0) {
