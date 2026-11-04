@@ -1,7 +1,19 @@
 "use server";
 
-import { invalidateUser } from '@/utils/cache-tags';
+import {
+  invalidateCampaignGang,
+  invalidateCampaignMembers,
+  invalidateGangCount,
+  invalidateUser,
+  invalidateUserCount,
+  invalidateUserPermissions,
+} from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
+import { getAuthenticatedUser } from '@/utils/auth';
+import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
+import { getFriendsAndRequests } from '@/app/lib/friends';
+import { gangImageFolders, removeStorageFolders } from '@/utils/storage-cleanup';
+import { signOutAction } from '@/app/actions/auth';
 import {
   notificationEmailConfig,
   MASTER_PREF_KEY,
@@ -141,4 +153,62 @@ export const updateAvatarAction = async (imageUrl: string | null) => {
   invalidateUser(user.id);
 
   return { success: true };
+};
+
+/**
+ * Deletes the current user's account. Refused while they own a campaign: they
+ * hand it to an Arbitrator or delete it first. Everything else goes with the
+ * auth user through the foreign key cascades; their gang images and avatar are
+ * then removed from storage, which has no cascade.
+ */
+export const deleteAccountAction = async () => {
+  const supabase = await createClient();
+
+  try {
+    const user = await getAuthenticatedUser(supabase);
+
+    const campaigns = await getUserCampaigns(user.id);
+    const ownedCampaigns = campaigns.filter((campaign) => campaign.role === 'OWNER');
+    if (ownedCampaigns.length > 0) {
+      return {
+        success: false,
+        error: `Hand over or delete your campaigns first: ${ownedCampaigns.map((campaign) => campaign.campaign_name).join(', ')}`,
+      };
+    }
+
+    // Read before the cascade removes them, to clear storage and caches after.
+    const [{ data: gangs }, friends] = await Promise.all([
+      supabase.from('gangs').select('id').eq('user_id', user.id),
+      getFriendsAndRequests(user.id),
+    ]);
+
+    const serviceClient = createServiceRoleClient();
+    const { error } = await serviceClient.auth.admin.deleteUser(user.id);
+    if (error) {
+      console.error('Account delete error:', error);
+      return { success: false, error: "Failed to delete account" };
+    }
+
+    // After the delete, so a failed delete keeps the images. The service role,
+    // since the storage policies check the gangs and user that are now gone.
+    await removeStorageFolders(serviceClient, [
+      ...(gangs ?? []).flatMap((gang) => gangImageFolders(gang.id)),
+      `avatars/${user.id}/`,
+    ]);
+
+    invalidateUser(user.id);
+    invalidateUserPermissions(user.id);
+    friends.forEach((friend) => invalidateUser(friend.id));
+    campaigns.forEach((campaign) => {
+      invalidateCampaignMembers(campaign.id);
+      campaign.user_gangs?.forEach((gang) => invalidateCampaignGang(campaign.id, gang.id));
+    });
+    invalidateUserCount();
+    invalidateGangCount();
+
+    return { success: true, ...(await signOutAction()) };
+  } catch (error) {
+    console.error('Unexpected error during account delete:', error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
 };

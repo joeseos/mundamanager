@@ -886,7 +886,7 @@ export const battleSessions = pgTable('battle_sessions', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  created_by: uuid('created_by').notNull(),
+  created_by: uuid('created_by'),
   campaign_id: uuid('campaign_id'),
   scenario: text('scenario'),
   status: text('status').$type<BattleSessionStatus>().default(sql`'''pre_battle''::text'::text`).notNull(),

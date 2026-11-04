@@ -66,7 +66,7 @@ async function isSessionArbitrator(
 
 async function canManageSession(
   userId: string,
-  session: { created_by: string; campaign_id: string | null }
+  session: { created_by: string | null; campaign_id: string | null }
 ): Promise<boolean> {
   if (session.created_by === userId) return true;
   return isSessionArbitrator(userId, session.campaign_id);

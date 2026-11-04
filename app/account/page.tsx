@@ -8,6 +8,8 @@ import AvatarChange from "@/components/account/avatar-change";
 import { NotificationsSection } from "@/components/settings-modal";
 import NotificationPreferences from "@/components/account/notification-preferences";
 import FriendsSearchBar from "@/components/account/friends";
+import DeleteAccount from "@/components/account/delete-account";
+import { getUserCampaigns } from "@/app/lib/get-user-campaigns";
 import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +32,11 @@ export default async function AccountPage() {
 
   // Fetch all friends and requests
   const friends = await getFriendsAndRequests(user.id);
+
+  // Campaigns the user owns block account deletion until handed over or deleted.
+  const ownedCampaigns = (await getUserCampaigns(user.id))
+    .filter((campaign) => campaign.role === 'OWNER')
+    .map(({ id, campaign_name }) => ({ id, campaign_name }));
 
   // Fetch the user's email notification preferences (RLS-scoped to this user).
   const { data: notificationPreferences } = await supabase
@@ -133,6 +140,12 @@ export default async function AccountPage() {
             <NotificationPreferences
               initialPreferences={notificationPreferences ?? []}
             />
+          </div>
+
+          {/* Delete account */}
+          <div className="mt-6">
+            <h3 className="text-lg font-semibold mb-3">Delete account</h3>
+            <DeleteAccount ownedCampaigns={ownedCampaigns} />
           </div>
         </div>
       </div>
