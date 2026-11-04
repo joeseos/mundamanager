@@ -18,6 +18,7 @@ import { relations, sql } from 'drizzle-orm';
 import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
 import type { BattleParticipant, BattleStatus, ScenarioTableType } from '@/types/campaign';
 import type { CollectionItem } from '@/app/actions/customise/custom-collections';
+import type { NotificationType } from '@/utils/notifications';
 
 /**
  * Drizzle schema for the tables read over the direct database connection
@@ -861,6 +862,20 @@ export const friends = pgTable('friends', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
+export const notifications = pgTable('notifications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  text: varchar('text').notNull(),
+  type: varchar('type').$type<NotificationType>().notNull(),
+  sender_id: uuid('sender_id'),
+  receiver_id: uuid('receiver_id').notNull(),
+  dismissed: boolean('dismissed').default(false).notNull(),
+  link: text('link'),
+  expires_at: timestamp('expires_at', { withTimezone: true, mode: 'string' }).default(sql`(now() + '30 days'::interval)`).notNull(),
+  is_html: boolean('is_html').default(false).notNull(),
+  send_id: uuid('send_id'),
+});
+
 export const scenarioTables = pgTable('scenario_tables', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -1647,6 +1662,13 @@ export const friendsRelations = relations(friends, ({ one }) => ({
   }),
   addressee: one(profiles, {
     fields: [friends.addressee_id],
+    references: [profiles.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  sender: one(profiles, {
+    fields: [notifications.sender_id],
     references: [profiles.id],
   }),
 }));

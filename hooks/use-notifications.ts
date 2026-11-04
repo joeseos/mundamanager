@@ -6,8 +6,8 @@ import { useMutation, useMutationState, useQuery, useQueryClient } from '@tansta
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
-import type { NotificationType } from '@/utils/notifications';
 import { NOTIFICATION_TOASTER_ID } from '@/utils/notification-toast';
+import type { Notification } from '@/app/lib/notifications';
 
 // How long a tab can stay hidden before it drops its realtime channel. With no
 // channels left the Supabase client closes the tab's WebSocket, which is what
@@ -21,51 +21,16 @@ const SOCKET_CLOSING_RETRY_MS = 250;
 // UPDATE per row), so they are coalesced into one refetch.
 const CHANGE_REFETCH_DEBOUNCE_MS = 300;
 
-export type Notification = {
-  id: string;
-  text: string;
-  type: NotificationType;
-  created_at: string;
-  dismissed: boolean;
-  link: string | null;
-  // Null on older admin notifications sent before the author was recorded
-  sender_id: string | null;
-  sender_username: string | null;
-  // True when text is sanitized TipTap HTML. False is plain text with optional **bold**.
-  is_html: boolean;
-};
-
 export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
 const deleteMutationKey = (userId: string) => ['notifications', userId, 'delete'] as const;
 const markReadMutationKey = (userId: string) => ['notifications', userId, 'mark-read'] as const;
 
 const NO_NOTIFICATIONS: Notification[] = [];
 
-async function fetchNotifications(userId: string, signal: AbortSignal): Promise<Notification[]> {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('id, text, dismissed, type, created_at, link, sender_id, is_html, sender:profiles!sender_id(username)')
-    .eq('receiver_id', userId)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(20)
-    .abortSignal(signal);
-
-  if (error) throw error;
-
-  // The query parser types a to-one embed as an array. Postgres returns an object
-  // once sender_id references profiles, so accept either shape.
-  const rows = (data ?? []) as unknown as (Omit<Notification, 'sender_username'> & {
-    sender: { username: string } | { username: string }[] | null;
-  })[];
-
-  return rows.map(({ sender, ...row }) => ({
-    ...row,
-    sender_username: Array.isArray(sender)
-      ? sender[0]?.username ?? null
-      : sender?.username ?? null,
-  }));
+async function fetchNotifications(signal: AbortSignal): Promise<Notification[]> {
+  const response = await fetch('/api/notifications', { signal });
+  if (!response.ok) throw new Error('Failed to fetch notifications');
+  return response.json();
 }
 
 // The notifications as the user should see them: the cached list with the
@@ -75,7 +40,7 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
 export function useNotifications(userId: string) {
   const { data, refetch } = useQuery({
     queryKey: notificationsQueryKey(userId),
-    queryFn: ({ signal }) => fetchNotifications(userId, signal),
+    queryFn: ({ signal }) => fetchNotifications(signal),
   });
   const pendingDeletes = useMutationState({
     filters: { mutationKey: deleteMutationKey(userId), status: 'pending' },
@@ -220,7 +185,7 @@ function claimArrivals(notifications: Notification[]): Notification[] {
 export function useNotificationToasts(userId: string) {
   const { data, isSuccess } = useQuery({
     queryKey: notificationsQueryKey(userId),
-    queryFn: ({ signal }) => fetchNotifications(userId, signal),
+    queryFn: ({ signal }) => fetchNotifications(signal),
   });
   const router = useRouter();
   const pathname = usePathname();
@@ -308,11 +273,8 @@ export function useMarkNotificationsRead(userId: string) {
     userId,
     markReadMutationKey(userId),
     async ids => {
-      const { error } = await createClient()
-        .from('notifications')
-        .update({ dismissed: true })
-        .in('id', ids);
-      if (error) throw error;
+      const response = await fetch('/api/notifications', { method: 'PATCH', body: JSON.stringify({ ids }) });
+      if (!response.ok) throw new Error(`Failed to mark notifications read: status ${response.status}`);
     },
     (notifications, ids) =>
       notifications.map(n => (ids.includes(n.id) && !n.dismissed ? { ...n, dismissed: true } : n))
@@ -324,21 +286,11 @@ export function useDeleteNotification(userId: string) {
     userId,
     deleteMutationKey(userId),
     async id => {
-      const response = await fetch(`/api/notifications/${id}`, { method: 'DELETE' }).catch(
-        error => {
-          console.error('Error deleting notification via API:', error);
-          return null;
-        }
-      );
+      const response = await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
       // A 404 means it is already gone, e.g. removed by the server action that answered it
-      if (response?.ok || response?.status === 404) return;
-      if (response) {
-        console.error(`Error deleting notification via API: status ${response.status}`);
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`Failed to delete notification: status ${response.status}`);
       }
-
-      // Fallback to direct Supabase delete if the API fails
-      const { error } = await createClient().from('notifications').delete().eq('id', id);
-      if (error) throw error;
     },
     (notifications, id) => notifications.filter(n => n.id !== id)
   );
