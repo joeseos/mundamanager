@@ -90,6 +90,6 @@ jobs:
               continue
             fi
             echo "::group::Deploy $fn"
-            supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --yes
             echo "::endgroup::"
           done
