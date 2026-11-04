@@ -10,7 +10,7 @@ import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
 import { createBattleSession } from "@/app/actions/battle-sessions";
-import { updateMemberRole } from "@/app/actions/campaigns/[id]/campaign-members";
+import MemberRoleModal, { type RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
@@ -108,8 +108,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null);
+  const [roleChange, setRoleChange] = useState<RoleChangeTarget | null>(null);
   
   const router = useRouter();
 
@@ -882,37 +881,6 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     setBattleToDelete(null);
   };
 
-  // Handle role change confirmation
-  const handleRoleChange = async () => {
-    if (!roleChange) return false;
-    if (!isCampaignOwner && !isCampaignAdmin) {
-      toast.error("You don't have permission to change roles");
-      return false;
-    }
-    try {
-      const result = await updateMemberRole({
-        campaignId,
-        userId: roleChange.memberId,
-        newRole: roleChange.newRole,
-        previousRole: roleChange.currentRole
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onMemberRoleChange(roleChange.memberId, roleChange.newRole);
-      toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
-      setShowRoleModal(false);
-      setRoleChange(null);
-      return true;
-    } catch (error) {
-      console.error('Error updating role:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to update role");
-      return false;
-    }
-  };
-
   const renderBattlesTable = (rows: Battle[], isChallengeTable: boolean, emptyText: string) => (
     <div className="rounded-md border overflow-x-auto">
       <table className="w-full text-xs md:text-sm">
@@ -1368,10 +1336,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                               setRoleChange({
                                 memberId: row.playerId,
                                 username: row.playerName,
-                                currentRole: row.playerRole || 'MEMBER',
-                                newRole: row.playerRole === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                                currentRole: row.playerRole || 'MEMBER'
                               });
-                              setShowRoleModal(true);
                             }}
                             className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted hover:text-muted-foreground transition-colors"
                           >
@@ -1484,25 +1450,13 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           hideCancel
         />
       )}
-      {showRoleModal && roleChange && (
-        <Modal
-          title="Change Player Role"
-          content={
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Are you sure you want to change <span className="font-bold">{roleChange.username}</span>&apos;s role from{' '}
-                <span className="font-bold">{roleChange.currentRole}</span> to{' '}
-                <span className="font-bold">{roleChange.newRole}</span>?
-              </p>
-            </div>
-          }
-          onClose={() => {
-            setShowRoleModal(false);
-            setRoleChange(null);
-          }}
-          onConfirm={handleRoleChange}
-          confirmText="Change Role"
-          confirmDisabled={false}
+      {roleChange && (
+        <MemberRoleModal
+          campaignId={campaignId}
+          target={roleChange}
+          canTransferOwnership={isCampaignOwner}
+          onClose={() => setRoleChange(null)}
+          onRoleChange={onMemberRoleChange}
         />
       )}
     </>

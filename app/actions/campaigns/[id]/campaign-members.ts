@@ -468,14 +468,42 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
     // Authenticate user
     const user = await getAuthenticatedUser(supabase);
     const { campaignId, userId, newRole, previousRole } = params;
+    const isOwnershipTransfer = newRole === 'OWNER';
 
-    const { error } = await supabase
+    // RLS lets Arbitrators update roles, so only the Owner (or a site admin) may hand over the Owner role.
+    if (isOwnershipTransfer) {
+      const permission = await checkPermission(user.id, { campaignId });
+      if (permission.campaign_role !== 'OWNER' && !permission.is_admin) {
+        throw new Error('Only the campaign Owner can transfer ownership');
+      }
+    }
+
+    const { data: updatedMembers, error } = await supabase
       .from('campaign_members')
       .update({ role: newRole })
       .eq('campaign_id', campaignId)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('id');
 
     if (error) throw error;
+
+    // A campaign has one Owner: the previous Owner becomes an Arbitrator.
+    // Promote first, and only demote if the new Owner is still in the campaign, so it is never left without one.
+    if (isOwnershipTransfer) {
+      if (!updatedMembers?.length) throw new Error('Player is no longer in this campaign');
+
+      const { data: previousOwners, error: demoteError } = await supabase
+        .from('campaign_members')
+        .update({ role: 'ARBITRATOR' })
+        .eq('campaign_id', campaignId)
+        .eq('role', 'OWNER')
+        .neq('user_id', userId)
+        .select('user_id');
+
+      if (demoteError) throw demoteError;
+
+      new Set(previousOwners.map(m => m.user_id)).forEach(invalidateUser);
+    }
 
     // If demoting from ARBITRATOR/OWNER to MEMBER, cleanup their custom_shared records
     // Use service role client to bypass RLS (owner deleting another user's shares)
@@ -494,13 +522,14 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
       }
     }
 
-    // If promoting from MEMBER to ARBITRATOR, send notification to the promoted user
-    if (previousRole === 'MEMBER' && newRole === 'ARBITRATOR') {
+    // If promoting from MEMBER to ARBITRATOR, or handing over the Owner role, notify the promoted user
+    if ((previousRole === 'MEMBER' && newRole === 'ARBITRATOR') || isOwnershipTransfer) {
       const { data: campaign } = await supabase
         .from('campaigns')
         .select('campaign_name')
         .eq('id', campaignId)
         .single();
+      const campaignName = campaign?.campaign_name ?? 'Unknown';
       const baseUrl = process.env.NODE_ENV === 'development'
         ? 'http://localhost:3000'
         : 'https://www.mundamanager.com';
@@ -508,7 +537,9 @@ export async function updateMemberRole(params: UpdateMemberRoleParams) {
         receiver_id: userId,
         sender_id: user.id,
         type: 'info',
-        text: `You have been promoted to **Arbitrator** in the campaign **${campaign?.campaign_name ?? 'Unknown'}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add new players and gangs\n• Edit player gangs\n• Manage Territories and Battle Logs\n• Add custom resources\n• Share your custom assets with the campaign (fighters, equipment, and more)\n\nClick the link below to go to the campaign.`,
+        text: isOwnershipTransfer
+          ? `You are now the **Owner** of the campaign **${campaignName}**.\n\nAs Owner you can also delete the campaign and hand the Owner role to an Arbitrator.\n\nClick the link below to go to the campaign.`
+          : `You have been promoted to **Arbitrator** in the campaign **${campaignName}**.\n\nYou can now:\n• Edit the campaign (description, image, campaign pack)\n• Add new players and gangs\n• Edit player gangs\n• Manage Territories and Battle Logs\n• Add custom resources\n• Share your custom assets with the campaign (fighters, equipment, and more)\n\nClick the link below to go to the campaign.`,
         link: `${baseUrl}/campaigns/${campaignId}`,
         dismissed: false
       });
