@@ -28,7 +28,10 @@ export async function copyUploadedImages(
         .from(table)
         .update({ image_url: bucket.getPublicUrl(path).data.publicUrl })
         .eq('id', id);
-      if (error) console.error('Error saving copied image:', error);
+      if (error) {
+        console.error('Error saving copied image:', error);
+        await bucket.remove([path]);
+      }
     })
   );
 }
