@@ -18,7 +18,8 @@ export async function removeStorageFolders(supabase: SupabaseClient, folders: st
       (data ?? []).filter((file) => file.id).map((file) => `${folders[i]}${file.name}`)
     );
     if (files.length > 0) {
-      await supabase.storage.from('users-images').remove(files);
+      const { error } = await supabase.storage.from('users-images').remove(files);
+      if (error) console.error('Error removing storage files:', error);
     }
   } catch (error) {
     console.error('Error removing storage files:', error);

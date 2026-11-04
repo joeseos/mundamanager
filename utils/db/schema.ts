@@ -559,7 +559,7 @@ export const fighterLoadouts = pgTable('fighter_loadouts', {
   fighter_id: uuid('fighter_id').notNull(),
   loadout_name: text('loadout_name').notNull(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
-  user_id: uuid('user_id').notNull(),
+  user_id: uuid('user_id'),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });
 

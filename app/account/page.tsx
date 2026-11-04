@@ -9,7 +9,7 @@ import { NotificationsSection } from "@/components/settings-modal";
 import NotificationPreferences from "@/components/account/notification-preferences";
 import FriendsSearchBar from "@/components/account/friends";
 import DeleteAccount from "@/components/account/delete-account";
-import { getUserCampaigns } from "@/app/lib/get-user-campaigns";
+import { getOwnedCampaigns } from "@/app/lib/get-user-campaigns";
 import { getFriendsAndRequests } from "@/app/lib/friends";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
@@ -30,13 +30,12 @@ export default async function AccountPage() {
     return null;
   });
 
-  // Fetch all friends and requests
-  const friends = await getFriendsAndRequests(user.id);
-
-  // Campaigns the user owns block account deletion until handed over or deleted.
-  const ownedCampaigns = (await getUserCampaigns(user.id))
-    .filter((campaign) => campaign.role === 'OWNER')
-    .map(({ id, campaign_name }) => ({ id, campaign_name }));
+  // Friends and requests, and the campaigns the user owns, which block
+  // account deletion until handed over or deleted.
+  const [friends, ownedCampaigns] = await Promise.all([
+    getFriendsAndRequests(user.id),
+    getOwnedCampaigns(user.id),
+  ]);
 
   // Fetch the user's email notification preferences (RLS-scoped to this user).
   const { data: notificationPreferences } = await supabase

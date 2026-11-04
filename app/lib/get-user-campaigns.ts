@@ -121,3 +121,17 @@ export const getUserShareCampaigns = async (
     }
   )();
 };
+
+/**
+ * Campaigns the user is Owner of, read live rather than cached: it gates
+ * account deletion, and a user can hold several memberships in one campaign.
+ */
+export const getOwnedCampaigns = async (userId: string) => {
+  const members = await getAppDb().query.campaignMembers.findMany({
+    columns: {},
+    where: (member, { and, eq }) => and(eq(member.user_id, userId), eq(member.role, 'OWNER')),
+    with: { campaign: { columns: { id: true, campaign_name: true } } },
+  });
+  const campaigns = new Map(members.flatMap(({ campaign }) => (campaign ? [[campaign.id, campaign] as const] : [])));
+  return [...campaigns.values()];
+};

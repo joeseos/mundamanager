@@ -16,6 +16,8 @@ interface DeleteAccountProps {
 export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
   const [showModal, setShowModal] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  // Keeps the button disabled while the page redirects after a delete.
+  const [deleted, setDeleted] = useState(false);
 
   const handleDelete = async () => {
     const result = await deleteAccountAction();
@@ -23,6 +25,8 @@ export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
       toast.error(result.error || 'Failed to delete account');
       return false;
     }
+
+    setDeleted(true);
 
     // Drop the browser client's in-memory session, like signing out does.
     try {
@@ -97,7 +101,7 @@ export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
           }}
           onConfirm={handleDelete}
           confirmText="Delete Account"
-          confirmDisabled={confirmText !== 'Delete'}
+          confirmDisabled={confirmText !== 'Delete' || deleted}
         />
       )}
     </>

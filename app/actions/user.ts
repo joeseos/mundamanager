@@ -1,16 +1,25 @@
 "use server";
 
 import {
+  invalidateBattleSession,
+  invalidateCampaignBattles,
+  invalidateCampaignCore,
   invalidateCampaignGang,
   invalidateCampaignMembers,
+  invalidateCampaignTradingPosts,
+  invalidateForumThreadList,
+  invalidateGang,
   invalidateGangCount,
+  invalidateGangStash,
   invalidateUser,
   invalidateUserCount,
   invalidateUserPermissions,
 } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from '@/utils/auth';
-import { getUserCampaigns } from '@/app/lib/get-user-campaigns';
+import { getOwnedCampaigns, getUserCampaigns } from '@/app/lib/get-user-campaigns';
+import { getUserForumThreads } from '@/app/lib/forum';
+import { getAccountDeleteCacheTargets } from '@/app/lib/delete-account';
 import { getFriendsAndRequests } from '@/app/lib/friends';
 import { gangImageFolders, removeStorageFolders } from '@/utils/storage-cleanup';
 import { signOutAction } from '@/app/actions/auth';
@@ -167,8 +176,7 @@ export const deleteAccountAction = async () => {
   try {
     const user = await getAuthenticatedUser(supabase);
 
-    const campaigns = await getUserCampaigns(user.id);
-    const ownedCampaigns = campaigns.filter((campaign) => campaign.role === 'OWNER');
+    const ownedCampaigns = await getOwnedCampaigns(user.id);
     if (ownedCampaigns.length > 0) {
       return {
         success: false,
@@ -177,10 +185,18 @@ export const deleteAccountAction = async () => {
     }
 
     // Read before the cascade removes them, to clear storage and caches after.
-    const [{ data: gangs }, friends] = await Promise.all([
+    const [campaigns, { data: gangs, error: gangsError }, friends, forumThreads, cacheTargets] = await Promise.all([
+      getUserCampaigns(user.id),
       supabase.from('gangs').select('id').eq('user_id', user.id),
       getFriendsAndRequests(user.id),
+      getUserForumThreads(user.id),
+      getAccountDeleteCacheTargets(user.id),
     ]);
+    // Without the gang ids their images can't be found once the gangs are gone.
+    if (gangsError) {
+      console.error('Account delete gangs read error:', gangsError);
+      return { success: false, error: "Failed to delete account" };
+    }
 
     const serviceClient = createServiceRoleClient();
     const { error } = await serviceClient.auth.admin.deleteUser(user.id);
@@ -190,9 +206,9 @@ export const deleteAccountAction = async () => {
     }
 
     // After the delete, so a failed delete keeps the images. The service role,
-    // since the storage policies check the gangs and user that are now gone.
+    // since the user's session went with the account.
     await removeStorageFolders(serviceClient, [
-      ...(gangs ?? []).flatMap((gang) => gangImageFolders(gang.id)),
+      ...gangs.flatMap((gang) => gangImageFolders(gang.id)),
       `avatars/${user.id}/`,
     ]);
 
@@ -201,8 +217,22 @@ export const deleteAccountAction = async () => {
     friends.forEach((friend) => invalidateUser(friend.id));
     campaigns.forEach((campaign) => {
       invalidateCampaignMembers(campaign.id);
+      // Custom content the user shared into the campaign is gone.
+      invalidateCampaignTradingPosts(campaign.id);
+      invalidateCampaignCore(campaign.id);
+      if (campaign.user_gangs?.length) invalidateCampaignBattles(campaign.id);
       campaign.user_gangs?.forEach((gang) => invalidateCampaignGang(campaign.id, gang.id));
     });
+    // Other players' gangs lose the user's custom fighter types, equipment and skills.
+    cacheTargets.gangIds.forEach((gangId) => {
+      invalidateGang(gangId);
+      invalidateGangStash(gangId);
+    });
+    cacheTargets.battleSessionIds.forEach(invalidateBattleSession);
+    // Thread headers and lists name their author and last poster, now Unknown User.
+    forumThreads.forEach((thread) =>
+      invalidateForumThreadList(thread.category_id, thread.number, thread.article_published_at !== null)
+    );
     invalidateUserCount();
     invalidateGangCount();
 
