@@ -19,6 +19,7 @@ import { HiUser } from "react-icons/hi2";
 import { IoHome } from "react-icons/io5";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { GiHandcuffs } from "react-icons/gi";
+import type { CampaignRole } from "@/types/campaign";
 
 function getSubtypeRank(subtypes: string[] | null | undefined, editionSlug?: string | null) {
   const rank = getFighterSubtypeSortRank(subtypes, editionSlug);
@@ -60,9 +61,8 @@ interface GangTerritoriesProps {
   editionSlug?: string | null;
 }
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
-const formatRoleIcon = (role: MemberRole | string | undefined) => {
+const formatRoleIcon = (role: CampaignRole | string | undefined) => {
   switch (role) {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
@@ -75,7 +75,7 @@ const formatRoleIcon = (role: MemberRole | string | undefined) => {
   }
 };
 
-const getRoleTitle = (role: MemberRole | string | undefined): string => {
+const getRoleTitle = (role: CampaignRole | string | undefined): string => {
   switch (role) {
     case 'OWNER':
       return 'Owner';

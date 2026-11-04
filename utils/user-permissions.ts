@@ -4,7 +4,7 @@ import 'server-only';
 import { sql } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import type { UserPermissions, CampaignPermissions } from '@/types/user-permissions';
-import type { CampaignRole } from '@/types/user-permissions';
+import type { CampaignRole } from '@/types/campaign';
 import { unstable_cache } from 'next/cache';
 
 export interface CheckPermissionResult {

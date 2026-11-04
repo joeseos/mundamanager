@@ -282,6 +282,21 @@ export default function CampaignPageContent({
     };
   }
 
+  // A user can hold more than one member row in a campaign (one per gang).
+  // Handing over the Owner role makes the previous Owner an Arbitrator.
+  const handleMemberRoleChange = (userId: string, newRole: string) => {
+    setCampaignData(prev => ({
+      ...prev,
+      members: prev.members.map(member =>
+        member.user_id === userId
+          ? { ...member, role: newRole }
+          : newRole === 'OWNER' && member.role === 'OWNER'
+            ? { ...member, role: 'ARBITRATOR' }
+            : member
+      )
+    }));
+  };
+
   const handleTerritoryUpdate = useCallback((update: TerritoryUpdate) => {
     if (update.action === 'restore' && update.territory) {
       // Undo a failed mutation by putting the snapshotted row back, re-adding it
@@ -799,14 +814,7 @@ export default function CampaignPageContent({
                   if (restoredMembers) {
                     setCampaignData(prev => ({ ...prev, members: restoredMembers }));
                   } else if (roleChange) {
-                    setCampaignData(prev => ({
-                      ...prev,
-                      members: prev.members.map(member =>
-                        member.user_id === roleChange.userId
-                          ? { ...member, role: roleChange.newRole }
-                          : member
-                      )
-                    }));
+                    handleMemberRoleChange(roleChange.userId, roleChange.newRole);
                   } else if (removedMemberId) {
                     // Optimistically remove the member from the local state
                     setCampaignData(prev => ({
@@ -927,15 +935,7 @@ export default function CampaignPageContent({
                       }));
                     }}
                     onTerritoryUpdate={handleTerritoryUpdate}
-                    onMemberRoleChange={(userId, newRole) => {
-                      // A user can hold more than one member row in a campaign (one per gang).
-                      setCampaignData(prev => ({
-                        ...prev,
-                        members: prev.members.map(member =>
-                          member.user_id === userId ? { ...member, role: newRole } : member
-                        )
-                      }));
-                    }}
+                    onMemberRoleChange={handleMemberRoleChange}
                     members={campaignData.members}
                     territories={campaignData.territories}
                     hideAddButton={!safePermissions.canAddBattleLogs}
