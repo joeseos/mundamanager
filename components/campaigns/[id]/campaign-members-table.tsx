@@ -14,7 +14,7 @@ import {
   removeGangFromCampaign
 } from "@/app/actions/campaigns/[id]/campaign-members"
 import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-allegiances"
-import type { RoleChangeTarget } from "@/components/campaigns/[id]/member-role-modal"
+import type { RoleChangeTarget } from "@/components/campaigns/[id]/campaign-role-modal"
 import type { CampaignRole } from "@/types/campaign"
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
@@ -22,7 +22,7 @@ import { HiUser } from "react-icons/hi2";
 import { compactGangTypeLabel, detailGangTypeLabel } from "@/utils/gang-type-label";
 import type { PickerGang } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
-const MemberRoleModal = dynamic(() => import("@/components/campaigns/[id]/member-role-modal"), { ssr: false });
+const CampaignRoleModal = dynamic(() => import("@/components/campaigns/[id]/campaign-role-modal"), { ssr: false });
 
 
 interface GangResource {
@@ -1132,7 +1132,7 @@ export default function MembersTable({
       )}
 
       {roleChange && (
-        <MemberRoleModal
+        <CampaignRoleModal
           campaignId={campaignId}
           target={roleChange}
           canTransferOwnership={isCampaignOwner}

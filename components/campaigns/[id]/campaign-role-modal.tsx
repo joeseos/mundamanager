@@ -12,7 +12,7 @@ export interface RoleChangeTarget {
   currentRole: CampaignRole;
 }
 
-interface MemberRoleModalProps {
+interface CampaignRoleModalProps {
   campaignId: string;
   target: RoleChangeTarget;
   /** The campaign Owner (or a site admin) may hand the Owner role to an Arbitrator. */
@@ -21,13 +21,13 @@ interface MemberRoleModalProps {
   onRoleChange: (userId: string, newRole: CampaignRole) => void;
 }
 
-export default function MemberRoleModal({
+export default function CampaignRoleModal({
   campaignId,
   target,
   canTransferOwnership,
   onClose,
   onRoleChange
-}: MemberRoleModalProps) {
+}: CampaignRoleModalProps) {
   const roleOptions: CampaignRole[] = target.currentRole === 'MEMBER'
     ? ['ARBITRATOR']
     : canTransferOwnership ? ['MEMBER', 'OWNER'] : ['MEMBER'];
