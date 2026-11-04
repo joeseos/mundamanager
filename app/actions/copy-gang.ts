@@ -3,6 +3,8 @@
 import { invalidateGang, invalidateUser, invalidateUserCustoms, invalidateGangCount } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { copyUploadedImages } from '@/utils/copy-uploaded-images';
+import { gangImageFolders } from '@/utils/storage-cleanup';
 
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
 import { grantSkillsForEffects } from '@/app/actions/equipment';
@@ -74,7 +76,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         note: sourceGang.note,
         note_backstory: sourceGang.note_backstory,
         positioning: null, // Will be updated after fighters are copied
-        image_url: sourceGang.image_url || null,
+        image_url: null, // Gets its own copy of the source's image once the copy is complete
         gang_portrait_id: sourceGang.gang_portrait_id ?? null,
         rating: sourceGang.rating ?? 0,
         gang_origin_id: sourceGang.gang_origin_id,
@@ -97,19 +99,6 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     const newVehicleIds: string[] = [];
 
     const cleanupOnError = async (err: Error) => {
-      try {
-        // Clean up any copied images (both gang and fighter images)
-        const { data: files } = await supabase.storage
-          .from('users-images')
-          .list(`gangs/${newGangId}/`);
-        
-        if (files && files.length > 0) {
-          const filesToRemove = files.map(file => `gangs/${newGangId}/${file.name}`);
-          await supabase.storage
-            .from('users-images')
-            .remove(filesToRemove);
-        }
-      } catch (_) {}
       try {
         // Delete effect modifiers for effects tied to new fighters or vehicles
         const { data: newEffects } = await supabase
@@ -156,6 +145,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         insertObj.gang_id = newGangId;
         insertObj.user_id = user.id;
         insertObj.fighter_pet_id = null; // Will be set after copying fighter_exotic_beasts
+        insertObj.image_url = null; // Gets its own copy of the source's image once the copy is complete
         // Do not set last_updated; let DB defaults handle timestamps
         // Remap custom_fighter_type_id to the duplicated custom fighter type
         if (insertObj.custom_fighter_type_id && customFighterTypeIdMap.has(insertObj.custom_fighter_type_id)) {
@@ -547,88 +537,19 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       }
     }
 
-    // 10) Copy gang image
-    try {
-      // Check if source gang has a custom image
-      if (sourceGang.image_url && sourceGang.image_url.includes('users-images')) {
-        // Extract the filename from the source gang's image URL
-        const urlParts = sourceGang.image_url.split('/');
-        const fileName = urlParts[urlParts.length - 1];
-        
-        if (fileName && (fileName.startsWith(`${params.sourceGangId}_`) || fileName === `${params.sourceGangId}.webp`)) {
-          try {
-            // Download the source gang image
-            const { data: imageData, error: downloadError } = await supabase.storage
-              .from('users-images')
-              .download(`gangs/${params.sourceGangId}/${fileName}`);
-            
-            if (downloadError || !imageData) {
-              console.warn(`Failed to download gang image ${fileName}:`, downloadError);
-            } else {
-              // Upload to the new gang's location
-              const { error: uploadError } = await supabase.storage
-                .from('users-images')
-                .upload(`gangs/${newGangId}/${fileName}`, imageData, {
-                  contentType: 'image/webp',
-                  cacheControl: 'no-cache'
-                });
+    // 10) Give the copy its own gang and fighter images
+    const [gangFolder, fightersFolder] = gangImageFolders(newGangId);
+    await Promise.all([
+      copyUploadedImages(supabase, 'gangs', gangFolder, [{ id: newGangId, sourceUrl: sourceGang.image_url }]),
+      copyUploadedImages(
+        supabase,
+        'fighters',
+        fightersFolder,
+        (sourceFighters ?? []).map((f) => ({ id: fighterIdMap.get(f.id)!, sourceUrl: f.image_url }))
+      ),
+    ]);
 
-              if (uploadError) {
-                console.warn(`Failed to upload gang image ${fileName} to new gang:`, uploadError);
-              }
-            }
-          } catch (imageError) {
-            console.warn(`Error copying gang image ${fileName}:`, imageError);
-          }
-        }
-      }
-    } catch (storageError) {
-      // Log the error but don't fail the gang copy
-      console.error('Error copying gang image:', storageError);
-    }
-
-    // 11) Copy fighter images
-    try {
-      // List all fighter images from the source gang
-      const { data: sourceFiles } = await supabase.storage
-        .from('users-images')
-        .list(`gangs/${params.sourceGangId}/fighters/`);
-      
-      if (sourceFiles && sourceFiles.length > 0) {
-        for (const file of sourceFiles) {
-          try {
-            // Download the source image
-            const { data: imageData, error: downloadError } = await supabase.storage
-              .from('users-images')
-              .download(`gangs/${params.sourceGangId}/fighters/${file.name}`);
-            
-            if (downloadError || !imageData) {
-              console.warn(`Failed to download image ${file.name}:`, downloadError);
-              continue;
-            }
-
-            // Upload to the new gang's location
-            const { error: uploadError } = await supabase.storage
-              .from('users-images')
-              .upload(`gangs/${newGangId}/fighters/${file.name}`, imageData, {
-                contentType: 'image/webp',
-                cacheControl: 'no-cache'
-              });
-
-            if (uploadError) {
-              console.warn(`Failed to upload image ${file.name} to new gang:`, uploadError);
-            }
-          } catch (imageError) {
-            console.warn(`Error copying image ${file.name}:`, imageError);
-          }
-        }
-      }
-    } catch (storageError) {
-      // Log the error but don't fail the gang copy
-      console.error('Error copying fighter images:', storageError);
-    }
-
-    // 12) Invalidate caches for the new gang
+    // 11) Invalidate caches for the new gang
     invalidateGang(newGangId);
     invalidateUser(user.id);
     invalidateGangCount();

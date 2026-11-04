@@ -1,6 +1,8 @@
 'use server'
 
 import { invalidateGang, invalidateFighter, invalidateUser } from '@/utils/cache-tags';
+import { copyUploadedImages } from '@/utils/copy-uploaded-images';
+import { gangImageFolders } from '@/utils/storage-cleanup';
 import {createClient} from "@/utils/supabase/server";
 import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
@@ -414,7 +416,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       special_rules: sourceFighter.special_rules,
       free_skill: sourceFighter.free_skill,
       label: sourceFighter.label,
-      image_url: sourceFighter.image_url,
+      image_url: null, // Gets its own copy of the source's image once the copy is complete
       note: sourceFighter.note,
       note_backstory: sourceFighter.note_backstory,
 
@@ -479,6 +481,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
     // Beast fighter IDs for rollback
     const newBeastFighterIds: string[] = [];
+
+    const imageCopies = [{ id: newFighterId, sourceUrl: sourceFighter.image_url }];
 
     // Helper function to rollback (delete the created fighter) on error
     const rollbackFighter = async (errorMessage: string) => {
@@ -868,7 +872,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
             special_rules: beastFighter.special_rules,
             free_skill: beastFighter.free_skill,
             label: beastFighter.label,
-            image_url: beastFighter.image_url,
+            image_url: null,
             note: beastFighter.note,
             note_backstory: beastFighter.note_backstory,
             killed: false,
@@ -887,6 +891,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         }
 
         newBeastFighterIds.push(newBeastFighter.id);
+        imageCopies.push({ id: newBeastFighter.id, sourceUrl: beastFighter.image_url });
 
         // Copy beast skills first — the skill ID map relinks skill-granted equipment
         const { skillIdMap: beastSkillIdMap, error: beastSkillsError } = await copySkills(
@@ -1064,6 +1069,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         .update({ last_updated: new Date().toISOString() })
         .eq('id', params.target_gang_id);
     }
+
+    await copyUploadedImages(supabase, 'fighters', gangImageFolders(params.target_gang_id)[1], imageCopies);
 
     invalidateFighter(newFighterId, params.target_gang_id);
     invalidateUser(gang.user_id);
