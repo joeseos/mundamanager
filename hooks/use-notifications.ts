@@ -256,7 +256,8 @@ function useNotificationsMutation<TVariables>(
 
   return useMutation({
     mutationKey,
-    mutationFn: write,
+    // Only the variables: a server action cannot take the context TanStack passes second
+    mutationFn: (variables: TVariables) => write(variables),
     onSuccess: (_data, variables) => {
       queryClient.setQueryData<Notification[]>(queryKey, old => old && apply(old, variables));
       if (queryClient.isFetching({ queryKey }) > 0) {

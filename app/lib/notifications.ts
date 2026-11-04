@@ -1,6 +1,5 @@
 import { withUserClaims } from '@/utils/db/client';
 import { campaignIdFromNotificationLink, type NotificationType } from '@/utils/notifications';
-import { getCampaignBasic } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
 export type Notification = {
   id: string;
@@ -25,28 +24,33 @@ export type Notification = {
  * `userId` must be the authenticated caller's own id.
  */
 export async function getNotifications(userId: string): Promise<Notification[]> {
-  const rows = await withUserClaims(userId, (tx) => tx.query.notifications.findMany({
-    columns: { id: true, text: true, dismissed: true, type: true, link: true, sender_id: true, is_html: true },
-    extras: (notification, { sql }) => ({
-      created_at: sql<string>`to_json(${notification.created_at})`.as('created_at'),
-    }),
-    where: (notification, { and, eq, gt, sql }) =>
-      and(eq(notification.receiver_id, userId), gt(notification.expires_at, sql`now()`)),
-    orderBy: (notification, { desc }) => desc(notification.created_at),
-    limit: 20,
-    with: { sender: { columns: { username: true } } },
-  }));
+  return withUserClaims(userId, async (tx) => {
+    const rows = await tx.query.notifications.findMany({
+      columns: { id: true, text: true, dismissed: true, type: true, link: true, sender_id: true, is_html: true },
+      extras: (notification, { sql }) => ({
+        created_at: sql<string>`to_json(${notification.created_at})`.as('created_at'),
+      }),
+      where: (notification, { and, eq, gt, sql }) =>
+        and(eq(notification.receiver_id, userId), gt(notification.expires_at, sql`now()`)),
+      orderBy: (notification, { desc }) => desc(notification.created_at),
+      limit: 20,
+      with: { sender: { columns: { username: true } } },
+    });
 
-  const campaignIds = [...new Set(rows.flatMap((row) => (row.link && campaignIdFromNotificationLink(row.link)) || []))];
-  const campaigns = await Promise.all(campaignIds.map(getCampaignBasic));
-  const campaignNames = new Map(campaigns.flatMap((campaign) => (campaign ? [[campaign.id, campaign.campaign_name]] : [])));
+    const withCampaignIds = rows.map((row) => ({ row, campaignId: row.link ? campaignIdFromNotificationLink(row.link) : null }));
+    const campaignIds = [...new Set(withCampaignIds.flatMap(({ campaignId }) => campaignId ?? []))];
+    const campaigns = campaignIds.length > 0
+      ? await tx.query.campaigns.findMany({
+          columns: { id: true, campaign_name: true },
+          where: (campaign, { inArray }) => inArray(campaign.id, campaignIds),
+        })
+      : [];
+    const campaignNames = new Map(campaigns.map((campaign) => [campaign.id, campaign.campaign_name]));
 
-  return rows.map(({ sender, ...row }) => {
-    const campaignId = row.link && campaignIdFromNotificationLink(row.link);
-    return {
+    return withCampaignIds.map(({ row: { sender, ...row }, campaignId }) => ({
       ...row,
       sender_username: sender?.username ?? null,
       campaign_name: (campaignId && campaignNames.get(campaignId)) || null,
-    };
+    }));
   });
 }
