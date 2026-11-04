@@ -4,8 +4,7 @@ import { useState } from 'react'
 import { toast } from 'sonner'
 import Modal from '@/components/ui/modal'
 import { updateMemberRole } from '@/app/actions/campaigns/[id]/campaign-members'
-
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+import type { CampaignRole as MemberRole } from '@/types/user-permissions'
 
 export interface RoleChangeTarget {
   memberId: string;
@@ -41,7 +40,10 @@ export default function MemberRoleModal({
       userId: target.memberId,
       newRole,
       previousRole: target.currentRole
-    }).catch(() => null);
+    }).catch((error) => {
+      console.error('Error updating role:', error);
+      return null;
+    });
 
     if (!result?.success) {
       toast.error(result?.error ?? 'Failed to update role');
