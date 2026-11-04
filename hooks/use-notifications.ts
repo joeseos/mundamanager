@@ -8,7 +8,6 @@ import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
 import { NOTIFICATION_TOASTER_ID } from '@/utils/notification-toast';
 import type { Notification } from '@/app/lib/notifications';
-import { markNotificationsRead } from '@/app/actions/notifications';
 
 // How long a tab can stay hidden before it drops its realtime channel. With no
 // channels left the Supabase client closes the tab's WebSocket, which is what
@@ -256,8 +255,7 @@ function useNotificationsMutation<TVariables>(
 
   return useMutation({
     mutationKey,
-    // Only the variables: a server action cannot take the context TanStack passes second
-    mutationFn: (variables: TVariables) => write(variables),
+    mutationFn: write,
     onSuccess: (_data, variables) => {
       queryClient.setQueryData<Notification[]>(queryKey, old => old && apply(old, variables));
       if (queryClient.isFetching({ queryKey }) > 0) {
@@ -274,7 +272,10 @@ export function useMarkNotificationsRead(userId: string) {
   return useNotificationsMutation<string[]>(
     userId,
     markReadMutationKey(userId),
-    markNotificationsRead,
+    async ids => {
+      const response = await fetch('/api/notifications', { method: 'PATCH', body: JSON.stringify({ ids }) });
+      if (!response.ok) throw new Error(`Failed to mark notifications read: status ${response.status}`);
+    },
     (notifications, ids) =>
       notifications.map(n => (ids.includes(n.id) && !n.dismissed ? { ...n, dismissed: true } : n))
   );

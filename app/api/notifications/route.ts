@@ -25,3 +25,29 @@ export async function GET() {
     );
   }
 }
+
+/**
+ * PATCH /api/notifications with { ids }
+ * Marks notifications as read. The policies only let users update their own.
+ */
+export async function PATCH(request: Request) {
+  const supabase = await createClient();
+
+  try {
+    if (!await getUserIdFromClaims(supabase)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { ids } = await request.json();
+    const { error } = await supabase.from('notifications').update({ dismissed: true }).in('id', ids);
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error marking notifications read:', error);
+    return NextResponse.json(
+      { error: 'Failed to mark notifications read' },
+      { status: 500 }
+    );
+  }
+}
