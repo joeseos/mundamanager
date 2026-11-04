@@ -1070,7 +1070,8 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
         .eq('id', params.target_gang_id);
     }
 
-    await copyUploadedImages(supabase, 'fighters', gangImageFolders(params.target_gang_id)[1], imageCopies);
+    const [, fightersFolder] = gangImageFolders(params.target_gang_id);
+    await copyUploadedImages(supabase, 'fighters', fightersFolder, imageCopies);
 
     invalidateFighter(newFighterId, params.target_gang_id);
     invalidateUser(gang.user_id);
