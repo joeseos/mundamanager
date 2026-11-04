@@ -11,6 +11,8 @@
 --
 -- Safe to run again: every policy is dropped before it is recreated.
 
+BEGIN;
+
 DROP POLICY IF EXISTS "Admins, arbs or own participant can insert fighters" ON public.battle_session_fighters;
 DROP POLICY IF EXISTS "Admins, arbs or own participant can update fighters" ON public.battle_session_fighters;
 DROP POLICY IF EXISTS "Admins, arbs or own participant can delete fighters" ON public.battle_session_fighters;
@@ -128,7 +130,7 @@ CREATE POLICY "Admins, arbs, session creator or self can delete participants" ON
 -- fighter_equipment. fighter_equipment.user_id has no foreign key, so account
 -- deletion does not need its index either.
 --
--- Plain DROP INDEX, not CONCURRENTLY, because the migration runs in a
+-- Plain DROP INDEX, not CONCURRENTLY, because the migration runs in one
 -- transaction. Each drop only holds its table's lock for a moment.
 
 DROP INDEX IF EXISTS public.fighters_updated_at_idx;
@@ -138,3 +140,5 @@ DROP INDEX IF EXISTS public.idx_fighters_gang_status_composite;
 DROP INDEX IF EXISTS public.fighter_equipment_created_at_idx;
 DROP INDEX IF EXISTS public.fighter_equipment_is_editable_idx;
 DROP INDEX IF EXISTS public.fighter_equipment_user_id_idx;
+
+COMMIT;
