@@ -7,10 +7,9 @@ import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { GangOriginOptions } from "@/components/admin/gang-scope-options";
-import { SkillUserKindCheckboxes } from "@/components/admin/skill-user-kind-checkboxes";
+import { SkillUserKindCheckboxes, type SkillUserKind } from "@/components/admin/skill-user-kind-checkboxes";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasSkillUserKindRestrictions } from '@/types/edition';
-import type { SkillUserKind } from '@/utils/skillUserKinds';
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
@@ -106,10 +105,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       });
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => null);
-        throw new Error(
-          typeof payload?.error === 'string' ? payload.error : 'Failed to create skill'
-        );
+        throw new Error('Failed to create skill');
       }
 
       toast.success("Skill created successfully");
@@ -125,7 +121,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       onClose();
     } catch (error) {
       console.error('Error creating skill:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to create skill');
+      toast.error('Failed to create skill');
     } finally {
       setIsLoading(false);
     }

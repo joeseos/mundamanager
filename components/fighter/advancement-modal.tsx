@@ -1,11 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
-import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
-import { formatSkillUserKindSuffix } from '@/utils/skillUserKinds';
+import { buildGroupedSkillSetComboboxOptions, formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
 import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
@@ -505,7 +504,6 @@ export function AdvancementModal({
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
   const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
   const [skillAccessLoading, setSkillAccessLoading] = useState(false);
-  const skillAccessHasLoadedRef = useRef(false);
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -1351,21 +1349,22 @@ export function AdvancementModal({
   }
 
   const rollGangerSkillInSet = () => {
-    if (gangerSkillsInSet.length === 0) {
+    const pool = gangerSkillsInSet.filter((s) => s.usable !== false);
+    if (pool.length === 0) {
       toast.error('No skills in this set (or still loading)');
       return;
     }
     if (logGangerSubRollMutation.isPending) return;
-    const r = roll(gangerSkillsInSet.length);
-    const chosen = gangerSkillsInSet[r - 1];
+    const r = roll(pool.length);
+    const chosen = pool[r - 1];
     setGangerSkillPickRoll(r);
-    setGangerSelectedSkillIndex(r - 1);
+    setGangerSelectedSkillIndex(gangerSkillsInSet.indexOf(chosen));
     logGangerSubRollMutation.mutate({
       outcome_label: `Specialist — Skill: ${chosen.skill_name}`,
       dice_data: {
         result: r,
         dice: [r],
-        pool_size: gangerSkillsInSet.length,
+        pool_size: pool.length,
         roll_type: 'skill_in_set'
       }
     });
@@ -1373,7 +1372,7 @@ export function AdvancementModal({
 
   const rollSkillFromSet = useCallback(() => {
     if (logSkillAdvancementRollMutation.isPending) return;
-    const pool = availableAdvancements.filter((a) => a.is_available !== false);
+    const pool = availableAdvancements.filter((a) => a.is_available !== false && a.usable !== false);
     if (pool.length === 0) {
       toast.error('No available skills in this set');
       return;
@@ -1550,14 +1549,10 @@ export function AdvancementModal({
         const muted = !s.available || s.usable === false;
         return {
           value: s.skill_id,
-          label: (
-            <span className={muted ? 'italic text-neutral-400' : undefined}>
-              {s.skill_name}
-              {kindSuffix ? (
-                <span className={muted ? 'text-xs' : 'text-xs text-muted-foreground'}>{kindSuffix}</span>
-              ) : null}
-              {ownedSuffix}
-            </span>
+          label: muted ? (
+            <span className="italic text-muted-foreground">{display}</span>
+          ) : (
+            display
           ),
           displayValue: display,
           disabled: !s.available
@@ -1805,7 +1800,7 @@ export function AdvancementModal({
     n26SelectedRow
   ]);
 
-  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. Unusable skills stay selectable, italic like an inaccessible Skill Set. */
+  /** Skill combobox options for the selected Skill Set; already-owned skills are disabled. */
   const skillComboboxOptions = useMemo(() => {
     if (!isSkillLikeAdvancementType) return [];
     return availableAdvancements.map((a) => {
@@ -1818,14 +1813,10 @@ export function AdvancementModal({
       const display = `${baseName}${customSuffix}${kindSuffix}${ownedSuffix}`;
       return {
         value: a.id,
-        label: (
-          <span className={muted ? 'italic text-neutral-400' : undefined}>
-            {baseName}{customSuffix}
-            {kindSuffix ? (
-              <span className={muted ? 'text-xs' : 'text-xs text-muted-foreground'}>{kindSuffix}</span>
-            ) : null}
-            {ownedSuffix}
-          </span>
+        label: muted ? (
+          <span className="italic text-muted-foreground">{display}</span>
+        ) : (
+          display
         ),
         displayValue: display,
         disabled: owned
@@ -2037,7 +2028,7 @@ export function AdvancementModal({
     if (!needsSkillAccess) return;
     const controller = new AbortController();
     const fetchSkillAccess = async () => {
-      if (!skillAccessHasLoadedRef.current) setSkillAccessLoading(true);
+      setSkillAccessLoading(true);
       try {
         const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`, {
           signal: controller.signal,
@@ -2052,10 +2043,7 @@ export function AdvancementModal({
         if (err instanceof DOMException && err.name === 'AbortError') return;
         setSkillAccess([]);
       } finally {
-        if (!controller.signal.aborted) {
-          skillAccessHasLoadedRef.current = true;
-          setSkillAccessLoading(false);
-        }
+        if (!controller.signal.aborted) setSkillAccessLoading(false);
       }
     };
     void fetchSkillAccess();
@@ -2504,7 +2492,6 @@ export function AdvancementModal({
                         placeholder="Select a Skill"
                         options={gangerSkillInSetComboboxOptions}
                         disabled={!userPermissions.canEdit || gangerSkillsInSetLoading}
-                        showLabelWhenClosed
                       />
                     </div>
                     )}
@@ -2612,7 +2599,7 @@ export function AdvancementModal({
                           disabled={
                             !userPermissions?.canEdit ||
                             logSkillAdvancementRollMutation.isPending ||
-                            availableAdvancements.filter((a) => a.is_available !== false).length === 0
+                            availableAdvancements.filter((a) => a.is_available !== false && a.usable !== false).length === 0
                           }
                         >
                           Roll for Skill
@@ -2641,7 +2628,6 @@ export function AdvancementModal({
                         placeholder="Select a Skill"
                         options={skillComboboxOptions}
                         disabled={skillsLoading}
-                        showLabelWhenClosed
                       />
                     </div>
                   )}
@@ -2760,7 +2746,7 @@ export function AdvancementModal({
                           disabled={
                             !userPermissions?.canEdit ||
                             logSkillAdvancementRollMutation.isPending ||
-                            availableAdvancements.filter((a) => a.is_available !== false).length === 0
+                            availableAdvancements.filter((a) => a.is_available !== false && a.usable !== false).length === 0
                           }
                         >
                           Roll for Skill
@@ -2794,7 +2780,6 @@ export function AdvancementModal({
                       }
                       options={skillComboboxOptions}
                       disabled={skillsLoading}
-                      showLabelWhenClosed
                     />
                   </div>
                 )}

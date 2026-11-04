@@ -1,12 +1,10 @@
 'use client';
 
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  SKILL_USER_KINDS,
-  type SkillUserKind,
-  formatSkillUserKindSuffix,
-  skillUserKindLabel,
-} from '@/utils/skillUserKinds';
+import { formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
+
+const SKILL_USER_KINDS = ['fighter', 'walker', 'vehicle'] as const;
+export type SkillUserKind = (typeof SKILL_USER_KINDS)[number];
 
 interface SkillUserKindCheckboxesProps {
   value: SkillUserKind[];
@@ -49,7 +47,7 @@ export function SkillUserKindCheckboxes({
               htmlFor={`usable-by-${kind}`}
               className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
             >
-              {skillUserKindLabel(kind)}
+              {kind.charAt(0).toUpperCase() + kind.slice(1)}
             </label>
           </div>
         ))}

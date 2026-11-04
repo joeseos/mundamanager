@@ -2,7 +2,6 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { checkPermissionCached } from '@/utils/user-permissions';
 import { getUserIdFromClaims } from '@/utils/auth';
-import { isSkillUsableByRoster } from '@/utils/skillUserKinds';
 
 interface FormattedSkillAccess {
   skill_type_id: string;
@@ -266,14 +265,23 @@ export async function GET(request: Request) {
         : [];
       const isWalker = isVehicle && subtypes.includes('Walker');
 
-      const skills = skillsFiltered.map((s) => ({
-        skill_id: s.id,
-        skill_name: s.name ?? 'Unknown',
-        skill_type_id: s.skill_type_id as string,
-        available: !ownedIds.has(s.id),
-        usable_by: s.usable_by ?? null,
-        usable: isSkillUsableByRoster(s.usable_by, { isVehicle, isWalker }),
-      }));
+      const skills = skillsFiltered.map((s) => {
+        const usableBy = Array.isArray(s.usable_by) ? (s.usable_by as string[]) : null;
+        // Same rule as get_available_skills.sql: null usable_by is unrestricted.
+        const usable =
+          !usableBy ||
+          (!isVehicle && usableBy.includes('fighter')) ||
+          (isVehicle && usableBy.includes('vehicle')) ||
+          (isWalker && usableBy.includes('walker'));
+        return {
+          skill_id: s.id,
+          skill_name: s.name ?? 'Unknown',
+          skill_type_id: s.skill_type_id as string,
+          available: !ownedIds.has(s.id),
+          usable_by: usableBy,
+          usable,
+        };
+      });
 
       return NextResponse.json({
         skill_access: skillAccessWithOrigin,

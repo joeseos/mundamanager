@@ -7,11 +7,11 @@ import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 import { GangOriginOptions } from "@/components/admin/gang-scope-options";
-import { SkillUserKindCheckboxes } from "@/components/admin/skill-user-kind-checkboxes";
+import { SkillUserKindCheckboxes, type SkillUserKind } from "@/components/admin/skill-user-kind-checkboxes";
 import { AdminFighterEffects } from './admin-fighter-effects';
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasSkillUserKindRestrictions } from '@/types/edition';
-import { formatSkillUserKindSuffix, type SkillUserKind } from '@/utils/skillUserKinds';
+import { formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
 import { HiX } from "react-icons/hi";
 import type { EquipmentGrants } from '@/types/equipment';
 
@@ -353,12 +353,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     });
 
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(
-        typeof payload?.error === 'string'
-          ? payload.error
-          : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`
-      );
+      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
     }
 
     toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
@@ -371,11 +366,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast.error(
-      error instanceof Error
-        ? error.message
-        : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`
-    );
+    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
   } finally {
     setIsLoading(false);
   }
@@ -436,12 +427,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
     });
 
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-      throw new Error(
-        typeof payload?.error === 'string'
-          ? payload.error
-          : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`
-      );
+      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
     }
 
     // If UPDATE, save all effects and modifiers
@@ -462,11 +448,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
     onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast.error(
-      error instanceof Error
-        ? error.message
-        : `Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`
-    );
+    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
   } finally {
     setIsLoading(false);
   }

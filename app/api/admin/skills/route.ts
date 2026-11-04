@@ -2,12 +2,6 @@ import { NextResponse } from 'next/server'
 import { createClient } from "@/utils/supabase/server";
 import { checkAdmin } from "@/utils/auth";
 import type { EquipmentGrants } from "@/types/equipment";
-import {
-  normalizeSkillUserKinds,
-  resolveSkillUserKinds,
-  usableByDbErrorMessage,
-  type SkillUserKind,
-} from "@/utils/skillUserKinds";
 
 interface Skill {
   id: string;
@@ -15,7 +9,7 @@ interface Skill {
   skill_type_id: string;
   gang_origin_id: string | null;
   grants_equipment: EquipmentGrants | null;
-  usable_by: SkillUserKind[] | null;
+  usable_by: string[] | null;
 }
 
 // Skills only use fixed, free grants: there is no step where a player picks an
@@ -33,20 +27,6 @@ function normalizeSkillGrants(value: unknown): EquipmentGrants | null {
     selection_type: 'fixed',
     options: equipmentIds.map(equipment_id => ({ equipment_id, additional_cost: 0 }))
   };
-}
-
-function usableByFailure(error: unknown) {
-  const message = usableByDbErrorMessage(error);
-  if (!message) return null;
-  return NextResponse.json({ error: message }, { status: 400 });
-}
-
-function resolveUsableBy(
-  raw: unknown
-): { usable_by: SkillUserKind[] | null } | { error: string } {
-  const resolved = resolveSkillUserKinds(raw);
-  if ('error' in resolved) return { error: resolved.error };
-  return { usable_by: resolved.kinds };
 }
 
 export async function GET(request: Request) {
@@ -195,7 +175,7 @@ export async function GET(request: Request) {
           skill_type_id: skill.skill_type_id,
           gang_origin_id: skill.gang_origin_id,
           grants_equipment: skill.grants_equipment,
-          usable_by: normalizeSkillUserKinds(skill.usable_by),
+          usable_by: skill.usable_by ?? null,
           effects: skillEffects
         };
       });
@@ -234,7 +214,7 @@ export async function GET(request: Request) {
         skill_name: skill.name,
         skill_type_id: skill.skill_type_id,
         gang_origin_id: skill.gang_origin_id,
-        usable_by: normalizeSkillUserKinds(skill.usable_by)
+        usable_by: skill.usable_by ?? null
       }));
 
       return NextResponse.json(transformedData);
@@ -337,19 +317,14 @@ export async function POST(request: Request) {
     }
 
     // Create skill
-    const formattedData: Record<string, unknown> = {
+    const formattedData = {
       name: body.name,
       skill_type_id: body.skill_type_id,
       gang_origin_id: body.gang_origin_id || null,
+      ...('usable_by' in body
+        ? { usable_by: Array.isArray(body.usable_by) && body.usable_by.length > 0 ? body.usable_by : null }
+        : {}),
     };
-
-    if ('usable_by' in body) {
-      const usableBy = resolveUsableBy(body.usable_by);
-      if ('error' in usableBy) {
-        return NextResponse.json({ error: usableBy.error }, { status: 400 });
-      }
-      formattedData.usable_by = usableBy.usable_by;
-    }
 
     const { data, error } = await supabase
       .from('skills')
@@ -357,11 +332,7 @@ export async function POST(request: Request) {
       .select()
       .single();
 
-    if (error) {
-      const failure = usableByFailure(error);
-      if (failure) return failure;
-      throw error;
-    }
+    if (error) throw error;
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in POST handler:', error);
@@ -441,33 +412,24 @@ export async function PATCH(request: Request) {
     }
 
     // Update skill
-    const formattedData: Record<string, unknown> = {
+    const formattedData = {
       name: body.name,
       id: body.id,
       gang_origin_id: body.gang_origin_id || null,
       ...('grants_equipment' in body ? { grants_equipment: normalizeSkillGrants(body.grants_equipment) } : {}),
+      ...('usable_by' in body
+        ? { usable_by: Array.isArray(body.usable_by) && body.usable_by.length > 0 ? body.usable_by : null }
+        : {}),
     };
-
-    if ('usable_by' in body) {
-      const usableBy = resolveUsableBy(body.usable_by);
-      if ('error' in usableBy) {
-        return NextResponse.json({ error: usableBy.error }, { status: 400 });
-      }
-      formattedData.usable_by = usableBy.usable_by;
-    }
 
     const { data, error } = await supabase
       .from('skills')
       .update(formattedData)
-      .eq('id', formattedData.id as string)
+      .eq('id', formattedData.id)
       .select()
       .single();
 
-    if (error) {
-      const failure = usableByFailure(error);
-      if (failure) return failure;
-      throw error;
-    }
+    if (error) throw error;
     return NextResponse.json(data);
   } catch (error) {
     console.error('Error in PATCH handler:', error);
