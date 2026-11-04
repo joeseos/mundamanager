@@ -88,3 +88,16 @@ CREATE TRIGGER prevent_campaign_owner_delete
 CREATE INDEX IF NOT EXISTS fighters_custom_fighter_type_id_idx
   ON public.fighters (custom_fighter_type_id)
   WHERE custom_fighter_type_id IS NOT NULL;
+
+-- fighter_equipment.gang_id had no foreign key, so deleting a gang (on its own
+-- or with its account) left its stash rows behind. Clear the ones already
+-- orphaned, then cascade like fighter_id and vehicle_id do. Uses the existing
+-- idx_fighter_equipment_gang_id index.
+DELETE FROM public.fighter_equipment fe
+WHERE fe.gang_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM public.gangs g WHERE g.id = fe.gang_id);
+
+ALTER TABLE public.fighter_equipment
+  DROP CONSTRAINT IF EXISTS fighter_equipment_gang_id_fkey,
+  ADD CONSTRAINT fighter_equipment_gang_id_fkey
+    FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
