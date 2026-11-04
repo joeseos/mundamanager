@@ -84,7 +84,7 @@ export default function ApiAccessPage() {
               Munda Manager does not currently provide API keys for full programmatic access to all data. However, we do offer a <strong className="text-foreground">public REST API for campaign data</strong>, allowing you to retrieve campaign information as XML or JSON without authentication.
             </p>
             <p className="text-muted-foreground mb-4">
-              We plan to extend API access to other parts of the app in the future, such as gang data and fighter information. Stay tuned for updates!
+              Campaign data includes gang details and a basic fighter roster for each gang. Standalone gang and fighter endpoints are not currently available in the public API.
             </p>
           </div>
 
@@ -105,6 +105,7 @@ export default function ApiAccessPage() {
           <div className="mb-12">
             <h2 className="text-xl font-semibold text-foreground mb-2">Contents</h2>
             <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
+              <li><a href="#fighter-data" className="underline hover:text-red-800">Fighter Data</a></li>
               <li><a href="#google-sheets-integration" className="underline hover:text-red-800">How to Access Your Campaign Data from Google Sheets</a></li>
               <li>
                 <span className="text-muted-foreground">Examples:</span>
@@ -113,6 +114,7 @@ export default function ApiAccessPage() {
                   <li><a href="#get-all-gang-names" className="underline hover:text-red-800">Get All Gang Names</a></li>
                   <li><a href="#get-gang-rating" className="underline hover:text-red-800">Get the Rating of a Gang by ID</a></li>
                   <li><a href="#get-gang-territories" className="underline hover:text-red-800">Get the Territories of a Gang by ID</a></li>
+                  <li><a href="#get-gang-fighters" className="underline hover:text-red-800">Get the Fighters of a Gang by ID</a></li>
                   <li><a href="#get-gang-wealth-dynamic" className="underline hover:text-red-800">Get the Wealth of a Gang Using a Cell Reference</a></li>
                 </ul>
               </li>
@@ -123,6 +125,19 @@ export default function ApiAccessPage() {
 
           {/* Main content */}
           <div className="space-y-6">
+            <section id="fighter-data" className="scroll-mt-24">
+              <h2 className="text-xl font-semibold text-foreground mb-4">Fighter Data</h2>
+              <p className="text-muted-foreground mb-4">
+                Each gang includes a <code>fighters</code> array in JSON, or <code>fighters/fighter</code> elements in XML. Fighter rosters are only included for accepted campaign gangs. Pending gangs, hidden gangs, and gangs without fighters return an empty array (or an empty <code>fighters</code> element).
+              </p>
+              <p className="text-muted-foreground mb-4">
+                Each fighter includes <code>id</code>, <code>name</code>, <code>type</code>, <code>subtypes</code> (an array of strings), <code>xp</code> (current unspent XP), <code>is_vehicle</code> (a boolean identifying vehicle entries), and boolean status flags: <code>killed</code>, <code>retired</code>, <code>enslaved</code>, <code>recovery</code>, <code>captured</code>, and <code>starved</code>.
+              </p>
+              <p className="text-muted-foreground">
+                The roster follows the gang&apos;s saved display order, with unpositioned entries appended alphabetically. Gangs without a saved order use alphabetical order, matching the gang page&apos;s initial order. It includes inactive fighters, such as killed or retired fighters; use the status flags to filter them. Equipment, full stat profiles, and private user identifiers are not included.
+              </p>
+            </section>
+
             <section id="google-sheets-integration" className="scroll-mt-24">
               <h2 className="text-xl font-semibold text-foreground mb-4">How to Access Your Campaign Data from Google Sheets</h2>
               <p className="text-muted-foreground mb-4">
@@ -226,6 +241,19 @@ Bryen's pet experiments`}</code></pre>
                   <pre className="text-sm text-gray-400 whitespace-pre-wrap"><code>{`Second Best Smuggler Sympathisers
 Gang Sympathisers`}</code></pre>
                 </div>
+              </div>
+
+              <div id="get-gang-fighters" className="scroll-mt-24 mb-8">
+                <h3 className="text-lg font-semibold text-foreground mb-2">Get the Fighters of a Gang by ID</h3>
+                <div className="bg-neutral-900 rounded-lg p-4 my-4 overflow-x-auto">
+                  <pre className="text-sm text-green-400 whitespace-pre-wrap"><code>{`=IMPORTXML(
+  "https://www.mundamanager.com/api/campaigns/4a2ab55f-ec68-44ab-9572-e0f68e2450d0/data?format=xml",
+  "//member/gangs/gang[id='1a18a45f-b1db-42c2-a212-3af060219b78']/fighters/fighter[killed='false' and retired='false' and enslaved='false' and is_vehicle='false']/name"
+)`}</code></pre>
+                </div>
+                <p className="text-muted-foreground">
+                  Returns the gang&apos;s fighter names in roster order, excluding killed, retired, enslaved, and vehicle entries. Captured fighters and fighters in recovery are still included. Replace <code>name</code> with <code>type</code> or <code>xp</code> to retrieve those fields instead.
+                </p>
               </div>
 
               {/* Example 5: Get Gang Wealth with Cell Reference */}
