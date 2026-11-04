@@ -37,6 +37,14 @@ ALTER TABLE public.fighter_skill_access_override
   ADD CONSTRAINT fighter_skill_access_override_user_id_fkey
     FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
+-- Out of Action records hold whoever recorded them (DEFAULT auth.uid()), often
+-- not the owner of either gang, and are campaign history for both sides. They
+-- had CASCADE, so a deleted account took other players' records with it.
+ALTER TABLE public.fighter_ooa_records
+  DROP CONSTRAINT IF EXISTS fighter_ooa_records_user_id_fkey,
+  ADD CONSTRAINT fighter_ooa_records_user_id_fkey
+    FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
 -- Custom fighter types and custom skills had no foreign key at all, so a
 -- deleted user's rows would stay behind with no owner. Cascade like the other
 -- custom_* tables. No orphan rows exist today, so the constraints validate.
@@ -54,6 +62,7 @@ ALTER TABLE public.custom_skills
 -- Arbitrator or delete it, so no campaign is left without an Owner. The app
 -- checks first for a friendly message; this makes it hold for every delete
 -- path (a race, a duplicate membership row, the Supabase dashboard).
+-- Same as supabase/functions/prevent_campaign_owner_delete.sql.
 CREATE OR REPLACE FUNCTION public.prevent_campaign_owner_delete() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'

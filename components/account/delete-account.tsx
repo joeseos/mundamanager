@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
 import { deleteAccountAction } from '@/app/actions/user';
 import { createClient } from '@/utils/supabase/client';
+import TurnstileWidget, { type TurnstileHandle } from '@/components/turnstile-widget';
 
 interface DeleteAccountProps {
   ownedCampaigns: { id: string; campaign_name: string | null }[];
@@ -16,13 +17,18 @@ interface DeleteAccountProps {
 export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
   const [showModal, setShowModal] = useState(false);
   const [password, setPassword] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
   // Keeps the button disabled while the page redirects after a delete.
   const [deleted, setDeleted] = useState(false);
 
   const handleDelete = async () => {
-    const result = await deleteAccountAction(password);
+    const formData = new FormData(formRef.current ?? undefined);
+    const result = await deleteAccountAction(formData);
     if (!result.success || !('redirectTo' in result)) {
       toast.error(result.error || 'Failed to delete account');
+      // A submitted token was consumed, so a retry needs a fresh one.
+      if (formData.get('cf-turnstile-response')) turnstileRef.current?.reset();
       return false;
     }
 
@@ -81,19 +87,23 @@ export default function DeleteAccount({ ownedCampaigns }: DeleteAccountProps) {
               <p className="text-sm text-red-600">
                 This action cannot be undone.
               </p>
-              <div className="space-y-2">
+              <form ref={formRef} className="space-y-2" onSubmit={(e) => e.preventDefault()}>
                 <label htmlFor="delete-account-password" className="block text-sm font-medium">
                   Enter your password to confirm:
                 </label>
                 <Input
                   id="delete-account-password"
+                  name="password"
                   type="password"
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full"
                 />
-              </div>
+                <div className="flex justify-center">
+                  <TurnstileWidget ref={turnstileRef} />
+                </div>
+              </form>
             </div>
           }
           onClose={() => {

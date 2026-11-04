@@ -22,6 +22,7 @@ import { getAccountDeleteCacheTargets } from '@/app/lib/delete-account';
 import { getFriendsAndRequests } from '@/app/lib/friends';
 import { gangImageFolders, removeStorageFolders } from '@/utils/storage-cleanup';
 import { signOutAction } from '@/app/actions/auth';
+import { authErrorMessage, readCaptchaToken } from '@/utils/captcha';
 import {
   notificationEmailConfig,
   MASTER_PREF_KEY,
@@ -170,7 +171,13 @@ export const updateAvatarAction = async (imageUrl: string | null) => {
  * with the auth user through the foreign key cascades; their gang images and
  * avatar are then removed from storage, which has no cascade.
  */
-export const deleteAccountAction = async (password: string) => {
+export const deleteAccountAction = async (formData: FormData) => {
+  const password = formData.get('password') as string | null;
+  const captcha = readCaptchaToken(formData);
+  if ('error' in captcha) {
+    return { success: false, error: captcha.error };
+  }
+
   const supabase = await createClient();
 
   try {
@@ -181,20 +188,26 @@ export const deleteAccountAction = async (password: string) => {
       return { success: false, error: "Not authenticated" };
     }
 
-    // Re-authenticate before deleting, so a session left open on another
-    // device can't delete the account. Its own client, since signing in sets
-    // that client's session; the service role skips the sign-in CAPTCHA.
-    const { data: verified, error: passwordError } = await createServiceRoleClient()
-      .auth.signInWithPassword({ email: user.email, password });
-    if (passwordError || verified.user?.id !== user.id) {
-      return { success: false, error: "Incorrect password" };
-    }
-
     const ownedCampaigns = await getOwnedCampaigns(user.id);
     if (ownedCampaigns.length > 0) {
       return {
         success: false,
         error: `Hand over or delete your campaigns first: ${ownedCampaigns.map((campaign) => campaign.campaign_name).join(', ')}`,
+      };
+    }
+
+    // Re-authenticate before deleting, so a session left open on another
+    // device can't delete the account. The same sign-in as the sign-in page,
+    // with its CAPTCHA and Auth's rate limits.
+    const { error: passwordError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: password ?? '',
+      options: { captchaToken: captcha.captchaToken },
+    });
+    if (passwordError) {
+      return {
+        success: false,
+        error: passwordError.code === 'invalid_credentials' ? "Incorrect password" : authErrorMessage(passwordError),
       };
     }
 
