@@ -41,7 +41,7 @@ function ConditionBadge({
   const conditionLabel = condition.value != null && condition.value > 0
     ? `${condition.value} ${displayName}`
     : displayName;
-  // Out of Ammo names its weapon or profile, which the badge shows beside the icon.
+  // Out of Ammo and Jammed name their weapon or profile, which the badge shows beside the icon.
   const title = condition.target_name ? `${conditionLabel}: ${condition.target_name}` : conditionLabel;
   if (!config) {
     return (

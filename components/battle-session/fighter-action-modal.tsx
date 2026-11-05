@@ -121,7 +121,6 @@ function targetWeapons(
   }
 
   return weapons.flatMap((w) => {
-    // Already in the fighter card's profile order.
     const profiles = [...(profilesByWeapon.get(w)?.values() ?? [])];
     if (profiles.length === 0) return [];
     const targets: WeaponTarget[] =
