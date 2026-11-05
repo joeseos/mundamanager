@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
         title: `Gangs — ${campaign.campaign_name}`,
         description: gangLines.join("\n\n"),
         color: 0xd4a017,
-        footer: { text: `${gangs.length} gang${gangs.length !== 1 ? "s" : ""} · MundaManager` },
+        footer: { text: `${gangs.length} gang${gangs.length !== 1 ? "s" : ""} · Munda Manager` },
       };
 
       return Response.json({
