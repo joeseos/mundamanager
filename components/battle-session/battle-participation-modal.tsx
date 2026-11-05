@@ -35,13 +35,7 @@ export default function BattleParticipationModal({
   }, [crewFighters, gangFightersList]);
 
   const [crewXp, setCrewXp] = useState<Record<string, number>>(() =>
-    Object.fromEntries(crewFighters.map((f) => [
-      f.id,
-      // Crews picked before participation XP was stored start at the same default
-      // as new ones: 1, or 0 for a type that can't gain XP.
-      f.session_record?.participation_xp
-        ?? (gangFightersList.find((g) => g.id === f.fighter_id)?.starting_xp === null ? 0 : 1),
-    ]))
+    Object.fromEntries(crewFighters.map((f) => [f.id, f.session_record?.participation_xp ?? 0]))
   );
   const [otherXp, setOtherXp] = useState<Record<string, number>>({});
 
