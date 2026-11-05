@@ -1,13 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
+import { sessionScenarioLabel, type BattleSessionFull, type SessionRecord } from '@/types/battle-session';
 import { getSessionWinnerIds } from '@/utils/battle-winners';
 
 interface CompletedSessionProps {
   session: BattleSessionFull;
   userId: string;
 }
+
+// Participation XP only counts once completion has added it.
+const earnedXp = (record?: Partial<SessionRecord>) =>
+  (record?.xp_earned ?? 0) + (record?.participation_xp_awarded ? (record.participation_xp ?? 0) : 0);
 
 export default function CompletedSession({
   session,
@@ -110,9 +114,9 @@ export default function CompletedSession({
                     <span className="font-medium">
                       {f.fighter?.fighter_name ?? 'Unknown Fighter'}
                     </span>
-                    {(f.session_record?.xp_earned ?? 0) > 0 && (
+                    {earnedXp(f.session_record) > 0 && (
                       <span className="text-neutral-500">
-                        +{f.session_record.xp_earned} XP
+                        +{earnedXp(f.session_record)} XP
                       </span>
                     )}
                     {(f.session_record?.injuries ?? []).map((injury: { effect_name: string }, idx: number) => (
