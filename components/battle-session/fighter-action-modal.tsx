@@ -123,7 +123,10 @@ function OutOfAmmoModal({
   onConfirm: (targets: AmmoTarget[]) => void;
   onClose: () => void;
 }) {
-  const [checked, setChecked] = useState(() => new Set(selected.map(ammoTargetId)));
+  const [initial] = useState(() => new Set(selected.map(ammoTargetId)));
+  const [checked, setChecked] = useState(initial);
+  // Confirm replaces every Out of Ammo entry, so a no-op confirm must not drop one it can't show.
+  const unchanged = checked.size === initial.size && [...checked].every((id) => initial.has(id));
   const toggle = (id: string) =>
     setChecked((prev) => {
       const next = new Set(prev);
@@ -146,6 +149,7 @@ function OutOfAmmoModal({
       title="Select Weapon"
       helper={fighterName}
       onClose={onClose}
+      confirmDisabled={unchanged}
       onConfirm={() => {
         onConfirm(weapons.flatMap((w) => w.targets).filter((t) => checked.has(ammoTargetId(t))));
       }}
