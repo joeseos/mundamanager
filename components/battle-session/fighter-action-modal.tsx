@@ -79,9 +79,11 @@ interface AmmoWeapon {
 const ammoTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_profile_id'>) =>
   `${t.fighter_weapon_id}:${t.weapon_profile_id ?? ''}`;
 
-// Ammo is a roll target ("4+") or "*" for special ammo. Profiles without one
-// store "", "-", a literal '""', or "0" (Stun lance).
-const hasAmmoRoll = (profile: WeaponProfile) => /^([1-6]\+?|\*)$/.test(String(profile.ammo ?? '').trim());
+// N23 keeps the roll in the Ammo column ("4+", or "*" for special ammo); profiles
+// without one store "", "-", a literal '""' or "0". N26 has no Ammo column value
+// and gives the roll as a trait, "Ammo (4+)".
+const hasAmmoRoll = (profile: WeaponProfile) =>
+  /^([1-6]\+?|\*)$/.test(String(profile.ammo ?? '').trim()) || /\bAmmo\s*\(/i.test(profile.traits ?? '');
 
 /**
  * Weapons that can run out, each with the weapon or its profiles as the things to
