@@ -731,10 +731,6 @@ export default function ParticipantCard({
               const crewEntries = Object.entries(crew);
               const addedEntries = Object.entries(added);
               const count = crewEntries.length + addedEntries.length;
-              if (count === 0) {
-                setShowParticipationModal(false);
-                return;
-              }
               setLocalFighters((cur) => [
                 ...cur.map((f) =>
                   f.id in crew
