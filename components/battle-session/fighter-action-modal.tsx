@@ -83,21 +83,42 @@ const ammoTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_pr
 // store "", "-", a literal '""', or "0" (Stun lance).
 const hasAmmoRoll = (profile: WeaponProfile) => /[1-6]|\*/.test(String(profile.ammo ?? ''));
 
-/** Weapons that can run out, each with the weapon or its profiles as the things to mark. */
+/**
+ * Weapons that can run out, each with the weapon or its profiles as the things to
+ * mark. Ammo bought for a weapon (weapon_group_id, e.g. Phosphor rounds for an
+ * Autogun) goes under that weapon, as on the fighter card, so it isn't its own row.
+ */
 function ammoWeapons(weapons: WeaponProps[], perProfile: boolean): AmmoWeapon[] {
+  const profilesByWeapon = new Map<WeaponProps, Map<string, WeaponProfile>>();
+  for (const w of weapons) {
+    for (const p of (w.weapon_profiles ?? []) as WeaponProfile[]) {
+      if (!hasAmmoRoll(p)) continue;
+      const parent =
+        p.weapon_group_id && p.weapon_group_id !== w.weapon_id
+          ? weapons.find((x) => x.weapon_id === p.weapon_group_id) ?? w
+          : w;
+      if (!profilesByWeapon.has(parent)) profilesByWeapon.set(parent, new Map());
+      profilesByWeapon.get(parent)!.set(p.id, p);
+    }
+  }
+
   return weapons.flatMap((w) => {
-    const profiles = ((w.weapon_profiles ?? []) as WeaponProfile[])
-      .filter(hasAmmoRoll)
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    const profiles = [...(profilesByWeapon.get(w)?.values() ?? [])].sort(
+      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    );
     if (profiles.length === 0) return [];
     const targets: AmmoTarget[] =
       perProfile && profiles.length > 1
-        ? profiles.map((p) => ({
-            fighter_weapon_id: w.fighter_weapon_id,
-            weapon_profile_id: p.id,
-            profile_name: p.profile_name,
-            target_name: `${w.weapon_name} (${p.profile_name})`,
-          }))
+        ? profiles.map((p) => {
+            // Special-ammo profiles are named "- phosphor rounds" under their weapon.
+            const profileName = p.profile_name.replace(/^-\s*/, '');
+            return {
+              fighter_weapon_id: w.fighter_weapon_id,
+              weapon_profile_id: p.id,
+              profile_name: profileName,
+              target_name: profileName === w.weapon_name ? w.weapon_name : `${w.weapon_name} (${profileName})`,
+            };
+          })
         : [{
             fighter_weapon_id: w.fighter_weapon_id,
             weapon_profile_id: perProfile ? profiles[0].id : undefined,
