@@ -18,7 +18,7 @@ interface CampaignNotesProps {
 }
 
 export function CampaignNotes({ campaignId, initialNote = '', onNoteUpdate, canEdit = false }: CampaignNotesProps) {
-  const NOTE_CHAR_LIMIT = 3500;
+  const NOTE_CHAR_LIMIT = 5000;
   const [note, setNote] = useState(initialNote || '');
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
