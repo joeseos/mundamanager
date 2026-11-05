@@ -1140,12 +1140,9 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-lineages'] }),
       ]);
-
-      return true;
     } catch (error) {
       console.error('Error updating fighter type:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update fighter type');
-      return false;
     } finally {
       setIsLoading(false);
     }

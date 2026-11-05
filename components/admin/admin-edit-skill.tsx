@@ -16,7 +16,6 @@ import { HiX } from "react-icons/hi";
 import type { EquipmentGrants } from '@/types/equipment';
 
 enum OperationType {
-  POST = 'POST',
   UPDATE = 'UPDATE',
   DELETE = 'DELETE'
 }
@@ -306,8 +305,7 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
   };
 
   const handleSubmitType = async (operation: OperationType) => {
-   // For POST and UPDATE operations, validate required fields.
-  if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillType)) {
+  if (operation === OperationType.UPDATE && !skillType) {
     toast.error("Please fill in all required fields");
     return;
   }
@@ -319,12 +317,6 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
     let body: string | undefined;
 
     switch (operation) {
-      case OperationType.POST:
-        method = 'POST';
-        body = JSON.stringify({
-          skill_type_name: skillTypeName,
-        });
-        break;
       case OperationType.UPDATE:
         method = 'PATCH';
         body = JSON.stringify({
@@ -339,8 +331,6 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
           id: skillType,
         });
         break;
-      default:
-        throw new Error('Invalid operation');
     }
 
     const response = await fetch(url, {
@@ -352,10 +342,10 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+      throw new Error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill set`);
     }
 
-    toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
+    toast.success(`Skill set ${operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
     await queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] });
 
@@ -364,15 +354,14 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
     }
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+    toast.error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill set`);
   } finally {
     setIsLoading(false);
   }
 };
 
 const handleSubmitSkill = async (operation: OperationType) => {
-  // For POST and UPDATE operations, validate required fields.
-  if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillName || !skillType)) {
+  if (operation === OperationType.UPDATE && (!skillName || !skillType)) {
     toast.error("Please fill in all required fields");
     return;
   }
@@ -384,13 +373,6 @@ const handleSubmitSkill = async (operation: OperationType) => {
     let body: string | undefined;
 
     switch (operation) {
-      case OperationType.POST:
-        method = 'POST';
-        body = JSON.stringify({
-          name: skillName,
-          skill_type_id: skillType,
-        });
-        break;
       case OperationType.UPDATE:
         method = 'PATCH';
         body = JSON.stringify({
@@ -412,8 +394,6 @@ const handleSubmitSkill = async (operation: OperationType) => {
           id: skillId,
         });
         break;
-      default:
-        throw new Error('Invalid operation');
     }
 
     const response = await fetch(url, {
@@ -425,15 +405,14 @@ const handleSubmitSkill = async (operation: OperationType) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+      throw new Error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
     }
 
-    // If UPDATE, save all effects and modifiers
     if (operation === OperationType.UPDATE && skillId) {
       await saveSkillEffects(skillId, skillEffects, skillNameList);
     }
 
-    toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
+    toast.success(`Skill ${operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
@@ -445,7 +424,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
     }
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+    toast.error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
   } finally {
     setIsLoading(false);
   }
