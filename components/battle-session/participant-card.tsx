@@ -451,6 +451,12 @@ export default function ParticipantCard({
     setLocalFighters(participant.fighters);
   }
 
+  const [prevParticipationXp, setPrevParticipationXp] = useState(participant.participation_xp);
+  if (participant.participation_xp !== prevParticipationXp) {
+    setPrevParticipationXp(participant.participation_xp);
+    setLocalParticipationXp(participant.participation_xp ?? {});
+  }
+
   const [prevCreditsEarned, setPrevCreditsEarned] = useState(participant.credits_earned);
   if (participant.credits_earned !== prevCreditsEarned) {
     setPrevCreditsEarned(participant.credits_earned);
