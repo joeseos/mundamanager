@@ -41,6 +41,8 @@ function ConditionBadge({
   const conditionLabel = condition.value != null && condition.value > 0
     ? `${condition.value} ${displayName}`
     : displayName;
+  // Out of Ammo names its weapon or profile, which the badge shows beside the icon.
+  const title = condition.target_name ? `${conditionLabel}: ${condition.target_name}` : conditionLabel;
   if (!config) {
     return (
       <span className="rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
@@ -52,15 +54,15 @@ function ConditionBadge({
   const useComposite = hasN26CompositeBattleMarkers(editionSlug) && Boolean(config.n26);
 
   if (iconOnly) {
-    return (
+    const icon = (
       <span
         className={
           useComposite
             ? `relative inline-flex ${N26_MARKER_SIZE_CLASS} shrink-0 items-center justify-center`
             : 'relative inline-flex size-7 md:size-10 shrink-0 items-center justify-center rounded-full bg-neutral-100 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
         }
-        title={conditionLabel}
-        aria-label={conditionLabel}
+        title={condition.target_name ? undefined : title}
+        aria-label={condition.target_name ? undefined : title}
       >
         <span className={`${config.colorClass} ${markerSizeClass(useComposite, 'text-xl md:text-2xl', 'size-full')}`}>
           <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
@@ -70,6 +72,13 @@ function ConditionBadge({
             {condition.value}
           </span>
         )}
+      </span>
+    );
+    if (!condition.target_name) return icon;
+    return (
+      <span className="inline-flex items-center gap-1" title={title} aria-label={title}>
+        {icon}
+        <span className="text-xs text-muted-foreground">{condition.target_name}</span>
       </span>
     );
   }
@@ -99,7 +108,12 @@ function FighterRowConditionBadges({
         </span>
       )}
       {group.map((condition) => (
-        <ConditionBadge key={condition.key} condition={condition} iconOnly editionSlug={editionSlug} />
+        <ConditionBadge
+          key={[condition.key, condition.fighter_weapon_id, condition.weapon_profile_id].filter(Boolean).join(':')}
+          condition={condition}
+          iconOnly
+          editionSlug={editionSlug}
+        />
       ))}
     </Fragment>
   ));

@@ -19,8 +19,15 @@ import {
 import { InjuriesList } from '@/components/fighter/fighter-injury-list';
 import { addSessionInjury } from '@/app/actions/battle-sessions';
 import type { GangFighter } from '@/types/gang';
+import type { WeaponProps } from '@/types/fighter';
+import type { WeaponProfile } from '@/types/equipment';
 import type { BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
-import { canLeaveBattlefield, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
+import {
+  canLeaveBattlefield,
+  hasFleshWoundCondition,
+  hasN26CompositeBattleMarkers,
+  isOutOfAmmoPerProfile,
+} from '@/types/edition';
 
 const FighterXpModal = dynamic(
   () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
@@ -32,13 +39,15 @@ function MarkerToggleButton({
   editionSlug,
   isActive,
   onToggle,
+  count,
 }: {
   condition: SessionMarkerDef;
   editionSlug?: string | null;
   isActive: boolean;
   onToggle: () => void;
+  count?: number;
 }) {
-  const name = markerName(condition, editionSlug);
+  const name = count ? `${markerName(condition, editionSlug)} (${count})` : markerName(condition, editionSlug);
   const useComposite = hasN26CompositeBattleMarkers(editionSlug);
   return (
     <Button
@@ -51,6 +60,114 @@ function MarkerToggleButton({
       </span>
       {name}
     </Button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Out of Ammo — which weapons (N23) or weapon profiles (N26) are out
+// ---------------------------------------------------------------------------
+
+type AmmoTarget = Required<Pick<SessionCondition, 'fighter_weapon_id' | 'target_name'>> &
+  Pick<SessionCondition, 'weapon_profile_id'> & { profile_name?: string };
+
+interface AmmoWeapon {
+  fighter_weapon_id: string;
+  weapon_name: string;
+  targets: AmmoTarget[];
+}
+
+const ammoTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_profile_id'>) =>
+  `${t.fighter_weapon_id}:${t.weapon_profile_id ?? ''}`;
+
+const hasAmmoRoll = (profile: WeaponProfile) => {
+  const ammo = String(profile.ammo ?? '').trim();
+  return ammo !== '' && ammo !== '-';
+};
+
+/** Weapons that can run out, each with the weapon or its profiles as the things to mark. */
+function ammoWeapons(weapons: WeaponProps[], perProfile: boolean): AmmoWeapon[] {
+  return weapons.flatMap((w) => {
+    const profiles = ((w.weapon_profiles ?? []) as WeaponProfile[])
+      .filter(hasAmmoRoll)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    if (profiles.length === 0) return [];
+    const targets: AmmoTarget[] =
+      perProfile && profiles.length > 1
+        ? profiles.map((p) => ({
+            fighter_weapon_id: w.fighter_weapon_id,
+            weapon_profile_id: p.id,
+            profile_name: p.profile_name,
+            target_name: `${w.weapon_name} (${p.profile_name})`,
+          }))
+        : [{
+            fighter_weapon_id: w.fighter_weapon_id,
+            weapon_profile_id: perProfile ? profiles[0].id : undefined,
+            target_name: w.weapon_name,
+          }];
+    return [{ fighter_weapon_id: w.fighter_weapon_id, weapon_name: w.weapon_name, targets }];
+  });
+}
+
+function OutOfAmmoModal({
+  fighterName,
+  weapons,
+  perProfile,
+  selected,
+  onConfirm,
+  onClose,
+}: {
+  fighterName?: string;
+  weapons: AmmoWeapon[];
+  perProfile: boolean;
+  selected: SessionCondition[];
+  onConfirm: (targets: AmmoTarget[]) => void;
+  onClose: () => void;
+}) {
+  const [checked, setChecked] = useState(() => new Set(selected.map(ammoTargetId)));
+  const toggle = (id: string) =>
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
+  const row = (target: AmmoTarget, label: string) => {
+    const id = ammoTargetId(target);
+    return (
+      <label key={id} className="flex items-center gap-2 cursor-pointer">
+        <Checkbox checked={checked.has(id)} onCheckedChange={() => toggle(id)} />
+        <span>{label}</span>
+      </label>
+    );
+  };
+
+  return (
+    <Modal
+      title="Select Weapon"
+      helper={fighterName}
+      onClose={onClose}
+      onConfirm={() => {
+        onConfirm(weapons.flatMap((w) => w.targets).filter((t) => checked.has(ammoTargetId(t))));
+      }}
+    >
+      <p className="text-sm text-muted-foreground mb-4">
+        Select the {perProfile ? 'weapon profiles' : 'weapons'} that are <span className="font-bold">Out of Ammo</span>:
+      </p>
+      <div className="space-y-2">
+        {weapons.map((w) =>
+          w.targets.length === 1 ? (
+            row(w.targets[0], w.weapon_name)
+          ) : (
+            <div key={w.fighter_weapon_id} className="space-y-2">
+              <div>{w.weapon_name}</div>
+              <div className="ml-6 space-y-2">
+                {w.targets.map((t) => row(t, t.profile_name ?? t.target_name))}
+              </div>
+            </div>
+          )
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -85,6 +202,7 @@ export default function FighterActionModal({
 }) {
   const [showXpModal, setShowXpModal] = useState(false);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const [showAmmoModal, setShowAmmoModal] = useState(false);
   const isSpyrer = gangFighter?.is_spyrer ?? false;
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
     fighter.session_record?.conditions ?? []
@@ -109,6 +227,23 @@ export default function FighterActionModal({
   const visibilityMarkers = conditionMarkers.filter((c) => visibilityMarkerKeys.has(c.key));
 
   const currentConditions = fighter.session_record?.conditions ?? [];
+
+  // Out of Ammo is on a weapon (N23) or a weapon profile (N26), one entry each.
+  // A fighter with no weapon that rolls for ammo keeps the plain toggle.
+  const ammoPerProfile = isOutOfAmmoPerProfile(editionSlug);
+  const outOfAmmoWeapons = ammoWeapons(gangFighter?.weapons ?? [], ammoPerProfile);
+  const outOfAmmoEntries = draftConditions.filter((c) => c.key === 'out_of_ammo');
+  const setOutOfAmmoTargets = (targets: AmmoTarget[]) =>
+    setDraftConditions([
+      ...draftConditions.filter((c) => c.key !== 'out_of_ammo'),
+      ...targets.map(({ fighter_weapon_id, weapon_profile_id, target_name }) => ({
+        key: 'out_of_ammo',
+        name: 'Out of Ammo',
+        fighter_weapon_id,
+        ...(weapon_profile_id && { weapon_profile_id }),
+        target_name,
+      })),
+    ]);
 
   const EXCLUSIVE_PAIRS: Record<string, string> = {
     hidden: 'revealed',
@@ -236,15 +371,26 @@ export default function FighterActionModal({
               </div>
             )}
             <div className="flex flex-wrap gap-2">
-              {mainConditionMarkers.map((condition) => (
-                <MarkerToggleButton
-                  key={condition.key}
-                  condition={condition}
-                  editionSlug={editionSlug}
-                  isActive={draftConditions.some((c) => c.key === condition.key)}
-                  onToggle={() => toggleCondition(condition)}
-                />
-              ))}
+              {mainConditionMarkers.map((condition) =>
+                condition.key === 'out_of_ammo' && outOfAmmoWeapons.length > 0 ? (
+                  <MarkerToggleButton
+                    key={condition.key}
+                    condition={condition}
+                    editionSlug={editionSlug}
+                    isActive={outOfAmmoEntries.length > 0}
+                    count={outOfAmmoEntries.filter((c) => c.fighter_weapon_id).length}
+                    onToggle={() => setShowAmmoModal(true)}
+                  />
+                ) : (
+                  <MarkerToggleButton
+                    key={condition.key}
+                    condition={condition}
+                    editionSlug={editionSlug}
+                    isActive={draftConditions.some((c) => c.key === condition.key)}
+                    onToggle={() => toggleCondition(condition)}
+                  />
+                )
+              )}
             </div>
             {visibilityMarkers.length > 0 && (
               <div className="flex flex-wrap gap-2 border-t pt-2">
@@ -297,6 +443,17 @@ export default function FighterActionModal({
             onXpChanged(delta);
             setShowXpModal(false);
           }}
+        />
+      )}
+
+      {showAmmoModal && (
+        <OutOfAmmoModal
+          fighterName={gangFighter?.fighter_name}
+          weapons={outOfAmmoWeapons}
+          perProfile={ammoPerProfile}
+          selected={outOfAmmoEntries}
+          onClose={() => setShowAmmoModal(false)}
+          onConfirm={setOutOfAmmoTargets}
         />
       )}
 
