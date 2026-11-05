@@ -748,9 +748,7 @@ export default function ParticipantCard({
                     : f
                 )
               );
-              setLocalParticipationXp(
-                Object.fromEntries(Object.entries(xpByFighterId).filter(([, xp]) => xp > 0))
-              );
+              setLocalParticipationXp({ ...localParticipationXp, ...xpByFighterId });
               setParticipationXp({ participant_id: participant.id, xp_by_fighter_id: xpByFighterId }).then((result) => {
                 if (!result.success) {
                   setLocalFighters(prev.fighters);

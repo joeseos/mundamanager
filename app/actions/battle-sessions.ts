@@ -1587,10 +1587,9 @@ export async function setParticipationXp(params: {
       deltas.map(({ fighterId, delta }) => updateFighterXp({ fighter_id: fighterId, xp_to_add: delta }))
     );
     const paid = deltas.filter((_, i) => results[i].success);
-    for (const { fighterId, xp } of paid) {
-      if (xp > 0) awarded[fighterId] = xp;
-      else delete awarded[fighterId];
-    }
+    // Zeros stay in the map, so a confirm that set everyone to 0 still counts
+    // as awarded and the modal doesn't reopen with its defaults.
+    for (const { fighterId, xp } of paid) awarded[fighterId] = xp;
 
     const { error: saveError } = await supabase
       .from('battle_session_participants')
