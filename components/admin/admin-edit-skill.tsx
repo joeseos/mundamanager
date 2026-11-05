@@ -150,10 +150,9 @@ const saveSkillEffects = async (skillId: string, effects: any[], skillNameList: 
 
 interface AdminEditSkillModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
-export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalProps) {
+export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
   const queryClient = useQueryClient();
   const [skillName, setSkillName] = useState('');
   const [skillId, setSkillId] = useState('');
@@ -360,10 +359,9 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
 
     await queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] });
 
-    if (onSubmit) {
-      onSubmit();
+    if (operation === OperationType.DELETE) {
+      onClose();
     }
-    onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
     toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
@@ -442,10 +440,9 @@ const handleSubmitSkill = async (operation: OperationType) => {
       queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
     ]);
 
-    if (onSubmit) {
-      onSubmit();
+    if (operation === OperationType.DELETE) {
+      onClose();
     }
-    onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
     toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);

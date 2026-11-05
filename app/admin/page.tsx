@@ -245,27 +245,18 @@ export default function AdminPage() {
         {showEditSkill && (
           <AdminEditSkillModal
             onClose={() => setShowEditSkill(false)}
-            onSubmit={() => setShowEditSkill(false)}
           />
         )}
 
         {showGangLineages && (
           <AdminGangLineageModal
             onClose={() => setShowGangLineages(false)}
-            onSubmit={() => setShowGangLineages(false)}
           />
         )}
 
         {showEditFighterType && (
           <AdminEditFighterTypeModal
-            onClose={() => {
-              setShowEditFighterType(false);
-              console.log('Closing edit fighter type modal');
-            }}
-            onSubmit={() => {
-              setShowEditFighterType(false);
-              console.log('Submitting edit fighter type modal');
-            }}
+            onClose={() => setShowEditFighterType(false)}
           />
         )}
 
@@ -279,7 +270,6 @@ export default function AdminPage() {
         {showEditEquipment && (
           <AdminEditEquipmentModal
             onClose={() => setShowEditEquipment(false)}
-            onSubmit={() => setShowEditEquipment(false)}
           />
         )}
 
@@ -293,7 +283,6 @@ export default function AdminPage() {
         {showEditVehicle && (
           <AdminEditVehicleTypeModal
             onClose={() => setShowEditVehicle(false)}
-            onSubmit={() => setShowEditVehicle(false)}
           />
         )}
 
@@ -307,14 +296,12 @@ export default function AdminPage() {
         {showScenarios && (
           <AdminScenariosModal
             onClose={() => setShowScenarios(false)}
-            onSubmit={() => setShowScenarios(false)}
           />
         )}
 
         {showInjuriesGlitches && (
           <AdminInjuriesGlitchesModal
             onClose={() => setShowInjuriesGlitches(false)}
-            onSubmit={() => setShowInjuriesGlitches(false)}
           />
         )}
 
@@ -339,7 +326,6 @@ export default function AdminPage() {
         {showCampaignManagement && (
           <AdminCampaignManagementModal
             onClose={() => setShowCampaignManagement(false)}
-            onSubmit={() => setShowCampaignManagement(false)}
           />
         )}
 

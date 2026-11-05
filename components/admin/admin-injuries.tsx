@@ -22,10 +22,9 @@ enum OperationType {
 
 interface AdminInjuriesGlitchesModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
-export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesGlitchesModalProps) {
+export function AdminInjuriesGlitchesModal({ onClose }: AdminInjuriesGlitchesModalProps) {
   const queryClient = useQueryClient();
 
   const [selectedCategory, setSelectedCategory] = useState<'injuries' | 'rig-glitches'>('injuries');
@@ -254,10 +253,6 @@ export function AdminInjuriesGlitchesModal({ onClose, onSubmit }: AdminInjuriesG
         setEffectName('');
         setIsCreateMode(false);
         setFighterEffects([]);
-      }
-
-      if (onSubmit) {
-        onSubmit();
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
