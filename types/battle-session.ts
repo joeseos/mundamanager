@@ -101,6 +101,8 @@ export interface BattleSessionParticipant {
     is_custom: boolean;
     quantity_delta: number;
   }>;
+  /** Participation XP awarded after the battle, by fighter id. */
+  participation_xp?: Record<string, number>;
   created_at: string;
   gang?: {
     id: string;

@@ -23,6 +23,7 @@ import {
   setSideJobCompleted,
   updateGangOutcome,
   updateParticipantResources,
+  setParticipationXp,
   bulkAddFightersToSession,
   removeFighterFromSession,
   updateFighterLoadout,
@@ -33,7 +34,6 @@ import {
   toggleParticipantReady,
 } from '@/app/actions/battle-sessions';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
-import { updateFighterXp } from '@/app/actions/edit-fighter';
 import FighterRow from '@/components/battle-session/fighter-row';
 import BattleParticipationModal from '@/components/battle-session/battle-participation-modal';
 import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition } from '@/types/battle-session';
@@ -109,6 +109,7 @@ export default function ParticipantCard({
   // The phase the crew modal was opened in, so a phase change while it is open can't switch its mode.
   const [crewModalMode, setCrewModalMode] = useState<'crew' | 'reinforcements' | null>(null);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
+  const [localParticipationXp, setLocalParticipationXp] = useState(participant.participation_xp ?? {});
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
   const [tradingPostModifier, setTradingPostModifier] = useState('');
@@ -727,35 +728,30 @@ export default function ParticipantCard({
           <BattleParticipationModal
             crewFighters={localFighters}
             gangFightersList={gangFightersList}
+            awardedXp={localParticipationXp}
             editionSlug={session.edition_slug}
             onClose={() => setShowParticipationModal(false)}
             onConfirm={(xpByFighterId) => {
-              const entries = Object.entries(xpByFighterId);
+              const prev = { fighters: localFighters, awarded: localParticipationXp };
+              const delta = (fighterId: string) =>
+                (xpByFighterId[fighterId] ?? 0) - (localParticipationXp[fighterId] ?? 0);
               setLocalFighters((cur) =>
-                cur.map((f) => {
-                  const xp = xpByFighterId[f.fighter_id];
-                  return xp
-                    ? { ...f, session_record: { ...f.session_record, xp_earned: (f.session_record?.xp_earned ?? 0) + xp } }
-                    : f;
-                })
+                cur.map((f) =>
+                  delta(f.fighter_id)
+                    ? { ...f, session_record: { ...f.session_record, xp_earned: (f.session_record?.xp_earned ?? 0) + delta(f.fighter_id) } }
+                    : f
+                )
               );
-              const calls = entries.flatMap(([fighterId, xp]) => {
-                const sessionFighter = localFighters.find((lf) => lf.fighter_id === fighterId);
-                const persistCalls: Promise<{ success: boolean }>[] = [
-                  updateFighterXp({ fighter_id: fighterId, xp_to_add: xp }),
-                ];
-                if (sessionFighter) {
-                  const totalXp = (sessionFighter.session_record?.xp_earned ?? 0) + xp;
-                  persistCalls.push(updateSessionXp({ session_fighter_id: sessionFighter.id, xp_earned: totalXp }));
-                }
-                return persistCalls;
-              });
-              Promise.all(calls).then((results) => {
-                const failed = results.filter((r) => !r.success);
-                if (failed.length > 0) {
-                  toast.error('Failed to update participation XP');
+              setLocalParticipationXp(
+                Object.fromEntries(Object.entries(xpByFighterId).filter(([, xp]) => xp > 0))
+              );
+              setParticipationXp({ participant_id: participant.id, xp_by_fighter_id: xpByFighterId }).then((result) => {
+                if (!result.success) {
+                  setLocalFighters(prev.fighters);
+                  setLocalParticipationXp(prev.awarded);
+                  toast.error(result.error || 'Failed to update participation XP');
                 } else {
-                  toast.success(`Participation XP updated for ${entries.length} fighter${entries.length !== 1 ? 's' : ''}`);
+                  toast.success('Participation XP updated');
                 }
                 onBroadcast?.();
               });

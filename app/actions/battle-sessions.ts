@@ -6,6 +6,7 @@ import { getAuthenticatedUser, getUserIdFromClaims } from '@/utils/auth';
 
 import { after } from 'next/server';
 import { updateGang } from '@/app/actions/update-gang';
+import { updateFighterXp } from '@/app/actions/edit-fighter';
 import {
   applyConditionsUpdate,
   normalizeSessionRecord,
@@ -1545,6 +1546,83 @@ export async function updateParticipantResources(params: {
   } catch (err) {
     console.error('Error updating participant resources:', err);
     return { success: false, error: 'Failed to update resources' };
+  }
+}
+
+/**
+ * Saves the Participation XP modal. The participant row keeps what each
+ * fighter was awarded, so confirming again pays only the difference, and
+ * lowering a number takes XP back.
+ */
+export async function setParticipationXp(params: {
+  participant_id: string;
+  xp_by_fighter_id: Record<string, number>;
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const { data: participant, error: fetchError } = await supabase
+      .from('battle_session_participants')
+      .select('battle_session_id, participation_xp')
+      .eq('id', params.participant_id)
+      .single();
+
+    if (fetchError || !participant)
+      return { success: false, error: 'Participant not found' };
+
+    const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id, params.participant_id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    const awarded: Record<string, number> = { ...(participant.participation_xp ?? {}) };
+    const fighterIds = new Set([...Object.keys(awarded), ...Object.keys(params.xp_by_fighter_id)]);
+    const deltas = [...fighterIds]
+      .map((fighterId) => {
+        const xp = params.xp_by_fighter_id[fighterId] ?? 0;
+        return { fighterId, xp, delta: xp - (awarded[fighterId] ?? 0) };
+      })
+      .filter(({ xp, delta }) => Number.isInteger(xp) && xp >= 0 && delta !== 0);
+
+    const results = await Promise.all(
+      deltas.map(({ fighterId, delta }) => updateFighterXp({ fighter_id: fighterId, xp_to_add: delta }))
+    );
+    const paid = deltas.filter((_, i) => results[i].success);
+    for (const { fighterId, xp } of paid) {
+      if (xp > 0) awarded[fighterId] = xp;
+      else delete awarded[fighterId];
+    }
+
+    const { error: saveError } = await supabase
+      .from('battle_session_participants')
+      .update({ participation_xp: awarded })
+      .eq('id', params.participant_id);
+
+    // Crew fighters also show the XP in the session's XP tally.
+    const { data: sessionFighters } = paid.length > 0
+      ? await supabase
+          .from('battle_session_fighters')
+          .select('id, fighter_id, session_record')
+          .eq('participant_id', params.participant_id)
+          .in('fighter_id', paid.map((p) => p.fighterId))
+      : { data: [] };
+    await Promise.all(
+      (sessionFighters ?? []).map((sf) => {
+        const record = normalizeSessionRecord(sf.session_record);
+        const delta = paid.find((p) => p.fighterId === sf.fighter_id)?.delta ?? 0;
+        return supabase
+          .from('battle_session_fighters')
+          .update({ session_record: { ...record, xp_earned: record.xp_earned + delta } })
+          .eq('id', sf.id);
+      })
+    );
+
+    invalidateBattleSession(participant.battle_session_id);
+    if (saveError || paid.length < deltas.length)
+      return { success: false, error: 'Failed to update participation XP' };
+    return { success: true };
+  } catch (err) {
+    console.error('Error updating participation XP:', err);
+    return { success: false, error: 'Failed to update participation XP' };
   }
 }
 

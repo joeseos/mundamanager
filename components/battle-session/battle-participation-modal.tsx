@@ -10,12 +10,15 @@ import type { BattleSessionFighter } from '@/types/battle-session';
 export default function BattleParticipationModal({
   crewFighters,
   gangFightersList,
+  awardedXp,
   editionSlug,
   onConfirm,
   onClose,
 }: {
   crewFighters: BattleSessionFighter[];
   gangFightersList: GangFighter[];
+  /** XP already awarded by an earlier confirm, by fighter id. */
+  awardedXp: Record<string, number>;
   editionSlug?: string | null;
   onConfirm: (xpByFighterId: Record<string, number>) => void;
   onClose: () => void;
@@ -44,30 +47,35 @@ export default function BattleParticipationModal({
     return result;
   }, [gangFightersList, crewLoadouts]);
 
+  const hasAwarded = Object.keys(awardedXp).length > 0;
   const [xpAmounts, setXpAmounts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(uniqueFighters.map((gf) => [gf.id, crewLoadouts.has(gf.id) ? 1 : 0]))
+    Object.fromEntries(
+      uniqueFighters.map((gf) => [gf.id, hasAwarded ? (awardedXp[gf.id] ?? 0) : crewLoadouts.has(gf.id) ? 1 : 0])
+    )
   );
 
   const adjust = (id: string, delta: number) =>
     setXpAmounts((cur) => ({ ...cur, [id]: Math.max(0, (cur[id] ?? 0) + delta) }));
 
-  const totalXp = Object.values(xpAmounts).reduce((sum, v) => sum + v, 0);
+  const changed = uniqueFighters.some((gf) => (xpAmounts[gf.id] ?? 0) !== (awardedXp[gf.id] ?? 0));
 
   return (
     <Modal
       title="Participation XP"
       onClose={onClose}
       onConfirm={async () => {
-        const filtered = Object.fromEntries(
-          Object.entries(xpAmounts).filter(([, xp]) => xp > 0)
-        );
-        onConfirm(filtered);
+        onConfirm(xpAmounts);
         return true;
       }}
       confirmText="Confirm"
-      confirmDisabled={totalXp === 0}
+      confirmDisabled={!changed}
     >
       <div className="space-y-3">
+        {hasAwarded && (
+          <p className="text-sm text-muted-foreground">
+            This XP has been awarded. Changing a number adds or removes the difference.
+          </p>
+        )}
         {uniqueFighters.map((gf) => {
           const subtypeDisplay = formatFighterSubtypeDisplay(gf.fighter_subtypes, editionSlug);
           const details = [gf.fighter_type, subtypeDisplay ? `(${subtypeDisplay})` : ''].filter(Boolean).join(' ');
