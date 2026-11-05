@@ -180,9 +180,12 @@ export function FighterPromotionModal({
     : (PROMOTION_MAP[sourceSubtype] || '');
   const isExoticBeast = resolvedSubtypes.includes('Exotic Beast') || currentSubtype === 'Exotic Beast';
   const isSimplifiedPath = isExoticBeast || isN26ProspectPromotion || isN26GangerChampionPromotion;
-  // The simplified paths keep the fighter's own rules; the others take the chosen type's.
+  // The simplified paths and N26 Champion→Leader keep the fighter's own rules
+  // (N26: "existing characteristics and special rules do not change"); the others
+  // take the chosen type's.
+  const keepsOwnSpecialRules = isSimplifiedPath || isN26ChampionLeaderPromotion;
   const [newSpecialRules, setNewSpecialRules] = useState<string[]>(
-    () => (isSimplifiedPath ? normalizeSpecialRules(currentSpecialRules) : [])
+    () => (keepsOwnSpecialRules ? normalizeSpecialRules(currentSpecialRules) : [])
   );
 
   const n26ProspectSubtypes = useMemo(
@@ -294,18 +297,19 @@ export function FighterPromotionModal({
   const handleIncludeAllGangFighterTypesChange = (checked: boolean) => {
     setIncludeAllGangFighterTypes(checked);
     setSelectedTypeId('');
-    setNewSpecialRules([]);
+    setNewSpecialRules(keepsOwnSpecialRules ? normalizedCurrentSpecialRules : []);
   };
 
   const handleOutcastLeaderChange = (checked: boolean) => {
     setPromoteToOutcastLeader(checked);
     setSelectedTypeId('');
-    setNewSpecialRules(checked || isSimplifiedPath ? normalizedCurrentSpecialRules : []);
+    setNewSpecialRules(checked || keepsOwnSpecialRules ? normalizedCurrentSpecialRules : []);
   };
 
-  // When selection changes, update new special rules from the selected type
+  // When selection changes, take the selected type's rules unless the fighter keeps its own
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId);
+    if (keepsOwnSpecialRules) return;
     const type = displayTypes.find(ft => ft.id === typeId);
     setNewSpecialRules(type?.special_rules ? normalizeSpecialRules(type.special_rules) : []);
   };
@@ -559,7 +563,7 @@ export function FighterPromotionModal({
               </div>
 
               {/* Current Special Rules (read-only) */}
-              {normalizedCurrentSpecialRules.length > 0 && (
+              {!keepsOwnSpecialRules && normalizedCurrentSpecialRules.length > 0 && (
                 <div>
                   <label className="block text-sm text-muted-foreground font-medium mb-1">
                   Special Rules to be Removed
@@ -582,7 +586,7 @@ export function FighterPromotionModal({
           {/* Special Rules (editable) */}
           <div>
             <label className="block text-sm text-muted-foreground font-medium mb-1">
-              {isSimplifiedPath || isOutcastLeaderPath ? 'Special Rules' : 'Special Rules to be Added'}
+              {keepsOwnSpecialRules || isOutcastLeaderPath ? 'Special Rules' : 'Special Rules to be Added'}
             </label>
             <div className="flex space-x-2 mb-2">
               <Input
