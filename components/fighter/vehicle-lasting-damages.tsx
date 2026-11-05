@@ -912,7 +912,6 @@ export function VehicleDamagesList({
           <div className="flex gap-2">
             <Button
               onClick={() => setIsRepairModalOpen(true)}
-              className="bg-card hover:bg-muted text-foreground border border-border"
               disabled={uniqueDamages.length === 0 || !userPermissions.canEdit || !repairModel}
             >
               Repair

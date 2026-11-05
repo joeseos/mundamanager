@@ -571,7 +571,6 @@ export function AdvancementsList({
           showPromoteButton ? (
             <Button
               type="button"
-              variant="outline"
               disabled={!userPermissions.canEdit || standalonePromotionMutation.isPending}
               onClick={() => setIsStandalonePromotionOpen(true)}
             >

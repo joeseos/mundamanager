@@ -1201,7 +1201,6 @@ export function InjuriesList({
             <div className="flex gap-2">
               <Button
                 onClick={handleOpenClearAllModal}
-                className="bg-card hover:bg-muted text-foreground border border-border"
                 disabled={injuries.length === 0 || !userPermissions.canEdit || clearAllGlitchesMutation.isPending}
               >
                 Clear all

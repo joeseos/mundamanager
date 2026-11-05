@@ -833,7 +833,6 @@ export function VehicleEquipmentList({
         headerActions={
           <Button
             type="button"
-            variant="outline"
             onClick={() => {
               setFitWeaponData({
                 weaponEquipmentId: '',
