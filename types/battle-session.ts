@@ -130,6 +130,11 @@ export interface SessionCondition {
   key: string;
   name: string;
   value?: number;
+  /** Out of Ammo / Jammed: the weapon it is on, and for N26 Out of Ammo the profile. One entry per weapon or profile. */
+  fighter_weapon_id?: string;
+  weapon_profile_id?: string;
+  /** Out of Ammo / Jammed: the weapon, or "Weapon (Profile)" for N26 Out of Ammo, as named when it was marked. */
+  target_name?: string;
 }
 
 export interface SessionRecord {
