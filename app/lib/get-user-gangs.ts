@@ -13,11 +13,13 @@ export type Gang = {
   name: string | null;
   gang_type: string | null;
   gang_type_id: string | null;
+  gang_colour: string | null;
   image_url: string;
   gang_portrait_url?: string | null;
   credits: number | null;
   reputation: number | null;
   rating: number;
+  wealth: number | null;
   created_at: string;
   last_updated: string | null;
   gang_subtypes: Array<{id: string, subtype: string | null}>;
@@ -64,10 +66,12 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
           name: true,
           gang_type: true,
           gang_type_id: true,
+          gang_colour: true,
           image_url: true,
           credits: true,
           reputation: true,
           rating: true,
+          wealth: true,
           gang_subtypes: true,
           is_favourite: true,
           favourite_order: true,
@@ -106,11 +110,13 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
         name: gang.name,
         gang_type: gang.gang_type,
         gang_type_id: gang.gang_type_id,
+        gang_colour: gang.gang_colour,
         image_url: gang.image_url || '',
         gang_portrait_url: gangPortraitPublicUrl(gang.gang_portrait?.storage_path) ?? null,
         credits: gang.credits,
         reputation: gang.reputation,
         rating: gang.rating || 0,
+        wealth: gang.wealth,
         created_at: gang.created_at,
         last_updated: gang.last_updated,
         gang_subtypes: (gang.gang_subtypes ?? []).flatMap((id) => subtypeById.get(id) ?? []),
@@ -124,7 +130,7 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
         parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
       }));
     },
-    [`user-gangs-v9-${userId}`],
+    [`user-gangs-v10-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
@@ -133,7 +139,7 @@ export const getUserGangs = async (userId: string): Promise<Gang[]> => {
         TAGS.globalGangTypes(),
         // Catalogue file paths joined from gang_portraits
         TAGS.globalGangPortraits(),
-        // Card fields: rating/credits/name via the financials choke point
+        // Card fields: rating/credits/wealth/name via the financials choke point, colour via gang settings
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)
         ...gangIdsForTags.map(id => TAGS.gangCampaigns(id))

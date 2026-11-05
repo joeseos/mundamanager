@@ -7,7 +7,7 @@ import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getWinnerIds, getExplicitClaimerGangId, enrichWinners } from '@/utils/battle-winners';
+import { getWinnerIds, getClaimerGangId, enrichWinners } from '@/utils/battle-winners';
 import { normaliseParticipants, territoryClaimerFor, getAttackerDefenderIds } from '@/utils/battle-participants';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
@@ -31,14 +31,12 @@ export interface TerritoryClaimRequest {
 /**
  * Interface for battle log creation/update parameters.
  * Multi-winner battles flag every winning participant with `is_winner: true`
- * and (optionally) one with `claimed_territory: true`. Callers that prefer not
- * to manage participant flags directly may pass `winner_id` (single winner) and
- * `territory_claimed_by_gang_id` and the server will normalise the flags.
+ * and (optionally) one with `claimed_territory: true`. Callers may instead pass
+ * `territory_claimed_by_gang_id` and the server will normalise the claim flag.
  */
 export interface BattleLogParams {
   /** N23: the scenario's name. N26: an optional name for it, beside its parts. Empty is saved as NULL. */
   scenario: string;
-  winner_id: string | null;
   note: string | null;
   participants: BattleParticipant[];
   claimed_territories?: TerritoryClaimRequest[];
@@ -186,7 +184,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
 
     const {
       scenario,
-      winner_id: callerWinnerId,
       note,
       participants: rawParticipants,
       claimed_territories = [],
@@ -208,10 +205,9 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     const isChallenge = status !== 'played';
     const { participants, effectiveWinnerIds, claimerGangId } = normaliseParticipants(
       rawParticipants,
-      isChallenge ? null : callerWinnerId,
       isChallenge
         ? null
-        : territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
+        : territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getClaimerGangId({ participants: rawParticipants }))
     );
 
     // The first gang issues the challenge to the second. Answering it on the
@@ -245,11 +241,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     }
     const scenarioLabel = scenarioParts.label;
 
-    // Legacy winner_id is populated as the claimer (if any), else the first winner.
-    // NULL means a draw.
-    const legacyWinnerId: string | null =
-      claimerGangId ?? effectiveWinnerIds[0] ?? null;
-
     // Derive attacker/defender from the (normalised) participants for return enrichment.
     const { attacker_id, defender_id } = getAttackerDefenderIds(participants);
 
@@ -263,7 +254,6 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
           objective_id: params.objective_id ?? null,
           crew_selection_id: params.crew_selection_id ?? null,
           ...customPartNames(params),
-          winner_id: legacyWinnerId,
           note,
           participants: JSON.stringify(participants),
           created_at: created_at ?? new Date().toISOString(),
@@ -318,8 +308,7 @@ export async function createBattleLog(campaignId: string, params: BattleLogParam
     const { winnersEnriched, claimerEnriched, primaryWinner } = enrichWinners(
       winnerGangs as { id: string; name: string }[] | null,
       effectiveWinnerIds,
-      claimerGangId,
-      legacyWinnerId
+      claimerGangId
     );
 
     // Log battle results for all participating gangs
@@ -376,7 +365,6 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     const {
       scenario,
-      winner_id: callerWinnerId,
       note,
       participants: rawParticipants,
       claimed_territories = [],
@@ -394,11 +382,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       : null;
 
     // First, verify the battle exists and belongs to the campaign.
-    // Fetch winner_id and participants too so we can invalidate old winners'
-    // caches when the winner list changes on an edit.
+    // Fetch participants too so we can invalidate old winners' caches when the
+    // winner list changes on an edit.
     const { data: existingBattle, error: checkError } = await supabase
       .from('campaign_battles')
-      .select('id, campaign_territory_id, winner_id, participants, status, challenger_gang_id, challenged_gang_id')
+      .select('id, campaign_territory_id, participants, status, challenger_gang_id, challenged_gang_id')
       .eq('id', battleId)
       .eq('campaign_id', campaignId)
       .single();
@@ -426,12 +414,8 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
 
     const { participants, effectiveWinnerIds, claimerGangId } = normaliseParticipants(
       rawParticipants,
-      callerWinnerId,
-      territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getExplicitClaimerGangId(rawParticipants))
+      territoryClaimerFor(newTerritoryId, territory_claimed_by_gang_id, getClaimerGangId({ participants: rawParticipants }))
     );
-
-    const legacyWinnerId: string | null =
-      claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
     const scenarioParts = await checkScenarioParts(supabase, campaignEditionId(supabase, campaignId), params, participants, scenario);
     if ('error' in scenarioParts) {
@@ -533,7 +517,6 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     // Build update payload conditionally including created_at if provided
     const updatePayload: any = {
       scenario: scenario || null,
-      winner_id: legacyWinnerId,
       note,
       participants: JSON.stringify(participants),
       updated_at: new Date().toISOString(),
@@ -599,8 +582,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     const { winnersEnriched, claimerEnriched, primaryWinner } = enrichWinners(
       winnerGangs as { id: string; name: string }[] | null,
       effectiveWinnerIds,
-      claimerGangId,
-      legacyWinnerId
+      claimerGangId
     );
 
     // An unplayed challenge has no result to log.
@@ -917,7 +899,6 @@ export async function generateChallengeRound(
       // Role stays 'none' — attacker/defender is settled when it is played.
       const { participants } = normaliseParticipants(
         [{ role: 'none', gang_id: gangId }],
-        null,
         null
       );
       return {
@@ -934,7 +915,7 @@ export async function generateChallengeRound(
     const { data: inserted, error: insertError } = await supabase
       .from('campaign_battles')
       .insert(rows)
-      .select('id, created_at, updated_at, scenario, winner_id, note, participants, campaign_territory_id, cycle, status, challenger_gang_id, challenged_gang_id, challenge_order');
+      .select('id, created_at, updated_at, scenario, note, participants, campaign_territory_id, cycle, status, challenger_gang_id, challenged_gang_id, challenge_order');
     if (insertError) throw insertError;
 
     invalidateCampaignBattles(campaignId);

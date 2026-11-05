@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { LuPencil } from 'react-icons/lu';
-import { UserAvatar } from '@/components/ui/user-avatar';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { updateAvatarAction } from '@/app/actions/user';
 
 const ImageEditModal = dynamic(
@@ -31,7 +31,7 @@ export default function AvatarChange({ userId, username, currentAvatarUrl }: Ava
         aria-label="Change avatar"
         title="Change avatar"
       >
-        <UserAvatar username={username} avatarUrl={avatarUrl} className="size-20 text-2xl" />
+        <CogwheelPortrait name={username} src={avatarUrl} className="size-20 text-2xl" />
         <span className="absolute bottom-0 right-0 rounded-full bg-neutral-900 text-white p-1 shadow">
           <LuPencil className="h-3 w-3" />
         </span>

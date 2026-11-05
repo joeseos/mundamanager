@@ -12,9 +12,11 @@ interface MyFightersProps {
   positions: Record<number, string>;
   viewMode?: GangPageViewMode;
   userPermissions?: UserPermissions;
+  /** Fixed height for every grid row, used while a card is being dragged. */
+  rowHeight?: number | null;
 }
 
-export function MyFighters({ fighters, positions, isLoading, error, viewMode = 'normal', userPermissions }: MyFightersProps) {
+export function MyFighters({ fighters, positions, isLoading, error, viewMode = 'normal', userPermissions, rowHeight }: MyFightersProps) {
   const sortedFighters = useMemo(
     () => sortFightersByPositioning(fighters, positions),
     [fighters, positions]
@@ -45,12 +47,12 @@ export function MyFighters({ fighters, positions, isLoading, error, viewMode = '
         // items-stretch (CSS Grid default) makes every card in a row match the tallest card's
         // height, since each card's own height is content-driven (see fighter-card.tsx).
         : `${viewModeGridClass[viewMode]} w-full items-stretch px-0`
-    }>
-      {sortedFighters.map((fighter) => (
+    } style={rowHeight ? { gridAutoRows: `${rowHeight}px` } : undefined}>
+      {sortedFighters.map((fighter, index) => (
         <SortableFighter
           key={fighter.id}
           fighter={fighter}
-          positions={positions}
+          index={index}
           viewMode={viewMode}
           userPermissions={userPermissions}
         />

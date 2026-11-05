@@ -20,15 +20,16 @@ interface ForumReplyBoxProps {
   /** Where signing in returns to. */
   path: string;
   locked: boolean;
+  /** A line above the reply. Off when a page bar already sits just above it. */
+  divider?: boolean;
   /** The thread's posts, which can quote into the reply box below them. */
   children: ReactNode;
 }
 
-export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBoxProps) {
+export function ForumReplyBox({ threadId, path, locked, divider = true, children }: ForumReplyBoxProps) {
   const { userId, isModerator, loading } = useForumViewer();
   // Moderators can still reply to a locked thread, e.g. to say why it was locked
   const canReply = !locked || isModerator;
-  // The editor mounts only while replying: on mobile its toolbar is pinned to the top of the screen
   const [replying, setReplying] = useState(false);
   const [initialContent, setInitialContent] = useState('');
   // Bumped to start the form again with a quote that came in while the editor was loading
@@ -62,10 +63,10 @@ export function ForumReplyBox({ threadId, path, locked, children }: ForumReplyBo
         </p>
       )}
       {canReply && !loading && (
-        <section ref={sectionRef} className="mt-4 border-t pt-4 scroll-mt-24">
+        <section ref={sectionRef} className={`mt-4 scroll-mt-24 ${divider ? 'border-t pt-4' : ''}`}>
           {!userId ? (
             <Button asChild variant="outline" className="flex w-fit ml-auto">
-              <Link href={signInPath(path)}>Sign in to reply</Link>
+              <Link href={signInPath(path)} prefetch={false}>Sign in to reply</Link>
             </Button>
           ) : replying ? (
             <ForumPostForm

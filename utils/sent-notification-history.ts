@@ -17,6 +17,7 @@ type SendRow = {
   sender_id: string | null
   recipient_count: number
   sample_receiver_ids: string[] | null
+  logged_in_since: string | null
 }
 
 export type SentNotificationView = {
@@ -28,6 +29,7 @@ export type SentNotificationView = {
   recipientUsernames: string[]
   preview: string
   text: string
+  loggedInSince: string | null
 }
 
 async function usernamesById(
@@ -62,7 +64,7 @@ export async function loadNotificationSends(
 ): Promise<SentNotificationView[]> {
   let query = serviceClient
     .from('notification_sends')
-    .select('id, type, text, created_at, sender_id, recipient_count, sample_receiver_ids')
+    .select('id, type, text, created_at, sender_id, recipient_count, sample_receiver_ids, logged_in_since')
 
   if ('campaignId' in filter) {
     query = query.eq('campaign_id', filter.campaignId).eq('type', 'campaign_message')
@@ -104,6 +106,7 @@ export async function loadNotificationSends(
       recipientUsernames,
       preview: notificationPreview(text),
       text,
+      loggedInSince: row.logged_in_since,
     }
   })
 }
@@ -129,6 +132,9 @@ export function notificationSendFailure(
   }
   if (message.includes('recipients must be existing users')) {
     return { status: 400, error: 'At least one valid user ID is required' }
+  }
+  if (message.includes('logged_in_since only applies to all-user sends')) {
+    return { status: 400, error: 'A login cutoff only applies to an all-user send' }
   }
   if (message.includes('no recipients')) {
     return { status: 400, error: 'No recipients found' }

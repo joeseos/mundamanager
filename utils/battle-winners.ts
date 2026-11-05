@@ -1,8 +1,8 @@
 /**
  * Shared helpers for reading multi-winner state from battles and battle
- * sessions. All readers prefer the new flags but fall back to the legacy
- * single-id columns (`winner_id` / `winner_gang_id`) so existing single-winner
- * rows continue to render identically.
+ * sessions. Campaign battles keep it in the participants flags; battle session
+ * readers fall back to the legacy `winner_gang_id` column so existing
+ * single-winner sessions continue to render identically.
  */
 
 import type { BattleParticipant } from '@/types/campaign';
@@ -10,7 +10,6 @@ import type { BattleSessionParticipant } from '@/types/battle-session';
 
 interface CampaignBattleLike {
   participants?: BattleParticipant[] | string | null;
-  winner_id?: string | null;
 }
 
 interface BattleSessionLike {
@@ -34,33 +33,22 @@ export function parseParticipants(
   return [];
 }
 
-/**
- * Returns every gang_id flagged as a winner on a campaign battle's participants.
- * Falls back to `[winner_id]` when no participants are flagged but the legacy
- * column is populated (covers historical single-winner rows).
- */
+/** Returns every gang_id flagged as a winner on a campaign battle's participants. */
 export function getWinnerIds(battle: CampaignBattleLike): string[] {
-  const flagged = parseParticipants(battle.participants)
+  return parseParticipants(battle.participants)
     .filter((p) => p?.is_winner === true && !!p.gang_id)
     .map((p) => p.gang_id);
-  if (flagged.length > 0) return flagged;
-  return battle.winner_id ? [battle.winner_id] : [];
 }
 
 /**
- * Same as `getWinnerIds` but takes an already-parsed participants array and
- * the legacy `winner_id` as separate arguments. Use this when the participants
- * column has already been parsed to avoid re-parsing the JSON.
+ * Returns the gang_id of the first participant flagged with
+ * `claimed_territory: true`, or `null` when no claim was made.
  */
-export function getWinnerIdsFromParsed(
-  participants: BattleParticipant[],
-  winnerId: string | null | undefined
-): string[] {
-  const flagged = participants
-    .filter((p) => p?.is_winner === true && !!p.gang_id)
-    .map((p) => p.gang_id);
-  if (flagged.length > 0) return flagged;
-  return winnerId ? [winnerId] : [];
+export function getClaimerGangId(battle: CampaignBattleLike): string | null {
+  const claimer = parseParticipants(battle.participants).find(
+    (p) => p?.claimed_territory === true && !!p.gang_id
+  );
+  return claimer ? claimer.gang_id : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,14 +64,12 @@ export function getWinnerIdsFromParsed(
  * @param winnerGangs        Rows returned by the `gangs` name-lookup query.
  * @param effectiveWinnerIds All flagged winner IDs in slot order.
  * @param claimerGangId      The single territory claimer, or `null`.
- * @param legacyWinnerId     The `winner_id` written to the battle row (claimer
- *                           ?? first winner ?? null).
+ * @returns `primaryWinner` is the claimer, else the first winner; `null` for a draw.
  */
 export function enrichWinners(
   winnerGangs: { id: string; name: string }[] | null,
   effectiveWinnerIds: string[],
-  claimerGangId: string | null,
-  legacyWinnerId: string | null
+  claimerGangId: string | null
 ): {
   winnersEnriched: { id: string; name: string }[];
   claimerEnriched: { id: string; name: string } | null;
@@ -97,61 +83,7 @@ export function enrichWinners(
   const claimerEnriched = claimerGangId
     ? { id: claimerGangId, name: nameMap.get(claimerGangId) ?? 'Unknown' }
     : null;
-  const primaryWinner = legacyWinnerId
-    ? { id: legacyWinnerId, name: nameMap.get(legacyWinnerId) ?? 'Unknown' }
-    : null;
-  return { winnersEnriched, claimerEnriched, primaryWinner };
-}
-
-// ---------------------------------------------------------------------------
-// Explicit (no-fallback) claimer
-// ---------------------------------------------------------------------------
-
-/**
- * Returns the gang_id of the first participant flagged with
- * `claimed_territory: true`, or `null`.
- *
- * Unlike `getClaimerGangId` this does NOT fall back to `winner_id`. Use this
- * when you only want to carry forward an existing explicit claim flag (e.g.
- * inside `normaliseParticipants`) and must not accidentally inherit a legacy
- * winner as a claimer when no participant flag is present.
- */
-export function getExplicitClaimerGangId(
-  participants: BattleParticipant[] | string | null | undefined
-): string | null {
-  const claimer = parseParticipants(participants).find(
-    (p) => p?.claimed_territory === true && !!p.gang_id
-  );
-  return claimer ? claimer.gang_id : null;
-}
-
-/**
- * Returns the gang_id that claimed the territory on a campaign battle, or
- * `null` when no claim was made. Prefers the participant flagged with
- * `claimed_territory: true`; falls back to the legacy `winner_id` column.
- */
-export function getClaimerGangId(battle: CampaignBattleLike): string | null {
-  const claimer = parseParticipants(battle.participants).find(
-    (p) => p?.claimed_territory === true && !!p.gang_id
-  );
-  if (claimer) return claimer.gang_id;
-  return battle.winner_id ?? null;
-}
-
-/**
- * Same as `getClaimerGangId` but takes an already-parsed participants array
- * and the legacy `winner_id` as separate arguments. Use this when the
- * participants column has already been parsed to avoid re-parsing the JSON.
- */
-export function getClaimerGangIdFromParsed(
-  participants: BattleParticipant[],
-  winnerId: string | null | undefined
-): string | null {
-  const claimer = participants.find(
-    (p) => p?.claimed_territory === true && !!p.gang_id
-  );
-  if (claimer) return claimer.gang_id;
-  return winnerId ?? null;
+  return { winnersEnriched, claimerEnriched, primaryWinner: claimerEnriched ?? winnersEnriched[0] ?? null };
 }
 
 /**

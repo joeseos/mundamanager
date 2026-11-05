@@ -5,14 +5,18 @@ import { and, count, eq, isNotNull } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import { campaignTerritories } from '@/utils/db/schema';
 import type { CampaignAllegiance } from '@/utils/campaigns/allegiances';
-import { getWinnerIdsFromParsed, getClaimerGangIdFromParsed } from '@/utils/battle-winners';
+import { getWinnerIds, getClaimerGangId, parseParticipants } from '@/utils/battle-winners';
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import { CAMPAIGN_TERRITORY_FIELDS, shapeCampaignTerritory } from '@/utils/campaigns/territories';
-import { sumFighterKills } from '@/app/lib/shared/gang-data';
+import { getGangCampaigns, sumFighterKills } from '@/app/lib/shared/gang-data';
+import { getScenarioTablesCached } from '@/app/lib/reference-data';
 import { groupBy } from '@/utils/gang-assembly';
 import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
-import type { CampaignMapBundle } from '@/types/campaign';
+import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
+import { isPlayedBattle, scenarioLabel, type Battle, type BattleParticipant, type CampaignMapBundle } from '@/types/campaign';
+import { getUserGangs, type Gang } from '@/app/lib/get-user-gangs';
+import { sameEditionForDisplay } from '@/types/edition';
 
 // No TTL - infinite cache with server action invalidation only
 // Cache only expires when explicitly invalidated via revalidateTag()
@@ -29,10 +33,12 @@ async function _getCampaignBasic(campaignId: string) {
       custom_trading_posts: true,
       note: true,
       image_url: true,
+      campaign_portrait_id: true,
       discord_guild_id: true,
       discord_channel_id: true,
       allow_join_requests: true,
       current_cycle: true,
+      current_phase: true,
     },
     extras: (campaign, { sql }) => ({
       created_at: sql<string>`to_json(${campaign.created_at})`.as('created_at'),
@@ -44,13 +50,15 @@ async function _getCampaignBasic(campaignId: string) {
         columns: { campaign_type_name: true, image_url: true },
         with: { editions: { columns: { slug: true } } },
       },
+      campaign_portrait: { columns: { storage_path: true } },
     },
   });
   if (!campaign) return null;
 
-  const { campaign_type, ...campaignRow } = campaign;
+  const { campaign_type, campaign_portrait, ...campaignRow } = campaign;
   return {
     ...campaignRow,
+    campaign_portrait_url: campaignPortraitPublicUrl(campaign_portrait?.storage_path) ?? null,
     campaign_types: campaign_type?.campaign_type_name ? {
       campaign_type_name: campaign_type.campaign_type_name,
       image_url: campaign_type.image_url || '',
@@ -87,6 +95,7 @@ async function _getCampaignMembers(campaignId: string) {
             rating: true,
             wealth: true,
             credits: true,
+            trade_points: true,
           },
           with: { gang_types: { columns: { parent_gang_type_name: true } } },
         },
@@ -143,6 +152,7 @@ async function _getCampaignMembers(campaignId: string) {
         rating: cg.gang?.rating || 0,
         wealth: cg.gang?.wealth || 0,
         credits: cg.gang?.credits || 0,
+        trade_points: cg.gang?.trade_points || 0,
         reputation: cg.gang?.reputation || 0,
         territory_count: territoryCountByGang.get(cg.gang_id) || 0,
 
@@ -208,7 +218,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       deployment_name: true,
       objective_name: true,
       crew_selection_name: true,
-      winner_id: true,
       note: true,
       participants: true,
       campaign_territory_id: true,
@@ -234,9 +243,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
   const gangIdSet = new Set<string>();
   const parsedParticipantsMap = new Map<string, any[]>();
   battles.forEach(b => {
-    // Legacy winner_id is still added for back-compat (single-winner rows
-    // where no participant carries the is_winner flag).
-    if (b.winner_id) gangIdSet.add(b.winner_id);
     if (b.participants) {
       try {
         const parsed = typeof b.participants === 'string' ? JSON.parse(b.participants) : b.participants;
@@ -266,15 +272,14 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
     const attackerId = parsedParticipants?.find((p: any) => p.role === 'attacker')?.gang_id;
     const defenderId = parsedParticipants?.find((p: any) => p.role === 'defender')?.gang_id;
 
-    // Multi-winner enrichment: use the FromParsed overloads so the already-parsed
-    // participants array is passed directly — no re-parse of the raw JSON column.
+    // The already-parsed participants array is passed, so the raw JSON column isn't re-parsed.
     const parsed = parsedParticipants ?? [];
-    const effectiveWinnerIds = getWinnerIdsFromParsed(parsed, battle.winner_id);
+    const effectiveWinnerIds = getWinnerIds({ participants: parsed });
     const winners = effectiveWinnerIds.map((id) => ({
       id,
       name: gangMap.get(id)?.name || 'Unknown',
     }));
-    const claimerId = getClaimerGangIdFromParsed(parsed, battle.winner_id);
+    const claimerId = getClaimerGangId({ participants: parsed });
     const territory_claimer = claimerId
       ? { id: claimerId, name: gangMap.get(claimerId)?.name || 'Unknown' }
       : null;
@@ -292,7 +297,6 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
       deployment_name: battle.deployment_name,
       objective_name: battle.objective_name,
       crew_selection_name: battle.crew_selection_name,
-      winner_id: battle.winner_id,
       note: battle.note,
       participants: battle.participants,
       campaign_territory_id: battle.campaign_territory_id,
@@ -310,10 +314,7 @@ async function _getCampaignBattles(campaignId: string, limit: number) {
         id: defenderId,
         name: gangMap.get(defenderId)?.name || 'Unknown'
       } : undefined,
-      winner: battle.winner_id ? {
-        id: battle.winner_id,
-        name: gangMap.get(battle.winner_id)?.name || 'Unknown'
-      } : undefined,
+      winner: territory_claimer ?? winners[0],
       winners,
       territory_claimer,
     };
@@ -416,9 +417,9 @@ export const getCampaignBasic = async (campaignId: string) => {
     async () => {
       return _getCampaignBasic(campaignId);
     },
-    [`campaign-basic-v3-${campaignId}`],
+    [`campaign-basic-v5-${campaignId}`],
     {
-      tags: [TAGS.campaignCore(campaignId)],
+      tags: [TAGS.campaignCore(campaignId), TAGS.globalCampaignPortraits()],
       revalidate: false
     }
   )();
@@ -452,7 +453,7 @@ export const getCampaignMembers = async (campaignId: string) => {
     async () => {
       return _getCampaignMembers(campaignId);
     },
-    [`campaign-members-v4-${campaignId}`],
+    [`campaign-members-v5-${campaignId}`],
     {
       tags: cacheTags,
       revalidate: false
@@ -726,4 +727,72 @@ export async function getCampaignSharedTradingPosts(campaignId: string) {
       revalidate: false
     }
   )();
+}
+
+/** A gang in the campaign Add Gang picker. */
+export type PickerGang = Pick<
+  Gang,
+  'id' | 'name' | 'gang_type' | 'parent_gang_type_name' | 'gang_colour' | 'rating' | 'wealth' | 'reputation'
+> & { isInCampaign: boolean };
+
+/**
+ * A member's gangs of the campaign's edition, for the Add Gang picker.
+ * Built from getUserGangs, so the list is cached and invalidated with it.
+ */
+export async function getCampaignMemberGangs(campaignId: string, userId: string): Promise<PickerGang[]> {
+  const [campaign, gangs] = await Promise.all([getCampaignBasic(campaignId), getUserGangs(userId)]);
+  const editionSlug = campaign?.campaign_types?.edition_slug ?? null;
+  return gangs
+    .filter((gang) => sameEditionForDisplay(gang.edition_slug, editionSlug))
+    .map(({ id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation, campaigns }) => ({
+      id, name, gang_type, parent_gang_type_name, gang_colour, rating, wealth, reputation,
+      isInCampaign: campaigns.length > 0,
+    }));
+}
+
+/** A gang's played battle in one of its campaigns, for the gang page's Campaign tab. */
+export type GangBattleLog = Omit<Battle, 'participants'> & {
+  campaign_id: string;
+  participants: (BattleParticipant & { gang_name: string; gang_colour: string })[];
+};
+
+/**
+ * A gang's played battles in all its campaigns, newest first. Built from the
+ * campaign page's cached battles and members, so it shares their cache entries.
+ */
+export async function getGangBattleLogs(gangId: string): Promise<GangBattleLog[]> {
+  const [campaigns, scenarioTables] = await Promise.all([getGangCampaigns(gangId), getScenarioTablesCached()]);
+  const entryNames = new Map(
+    scenarioTables.flatMap((table) => table.entries.map((entry) => [entry.id, entry.name] as const))
+  );
+
+  const perCampaign = await Promise.all(campaigns.map(async ({ campaign_id }) => {
+    const [battles, members] = await Promise.all([getCampaignBattles(campaign_id), getCampaignMembers(campaign_id)]);
+    const gangs = new Map(members.flatMap((member) => member.gangs.map((gang) => [gang.id, gang] as const)));
+
+    return battles.flatMap((battle): GangBattleLog[] => {
+      const participants = parseParticipants(battle.participants);
+      if (!isPlayedBattle(battle) || !participants.some((p) => p.gang_id === gangId)) return [];
+      // A gang that left the campaign is no longer a member, but the battle still names it if it attacked, defended or won
+      const named = [battle.attacker, battle.defender, ...battle.winners];
+
+      return [{
+        ...battle,
+        campaign_id,
+        // Named like on the campaign page: its scenario, or else its Deployment and Objective
+        scenario: scenarioLabel(
+          battle.scenario,
+          battle.deployment_id ? entryNames.get(battle.deployment_id) : battle.deployment_name,
+          battle.objective_id ? entryNames.get(battle.objective_id) : battle.objective_name
+        ),
+        participants: participants.map((p) => ({
+          ...p,
+          gang_name: gangs.get(p.gang_id)?.name || named.find((gang) => gang?.id === p.gang_id)?.name || 'Unknown',
+          gang_colour: gangs.get(p.gang_id)?.gang_colour || '#000000',
+        })),
+      }];
+    });
+  }));
+
+  return perCampaign.flat().sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 }

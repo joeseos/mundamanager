@@ -107,7 +107,8 @@ export default function ParticipantCard({
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
   const [localResourceChanges, setLocalResourceChanges] = useState(participant.resource_changes ?? []);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
-  const [showCrewModal, setShowCrewModal] = useState(false);
+  // The phase the crew modal was opened in, so a phase change while it is open can't switch its mode.
+  const [crewModalMode, setCrewModalMode] = useState<'crew' | 'reinforcements' | null>(null);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
@@ -136,7 +137,7 @@ export default function ParticipantCard({
   // actually IN this battle, not every gang in the campaign — only a gang
   // present at the battle can have taken the fighter Out of Action. Already in
   // memory on the session, so no fetch is needed.
-  const hatredCandidateGangs = useMemo<CampaignGangWithFighters[]>(
+  const opponentGangs = useMemo<CampaignGangWithFighters[]>(
     () =>
       session.participants
         .filter((p) => p.gang_id !== participant.gang_id)
@@ -541,16 +542,24 @@ export default function ParticipantCard({
                   : `Gang Rating: ${participant.gang?.rating ?? 0}`}
               </span>
               {(() => {
-                const exoticBeastCount = localFighters.filter((f) => {
-                  const gf = gangFightersList.find((gf) => gf.id === f.fighter_id);
-                  return gf?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
-                }).length;
-                const crewCount = localFighters.length - exoticBeastCount;
+                // Beasts and Support fighters don't count toward Crew Size.
+                let exoticBeastCount = 0;
+                let supportCount = 0;
+                for (const f of localFighters) {
+                  const subtypes = gangFightersList.find((gf) => gf.id === f.fighter_id)?.fighter_subtypes?.map((c) => c.toLowerCase()) ?? [];
+                  if (subtypes.some((c) => c === 'exotic beast' || c === 'exotic beast specialist' || c === 'pet')) exoticBeastCount++;
+                  else if (subtypes.includes('support')) supportCount++;
+                }
+                const crewCount = localFighters.length - exoticBeastCount - supportCount;
+                const excluded = [
+                  exoticBeastCount > 0 && `${exoticBeastCount} ${beastSubtypeName(session.edition_slug)}${exoticBeastCount !== 1 ? 's' : ''}`,
+                  supportCount > 0 && `${supportCount} Support`,
+                ].filter(Boolean);
                 return (
                   <span>
                     Crew Size: {crewCount}
-                    {exoticBeastCount > 0 && (
-                      <span className="text-neutral-400"> (Excluding {exoticBeastCount} {beastSubtypeName(session.edition_slug)}{exoticBeastCount !== 1 ? 's' : ''})</span>
+                    {excluded.length > 0 && (
+                      <span className="text-neutral-400"> (Excluding {excluded.join(', ')})</span>
                     )}
                   </span>
                 );
@@ -563,7 +572,7 @@ export default function ParticipantCard({
               )}
             </div>
           </div>
-          {(canEdit || canPostBattle || ((canManage || isMyGang) && editable && !isPostBattle)) && (
+          {(canEdit || canPostBattle || canInteract || ((canManage || isMyGang) && editable && !isPostBattle)) && (
             <div className="flex gap-2 self-end sm:self-auto">
               {canPostBattle && localFighters.length > 0 && (
                 <Button
@@ -574,32 +583,30 @@ export default function ParticipantCard({
                 </Button>
               )}
               {(canEdit || canPostBattle) && (
-                <>
-                  <Button
-                    variant={localReady ? 'default' : 'success'}
-                    onClick={async () => {
-                      const prev = localReady;
-                      setReadyOverride(!prev);
-                      readyTimeoutRef.current = setTimeout(() => setReadyOverride(null), 10000);
-                      const result = await toggleParticipantReady(session.id, participant.id);
-                      if (!result.success) {
-                        if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
-                        setReadyOverride(null);
-                        toast.error(result.error || 'Failed to toggle ready');
-                      } else {
-                        onBroadcast?.();
-                      }
-                    }}
-                    disabled={readyOverride !== null}
-                  >
-                    {localReady ? 'Unready' : 'Ready'}
-                  </Button>
-                  {canEdit && (
-                    <Button onClick={() => setShowCrewModal(true)}>
-                      Select Crew
-                    </Button>
-                  )}
-                </>
+                <Button
+                  variant={localReady ? 'default' : 'success'}
+                  onClick={async () => {
+                    const prev = localReady;
+                    setReadyOverride(!prev);
+                    readyTimeoutRef.current = setTimeout(() => setReadyOverride(null), 10000);
+                    const result = await toggleParticipantReady(session.id, participant.id);
+                    if (!result.success) {
+                      if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
+                      setReadyOverride(null);
+                      toast.error(result.error || 'Failed to toggle ready');
+                    } else {
+                      onBroadcast?.();
+                    }
+                  }}
+                  disabled={readyOverride !== null}
+                >
+                  {localReady ? 'Unready' : 'Ready'}
+                </Button>
+              )}
+              {(canEdit || canInteract) && (
+                <Button onClick={() => setCrewModalMode(canInteract ? 'reinforcements' : 'crew')}>
+                  {canInteract ? 'Reinforcements' : 'Select Crew'}
+                </Button>
               )}
               {(canManage || isMyGang) && editable && !isPostBattle && (
                 <Button
@@ -670,14 +677,15 @@ export default function ParticipantCard({
           </Modal>,
           document.body
         )}
-        {showCrewModal && (
+        {crewModalMode && (
           <CrewSelectionModal
             gangId={participant.gang_id}
             gangFighters={gangFighters}
             selectedFighters={selectedFighters}
             editionSlug={session.edition_slug}
+            reinforcements={crewModalMode === 'reinforcements'}
             loading={false}
-            onClose={() => setShowCrewModal(false)}
+            onClose={() => setCrewModalMode(null)}
             onConfirm={async (toAdd, toRemove, toUpdate) => {
               const snapshot = [...localFighters];
 
@@ -717,7 +725,7 @@ export default function ParticipantCard({
                 return false;
               }
 
-              toast.success('Crew updated');
+              toast.success(crewModalMode === 'reinforcements' ? 'Reinforcements added' : 'Crew updated');
               onBroadcast?.();
               return true;
             }}
@@ -818,7 +826,8 @@ export default function ParticipantCard({
                         xp={xp}
                         participationXp={isPostBattle ? (f.session_record?.participation_xp ?? 0) : undefined}
                         injuryCount={injuryCount}
-                        canInteract={canInteract}
+                        // A reinforcement's optimistic row has no session row id to act on until the refetch.
+                        canInteract={canInteract && !f.id.startsWith('temp-')}
                         battleActive={battleActive}
                         hasTwoActivations={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
                         gangFighter={fullMatch}
@@ -827,8 +836,7 @@ export default function ParticipantCard({
                         // The session's edition, not gangFighter.edition_slug — the
                         // per-fighter slug is often null for custom fighter types.
                         editionSlug={session.edition_slug}
-                        candidateGangs={hatredCandidateGangs}
-                        isSkirmish={!session.campaign_id}
+                        candidateGangs={opponentGangs}
                         onXpChanged={(delta) => {
                           const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
                           updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });

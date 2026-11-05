@@ -1,15 +1,12 @@
 import { Metadata } from 'next';
 import Link from 'next/link';
-import {
-  formatForumDate,
-  forumCategoryPath,
-  forumThreadPath,
-  getForumCategories,
-} from '@/app/lib/forum';
+import { formatForumDate, forumCategoryPath, forumThreadPath, getForumCategories } from '@/app/lib/forum';
+import { ForumCategoryImage } from '@/components/forum/forum-category-image';
+import { ForumRelativeTime } from '@/components/forum/forum-relative-time';
 
 export const metadata: Metadata = {
   title: 'Forum - Munda Manager',
-  description: 'Discuss Necromunda rules, gangs, miniatures and battles with the Munda Manager community.',
+  description: 'Discuss Necromunda, share your projects and tell your stories.',
 };
 
 export default async function ForumPage() {
@@ -18,31 +15,45 @@ export default async function ForumPage() {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="w-full bg-card shadow-md rounded-lg p-4">
-        <h1 className="text-2xl font-bold mb-4">Forum</h1>
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold">Forum</h1>
+          <p className="text-muted-foreground">Discuss Necromunda, share your projects and tell your stories.</p>
+        </div>
 
         <ul className="divide-y">
           {categories.map((category) => (
             <li
               key={category.id}
-              className="group relative py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
+              className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4"
             >
-              <div className="flex-1 min-w-0">
-                {/* Stretched over the whole row, so the row opens the category */}
-                <Link
-                  href={forumCategoryPath(category.slug)}
-                  prefetch={false}
-                  className="text-lg font-semibold group-hover:text-red-800 transition-colors after:absolute after:inset-0"
-                >
-                  {category.name}
-                </Link>
-                {category.description && (
-                  <p className="text-sm text-muted-foreground">{category.description}</p>
+              <div className="group relative flex min-w-0 flex-1 items-start gap-3 sm:items-center">
+                {category.image_url && (
+                  <ForumCategoryImage url={category.image_url} className="mt-0.5 size-10 shrink-0 object-contain sm:mt-0" />
                 )}
+                <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex-1 min-w-0">
+                    {/* Stretched over the category image, name and thread count, not the latest post */}
+                    <Link
+                      href={forumCategoryPath(category.slug)}
+                      prefetch={false}
+                      className="text-lg font-semibold group-hover:text-red-800 transition-colors after:absolute after:inset-0"
+                    >
+                      {category.name}
+                    </Link>
+                    {category.description && (
+                      <p className="text-sm text-muted-foreground">{category.description}</p>
+                    )}
+                  </div>
+                  <div className={`text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0 ${category.thread_count > 0 ? '' : 'hidden sm:block'}`}>
+                    {category.thread_count > 0 && (
+                      <>
+                        {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="text-sm text-muted-foreground sm:w-24 sm:text-right shrink-0">
-                {category.thread_count} {category.thread_count === 1 ? 'thread' : 'threads'}
-              </div>
-              <div className="text-sm sm:w-64 min-w-0 shrink-0">
+              <div className="text-sm sm:w-72 min-w-0 shrink-0">
                 {category.latest_thread ? (
                   <>
                     <Link
@@ -53,8 +64,9 @@ export default async function ForumPage() {
                       {category.latest_thread.title}
                     </Link>
                     <p className="text-muted-foreground truncate">
-                      {category.latest_thread.last_post_author ?? 'Unknown User'} ·{' '}
-                      {formatForumDate(category.latest_thread.last_post_at)}
+                      {category.latest_thread.last_post_author ?? 'Unknown User'}
+                      {' · '}
+                      <ForumRelativeTime date={category.latest_thread.last_post_at}>{formatForumDate(category.latest_thread.last_post_at, true)}</ForumRelativeTime>
                     </p>
                   </>
                 ) : (

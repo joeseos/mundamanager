@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
 import { campaignMembers } from '@/utils/db/schema';
+import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 
 export type Campaign = {
   id: string;
@@ -15,6 +16,7 @@ export type Campaign = {
   role?: string;
   image_url: string;
   campaign_type_image_url: string;
+  campaign_portrait_url: string | null;
   user_gangs?: { id: string; name: string | null }[];
   is_favourite: boolean;
   favourite_order: number | null;
@@ -36,6 +38,7 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
                 columns: { campaign_type_name: true, image_url: true },
                 with: { editions: { columns: { slug: true } } },
               },
+              campaign_portrait: { columns: { storage_path: true } },
               campaign_gangs: {
                 columns: {},
                 where: (campaignGang, { eq }) => eq(campaignGang.user_id, userId),
@@ -62,6 +65,7 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
           role: member.role || '',
           image_url: campaign.image_url || '',
           campaign_type_image_url: campaign_type?.image_url || '',
+          campaign_portrait_url: campaignPortraitPublicUrl(campaign.campaign_portrait?.storage_path) ?? null,
           is_favourite: member.is_favourite,
           favourite_order: member.favourite_order,
           edition_slug: campaign_type?.editions?.slug ?? null,
@@ -73,9 +77,9 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     },
-    [`user-campaigns-v2-${userId}`],
+    [`user-campaigns-v3-${userId}`],
     {
-      tags: [TAGS.user(userId)],
+      tags: [TAGS.user(userId), TAGS.globalCampaignPortraits()],
       revalidate: false
     }
   )();
@@ -116,4 +120,18 @@ export const getUserShareCampaigns = async (
       revalidate: false
     }
   )();
+};
+
+/**
+ * Campaigns the user is Owner of, read live rather than cached: it gates
+ * account deletion, and a user can hold several memberships in one campaign.
+ */
+export const getOwnedCampaigns = async (userId: string) => {
+  const members = await getAppDb().query.campaignMembers.findMany({
+    columns: {},
+    where: (member, { and, eq }) => and(eq(member.user_id, userId), eq(member.role, 'OWNER')),
+    with: { campaign: { columns: { id: true, campaign_name: true } } },
+  });
+  const campaigns = new Map(members.flatMap(({ campaign }) => (campaign ? [[campaign.id, campaign] as const] : [])));
+  return [...campaigns.values()];
 };

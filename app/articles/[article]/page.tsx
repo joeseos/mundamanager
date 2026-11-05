@@ -2,7 +2,6 @@ import { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/ui/user-avatar';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import {
   formatForumDate,
@@ -59,10 +58,9 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       <article className="w-full bg-card shadow-md rounded-lg p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-red-800">{article.category.name}</p>
         <h1 className="text-2xl md:text-3xl font-bold break-words">{article.title}</h1>
-        <ForumTagChips tags={article.tags} className="mt-1" />
-        <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
-          <UserAvatar username={article.author} avatarUrl={article.author_avatar_url} className="size-8 text-xs" />
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
           <span>
+            by{' '}
             {post?.author_id && article.author ? (
               <Link href={`/user/${post.author_id}`} prefetch={false} className="font-semibold text-foreground hover:text-red-800 transition-colors">
                 {article.author}
@@ -72,6 +70,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
             )}
             {' '}· {formatForumDate(article.published_at)}
           </span>
+          <ForumTagChips tags={article.tags} className="contents" />
         </div>
 
         {post && (

@@ -13,14 +13,11 @@ import { getGangListRank } from "@/utils/gangListRank"
 import { getGangSubtypeRank } from "@/utils/gangSubtypeRank"
 import { gangVariantsFor, hasParentGangType } from "@/utils/gangTypeVariants"
 import { createGang } from "@/app/actions/create-gang"
-import { useRouter } from "next/navigation"
-import { useSearchParams } from "next/navigation"
-import { CreateGangPortraitPicker } from '@/components/gang/create-gang-portrait-picker'
-import { useGangPortraits } from '@/hooks/use-gang-portraits'
-import {
-  catalogueSlotForGangType,
-  defaultPortraitForSlot,
-} from '@/utils/gang-portraits'
+import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
+import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker'
+import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue'
+import { catalogueSlotForGangType } from '@/utils/gang-portraits'
+import { defaultPortraitForSlot, portraitPublicUrl, PORTRAIT_CATALOGUES } from '@/utils/portrait-catalogue'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
@@ -98,8 +95,6 @@ export function CreateGangButton() {
 
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { editionSlug, setEditionSlug } = useHomeEdition();
   const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
@@ -112,7 +107,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
-  const { portraits, status: portraitsStatus, retry: retryPortraits } = useGangPortraits();
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('gang');
   
   // Gang subtypes state
   const [availableSubtypes, setAvailableSubtypes] = useState<GangSubtype[]>([]);
@@ -422,14 +417,8 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
         setShowSubtypes(false)
         onClose()
         
-        // Check if we're currently on the gangs tab, if not redirect to it
-        const currentTab = searchParams.get('tab');
-        if (currentTab !== 'gangs') {
-          router.push('/?tab=gangs');
-        } else {
-          // Trigger router refresh to update server state
-          router.refresh();
-        }
+        // createGang revalidates the gang list, so only the tab needs switching
+        window.dispatchEvent(new CustomEvent('homeTabSwitch', { detail: 'gangs' }));
         
         toast.success("Success!", { description: `${gangName} has been created successfully.` });
       } catch (err) {
@@ -706,12 +695,17 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
           </div>
 
           {gangType && (
-            <CreateGangPortraitPicker
+            <PortraitPicker
               portraits={portraits}
               catalogueSlot={catalogueSlot}
               selectedPortraitId={selectedPortraitId}
-              gangTypeName={resolvedGangType?.gang_type || ''}
+              subjectName={resolvedGangType?.gang_type || ''}
               onSelect={setSelectedPortraitId}
+              imageUrl={(storagePath) => portraitPublicUrl(PORTRAIT_CATALOGUES.gang.publicBase, storagePath)}
+              emptyFallback={<span className="text-2xl">{(resolvedGangType?.gang_type || '').charAt(0)}</span>}
+              imageErrorUrl={UNKNOWN_GANG_IMAGE_URL}
+              galleryTitle="Gang Portraits"
+              galleryHelper="Choose a portrait for this gang."
               catalogueLoadFailed={Boolean(catalogueSlot) && portraitsStatus === 'error'}
               onRetryCatalogue={retryPortraits}
             />

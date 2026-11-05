@@ -71,7 +71,7 @@ async function isSessionArbitrator(
 
 async function canManageSession(
   userId: string,
-  session: { created_by: string; campaign_id: string | null }
+  session: { created_by: string | null; campaign_id: string | null }
 ): Promise<boolean> {
   if (session.created_by === userId) return true;
   return isSessionArbitrator(userId, session.campaign_id);
@@ -1261,8 +1261,9 @@ export async function bulkAddFightersToSession(params: {
       .select('status')
       .eq('id', params.session_id)
       .single();
-    if (session?.status !== 'pre_battle')
-      return { success: false, error: 'Crew can only be changed during pre-battle' };
+    // Reinforcements join during the battle; changing the crew otherwise stays pre-battle only.
+    if (session?.status !== 'pre_battle' && session?.status !== 'active')
+      return { success: false, error: 'Fighters can only be added before or during the battle' };
 
     const loaded = await loadParticipantFighters(
       supabase,
@@ -1286,7 +1287,8 @@ export async function bulkAddFightersToSession(params: {
 
     const { error } = await supabase
       .from('battle_session_fighters')
-      .upsert(rows, { onConflict: 'battle_session_id,fighter_id' });
+      // Never overwrite a fighter already in the crew: that would reset its session record.
+      .upsert(rows, { onConflict: 'battle_session_id,fighter_id', ignoreDuplicates: true });
 
     if (error) return { success: false, error: error.message };
 
@@ -1679,7 +1681,7 @@ export async function completeBattleSession(
           winner_gang_id, created_at, campaign_battle_id,
           challenge:campaign_battle_id (
             scenario, deployment_id, objective_id, crew_selection_id, deployment_name, objective_name, crew_selection_name,
-            winner_id, note, participants,
+            note, participants,
             campaign_territory_id, cycle, status
           )
         `)
@@ -1725,8 +1727,6 @@ export async function completeBattleSession(
       allParticipants.find((p) => p.claimed_territory === true)?.gang_id
       ?? session.winner_gang_id
       ?? null;
-    const legacyWinnerId: string | null =
-      claimerGangId ?? effectiveWinnerIds[0] ?? null;
 
     // --- Campaign battle log (inline write, no createBattleLog call) ---
     // A session played from a challenge files that challenge; any other inserts a new log.
@@ -1757,7 +1757,6 @@ export async function completeBattleSession(
       const battleLog = {
         scenario: session.scenario || null,
         ...scenarioParts,
-        winner_id: legacyWinnerId,
         note: options?.note || null,
         participants: JSON.stringify(battleParticipants),
         campaign_territory_id: options?.campaign_territory_id || null,

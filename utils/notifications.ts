@@ -10,6 +10,7 @@
 
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from './htmlCleanUp';
 import { escapeHtml } from './html';
+import { formatLocalDate } from './local-date';
 import { sanitizeNotificationHtml } from './sanitize-notification-html';
 
 export type NotificationType =
@@ -185,6 +186,63 @@ export function parseExpiresInDays(value: unknown): number | null {
   const days = Math.floor(value);
   if (days < NOTIFICATION_EXPIRES_MIN_DAYS || days > NOTIFICATION_EXPIRES_MAX_DAYS) return null;
   return days;
+}
+
+const LOGGED_IN_ON_OR_AFTER_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Local calendar date that many months before today, as YYYY-MM-DD. Clamps short months. */
+export function loggedInOnOrAfterMonthsAgo(months: number): string {
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth() - months, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(now.getDate(), lastDay));
+  return formatLocalDate(target);
+}
+
+/** Local calendar date that many days before today, as YYYY-MM-DD. */
+export function loggedInOnOrAfterDaysAgo(days: number): string {
+  const now = new Date();
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days));
+}
+
+/** Local calendar date two months before today, as YYYY-MM-DD. */
+export function defaultLoggedInOnOrAfter(): string {
+  return loggedInOnOrAfterMonthsAgo(2);
+}
+
+/** Start of that local calendar day, or null when the day is impossible or in the future. */
+export function loggedInOnOrAfterInstant(value: string): string | null {
+  const match = LOGGED_IN_ON_OR_AFTER_PATTERN.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1) return null;
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  if (value > formatLocalDate(new Date())) return null;
+  return new Date(year, month - 1, day).toISOString();
+}
+
+const LOGGED_IN_SINCE_INSTANT_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * A real instant that is not after now and not before year 1, or null.
+ * Date-only strings are rejected so a calendar day is not read as UTC midnight.
+ */
+export function parseLoggedInSince(value: unknown): string | null {
+  if (typeof value !== 'string' || !LOGGED_IN_SINCE_INSTANT_PATTERN.test(value)) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1) return null;
+  if (parsed.getTime() > Date.now()) return null;
+  return parsed.toISOString();
 }
 
 export function prepareNotificationHtml(

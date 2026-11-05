@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import Modal from '@/components/ui/modal';
@@ -12,7 +11,7 @@ import { dismissForumPostReports, reportForumPost } from '@/app/actions/forum';
 const REASON_MIN_LENGTH = 50;
 const REASON_MAX_LENGTH = 500;
 
-/** Asks before reporting a post, or a thread through its opening post, to the moderators. */
+/** Asks before reporting a post to the moderators. */
 export function ForumReportDialog({
   target,
   title,
@@ -71,7 +70,6 @@ export function ForumReportDialog({
 
 /** Clears a post's reports when a moderator decides the post can stay. */
 export function ForumDismissReportsButton({ postId, reportedUntil }: { postId: string; reportedUntil: string }) {
-  const router = useRouter();
   const [saving, setSaving] = useState(false);
 
   const dismiss = async () => {
@@ -79,7 +77,6 @@ export function ForumDismissReportsButton({ postId, reportedUntil }: { postId: s
     try {
       const result = await dismissForumPostReports({ postId, reportedUntil });
       if (!result.success) throw new Error(result.error);
-      router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to dismiss the reports');
     } finally {

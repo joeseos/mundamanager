@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
+import { StatsTable, StatsType, formatCharacteristic } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
@@ -78,8 +78,7 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   image_url?: string;
   isDragging?: boolean;
   active_loadout_name?: string;  // Name of the active loadout
-  dragListeners?: any;  // Drag listeners from dnd-kit for icon-only dragging
-  dragAttributes?: any;  // Drag attributes from dnd-kit for icon-only dragging
+  dragHandle?: (element: Element | null) => void;  // dnd-kit drag handle; set only when the card can be dragged
   disableHoverEffects?: boolean;  // Used by constrained modal previews; omit to keep normal gang-page hover scale/shadow.
 }
 
@@ -185,8 +184,7 @@ const FighterCard = memo(function FighterCard({
   image_url,
   isDragging = false,
   active_loadout_name,
-  dragListeners,
-  dragAttributes,
+  dragHandle,
   disableHoverEffects = false,
   is_spyrer = false,
   is_vehicle = false,
@@ -430,29 +428,29 @@ const FighterCard = memo(function FighterCard({
         'HP': vehicleStats ? vehicleStats.hull_points : '*',
         'Hnd': vehicleStats ? `${vehicleStats.handling}+` : '*',
         'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-        'Ld': `${adjustedStats.leadership}+`,
-        'Cl': `${adjustedStats.cool}+`,
-        'Wil': `${adjustedStats.willpower}+`,
-        'Int': `${adjustedStats.intelligence}+`,
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+        'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+        'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+        'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+        'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
         'XP': xpDisplay
       };
     }
     
     return {
-      'M': `${adjustedStats.movement}"`,
-      'WS': `${adjustedStats.weapon_skill}+`,
-      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-      'S': adjustedStats.strength,
-      'T': adjustedStats.toughness,
-      'W': adjustedStats.wounds,
-      'I': `${adjustedStats.initiative}+`,
-      'A': adjustedStats.attacks,
-      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-' }),
-      'Ld': `${adjustedStats.leadership}+`,
-      'Cl': `${adjustedStats.cool}+`,
-      'Wil': `${adjustedStats.willpower}+`,
-      'Int': `${adjustedStats.intelligence}+`,
+      'M': formatCharacteristic(adjustedStats.movement, '"'),
+      'WS': formatCharacteristic(adjustedStats.weapon_skill, '+'),
+      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+      'S': formatCharacteristic(adjustedStats.strength),
+      'T': formatCharacteristic(adjustedStats.toughness),
+      'W': formatCharacteristic(adjustedStats.wounds),
+      'I': formatCharacteristic(adjustedStats.initiative, '+'),
+      'A': formatCharacteristic(adjustedStats.attacks),
+      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': formatCharacteristic(adjustedStats.save, '+') }),
+      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+      'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
       'XP': xpDisplay
     };
   }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);
@@ -540,7 +538,7 @@ const FighterCard = memo(function FighterCard({
   const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
-        ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
+        ${dragHandle ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
 
   const subtypeLabel = formatFighterSubtypeDisplay(fighter_subtypes, edition_slug);
   const typeLine = [
@@ -552,8 +550,7 @@ const FighterCard = memo(function FighterCard({
   const cardBody = (
     <div
       id={fighterCardId}
-      {...(dragListeners || {})}
-      {...(dragAttributes || {})}
+      ref={dragHandle}
       className={cardClassName}
         style={{
           backgroundColor: '#faf9f7',
@@ -571,7 +568,7 @@ const FighterCard = memo(function FighterCard({
           // was never ours — there's no vibration code in the app — and it can't be reinstated:
           // since iOS 18.4 navigator.vibrate needs a recent *click* to be granted, and dragging
           // doesn't count. Losing it is the accepted trade for losing the magnifier.
-          ...(dragListeners ? {
+          ...(dragHandle ? {
             WebkitUserSelect: 'none' as const,
             userSelect: 'none' as const,
             WebkitTouchCallout: 'none' as const,
@@ -933,7 +930,7 @@ const FighterCard = memo(function FighterCard({
     </div>
   );
 
-  const menuTrigger = !isDragging && !disableLink && dragListeners && dragAttributes ? (
+  const menuTrigger = !isDragging && !disableLink && dragHandle ? (
     <div
       className="absolute bottom-2 right-2 md:right-3 z-30 print:hidden cursor-pointer select-none"
       style={{ WebkitTouchCallout: 'none' }}

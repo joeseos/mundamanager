@@ -1,5 +1,6 @@
 import type { WeaponProps, WargearItem } from '@/types/fighter';
 import type { GangRuleEffect } from '@/utils/gang-rules';
+import { portraitPublicUrl, PORTRAIT_CATALOGUES } from '@/utils/portrait-catalogue';
 
 export interface GangOrigin {
   id: string;
@@ -58,13 +59,8 @@ export function hasDefaultImageCredit(
 export const UNKNOWN_GANG_IMAGE_URL =
   'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp';
 
-export const GANG_TYPE_IMAGES_PUBLIC_BASE =
-  'https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/gang-type-images/';
-
 export function gangPortraitPublicUrl(storagePath: string | null | undefined): string | undefined {
-  const path = storagePath?.replace(/^\/+/, '');
-  if (!path) return undefined;
-  return `${GANG_TYPE_IMAGES_PUBLIC_BASE}${path}`;
+  return portraitPublicUrl(PORTRAIT_CATALOGUES.gang.publicBase, storagePath);
 }
 
 export function joinedPortraitStoragePath(

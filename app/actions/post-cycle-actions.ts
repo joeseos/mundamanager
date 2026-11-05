@@ -16,10 +16,12 @@ import type { GangTacticsCard } from '@/types/tactics-card';
 import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
 import { editFighterStatus, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
+import { applySelfUpgradesToEquipment } from './equipment';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
+  ENHANCE_WEAPON_COST,
   SUIT_MAINTENANCE_COST,
   TRAIN_XP,
   assignmentCreditsDelta,
@@ -32,6 +34,9 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  territoryIncome,
+  tradePointsText,
+  tradingPostTradePoints,
   validatePostCycleAssignment,
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
@@ -71,9 +76,13 @@ export interface PostCycleActionOutcome {
    * Maintenance, whose helpers charge the gang themselves.
    */
   creditsDelta: number;
+  /** Visit Trading Post: what it adds to the gang's Trade Points. */
+  tradePointsDelta?: number;
   changes?: PostCycleFighterChange[];
   /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
   addedTacticsCard?: GangTacticsCard;
+  /** Enhance Weapon: the fighter re-read with the upgraded weapon, for the page to swap in. */
+  updatedFighter?: Fighter;
   failed?: boolean;
 }
 
@@ -86,7 +95,7 @@ export interface ResolvePostCycleActionResult {
    * is false: a Fit Bionics that removed two of three injuries, say.
    */
   landed?: boolean;
-  gang?: { credits: number; rating: number; wealth: number };
+  gang?: { credits: number; rating: number; wealth: number; trade_points: number };
 }
 
 /** A handler reports only what happened; the caller adds who and which action. */
@@ -394,6 +403,57 @@ async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcom
   };
 }
 
+/** The upgrades Enhance Weapon picks one from, with what each adds to the weapon's value. */
+export async function getEnhanceWeaponUpgrades() {
+  const ENHANCE_WEAPON_EQUIPMENT_ID = '7ab2d8fd-9a6b-4638-b7dc-567fb22ea5d5';
+  const supabase = await createClient();
+  await getAuthenticatedUser(supabase);
+  const { data, error } = await supabase
+    .from('fighter_effect_types')
+    .select('id, effect_name, credits_increase:type_specific_data->credits_increase')
+    .eq('type_specific_data->>equipment_id', ENHANCE_WEAPON_EQUIPMENT_ID)
+    .eq('type_specific_data->>is_editable', 'true')
+    .order('sort_order');
+  if (error) throw new Error(`Failed to read the Enhance Weapon upgrades: ${error.message}`);
+  return data as Array<{ id: string; effect_name: string; credits_increase: number | null }>;
+}
+
+/**
+ * Puts the chosen upgrade on the weapon itself, the way the fighter page adds
+ * a Spyrer weapon's upgrades, so the weapon's value rises by the upgrade's
+ * credits increase. The action's own cost is billed after, like any other.
+ */
+async function handleEnhanceWeapon(
+  ctx: HandlerContext,
+  weaponId: string,
+  upgradeId: string
+): Promise<HandlerOutcome> {
+  const weapon = ctx.performer.weapons.find((w) => w.fighter_weapon_id === weaponId)!;
+  const upgrade = (await getEnhanceWeaponUpgrades()).find((u) => u.id === upgradeId);
+  if (!upgrade) {
+    return { outcome: 'Choose one of the Enhance Weapon upgrades.', creditsDelta: 0, failed: true };
+  }
+
+  const applied = await applySelfUpgradesToEquipment({
+    fighter_equipment_id: weaponId,
+    effect_type_ids: [upgradeId],
+    fighter_id: ctx.performer.id,
+    gang_id: ctx.gangId,
+    credits_increase: upgrade.credits_increase ?? 0,
+    allow_repeats: true,
+  });
+  if (!applied.success) {
+    return { outcome: `Failed to enhance ${weapon.weapon_name}: ${applied.error}`, creditsDelta: 0, failed: true };
+  }
+
+  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
+  return {
+    outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}.`,
+    creditsDelta: -ENHANCE_WEAPON_COST,
+    updatedFighter: fighters.find((f) => f.id === ctx.performer.id),
+  };
+}
+
 async function runHandler(
   ctx: HandlerContext,
   assignment: PostCycleAssignment
@@ -409,8 +469,12 @@ async function runHandler(
       return handleDevelopTactics(ctx, assignment.tacticsCardId);
     case 'visit_chop_shop':
       return handleVisitChopShop(ctx, assignment.damageIds);
+    case 'enhance_weapon':
+      return handleEnhanceWeapon(ctx, assignment.weaponId, assignment.upgradeId);
     case 'suit_maintenance':
       return handleSuitMaintenance(ctx);
+    case 'visit_trading_post':
+      return { outcome: '', creditsDelta: 0, tradePointsDelta: tradingPostTradePoints(ctx.performer) };
     // The rest move their flat credits, if any, and leave a log line; anything
     // else they do is applied elsewhere on the page or by hand.
     default:
@@ -505,17 +569,22 @@ async function resolvePostCycleAction(
     const financials = await updateGangFinancials(supabase, {
       gangId,
       creditsDelta: outcome.creditsDelta,
+      tradePointsDelta: outcome.tradePointsDelta,
     });
 
     // What landed is still logged, so a failed charge leaves a record to fix by hand.
-    const creditsLine = !financials.success
-      ? `Updating the gang's credits failed: ${financials.error}.`
+    const financialsLine = !financials.success
+      ? `Updating the gang's ${outcome.tradePointsDelta ? 'Trade Points' : 'credits'} failed: ${financials.error}.`
       : outcome.creditsDelta > 0
         ? `Gained ${outcome.creditsDelta} credits.`
         : outcome.creditsDelta < 0
           ? `Cost ${-outcome.creditsDelta} credits.`
           : '';
-    outcome.outcome = [outcome.outcome, creditsLine].filter(Boolean).join(' ');
+    const tradePointsLine =
+      financials.success && outcome.tradePointsDelta
+        ? `Gained ${tradePointsText(outcome.tradePointsDelta)}.`
+        : '';
+    outcome.outcome = [outcome.outcome, financialsLine, tradePointsLine].filter(Boolean).join(' ');
     if (!financials.success) outcome.failed = true;
 
     if (landed) {
@@ -554,7 +623,7 @@ export interface CollectIncomeParams {
   gangId: string;
   /** Collect 10x the gang's Reputation. */
   reputation: boolean;
-  /** campaign_territories ids; each adds its credits. */
+  /** campaign_territories ids; each adds its territoryIncome. */
   territoryIds: string[];
 }
 
@@ -598,10 +667,12 @@ async function collectIncome({
       for (const id of new Set(territoryIds)) {
         const territory = held.get(id);
         if (!territory) return { success: false, error: 'The gang does not hold that territory' };
-        if (!territory.credits) {
-          return { success: false, error: `${territory.territory_name} gives no credits` };
-        }
-        sources.push({ name: territory.territory_name, credits: territory.credits });
+        const credits = territoryIncome(territory, {
+          gangType: gang.gang_type,
+          isCustomGangType: Boolean(gang.custom_gang_type_id),
+        });
+        if (!credits) return { success: false, error: `${territory.territory_name} gives no credits` };
+        sources.push({ name: territory.territory_name, credits });
       }
     }
     if (sources.length === 0) return { success: false, error: 'Nothing to collect' };

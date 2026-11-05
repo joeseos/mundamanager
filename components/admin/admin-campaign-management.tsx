@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,15 +9,20 @@ import { Combobox } from "@/components/ui/combobox";
 import { toast } from 'sonner';
 import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
-import type { CampaignType, CampaignTypeResource } from '@/types/campaign';
+import type { CampaignType } from '@/types/campaign';
 import { EditionSelect } from '@/components/edition-select';
+import {
+  AdminPortraitForm,
+  type PortraitFormHandle,
+  type PortraitFormState,
+} from '@/components/admin/admin-portrait-form';
 
 enum OperationType {
   POST = 'POST',
   UPDATE = 'UPDATE'
 }
 
-type CategoryType = 'campaign-types' | 'territories' | 'triumphs';
+type CategoryType = 'campaign-types' | 'territories' | 'triumphs' | 'portraits';
 
 interface Territory {
   id: string;
@@ -60,6 +65,90 @@ const territoryCardOptions = [
   )
 ];
 
+/** Names typed in one at a time and shown as removable chips, kept in the order added. */
+function NameListInput({
+  label,
+  placeholder,
+  names,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  names: string[];
+  onChange: (names: string[]) => void;
+}) {
+  const [newName, setNewName] = useState('');
+
+  const handleAdd = () => {
+    const name = newName.trim();
+    if (!name) return;
+    if (names.some(existing => existing.toLowerCase() === name.toLowerCase())) {
+      toast.error(`${name} is already in the list`);
+      return;
+    }
+    onChange([...names, name]);
+    setNewName('');
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-muted-foreground mb-1">
+        {label}
+      </label>
+      <div className="flex gap-2 mb-2">
+        <Input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleAdd();
+            }
+          }}
+          placeholder={placeholder}
+          className="flex-1"
+        />
+        <Button
+          onClick={handleAdd}
+          variant="outline"
+          size="sm"
+          disabled={!newName.trim()}
+        >
+          Add
+        </Button>
+      </div>
+      {names.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {names.map((name, idx) => (
+            <div
+              key={name}
+              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+            >
+              <span>{name}</span>
+              <button
+                onClick={() => onChange(names.filter((_, i) => i !== idx))}
+                className="hover:text-red-500 focus:outline-hidden"
+              >
+                <HiX className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const EMPTY_PORTRAIT_STATE: PortraitFormState = {
+  canSave: false,
+  canDelete: false,
+  hasSelection: false,
+  isBusy: false,
+  pendingAction: null,
+  isCreateMode: false,
+};
+
 export function AdminCampaignManagementModal({ 
   onClose, 
   onSubmit 
@@ -67,6 +156,11 @@ export function AdminCampaignManagementModal({
   
   
   const queryClient = useQueryClient();
+  const portraitFormRef = useRef<PortraitFormHandle>(null);
+  const [portraitState, setPortraitState] = useState<PortraitFormState>(EMPTY_PORTRAIT_STATE);
+  const handlePortraitState = useCallback((state: PortraitFormState) => {
+    setPortraitState(state);
+  }, []);
 
   // Category selection
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('campaign-types');
@@ -127,8 +221,8 @@ export function AdminCampaignManagementModal({
   const [relatedTerritories, setRelatedTerritories] = useState<Territory[]>([]);
   const [relatedTriumphs, setRelatedTriumphs] = useState<CampaignTriumph[]>([]);
   const [relatedTradingPostIds, setRelatedTradingPostIds] = useState<string[]>([]);
-  const [campaignTypeResources, setCampaignTypeResources] = useState<CampaignTypeResource[]>([]);
-  const [newResourceName, setNewResourceName] = useState('');
+  const [campaignTypeResources, setCampaignTypeResources] = useState<string[]>([]);
+  const [campaignTypePhases, setCampaignTypePhases] = useState<string[]>([]);
   const [showAddTerritoryModal, setShowAddTerritoryModal] = useState(false);
   const [showAddTriumphModal, setShowAddTriumphModal] = useState(false);
   const [showAddTradingPostModal, setShowAddTradingPostModal] = useState(false);
@@ -163,7 +257,7 @@ export function AdminCampaignManagementModal({
     setRelatedTriumphs([]);
     setRelatedTradingPostIds([]);
     setCampaignTypeResources([]);
-    setNewResourceName('');
+    setCampaignTypePhases([]);
 
     setSelectedTerritoryId('');
     setTerritoryName('');
@@ -215,7 +309,7 @@ export function AdminCampaignManagementModal({
         setRelatedTriumphs([]);
         setRelatedTradingPostIds([]);
         setCampaignTypeResources([]);
-        setNewResourceName('');
+        setCampaignTypePhases([]);
       }
     }
   };
@@ -251,20 +345,9 @@ export function AdminCampaignManagementModal({
       setImageUrl(selected.image_url || '');
       setCampaignTypeEditionId(selected.edition_id ?? '');
       setRelatedTradingPostIds(selected.trading_posts || []);
-      setCampaignTypeResources(selected.campaign_type_resources ?? []);
-      setNewResourceName('');
+      setCampaignTypeResources(selected.campaign_type_resources?.map(r => r.resource_name) ?? []);
+      setCampaignTypePhases(selected.phases ?? []);
     }
-  };
-
-  const handleAddResource = () => {
-    const name = newResourceName.trim();
-    if (!name) return;
-    if (campaignTypeResources.some(r => r.resource_name.toLowerCase() === name.toLowerCase())) {
-      toast.error('Resource already exists');
-      return;
-    }
-    setCampaignTypeResources([...campaignTypeResources, { id: `new-${Date.now()}`, resource_name: name }]);
-    setNewResourceName('');
   };
 
   const handleCreateNewCampaignType = () => {
@@ -276,7 +359,7 @@ export function AdminCampaignManagementModal({
     setRelatedTriumphs([]);
     setRelatedTradingPostIds([]);
     setCampaignTypeResources([]);
-    setNewResourceName('');
+    setCampaignTypePhases([]);
   };
 
   const handleSubmitCampaignType = async (operation: OperationType) => {
@@ -299,7 +382,8 @@ export function AdminCampaignManagementModal({
             image_url: imageUrl.trim() || null,
             trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
             edition_id: campaignTypeEditionId || null,
-            resources: campaignTypeResources.map(r => r.resource_name)
+            resources: campaignTypeResources,
+            phases: campaignTypePhases
           });
           break;
         case OperationType.UPDATE:
@@ -310,7 +394,8 @@ export function AdminCampaignManagementModal({
             image_url: imageUrl.trim() || null,
             trading_posts: relatedTradingPostIds.length > 0 ? relatedTradingPostIds : null,
             edition_id: campaignTypeEditionId || null,
-            resources: campaignTypeResources.map(r => r.resource_name)
+            resources: campaignTypeResources,
+            phases: campaignTypePhases
           });
           break;
         default:
@@ -416,7 +501,7 @@ export function AdminCampaignManagementModal({
       setRelatedTriumphs([]);
       setRelatedTradingPostIds([]);
       setCampaignTypeResources([]);
-      setNewResourceName('');
+      setCampaignTypePhases([]);
       setIsCreateModeCampaignType(false);
 
       if (onSubmit) {
@@ -660,29 +745,50 @@ export function AdminCampaignManagementModal({
     return false;
   };
 
-  // Determine which form is active and what buttons to show
-  const getActiveFormState = () => {
-    if (selectedCategory === 'campaign-types') {
-      return {
-        isCreateMode: isCreateModeCampaignType,
-        selectedId: selectedCampaignTypeId,
-        canSubmit: campaignTypeName.trim(),
-        handleSubmit: handleSubmitCampaignType
+  // Determine which form is active and what buttons to show.
+  // Portraits keep their own state in AdminPortraitForm.
+  type ActiveFormState =
+    | { kind: 'portraits' }
+    | {
+        kind: 'entity';
+        noun: string;
+        isCreateMode: boolean;
+        selectedId: string;
+        canSubmit: unknown;
+        handleSubmit: (operation: OperationType) => unknown;
       };
-    } else if (selectedCategory === 'territories') {
-      return {
-        isCreateMode: isCreateModeTerritory,
-        selectedId: selectedTerritoryId,
-        canSubmit: territoryName.trim(),
-        handleSubmit: handleSubmitTerritory
-      };
-    } else {
-      return {
-        isCreateMode: isCreateModeTriumph,
-        selectedId: selectedTriumphId,
-        canSubmit: triumphName.trim() && triumphCriteria.trim() && triumphCampaignTypeId,
-        handleSubmit: handleSubmitTriumph
-      };
+
+  const getActiveFormState = (): ActiveFormState => {
+    switch (selectedCategory) {
+      case 'portraits':
+        return { kind: 'portraits' };
+      case 'campaign-types':
+        return {
+          kind: 'entity',
+          noun: 'Campaign Type',
+          isCreateMode: isCreateModeCampaignType,
+          selectedId: selectedCampaignTypeId,
+          canSubmit: campaignTypeName.trim(),
+          handleSubmit: handleSubmitCampaignType
+        };
+      case 'territories':
+        return {
+          kind: 'entity',
+          noun: 'Territory',
+          isCreateMode: isCreateModeTerritory,
+          selectedId: selectedTerritoryId,
+          canSubmit: territoryName.trim(),
+          handleSubmit: handleSubmitTerritory
+        };
+      case 'triumphs':
+        return {
+          kind: 'entity',
+          noun: 'Triumph',
+          isCreateMode: isCreateModeTriumph,
+          selectedId: selectedTriumphId,
+          canSubmit: triumphName.trim() && triumphCriteria.trim() && triumphCampaignTypeId,
+          handleSubmit: handleSubmitTriumph
+        };
     }
   };
 
@@ -732,7 +838,7 @@ export function AdminCampaignManagementModal({
         <div className="border-b px-[10px] py-2 flex justify-between items-center">
           <div>
             <h3 className="text-xl md:text-2xl font-bold text-foreground">Campaign Management</h3>
-            <p className="text-sm text-muted-foreground">Manage campaign types, territories, and triumphs</p>
+            <p className="text-sm text-muted-foreground">Manage campaign types, portraits, territories, and triumphs</p>
           </div>
           <button
             onClick={onClose}
@@ -753,13 +859,25 @@ export function AdminCampaignManagementModal({
                 value={selectedCategory}
                 onChange={(e) => handleCategoryChange(e.target.value as CategoryType)}
                 className="w-full p-2 border rounded-md"
-                disabled={isLoading}
+                disabled={isLoading || portraitState.isBusy}
               >
                 <option value="campaign-types">Campaign Types</option>
+                <option value="portraits">Campaign Portraits</option>
                 <option value="territories">Territories</option>
                 <option value="triumphs">Campaign Triumphs</option>
               </select>
             </div>
+
+            {selectedCategory === 'portraits' && (
+              <AdminPortraitForm
+                ref={portraitFormRef}
+                catalogue="campaign"
+                campaignTypes={campaignTypes}
+                onStateChange={handlePortraitState}
+                groupLabelPlaceholder="E.g. Law and Misrule"
+                deleteWarning="Delete this portrait? Campaigns using it will fall back to their campaign type image."
+              />
+            )}
 
             {/* Campaign Types Section */}
             {selectedCategory === 'campaign-types' && (
@@ -905,54 +1023,24 @@ export function AdminCampaignManagementModal({
                   </div>
                 )}
 
-                {/* Resources Section */}
+                {/* Resources and Phases Sections */}
                 {(isCreateModeCampaignType || (selectedCampaignTypeId && !isCreateModeCampaignType)) && (
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">
-                      Resources
-                    </label>
-                    <div className="flex gap-2 mb-2">
-                      <Input
-                        type="text"
-                        value={newResourceName}
-                        onChange={(e) => setNewResourceName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleAddResource();
-                          }
-                        }}
-                        placeholder="e.g. Meat"
-                        className="flex-1"
-                      />
-                      <Button
-                        onClick={handleAddResource}
-                        variant="outline"
-                        size="sm"
-                        disabled={!newResourceName.trim()}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                    {campaignTypeResources.length > 0 && (
-                      <div className="flex flex-wrap gap-2">
-                        {campaignTypeResources.map((resource, idx) => (
-                          <div
-                            key={resource.id}
-                            className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                          >
-                            <span>{resource.resource_name}</span>
-                            <button
-                              onClick={() => setCampaignTypeResources(campaignTypeResources.filter((_, i) => i !== idx))}
-                              className="hover:text-red-500 focus:outline-hidden"
-                            >
-                              <HiX className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <>
+                    <NameListInput
+                      key={`resources-${selectedCampaignTypeId}`}
+                      label="Resources"
+                      placeholder="e.g. Meat"
+                      names={campaignTypeResources}
+                      onChange={setCampaignTypeResources}
+                    />
+                    <NameListInput
+                      key={`phases-${selectedCampaignTypeId}`}
+                      label="Phases"
+                      placeholder="e.g. Occupation"
+                      names={campaignTypePhases}
+                      onChange={setCampaignTypePhases}
+                    />
+                  </>
                 )}
 
                 {/* Default Trading Posts Section */}
@@ -1185,30 +1273,65 @@ export function AdminCampaignManagementModal({
           <Button
             variant="outline"
             onClick={onClose}
-            disabled={isLoading}
+            disabled={selectedCategory === 'portraits' ? portraitState.isBusy : isLoading}
             className="flex-1"
           >
             Cancel
           </Button>
-          
-          {activeForm.isCreateMode && (
-            <Button
-              onClick={() => activeForm.handleSubmit(OperationType.POST)}
-              disabled={!activeForm.canSubmit || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-            >
-              {isLoading ? 'Creating...' : `Create ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
-            </Button>
-          )}
 
-          {!activeForm.isCreateMode && activeForm.selectedId && (
-            <Button
-              onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
-              disabled={!activeForm.canSubmit || isLoading}
-              className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
-            >
-              {isLoading ? 'Updating...' : `Update ${selectedCategory === 'campaign-types' ? 'Campaign Type' : selectedCategory === 'territories' ? 'Territory' : 'Triumph'}`}
-            </Button>
+          {activeForm.kind === 'portraits' ? (
+            <>
+              {portraitState.isCreateMode && (
+                <Button
+                  onClick={() => portraitFormRef.current?.save()}
+                  disabled={!portraitState.canSave}
+                  className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                >
+                  {portraitState.pendingAction === 'save' ? 'Creating...' : 'Create Portrait'}
+                </Button>
+              )}
+
+              {portraitState.hasSelection && (
+                <>
+                  <Button
+                    onClick={() => portraitFormRef.current?.save()}
+                    disabled={!portraitState.canSave}
+                    className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                  >
+                    {portraitState.pendingAction === 'save' ? 'Updating...' : 'Update Portrait'}
+                  </Button>
+                  <Button
+                    onClick={() => portraitFormRef.current?.remove()}
+                    disabled={!portraitState.canDelete}
+                    className="flex-1 bg-red-600 text-white rounded-sm hover:bg-red-700"
+                  >
+                    {portraitState.pendingAction === 'delete' ? 'Deleting...' : 'Delete Portrait'}
+                  </Button>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              {activeForm.isCreateMode && (
+                <Button
+                  onClick={() => activeForm.handleSubmit(OperationType.POST)}
+                  disabled={!activeForm.canSubmit || isLoading}
+                  className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                >
+                  {isLoading ? 'Creating...' : `Create ${activeForm.noun}`}
+                </Button>
+              )}
+
+              {!activeForm.isCreateMode && activeForm.selectedId && (
+                <Button
+                  onClick={() => activeForm.handleSubmit(OperationType.UPDATE)}
+                  disabled={!activeForm.canSubmit || isLoading}
+                  className="flex-1 bg-neutral-900 text-white rounded-sm hover:bg-gray-800"
+                >
+                  {isLoading ? 'Updating...' : `Update ${activeForm.noun}`}
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>

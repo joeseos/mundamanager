@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -32,12 +33,16 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  territoryIncome,
+  tradePointsText,
+  tradingPostTradePoints,
   validatePostCycleAssignment,
   type PostCycleActionId,
   type PostCycleAssignment,
 } from '@/utils/postCycleActions';
 import {
   applyPostCycleSequence,
+  getEnhanceWeaponUpgrades,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
 
@@ -60,7 +65,7 @@ interface PostCycleActionsProps {
   tacticsCards: GangTacticsCard[];
   userPermissions?: UserPermissions;
   onFighterUpdate?: (fighter: FighterProps, skipRatingUpdate?: boolean) => void;
-  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number }) => void;
+  onGangFinancialsUpdate?: (financials: { credits: number; rating: number; wealth: number; trade_points?: number }) => void;
   onTacticsCardAdded?: (card: GangTacticsCard) => void;
 }
 
@@ -73,11 +78,14 @@ interface RowState {
   tacticsCard?: Pick<TacticsCard, 'id' | 'name'>;
   /** Visit Chop Shop: the vehicle's Lasting Damage to repair. */
   damageIds?: string[];
+  /** Enhance Weapon: the fighter's weapon and the upgrade it gets. */
+  weaponId?: string;
+  upgradeId?: string;
 }
 
 /** Null while the row still lacks a pick its action needs. */
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  const { action, targetFighterId, injuryIds, tacticsCard, damageIds } = row;
+  const { action, targetFighterId, injuryIds, tacticsCard, damageIds, weaponId, upgradeId } = row;
   switch (action) {
     case 'medical_escort':
       return targetFighterId ? { fighterId, action, targetFighterId } : null;
@@ -89,6 +97,8 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
       return tacticsCard ? { fighterId, action, tacticsCardId: tacticsCard.id } : null;
     case 'visit_chop_shop':
       return damageIds?.length ? { fighterId, action, damageIds } : null;
+    case 'enhance_weapon':
+      return weaponId && upgradeId ? { fighterId, action, weaponId, upgradeId } : null;
     default:
       return { fighterId, action };
   }
@@ -300,14 +310,16 @@ export default function PostCycleActions({
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
   const reputation = gangReputation ?? 0;
   const income = reputationIncome(reputation);
-  const incomeTerritories = territories.filter((territory) => territory.credits);
+  const incomeTerritories = territories
+    .map((territory) => ({ ...territory, income: territoryIncome(territory, { gangType, isCustomGangType }) }))
+    .filter((territory) => territory.income);
   const pickedTerritories = incomeTerritories.filter((territory) =>
     collectTerritoryIds.includes(territory.id)
   );
   const collecting = collectReputation || pickedTerritories.length > 0;
   const collected =
     (collectReputation ? income : 0) +
-    pickedTerritories.reduce((sum, territory) => sum + (territory.credits ?? 0), 0);
+    pickedTerritories.reduce((sum, territory) => sum + territory.income, 0);
   const cannotAfford = totalSpend > gangCredits + collected;
   const readyToApply =
     (pendingStates.length > 0 || collecting) &&
@@ -322,6 +334,13 @@ export default function PostCycleActions({
     }
     return counts;
   }, [activeRows]);
+
+  const { data: enhanceUpgrades = [] } = useQuery({
+    queryKey: ['enhance-weapon-upgrades'],
+    queryFn: () => getEnhanceWeaponUpgrades(),
+    enabled: takenCounts.has('enhance_weapon'),
+    staleTime: Infinity,
+  });
 
   const setRow = (fighterId: string, next: Partial<RowState>) =>
     setRows((prev) => {
@@ -363,6 +382,8 @@ export default function PostCycleActions({
           : null;
       case 'suit_maintenance':
         return rigGlitchesOf(fighter).length > 0 ? null : 'No Rig Glitches';
+      case 'enhance_weapon':
+        return fighter.weapons.length > 0 ? null : 'No weapons';
       default:
         return null;
     }
@@ -402,6 +423,9 @@ export default function PostCycleActions({
   const effectOf = (assignment: PostCycleAssignment | null) => {
     if (!assignment) return null;
     if (assignment.action === 'train') return `+${TRAIN_XP} XP`;
+    if (assignment.action === 'visit_trading_post') {
+      return `+${tradePointsText(tradingPostTradePoints(fighterById.get(assignment.fighterId)!))}`;
+    }
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
     const delta = assignmentCreditsDelta(assignment, fighterById.get(assignment.fighterId)!);
     // A Doc discount can make an action free, which is still worth saying.
@@ -483,6 +507,7 @@ export default function PostCycleActions({
         const current = fighterById.get(change.fighterId);
         if (current) onFighterUpdate?.(applyChange(current, change), true);
       }
+      if (result.outcome?.updatedFighter) onFighterUpdate?.(result.outcome.updatedFighter as FighterProps, true);
       if (result.gang) onGangFinancialsUpdate?.(result.gang);
       if (result.outcome?.addedTacticsCard) onTacticsCardAdded?.(result.outcome.addedTacticsCard);
 
@@ -550,7 +575,7 @@ export default function PostCycleActions({
             >
               {territory.territory_name}
               <span className="ml-2 font-normal text-muted-foreground">
-                (+{territory.credits} credits)
+                (+{territory.income} credits)
               </span>
             </label>
           </div>
@@ -676,6 +701,33 @@ export default function PostCycleActions({
                         >
                           Choose Lasting Damage
                         </Button>
+                      )}
+
+                      {row?.action === 'enhance_weapon' && (
+                        <>
+                          <Combobox
+                            options={fighter.weapons.map((weapon) => ({
+                              value: weapon.fighter_weapon_id,
+                              label: weapon.weapon_name,
+                            }))}
+                            value={row.weaponId ?? ''}
+                            onValueChange={(id) => setRow(fighter.id, { weaponId: id || undefined })}
+                            placeholder="Weapon to enhance"
+                            clearable
+                            disabled={!canEdit || applying}
+                          />
+                          <Combobox
+                            options={enhanceUpgrades.map((upgrade) => ({
+                              value: upgrade.id,
+                              label: upgrade.effect_name,
+                            }))}
+                            value={row.upgradeId ?? ''}
+                            onValueChange={(id) => setRow(fighter.id, { upgradeId: id || undefined })}
+                            placeholder="Upgrade"
+                            clearable
+                            disabled={!canEdit || applying}
+                          />
+                        </>
                       )}
 
                       {row?.action === 'develop_tactics' && (

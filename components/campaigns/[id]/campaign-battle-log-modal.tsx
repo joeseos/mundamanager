@@ -14,7 +14,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
 import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, customPartNames, neededScenarioPart, participantSideJob } from '@/types/campaign';
-import { battleStatusLabels, battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
+import { battleStatusLabels, battleStatusOf, challengeAnswerStatuses, isPlayedBattle } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
 import { hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
@@ -48,6 +48,8 @@ interface CampaignBattleLogModalProps {
   scenarioTables?: ScenarioTableWithEntries[];
   /** Add a challenge instead of a battle report: no result, only a challenge status. */
   newChallenge?: boolean;
+  /** The campaign's current cycle, prefilled on a new log. */
+  defaultCycle?: number | null;
 }
 
 const reportCharLimit = 4096;
@@ -87,7 +89,8 @@ const CampaignBattleLogModal = ({
   userRole = 'MEMBER',
   canRespondToChallenge = false,
   scenarioTables = [],
-  newChallenge = false
+  newChallenge = false,
+  defaultCycle = null
 }: CampaignBattleLogModalProps) => {
   // N26 has no scenario list: Deployment, Objective and Crew are rolled for the
   // battle, and a Side Job for each gang.
@@ -134,7 +137,7 @@ const CampaignBattleLogModal = ({
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
   });
-  const [cycle, setCycle] = useState<string>('');
+  const [cycle, setCycle] = useState<string>(defaultCycle != null ? String(defaultCycle) : '');
 
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
@@ -210,7 +213,6 @@ const CampaignBattleLogModal = ({
         deployment_name: battleData.deployment_name,
         objective_name: battleData.objective_name,
         crew_selection_name: battleData.crew_selection_name,
-        winner_id: legacyWinnerId,
         note: battleData.note,
         participants: battleData.participants,
         campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -336,7 +338,6 @@ const CampaignBattleLogModal = ({
                     crew_selection_name: battleData.crew_selection_name,
                   }
                 : {}),
-              winner_id: legacyWinnerId,
               note: battleData.note,
               participants: battleData.participants,
               campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -557,9 +558,7 @@ const CampaignBattleLogModal = ({
       // A challenge has no result yet, so it is not a draw — only a played
       // battle with nobody flagged as a winner is.
       isDraw:
-        battleStatusOf(battleToEdit) === 'played' &&
-        battleToEdit.winner_id === null &&
-        winnerIds.length === 0,
+        battleStatusOf(battleToEdit) === 'played' && winnerIds.length === 0,
     });
 
     setNotes(battleToEdit.note || "");
@@ -581,6 +580,13 @@ const CampaignBattleLogModal = ({
       ? territories
       : ([] as BattleLogTerritory[]);
   }, [hasAnyWinnerSelected, isUnplayedChallenge, isNewChallenge, gangsInBattle, territories]);
+
+  // Territories another open challenge already stakes; still pickable, only labelled.
+  const stakedTerritoryIds = useMemo(() => new Set(
+    battles
+      .filter(battle => battle.id !== battleToEdit?.id && !isPlayedBattle(battle) && battleStatusOf(battle) !== 'challenge_declined')
+      .map(battle => battle.campaign_territory_id)
+  ), [battles, battleToEdit]);
 
   // Clear selected territory when no territories are available (non-edit mode only)
   const [prevHasAvailable, setPrevHasAvailable] = useState(false);
@@ -789,9 +795,8 @@ const CampaignBattleLogModal = ({
       }
     }
 
-    // Prepare battle data for API.
-    // The server derives `winner_id` from participants[].is_winner /
-    // claimed_territory so we don't need to send it. `null` means "draw".
+    // Prepare battle data for API. Winners and the claimer travel as participants[].is_winner /
+    // claimed_territory; nobody flagged means a draw.
     const battleData: BattleLogParams = {
       scenario: usesScenarioTables ? scenarioNameToSave : scenarioName,
       ...(usesScenarioTables
@@ -802,7 +807,6 @@ const CampaignBattleLogModal = ({
             ...customPartNames(scenarioParts),
           }
         : {}),
-      winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),
       note: notes || null,
       participants: participants,
       claimed_territories: selectedTerritory
@@ -1314,7 +1318,8 @@ const CampaignBattleLogModal = ({
                     .map((territory) => {
                       const displayName = territory.name ?? territory.territory_name ?? "";
                       const controlledBy = territory.controlled_by ? getGangName(territory.controlled_by) : null;
-                      const statusLabel = controlledBy ? ` (Held by ${controlledBy})` : " (Unclaimed)";
+                      const holder = controlledBy ? `Held by ${controlledBy}` : "Unclaimed";
+                      const statusLabel = stakedTerritoryIds.has(territory.id) ? ` (${holder}, staked)` : ` (${holder})`;
 
                       return {
                         value: territory.id,

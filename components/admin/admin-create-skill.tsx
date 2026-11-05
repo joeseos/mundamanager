@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
-import { gangOriginRank } from "@/utils/gangOriginRank";
+import { GangOriginOptions } from "@/components/admin/gang-scope-options";
+import { SkillUserKindCheckboxes, type SkillUserKind } from "@/components/admin/skill-user-kind-checkboxes";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { hasSkillUserKindRestrictions } from '@/types/edition';
 
 interface AdminCreateSkillModalProps {
   onClose: () => void;
@@ -21,10 +23,12 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
   const [skillTypeName, setSkillTypeName] = useState('');
   const [gangOrigin, setGangOrigin] = useState('');
   const [editionId, setEditionId] = useState('');
+  const [usableBy, setUsableBy] = useState<SkillUserKind[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { data: editions = [] } = useEditions();
   const editionSlug = editionSlugOf(editions, editionId);
   const skillSetRank = getSkillSetRank(editionSlug);
+  const showUserKindRestrictions = hasSkillUserKindRestrictions(editionSlug);
 
   const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-skill-types'],
@@ -52,9 +56,16 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
         setSkillType('');
       }
     }
+
+    if (newEditionId && gangOrigin) {
+      const selectedOrigin = gangOriginList.find(origin => origin.id === gangOrigin);
+      if (!selectedOrigin || selectedOrigin.edition_id !== newEditionId) {
+        setGangOrigin('');
+      }
+    }
   };
 
-  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
+  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, edition_id: string | null}>>({
     queryKey: ['admin-gang-origins'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-origins');
@@ -63,6 +74,14 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
     },
     staleTime: 5 * 60 * 1000,
   });
+
+  // Origin names repeat across editions under different ids
+  const filteredGangOriginList = useMemo(
+    () => editionId
+      ? gangOriginList.filter(origin => origin.edition_id === editionId)
+      : gangOriginList,
+    [gangOriginList, editionId]
+  );
 
   const handleSubmit = async () => {
     if (!skillName || !skillType) {
@@ -81,6 +100,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
           name: skillName,
           skill_type_id: skillType,
           gang_origin_id: gangOrigin || null,
+          ...(showUserKindRestrictions ? { usable_by: usableBy.length > 0 ? usableBy : null } : {}),
         }),
       });
 
@@ -236,39 +256,20 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
                 disabled={skillTypeName !== ''}
               >
                 <option value="">No gang origin restriction</option>
-                {Object.entries(
-                  gangOriginList
-                    .sort((a, b) => {
-                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
-                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
-                      return rankA - rankB;
-                    })
-                    .reduce((groups, origin) => {
-                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted origins
-
-                      if (rank <= 19) groupLabel = "Prefecture";
-                      else if (rank <= 39) groupLabel = "Ancestry";
-                      else if (rank <= 59) groupLabel = "Tribe";
-
-                      if (!groups[groupLabel]) groups[groupLabel] = [];
-                      groups[groupLabel].push(origin);
-                      return groups;
-                    }, {} as Record<string, typeof gangOriginList>)
-                ).map(([groupLabel, origins]) => (
-                  <optgroup key={groupLabel} label={groupLabel}>
-                    {origins.map((origin) => (
-                      <option key={origin.id} value={origin.id}>
-                        {origin.origin_name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
+                <GangOriginOptions origins={filteredGangOriginList} />
               </select>
               {skillTypeName !== '' && (
                 <p className="text-xs text-amber-600 mt-1">Clear the Skill Set Name field to select a Gang Origin.</p>
               )}
             </div>
+
+            {showUserKindRestrictions && (
+              <SkillUserKindCheckboxes
+                value={usableBy}
+                onChange={setUsableBy}
+                disabled={skillTypeName !== ''}
+              />
+            )}
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">

@@ -1,5 +1,5 @@
--- DEPLOY ORDER: apply migration 20261021070000_custom_skill_type_in_skill_access_override.sql
--- BEFORE this file deploys. This function reads fighter_skill_access_override.custom_skill_type_id,
+-- DEPLOY ORDER: apply migration 20261102171910_add_skills_usable_by.sql
+-- BEFORE this file deploys. This function reads skills.usable_by,
 -- which that migration adds.
 
 CREATE OR REPLACE FUNCTION public.get_available_skills(
@@ -20,13 +20,17 @@ DECLARE
     v_origin_skill_type_id uuid;
     v_edition_id uuid;
     v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
+    v_is_vehicle boolean;
+    v_is_walker boolean;
 BEGIN
     -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, the gang's
     -- edition, and verify fighter exists
     SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id,
-           COALESCE(gt.edition_id, cgt.edition_id)
+           COALESCE(gt.edition_id, cgt.edition_id),
+           f.is_vehicle,
+           f.is_vehicle AND f.fighter_subtypes ? 'Walker'
     INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id,
-         v_edition_id
+         v_edition_id, v_is_vehicle, v_is_walker
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
     LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
@@ -70,7 +74,8 @@ BEGIN
                 WHERE fs.fighter_id = get_available_skills.fighter_id
                 AND fs.skill_id = s.id
             ) AS available,
-            COALESCE(skill_effect.skill_cost, 0) AS skill_cost
+            COALESCE(skill_effect.skill_cost, 0) AS skill_cost,
+            s.usable_by
         FROM skills s
         JOIN skill_types st ON st.id = s.skill_type_id
         LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = s.skill_type_id
@@ -119,7 +124,8 @@ BEGIN
                 WHERE fs.fighter_id = get_available_skills.fighter_id
                 AND fs.custom_skill_id = cs.id
             ) AS available,
-            0 AS skill_cost
+            0 AS skill_cost,
+            NULL::text[] AS usable_by
         FROM custom_skills cs
         LEFT JOIN skill_types st ON st.id = cs.skill_type_id
         LEFT JOIN custom_skill_types cst ON cst.id = cs.custom_skill_type_id
@@ -171,6 +177,13 @@ BEGIN
                     'skill_type_name', a.skill_type_name,
                     'effective_access_level', a.effective_access_level,
                     'available', a.available,
+                    'usable_by', to_jsonb(a.usable_by),
+                    'usable', (
+                        a.usable_by IS NULL
+                        OR (NOT v_is_vehicle AND 'fighter' = ANY (a.usable_by))
+                        OR (v_is_vehicle AND 'vehicle' = ANY (a.usable_by))
+                        OR (v_is_walker AND 'walker' = ANY (a.usable_by))
+                    ),
                     'cost', a.skill_cost,
                     'available_acquisition_types', CASE
                         -- Special costs for Legendary Names

@@ -18,6 +18,7 @@ import { relations, sql } from 'drizzle-orm';
 import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
 import type { BattleParticipant, BattleStatus, ScenarioTableType } from '@/types/campaign';
 import type { CollectionItem } from '@/app/actions/customise/custom-collections';
+import type { NotificationType } from '@/utils/notifications';
 
 /**
  * Drizzle schema for the tables read over the direct database connection
@@ -448,6 +449,7 @@ export const skills = pgTable('skills', {
   skill_type_id: uuid('skill_type_id'),
   gang_origin_id: uuid('gang_origin_id'),
   grants_equipment: json('grants_equipment'),
+  usable_by: text('usable_by').array(),
 });
 
 export const customSkills = pgTable('custom_skills', {
@@ -558,7 +560,7 @@ export const fighterLoadouts = pgTable('fighter_loadouts', {
   fighter_id: uuid('fighter_id').notNull(),
   loadout_name: text('loadout_name').notNull(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
-  user_id: uuid('user_id').notNull(),
+  user_id: uuid('user_id'),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });
 
@@ -641,6 +643,14 @@ export const gangPortraits = pgTable('gang_portraits', {
   label: text('label'),
 });
 
+export const campaignPortraits = pgTable('campaign_portraits', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  storage_path: text('storage_path').notNull(),
+  credit: json('credit').notNull(),
+  style: text('style').notNull(),
+  campaign_type_id: uuid('campaign_type_id').notNull(),
+});
+
 export const gangSkillSetRanks = pgTable('gang_skill_set_ranks', {
   gang_id: uuid('gang_id').notNull(),
   rank: integer('rank').notNull(),
@@ -657,6 +667,7 @@ export const campaignTypes = pgTable('campaign_types', {
   image_url: text('image_url'),
   trading_posts: json('trading_posts').$type<string[]>(),
   edition_id: uuid('edition_id'),
+  phases: json('phases').$type<string[]>(),
 });
 
 export const campaignTriumphs = pgTable('campaign_triumphs', {
@@ -686,6 +697,8 @@ export const campaigns = pgTable('campaigns', {
   custom_trading_posts: json('custom_trading_posts').$type<string[]>(),
   allow_join_requests: boolean('allow_join_requests').default(false).notNull(),
   current_cycle: integer('current_cycle'),
+  current_phase: text('current_phase'),
+  campaign_portrait_id: uuid('campaign_portrait_id'),
 });
 
 export const campaignMembers = pgTable('campaign_members', {
@@ -849,6 +862,20 @@ export const friends = pgTable('friends', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow(),
 });
 
+export const notifications = pgTable('notifications', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  text: varchar('text').notNull(),
+  type: varchar('type').$type<NotificationType>().notNull(),
+  sender_id: uuid('sender_id'),
+  receiver_id: uuid('receiver_id').notNull(),
+  dismissed: boolean('dismissed').default(false).notNull(),
+  link: text('link'),
+  expires_at: timestamp('expires_at', { withTimezone: true, mode: 'string' }).default(sql`(now() + '30 days'::interval)`).notNull(),
+  is_html: boolean('is_html').default(false).notNull(),
+  send_id: uuid('send_id'),
+});
+
 export const scenarioTables = pgTable('scenario_tables', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
@@ -874,7 +901,7 @@ export const battleSessions = pgTable('battle_sessions', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  created_by: uuid('created_by').notNull(),
+  created_by: uuid('created_by'),
   campaign_id: uuid('campaign_id'),
   scenario: text('scenario'),
   status: text('status').$type<BattleSessionStatus>().default(sql`'''pre_battle''::text'::text`).notNull(),
@@ -944,10 +971,7 @@ export const scenarios = pgTable('scenarios', {
 export const campaignBattles = pgTable('campaign_battles', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  attacker_id: uuid('attacker_id'),
-  defender_id: uuid('defender_id'),
   scenario_id: uuid('scenario_id'),
-  winner_id: uuid('winner_id'),
   note: text('note'),
   campaign_id: uuid('campaign_id'),
   participants: json('participants').$type<BattleParticipant[] | string>(),
@@ -1019,6 +1043,7 @@ export const forumCategories = pgTable('forum_categories', {
   slug: text('slug').notNull(),
   name: text('name').notNull(),
   description: text('description'),
+  image_url: text('image_url'),
   position: integer('position').default(0).notNull(),
   moderators_only: boolean('moderators_only').default(false).notNull(),
   thread_count: integer('thread_count').default(0).notNull(),
@@ -1187,10 +1212,21 @@ export const campaignGangsRelations = relations(campaignGangs, ({ one, many }) =
   }),
 }));
 
+export const campaignPortraitsRelations = relations(campaignPortraits, ({ one }) => ({
+  campaign_type: one(campaignTypes, {
+    fields: [campaignPortraits.campaign_type_id],
+    references: [campaignTypes.id],
+  }),
+}));
+
 export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   campaign_type: one(campaignTypes, {
     fields: [campaigns.campaign_type_id],
     references: [campaignTypes.id],
+  }),
+  campaign_portrait: one(campaignPortraits, {
+    fields: [campaigns.campaign_portrait_id],
+    references: [campaignPortraits.id],
   }),
   campaign_territories: many(campaignTerritories),
   campaign_resources: many(campaignResources),
@@ -1626,6 +1662,13 @@ export const friendsRelations = relations(friends, ({ one }) => ({
   }),
   addressee: one(profiles, {
     fields: [friends.addressee_id],
+    references: [profiles.id],
+  }),
+}));
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  sender: one(profiles, {
+    fields: [notifications.sender_id],
     references: [profiles.id],
   }),
 }));

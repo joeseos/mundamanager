@@ -276,10 +276,10 @@ Deno.serve(async (req) => {
     };
 
     const embeds: Record<string, unknown>[] = [infoEmbed];
+    const footerText = "Munda Manager";
 
     if (battle.note) {
       const reportTitle = "📝 Report";
-      const footerText = "MundaManager";
       // Characters consumed by everything except the report description, across
       // both embeds (info title + field names/values + report title + footer).
       const infoChars =
@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
     } else {
       // No report → footer + timestamp stay on the battle-info embed.
       infoEmbed.timestamp = battle.created_at;
-      infoEmbed.footer = { text: "MundaManager" };
+      infoEmbed.footer = { text: footerText };
     }
 
     let discordRes: Response

@@ -4,7 +4,7 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
-import type { FighterSkills } from '@/types/fighter';
+import type { FighterSkills, WeaponProps } from '@/types/fighter';
 import { hasGangTacticsCards } from '@/types/edition';
 import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -67,6 +67,7 @@ const GRUBS_UP_INCOME = 20;
 export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 export const SUIT_MAINTENANCE_COST = 100;
+export const ENHANCE_WEAPON_COST = 10;
 const REPUTATION_INCOME_PER_POINT = 10;
 
 /** Collect Income: credits equal to 10x Reputation, on top of the territory Boons. */
@@ -166,7 +167,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   visit_trading_post: {
     id: 'visit_trading_post',
     label: 'Visit Trading Post',
-    summary: 'Logged only',
+    summary: 'Gain Trade Points',
     performer: { kind: 'subtypes', subtypes: LEADER_CHAMPION },
   },
   lead_ritual: {
@@ -194,9 +195,10 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   enhance_weapon: {
     id: 'enhance_weapon',
     label: 'Enhance Weapon',
-    summary: 'Logged only',
+    summary: 'Upgrade a weapon',
     performer: { kind: 'fighter' },
     requires: 'enhanceWeaponAvailable',
+    credits: -ENHANCE_WEAPON_COST,
   },
   suit_evolution: {
     id: 'suit_evolution',
@@ -275,6 +277,7 @@ export interface PostCycleFighter {
   recovery?: boolean;
   kill_count?: number;
   skills?: FighterSkills;
+  weapons?: Pick<WeaponProps, 'fighter_weapon_id'>[];
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
@@ -291,6 +294,16 @@ function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boo
   const owned = (fighter.fighter_subtypes ?? []).map((s) => s.toLowerCase());
   return subtypes.some((wanted) => owned.includes(wanted));
 }
+
+/**
+ * Visit Trading Post: a Leader brings back 2 Trade Points, any other visitor 1.
+ * The Finest Merchandise lets an Underhive Trader visit as if they were a Leader.
+ */
+export const tradingPostTradePoints = (performer: PostCycleFighter): number =>
+  hasSubtype(performer, LEADER) || performer.fighter_type?.toLowerCase() === 'underhive trader' ? 2 : 1;
+
+export const tradePointsText = (points: number): string =>
+  `${points} Trade Point${points === 1 ? '' : 's'}`;
 
 /** What the gang has, beyond its fighters, that some actions depend on. */
 export interface PostCycleAvailability {
@@ -312,13 +325,17 @@ const CHAOS_HELOTS_GANG_TYPE = 'chaos helots';
 const CHAOS_CORRUPTED_GANG_SUBTYPE = 'chaos corrupted';
 const CHYMIST_CULT_GANG_TYPE = 'chymist cult';
 const FURNACE_BRUTES_GANG_TYPE = 'furnace brutes';
+const SPYRE_HUNTERS_GANG_TYPE = 'spyre hunters';
+
+const gangTypeName = (gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>): string =>
+  gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
 
 /**
  * Gang types and subtypes are matched by name, like isVenatorGang. A custom
  * gang type's name is the user's own, so it never counts.
  */
 export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailability {
-  const gangType = gang.isCustomGangType ? '' : (gang.gangType ?? '').toLowerCase();
+  const gangType = gangTypeName(gang);
   const subtypes = gang.subtypeNames.map((name) => name.toLowerCase());
 
   return {
@@ -330,6 +347,18 @@ export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailabilit
     enhanceWeaponAvailable: gangType === FURNACE_BRUTES_GANG_TYPE,
   };
 }
+
+const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
+
+/**
+ * Collect Income from one held Territory: its credits, except that a Spyre
+ * Hunters gang takes a flat 15 from each Territory instead of its Boon.
+ */
+export const territoryIncome = (
+  territory: { credits: number | null },
+  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>
+): number =>
+  gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE ? SPYRE_HUNTERS_TERRITORY_INCOME : (territory.credits ?? 0);
 
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,
@@ -420,11 +449,13 @@ export type PostCycleAssignment =
   | { fighterId: string; action: 'develop_tactics'; tacticsCardId: string }
   /** The vehicle's own Lasting Damage to repair. */
   | { fighterId: string; action: 'visit_chop_shop'; damageIds: string[] }
+  /** The fighter's weapon (fighter_equipment id) and one of Enhance weapon's upgrades. */
+  | { fighterId: string; action: 'enhance_weapon'; weaponId: string; upgradeId: string }
   | {
       fighterId: string;
       action: Exclude<
         PostCycleActionId,
-        'medical_escort' | 'fit_bionics' | 'develop_tactics' | 'visit_chop_shop'
+        'medical_escort' | 'fit_bionics' | 'develop_tactics' | 'visit_chop_shop' | 'enhance_weapon'
       >;
     };
 
@@ -494,6 +525,12 @@ export function validatePostCycleAssignment(
       }
       break;
     }
+
+    case 'enhance_weapon':
+      if (!performer.weapons?.some((weapon) => weapon.fighter_weapon_id === assignment.weaponId)) {
+        issues.push(`Choose a weapon that ${label} has.`);
+      }
+      break;
 
     case 'suit_evolution':
       if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {

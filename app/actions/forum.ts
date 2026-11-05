@@ -1,5 +1,6 @@
 'use server';
 
+import { refresh } from 'next/cache';
 import { after } from 'next/server';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/utils/supabase/server';
@@ -489,13 +490,10 @@ const REPORT_REASON_MIN_LENGTH = 50;
 const REPORT_REASON_MAX_LENGTH = 500;
 
 /**
- * Reports a post to the moderators, or a thread through its opening post, saying why.
+ * Reports a post to the moderators, saying why.
  * RLS refuses your own posts and removed ones, and a post can be reported once.
  */
-export async function reportForumPost(
-  params: { postId: string } | { threadId: string },
-  reason: string,
-): Promise<ForumActionResult> {
+export async function reportForumPost(params: { postId: string }, reason: string): Promise<ForumActionResult> {
   // Server actions can be called with anything
   const trimmedReason = typeof reason === 'string' ? reason.trim() : '';
   // In characters, as Postgres counts them, not UTF-16 units
@@ -511,21 +509,11 @@ export async function reportForumPost(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    let postId: string;
-    if ('postId' in params) {
-      postId = params.postId;
-    } else {
-      const { data, error } = await supabase
-        .from('forum_posts')
-        .select('id')
-        .eq('thread_id', params.threadId)
-        .eq('post_number', 1)
-        .single();
-      if (error) throw error;
-      postId = data.id;
-    }
-
-    const { error } = await supabase.from('forum_reports').insert({ post_id: postId, reporter_id: user.id, reason: trimmedReason });
+    const { error } = await supabase.from('forum_reports').insert({
+      post_id: params.postId,
+      reporter_id: user.id,
+      reason: trimmedReason,
+    });
     if (error?.code === '23505') return { success: false, error: 'You already reported this' };
     if (error) return { success: false, error: writeErrorMessage(error, 'Failed to report the post', "You can't report this post") };
     return { success: true };
@@ -552,6 +540,9 @@ export async function dismissForumPostReports(params: { postId: string; reported
       .lte('created_at', params.reportedUntil)
       .select('post_id');
     if (error) throw error;
+    // The moderation page reads reports uncached, so re-render it in this response,
+    // also when another moderator already handled them
+    refresh();
     if (!data.length) return { success: false, error: 'These reports were already handled' };
     return { success: true };
   } catch (error) {

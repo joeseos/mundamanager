@@ -7,9 +7,9 @@ import { revalidateTag } from 'next/cache';
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
-import { insertEffectWithModifiers } from './equipment';
+import { grantSkillsForEffects, insertEffectWithModifiers, type GrantedSkill } from './equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
 export interface MoveFromStashItem {
@@ -39,6 +39,9 @@ export interface MoveFromStashResult {
   updated_gang_rating?: number;
   updated_gang_wealth?: number;
   affected_beast_ids?: string[];
+  /** Set when the gear changed the fighter's subtypes */
+  fighter_subtypes?: string[];
+  granted_skills?: GrantedSkill[];
   error?: string;
 }
 
@@ -95,15 +98,17 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       }
     }
 
-    // Validate target belongs to same gang (once)
+    // Validate target belongs to same gang and check its active status (once)
     let fighterOwnerId: string | null = null;
+    let fighterIsActive = false;
+    let vehicleFighterId: string | null = null;
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
 
     if (params.fighter_id) {
       const { data: fighter, error: fighterError } = await supabase
         .from('fighters')
-        .select('gang_id, user_id, fighter_pet_id')
+        .select(`gang_id, user_id, fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
         .eq('id', params.fighter_id)
         .single();
 
@@ -111,15 +116,18 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (fighter.gang_id !== gangId) throw new Error('Fighter does not belong to the same gang');
       fighterOwnerId = fighter.user_id;
       fighterPetId = fighter.fighter_pet_id ?? null;
+      fighterIsActive = costCountsTowardRating(fighter);
     } else if (params.vehicle_id) {
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('gang_id, fighter_id')
+        .select('gang_id, fighter_id, fighters (killed, retired, enslaved, captured)')
         .eq('id', params.vehicle_id)
         .single();
 
       if (vehicleError || !vehicle) throw new Error('Vehicle not found');
       if (vehicle.gang_id !== gangId) throw new Error('Vehicle does not belong to the same gang');
+      vehicleFighterId = vehicle.fighter_id;
+      fighterIsActive = countsTowardRating(vehicle.fighters as FighterStatus | null);
 
       const { data: gang, error: gangError } = await supabase
         .from('gangs')
@@ -132,45 +140,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     }
 
     if (!fighterOwnerId) throw new Error('Could not determine equipment owner');
-
-    // Check fighter active status (once)
-    let fighterIsActive = false;
-    if (params.fighter_id) {
-      const { data: fighter } = await supabase
-        .from('fighters')
-        .select('killed, retired, enslaved, captured, fighter_subtypes')
-        .eq('id', params.fighter_id)
-        .single();
-      fighterIsActive = countsTowardRating(fighter);
-
-      if (fighterIsActive && fighter?.fighter_subtypes?.some((c: string) => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet')) {
-        const { data: beastOwnership } = await supabase
-          .from('fighter_exotic_beasts')
-          .select('fighter_owner_id, fighters!fighter_owner_id (killed, retired, enslaved, captured)')
-          .eq('fighter_pet_id', params.fighter_id)
-          .maybeSingle();
-
-        if (beastOwnership?.fighters) {
-          fighterIsActive = countsTowardRating(beastOwnership.fighters as any);
-        } else if (beastOwnership && !beastOwnership.fighter_owner_id) {
-          fighterIsActive = false;
-        }
-      }
-    } else if (params.vehicle_id) {
-      const { data: veh } = await supabase
-        .from('vehicles')
-        .select('fighter_id')
-        .eq('id', params.vehicle_id)
-        .single();
-      if (veh?.fighter_id) {
-        const { data: vehicleFighter } = await supabase
-          .from('fighters')
-          .select('killed, retired, enslaved, captured')
-          .eq('id', veh.fighter_id)
-          .single();
-        fighterIsActive = countsTowardRating(vehicleFighter);
-      }
-    }
 
     // Separate items into pass1 (no batch dependency) and pass2 (depends on batch item)
     const batchStashIds = new Set(stashIds);
@@ -193,6 +162,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     const allAffectedBeastIds: string[] = [];
     let hasAppliedEffects = false;
     let hasExoticBeastEquipment = false;
+    let fighterSubtypes: string[] | undefined;
+    const grantedSkills: GrantedSkill[] = [];
 
     const processItem = async (item: MoveFromStashItem): Promise<MoveFromStashItemResult> => {
       const stashData = stashDataMap.get(item.stash_id)!;
@@ -287,7 +258,17 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
               if (insertErr) {
                 console.error(`Failed to insert effects for ${item.stash_id}: ${insertErr.message}`);
               } else if (insertedEffects && insertedEffects.length > 0) {
-                await syncSubtypeGrants(supabase, params.fighter_id, { granted: toApply });
+                fighterSubtypes = await syncSubtypeGrants(supabase, params.fighter_id, { granted: toApply }) ?? fighterSubtypes;
+                grantedSkills.push(...await grantSkillsForEffects(
+                  supabase,
+                  params.fighter_id,
+                  insertedEffects.map((effect, index) => ({
+                    id: effect.id,
+                    fighter_effect_type_id: effect.fighter_effect_type_id,
+                    type_specific_data: toApply[index]?.type_specific_data
+                  })),
+                  fighterOwnerId!
+                ));
 
                 const allModifiers: any[] = [];
                 toApply.forEach((et, index) => {
@@ -532,16 +513,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighterPetId);
     }
 
-    if (params.vehicle_id) {
-      const { data: vehicle } = await supabase
-        .from('vehicles')
-        .select('fighter_id')
-        .eq('id', params.vehicle_id)
-        .single();
-
-      if (vehicle?.fighter_id) {
-        invalidateFighter(vehicle.fighter_id, gangId); invalidateGangFinancials(gangId);
-      }
+    if (vehicleFighterId) {
+      invalidateFighter(vehicleFighterId, gangId); invalidateGangFinancials(gangId);
     }
 
     invalidateGangStash(gangId);
@@ -619,7 +592,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       item_results: itemResults,
       updated_gang_rating: updatedGangRating,
       updated_gang_wealth: updatedGangWealth,
-      ...(allAffectedBeastIds.length > 0 && { affected_beast_ids: allAffectedBeastIds })
+      ...(allAffectedBeastIds.length > 0 && { affected_beast_ids: allAffectedBeastIds }),
+      ...(fighterSubtypes && { fighter_subtypes: fighterSubtypes }),
+      ...(grantedSkills.length > 0 && { granted_skills: grantedSkills })
     };
 
   } catch (error) {

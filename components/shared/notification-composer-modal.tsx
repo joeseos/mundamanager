@@ -38,6 +38,13 @@ type PickerProps = {
   onSelect: (recipient: ComposerRecipient) => void
 }
 
+export type AllAudience = {
+  warning: ReactNode
+  fields?: ReactNode
+  body?: Record<string, unknown>
+  canSend?: boolean
+}
+
 async function loadSentNotifications(historyUrl: string): Promise<SentNotificationRow[]> {
   const response = await fetch(historyUrl)
   const data = await response.json()
@@ -59,7 +66,8 @@ export function NotificationComposerModal({
   typeLabel,
   typeIcon,
   allLabel,
-  allWarning,
+  allAudience,
+  onAllChange,
   allToggleDisabled = false,
   allowSendAll = true,
   picker,
@@ -77,7 +85,8 @@ export function NotificationComposerModal({
   typeLabel: (send: SentNotificationRow) => string
   typeIcon: (send: SentNotificationRow) => ReactNode
   allLabel: string
-  allWarning: string
+  allAudience: AllAudience
+  onAllChange?: (all: boolean) => void
   allToggleDisabled?: boolean
   allowSendAll?: boolean
   picker: (input: PickerProps) => ReactNode
@@ -105,10 +114,12 @@ export function NotificationComposerModal({
 
   const expiresValid =
     expiresInDays >= NOTIFICATION_EXPIRES_MIN_DAYS && expiresInDays <= NOTIFICATION_EXPIRES_MAX_DAYS
+  const allAudienceCanSend = !audienceAll || allAudience.canSend !== false
   const canSend =
     !isHtmlEffectivelyEmpty(text) &&
     notificationPlainTextLength(text) <= NOTIFICATION_BROADCAST_MAX_LENGTH &&
     expiresValid &&
+    allAudienceCanSend &&
     (audienceAll ? allowSendAll : selected.length > 0)
 
   const historyStatus: SentHistoryStatus = history.isError
@@ -120,12 +131,10 @@ export function NotificationComposerModal({
         : 'idle'
 
   const toggleAll = () => {
-    if (audienceAll) {
-      setAudienceAll(false)
-      return
-    }
-    setSelected([])
-    setAudienceAll(true)
+    const next = !audienceAll
+    if (next) setSelected([])
+    setAudienceAll(next)
+    onAllChange?.(next)
   }
 
   const handleSend = async () => {
@@ -141,6 +150,7 @@ export function NotificationComposerModal({
           expiresInDays,
           audience: audienceAll ? 'all' : selectedAudience,
           userIds: audienceAll ? undefined : selected.map((recipient) => recipient.id),
+          ...(audienceAll ? allAudience.body : {}),
           ...extraBody,
         }),
       })
@@ -239,9 +249,10 @@ export function NotificationComposerModal({
                   ))}
                 </div>
               )}
+              {audienceAll && allAudience.fields}
               {audienceAll && (
                 <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
-                  {allWarning}
+                  {allAudience.warning}
                 </p>
               )}
             </div>
@@ -283,6 +294,7 @@ export function NotificationComposerModal({
             sends={history.data ?? []}
             status={historyStatus}
             recipientNoun={recipientNoun}
+            showLoginRule={recipientNoun === 'user'}
             typeLabel={typeLabel}
             typeIcon={typeIcon}
           />

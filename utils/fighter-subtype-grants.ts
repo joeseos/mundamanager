@@ -56,6 +56,8 @@ export async function resolveFighterEditionSlug(
  * `granted` are effects that now exist on the fighter, `revoked` are effects that
  * no longer do; callers pass whichever applies.
  *
+ * Returns the fighter's subtypes when it changed them, otherwise undefined.
+ *
  * Call revoked AFTER the effect rows are gone — delete and sell get that from the
  * fighter_equipment cascade, but move-to-stash deletes its own effects first.
  */
@@ -63,7 +65,7 @@ export async function syncSubtypeGrants(
   supabase: any,
   fighterId: string | null | undefined,
   effects: { granted?: EffectWithData[] | null; revoked?: EffectWithData[] | null }
-): Promise<void> {
+): Promise<string[] | undefined> {
   // No vehicle branch needed: vehicle_id is N23-only, and N23 fails the edition
   // check below. On N26 a vehicle IS a fighter, so it arrives here as fighterId.
   if (!fighterId) return;
@@ -133,4 +135,6 @@ export async function syncSubtypeGrants(
   // The equipment invalidations cover the gang list but not the fighter's own row,
   // which is where fighter_subtypes is read from. Only reached on a real change.
   revalidateTag(TAGS.fighter(fighterId), { expire: 0 });
+
+  return next;
 }

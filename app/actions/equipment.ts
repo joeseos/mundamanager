@@ -7,7 +7,7 @@ import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-ratin
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -67,24 +67,28 @@ type GrantingEffect = {
   type_specific_data?: any;
 };
 
+export type GrantedSkill = { skill_id: string; skill_name: string };
+
 /**
  * Effect-granted skills, as add_fighter_injury.sql does it. Removal is the
  * fighter_effects -> fighter_effect_skills -> fighter_skills cascade.
  *
- * Unlike that function this never reuses an existing row: reusing means selling
+ * Like that function this never reuses an existing row: reusing means selling
  * the equipment cascades away a skill the fighter bought with XP.
+ *
+ * Returns the skills it granted, for callers that update the UI from the response.
  */
 export async function grantSkillsForEffects(
   supabase: any,
   fighterId: string | null | undefined,
   effects: GrantingEffect[] | null | undefined,
   userId: string
-): Promise<boolean> {
+): Promise<GrantedSkill[]> {
   // N23 vehicle-only effects grant nothing; on N26 a vehicle is a fighter
-  if (!fighterId) return false;
+  if (!fighterId) return [];
 
   const candidates = (effects ?? []).filter(effect => grantedSkillFromEffect(effect));
-  if (candidates.length === 0) return false;
+  if (candidates.length === 0) return [];
 
   // On a 'skills'-category type, skill_id is the skill this effect BELONGS TO
   // (fighter-advancement.ts), not one it grants. addEquipmentEffect takes an
@@ -97,7 +101,7 @@ export async function grantSkillsForEffects(
   // Bail rather than fail open: an empty set would exclude nothing
   if (typesError || !types) {
     console.error('Failed to read effect type categories, skipping skill grants:', typesError);
-    return false;
+    return [];
   }
 
   const skillCategoryTypeIds = new Set(
@@ -109,7 +113,7 @@ export async function grantSkillsForEffects(
   // fighter_effect_skills INSERT is admin-only, and stays that way: the link is
   // derived, joining two rows this user just wrote under RLS.
   const serviceClient = createServiceRoleClient();
-  let granted = false;
+  const granted: GrantedSkill[] = [];
 
   for (const effect of candidates) {
     if (skillCategoryTypeIds.has(effect.fighter_effect_type_id)) continue;
@@ -126,7 +130,7 @@ export async function grantSkillsForEffects(
         xp_cost: 0,
         is_advance: false
       })
-      .select('id')
+      .select('id, skill_id, skills!skill_id ( name )')
       .single();
 
     if (!skill) {
@@ -160,7 +164,7 @@ export async function grantSkillsForEffects(
       continue;
     }
 
-    granted = true;
+    granted.push({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' });
   }
 
   return granted;
@@ -279,7 +283,7 @@ export async function insertEffectWithModifiers(
       }
     }
 
-    const grantedSkill = await grantSkillsForEffects(
+    await grantSkillsForEffects(
       supabase,
       params.fighter_id,
       [{
@@ -341,22 +345,23 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       (params.vehicle_id && !params.buy_for_gang_stash)
         ? supabase
             .from('vehicles')
-            .select('fighter_id')
+            .select('fighter_id, fighters (killed, retired, enslaved, captured)')
             .eq('id', params.vehicle_id)
             .single()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
 
       // Fighter row: fighter_name feeds beast creation, fighter_pet_id lets the
       // owner-cache invalidation below skip its lookup for the 97% of fighters
-      // that are not pets. Fetched here so it overlaps the gang read instead of
-      // costing a serial round trip later.
+      // that are not pets, and its status (or an exotic beast's owner's) decides
+      // whether the purchase counts toward rating. Fetched here so it overlaps
+      // the gang read instead of costing a serial round trip later.
       (params.fighter_id && !params.buy_for_gang_stash)
         ? supabase
             .from('fighters')
-            .select('fighter_name, fighter_pet_id')
+            .select(`fighter_name, fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
             .eq('id', params.fighter_id)
             .maybeSingle()
-        : Promise.resolve({ data: null })
+        : Promise.resolve({ data: null, error: null })
     ]);
 
     const { data: gang, error: gangError } = gangResult;
@@ -364,11 +369,24 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error('Gang not found');
     }
 
+    if (vehicleResult.error || fighterResult.error) {
+      throw new Error('Failed to load the fighter or vehicle');
+    }
+
     // Extract parallel query results
     const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
     // Shape must match the fighters select in the Promise.all above; the cast is
     // unavoidable there, so keep the two in step by hand.
-    const fighterRow = fighterResult.data as { fighter_name: string | null; fighter_pet_id: string | null } | null;
+    const fighterRow = fighterResult.data as (FighterRatingStatus & {
+      fighter_name: string | null;
+      fighter_pet_id: string | null;
+    }) | null;
+    // Only gear on an active fighter counts toward rating: a beast's gear rolls
+    // into its owner and a vehicle's into its assigned fighter. An inactive
+    // fighter's whole cost is added back when they return.
+    const ownerIsActive = params.fighter_id
+      ? costCountsTowardRating(fighterRow)
+      : countsTowardRating(vehicleResult.data?.fighters as FighterStatus | null | undefined);
     /**
      * null only when the row was actually read and says this fighter is not a
      * pet. A missing/failed read stays undefined so the helper falls back to
@@ -810,7 +828,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate deltas for gang updates
-    const totalRatingDelta = ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta;
+    const totalRatingDelta = ownerIsActive ? ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta : 0;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
     // Update gang credits, rating, wealth and Trade Points using centralized helper.
@@ -1187,11 +1205,11 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       // Check if the fighter is active before applying rating delta
       const { data: fighter } = await supabase
         .from('fighters')
-        .select('killed, retired, enslaved, captured, fighter_pet_id')
+        .select(`fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
         .eq('id', equipmentBefore.fighter_id)
         .single();
 
-      const fighterIsActive = countsTowardRating(fighter);
+      const fighterIsActive = costCountsTowardRating(fighter);
       // Only a hint when the row was read AND belongs to the fighter the
       // invalidation below targets; otherwise leave undefined to force a lookup.
       fighterPetId =
@@ -1209,25 +1227,14 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       // Only count if vehicle assigned to an active fighter
       const { data: veh } = await supabase
         .from('vehicles')
-        .select('fighter_id')
+        .select('fighters (killed, retired, enslaved, captured)')
         .eq('id', equipmentBefore.vehicle_id)
         .single();
 
-      if (veh?.fighter_id) {
-        // Check if the assigned fighter is active
-        const { data: vehicleFighter } = await supabase
-          .from('fighters')
-          .select('killed, retired, enslaved, captured')
-          .eq('id', veh.fighter_id)
-          .single();
-
-        const vehicleFighterIsActive = countsTowardRating(vehicleFighter);
-
-        if (vehicleFighterIsActive) {
-          ratingDelta -= (equipmentBefore.purchase_cost || 0);
-          const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-          ratingDelta -= effectsCredits;
-        }
+      if (countsTowardRating(veh?.fighters as FighterStatus | null | undefined)) {
+        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+        ratingDelta -= effectsCredits;
       }
     }
 
@@ -1483,6 +1490,8 @@ export async function applySelfUpgradesToEquipment(params: {
   fighter_id: string;
   gang_id: string;
   credits_increase?: number;
+  /** Lets an upgrade go on again when the equipment already has it (Enhance Weapon). */
+  allow_repeats?: boolean;
 }): Promise<EquipmentActionResult> {
   if (params.effect_type_ids.length === 0) {
     return { success: false, error: 'No effects to apply' };
@@ -1522,7 +1531,7 @@ export async function applySelfUpgradesToEquipment(params: {
           user_id: user.id
         },
         {
-          checkDuplicate: true,
+          checkDuplicate: !params.allow_repeats,
           includeOperation: true
         }
       );
@@ -1550,15 +1559,15 @@ export async function applySelfUpgradesToEquipment(params: {
       try {
         const { data: fighter } = await supabase
           .from('fighters')
-          .select('killed, retired, enslaved, captured')
+          .select(RATING_STATUS_COLUMNS)
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = fighter && countsTowardRating(fighter);
+        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: params.credits_increase,
-          applyToRating: fighterIsActive ?? false
+          applyToRating: fighterIsActive
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);
@@ -1626,15 +1635,15 @@ export async function deleteEquipmentEffect(
       try {
         const { data: fighter } = await supabase
           .from('fighters')
-          .select('killed, retired, enslaved, captured')
+          .select(RATING_STATUS_COLUMNS)
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = fighter && countsTowardRating(fighter);
+        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: -params.credits_increase,
-          applyToRating: fighterIsActive ?? false
+          applyToRating: fighterIsActive
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);

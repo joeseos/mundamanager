@@ -7,7 +7,7 @@ import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
 import { createExoticBeastsForEquipment, type CreatedFamiliar } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantSkillsForEffects } from './equipment';
+import { grantSkillsForEffects, type GrantedSkill } from './equipment';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
@@ -148,9 +148,9 @@ async function applyEffectsForEquipmentOptimized(
   fighterId: string,
   userId: string,
   includeCreditIncrease: boolean = false
-): Promise<{ appliedEffects: any[], effectsCreditsIncrease: number }> {
+): Promise<{ appliedEffects: any[], effectsCreditsIncrease: number, grantedSkills: GrantedSkill[] }> {
   if (!effectTypes || effectTypes.length === 0) {
-    return { appliedEffects: [], effectsCreditsIncrease: 0 };
+    return { appliedEffects: [], effectsCreditsIncrease: 0, grantedSkills: [] };
   }
 
   try {
@@ -173,7 +173,7 @@ async function applyEffectsForEquipmentOptimized(
 
     if (effectsError || !insertedEffects) {
       console.error('Failed to insert effects:', effectsError);
-      return { appliedEffects: [], effectsCreditsIncrease: 0 };
+      return { appliedEffects: [], effectsCreditsIncrease: 0, grantedSkills: [] };
     }
 
     // Batch insert modifiers using pre-fetched modifier data
@@ -199,7 +199,7 @@ async function applyEffectsForEquipmentOptimized(
       }
     }
 
-    await grantSkillsForEffects(
+    const grantedSkills = await grantSkillsForEffects(
       supabase,
       fighterId,
       insertedEffects.map((effect: any, index: number) => ({
@@ -237,11 +237,11 @@ async function applyEffectsForEquipmentOptimized(
       }
     });
 
-    return { appliedEffects, effectsCreditsIncrease: totalCreditsIncrease };
+    return { appliedEffects, effectsCreditsIncrease: totalCreditsIncrease, grantedSkills };
 
   } catch (error) {
     console.error('Equipment effect application failed:', error);
-    return { appliedEffects: [], effectsCreditsIncrease: 0 };
+    return { appliedEffects: [], effectsCreditsIncrease: 0, grantedSkills: [] };
   }
 }
 
@@ -813,6 +813,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Collect equipment effects data
     let allAppliedEffects: any[] = [];
     let totalEffectsCreditsIncrease = 0;
+    // What default gear granted after the fighter row and its skills were written
+    let grantedSubtypes: string[] | undefined;
+    const grantedSkills: GrantedSkill[] = [];
 
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
@@ -896,6 +899,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                           );
 
                           allAppliedEffects.push(...effectsResult.appliedEffects);
+                          grantedSkills.push(...effectsResult.grantedSkills);
                           totalEffectsCreditsIncrease += effectsResult.effectsCreditsIncrease;
                         } catch (effectError) {
                           console.error('Error applying effects for equipment:', equipmentItem.equipment_id, effectError);
@@ -904,7 +908,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     }
 
                     // Default gear can grant a subtype, e.g. a type shipping a Dirt bike
-                    await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects });
+                    grantedSubtypes = await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects });
                   }
                 } catch (batchError) {
                   console.error('Error in batch effect processing:', batchError);
@@ -1214,9 +1218,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             gangType: gangData.gang_type,
             editionSlug: gangEditionForSync,
             isCustomGangType: Boolean(gangData.custom_gang_type_id),
-            subtypes: Array.isArray(insertedFighter.fighter_subtypes)
-              ? insertedFighter.fighter_subtypes
-              : [],
+            subtypes: grantedSubtypes
+              ?? (Array.isArray(insertedFighter.fighter_subtypes) ? insertedFighter.fighter_subtypes : []),
           },
           supabase,
         );
@@ -1256,7 +1259,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
-        fighter_subtypes: insertedFighter.fighter_subtypes ?? [],
+        fighter_subtypes: grantedSubtypes ?? insertedFighter.fighter_subtypes ?? [],
         fighter_specialisation_id: fighterInsertData.fighter_specialisation_id,
         fighter_variant: effectiveFighterData.fighter_variant ?? null,
         free_skill: effectiveFighterData.free_skill || false,
@@ -1299,10 +1302,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         // Legacy stats field for backward compatibility (use current stats)
         stats: currentStats,
         equipment: equipmentWithProfiles,
-        skills: insertedSkills.map(skill => ({
-          skill_id: skill.skill_id,
-          skill_name: (skill.skills as any)?.name || ''
-        })),
+        // Granted first: the client keys skills by name, so a default skill wins
+        skills: [
+          ...grantedSkills,
+          ...insertedSkills.map(skill => ({
+            skill_id: skill.skill_id,
+            skill_name: (skill.skills as any)?.name || ''
+          }))
+        ],
         special_rules: effectiveFighterData.special_rules,
         created_familiars: allCreatedFamiliars.length > 0 ? allCreatedFamiliars : undefined,
         applied_effects: allAppliedEffects.length > 0 ? allAppliedEffects : undefined

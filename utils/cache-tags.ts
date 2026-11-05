@@ -42,6 +42,8 @@ import { revalidateTag } from 'next/cache';
  *                  home-card portraits/names |
  * global-gang-portraits catalogue file paths | catalogue row rename/delete
  *                  joined onto gangs         | (invalidateGangPortraits) |
+ * global-campaign-portraits catalogue paths  | catalogue row rename/delete
+ *                  joined onto campaigns     | (invalidateCampaignPortraits) |
  * global-gang-rules gang rules and their   | admin gang rule and
  *                  effect types              | rule effect type writes
  * forum-index      forum categories with     | category edits and thread
@@ -93,6 +95,7 @@ export const TAGS = {
   globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
   globalGangPortraits: () => 'global-gang-portraits',
+  globalCampaignPortraits: () => 'global-campaign-portraits',
   globalGangRules: () => 'global-gang-rules',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
@@ -315,6 +318,11 @@ export function invalidateGangRules() {
 /** A gang_portraits row's path or identity changed. Joined portrait URLs are cached with the gang. */
 export function invalidateGangPortraits() {
   bust(TAGS.globalGangPortraits());
+}
+
+/** A campaign_portraits row's path or identity changed. Joined portrait URLs are cached with the campaign. */
+export function invalidateCampaignPortraits() {
+  bust(TAGS.globalCampaignPortraits());
 }
 
 // Global reference data

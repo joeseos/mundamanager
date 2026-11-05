@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import '../ui/rich-text-editor.css'; // Styles the read-only notes and the editor placeholder
 import { UserPermissions } from '@/types/user-permissions';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
+import { updateGang } from '@/app/actions/update-gang';
 
 interface GangNotesProps {
   gangId: string;
@@ -217,68 +218,38 @@ export function GangNotes({
     setNotePrivateUpdatedAt(initialNotePrivateUpdatedAt);
   }
 
-  const handleNoteSave = async () => {
-    const cleanNote = isHtmlEffectivelyEmpty(note) ? '' : note;
-    
-    const response = await fetch(`/api/gangs/${gangId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ note: cleanNote }),
-    });
+  // Saves one note field, stored as '' when the editor holds no text
+  const saveNote = async (
+    field: 'note' | 'note_backstory' | 'note_private',
+    content: string,
+    errorMessage: string
+  ) => {
+    const cleanContent = isHtmlEffectivelyEmpty(content) ? '' : content;
+    const result = await updateGang({ gang_id: gangId, [field]: cleanContent });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update notes');
+    if (!result.success) {
+      throw new Error(result.error || errorMessage);
     }
 
-    onNoteUpdate?.(note);
+    return { cleanContent, updatedAt: result.data?.note_private_updated_at };
+  };
+
+  const handleNoteSave = async () => {
+    const { cleanContent } = await saveNote('note', note, 'Failed to update notes');
+    onNoteUpdate?.(cleanContent);
   };
 
   const handleNoteBackstorySave = async () => {
-    const cleanNoteBackstory = isHtmlEffectivelyEmpty(noteBackstory) ? '' : noteBackstory;
-    
-    const response = await fetch(`/api/gangs/${gangId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ note_backstory: cleanNoteBackstory }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update backstory notes');
-    }
-
-    onNoteBackstoryUpdate?.(noteBackstory);
+    const { cleanContent } = await saveNote('note_backstory', noteBackstory, 'Failed to update backstory notes');
+    onNoteBackstoryUpdate?.(cleanContent);
   };
 
   const handleNotePrivateSave = async () => {
-    const cleanNotePrivate = isHtmlEffectivelyEmpty(notePrivate) ? '' : notePrivate;
-
-    const response = await fetch(`/api/gangs/${gangId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ note_private: cleanNotePrivate }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update private notes');
+    const { cleanContent, updatedAt } = await saveNote('note_private', notePrivate, 'Failed to update private notes');
+    if (updatedAt) {
+      setNotePrivateUpdatedAt(updatedAt);
     }
-
-    if (data.note_private_updated_at) {
-      setNotePrivateUpdatedAt(data.note_private_updated_at);
-    }
-
-    onNotePrivateUpdate?.(notePrivate, data.note_private_updated_at);
+    onNotePrivateUpdate?.(cleanContent, updatedAt);
   };
 
   return (

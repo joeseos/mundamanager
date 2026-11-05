@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import Image from 'next/image';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
+import { resolveCampaignImageUrl } from '@/utils/campaign-image';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
@@ -22,6 +23,7 @@ import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territor
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
+import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
@@ -38,6 +40,7 @@ const CampaignMessageModal = dynamic(
   { ssr: false }
 );
 const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
+const CampaignPhasesCyclesModal = dynamic(() => import('@/components/campaigns/[id]/campaign-phases-cycles-modal'), { ssr: false });
 const CampaignImageEditModal = dynamic(
   () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
   { ssr: false }
@@ -121,6 +124,8 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     campaign_type_image_url?: string;
+    campaign_portrait_id?: string | null;
+    campaign_portrait_url?: string | null;
     edition_slug?: string | null;
     image_url?: string;
     status: string | null;
@@ -129,6 +134,7 @@ interface CampaignPageContentProps {
     updated_at: string | null;
     note: string | null;
     current_cycle?: number | null;
+    current_phase?: string | null;
     members: any[];
     territories: Territory[];
     trading_posts: string[];
@@ -190,7 +196,7 @@ interface CampaignPageContentProps {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
 export default function CampaignPageContent({ 
@@ -226,6 +232,7 @@ export default function CampaignPageContent({
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showPhasesCyclesModal, setShowPhasesCyclesModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -274,6 +281,21 @@ export default function CampaignPageContent({
       show_name_on_map?: boolean;
     };
   }
+
+  // A user can hold more than one member row in a campaign (one per gang).
+  // Handing over the Owner role makes the previous Owner an Arbitrator.
+  const handleMemberRoleChange = (userId: string, newRole: string) => {
+    setCampaignData(prev => ({
+      ...prev,
+      members: prev.members.map(member =>
+        member.user_id === userId
+          ? { ...member, role: newRole }
+          : newRole === 'OWNER' && member.role === 'OWNER'
+            ? { ...member, role: 'ARBITRATOR' }
+            : member
+      )
+    }));
+  };
 
   const handleTerritoryUpdate = useCallback((update: TerritoryUpdate) => {
     if (update.action === 'restore' && update.territory) {
@@ -370,6 +392,10 @@ export default function CampaignPageContent({
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
 
+  const currentCycle = campaignData.current_cycle ?? null;
+  // Pre-campaign is not stored: it is a campaign with no cycle set and no battle logged.
+  const isPreCampaign = currentCycle === null && (campaignData.battles || []).length === 0;
+  const phaseLabel = campaignData.current_phase ?? (isPreCampaign ? 'Pre-campaign' : null);
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
@@ -414,12 +440,12 @@ export default function CampaignPageContent({
     }
   };
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
-  };
-
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
+  const shownImageUrl = resolveCampaignImageUrl({
+    imageUrl: campaignData.image_url,
+    portraitUrl: campaignData.campaign_portrait_url,
+    typeImageUrl: campaignData.campaign_type_image_url,
+  });
 
   return (
     <main className="campaign-page flex min-h-screen flex-col items-center print:min-h-0">
@@ -502,37 +528,18 @@ export default function CampaignPageContent({
           {/* Campaign header with the Edit button */}
           <div id="campaign_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
             {/* Left Section: Campaign Image */}
-            <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
-              {campaignData.image_url || campaignData.campaign_type_image_url ? (
-                <Image
-                  src={campaignData.image_url || campaignData.campaign_type_image_url || ''}
-                  alt={campaignData.campaign_name}
-                  width={180}
-                  height={180}
-                  className="absolute rounded-full object-cover mt-1 z-10 w-[180px] h-auto"
-                  priority={false}
-                  quality={100}
-                  onError={handleImageError}
-                />
-              ) : (
-                <div className="absolute w-[180px] h-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                  <PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />
-                </div>
-              )}
-              <div
-                className={`absolute z-20 w-[250px] h-[250px] transition-opacity ${canEditImage ? 'cursor-pointer hover:opacity-80' : 'pointer-events-none'}`}
-                {...(canEditImage && { onClick: () => setShowImageModal(true) })}
-              >
-                <Image
-                  src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                  alt="Cogwheel"
-                  width={250}
-                  height={250}
-                  className="absolute z-20 w-[250px] h-auto"
-                  priority
-                  quality={100}
-                />
-              </div>
+            <div
+              className={`hidden sm:block mt-1 shrink-0 print:hidden transition-opacity ${canEditImage ? 'cursor-pointer hover:opacity-80' : ''}`}
+              {...(canEditImage && { onClick: () => setShowImageModal(true) })}
+            >
+              <CogwheelPortrait
+                src={shownImageUrl}
+                alt={campaignData.campaign_name}
+                fallback={<PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />}
+                errorSrc={UNKNOWN_GANG_IMAGE_URL}
+                preload
+                large
+              />
             </div>
 
             {/* Right Section: Content */}
@@ -560,12 +567,20 @@ export default function CampaignPageContent({
                      )
                    )}
                    {safePermissions.canEditCampaign && (
-                     <Button
-                       onClick={() => setShowEditModal(true)}
-                       className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
-                     >
-                       Edit
-                     </Button>
+                     <>
+                       <Button
+                         onClick={() => setShowPhasesCyclesModal(true)}
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                       >
+                         Phases & Cycles
+                       </Button>
+                       <Button
+                         onClick={() => setShowEditModal(true)}
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                       >
+                         Edit
+                       </Button>
+                     </>
                    )}
                  </div>
                </div>
@@ -655,6 +670,16 @@ export default function CampaignPageContent({
                   <div className="flex items-center gap-1">
                     Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
                   </div>
+                  {phaseLabel && (
+                    <div className="flex items-center gap-1">
+                      Phase: <Badge variant="secondary">{phaseLabel}</Badge>
+                    </div>
+                  )}
+                  {currentCycle !== null && (
+                    <div className="flex items-center gap-1">
+                      Cycle: <Badge variant="secondary">{currentCycle}</Badge>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <div className="flex flex-wrap items-center gap-1">
@@ -769,7 +794,6 @@ export default function CampaignPageContent({
               {safePermissions.canManageMembers && (
                 <MemberSearchBar
                   campaignId={campaignData.id}
-                  campaignMembers={campaignData.members}
                   onMemberAdd={(newMember) => {
                     setCampaignData(prev => ({
                       ...prev,
@@ -790,14 +814,7 @@ export default function CampaignPageContent({
                   if (restoredMembers) {
                     setCampaignData(prev => ({ ...prev, members: restoredMembers }));
                   } else if (roleChange) {
-                    setCampaignData(prev => ({
-                      ...prev,
-                      members: prev.members.map(member =>
-                        member.user_id === roleChange.userId
-                          ? { ...member, role: roleChange.newRole }
-                          : member
-                      )
-                    }));
+                    handleMemberRoleChange(roleChange.userId, roleChange.newRole);
                   } else if (removedMemberId) {
                     // Optimistically remove the member from the local state
                     setCampaignData(prev => ({
@@ -918,15 +935,7 @@ export default function CampaignPageContent({
                       }));
                     }}
                     onTerritoryUpdate={handleTerritoryUpdate}
-                    onMemberRoleChange={(userId, newRole) => {
-                      // A user can hold more than one member row in a campaign (one per gang).
-                      setCampaignData(prev => ({
-                        ...prev,
-                        members: prev.members.map(member =>
-                          member.user_id === userId ? { ...member, role: newRole } : member
-                        )
-                      }));
-                    }}
+                    onMemberRoleChange={handleMemberRoleChange}
                     members={campaignData.members}
                     territories={campaignData.territories}
                     hideAddButton={!safePermissions.canAddBattleLogs}
@@ -934,7 +943,7 @@ export default function CampaignPageContent({
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
-                    currentCycle={campaignData.current_cycle ?? null}
+                    currentCycle={currentCycle}
                     scenarioTables={scenarioTables}
                     battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
                       <CampaignBattleSessions
@@ -1083,8 +1092,23 @@ export default function CampaignPageContent({
             onClose={() => setShowImageModal(false)}
             currentImageUrl={campaignData.image_url || ''}
             campaignId={campaignData.id}
-            onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
-            defaultImageUrl={campaignData.campaign_type_image_url}
+            campaignTypeId={campaignData.campaign_type_id}
+            campaignTypeName={campaignData.campaign_type_name}
+            campaignPortraitId={campaignData.campaign_portrait_id}
+            currentPortraitUrl={campaignData.campaign_portrait_url}
+            typeImageUrl={campaignData.campaign_type_image_url}
+            onImageUpdate={(newUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: newUrl,
+              campaign_portrait_id: null,
+              campaign_portrait_url: null,
+            }))}
+            onPortraitUpdate={(portraitId, portraitUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: '',
+              campaign_portrait_id: portraitId,
+              campaign_portrait_url: portraitUrl,
+            }))}
           />
         )}
 
@@ -1121,6 +1145,30 @@ export default function CampaignPageContent({
               username: member.username || member.profile?.username || 'Unknown',
             }))}
           onClose={() => setShowMessageModal(false)}
+        />
+      )}
+
+      {showPhasesCyclesModal && safePermissions.canEditCampaign && (
+        <CampaignPhasesCyclesModal
+          campaignId={campaignData.id}
+          editionSlug={campaignData.edition_slug ?? null}
+          currentCycle={currentCycle}
+          currentPhase={campaignData.current_phase ?? null}
+          battles={campaignData.battles || []}
+          phases={campaignTypes.find((type) => type.id === campaignData.campaign_type_id)?.phases ?? []}
+          members={campaignData.members}
+          onClose={() => setShowPhasesCyclesModal(false)}
+          onSaved={(balances, campaign) => {
+            const byGangId = new Map(balances.map(({ gangId, ...balance }) => [gangId, balance]));
+            setCampaignData(prev => ({
+              ...prev,
+              ...campaign,
+              members: prev.members.map((member: Member) => ({
+                ...member,
+                gangs: member.gangs.map((gang) => ({ ...gang, ...byGangId.get(gang.id) })),
+              })),
+            }));
+          }}
         />
       )}
 

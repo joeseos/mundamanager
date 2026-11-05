@@ -112,7 +112,6 @@ export interface Battle {
   deployment_name?: string | null;
   objective_name?: string | null;
   crew_selection_name?: string | null;
-  winner_id?: string | null;
   note?: string | null;
   participants?: BattleParticipant[] | string | null;
   campaign_territory_id?: string | null;
@@ -381,6 +380,8 @@ export function compareScenarioTableEntries(
   return a.d6_min - b.d6_min || a.name.localeCompare(b.name);
 }
 
+export type CampaignRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+
 /**
  * Campaign member data
  */
@@ -388,7 +389,7 @@ export interface Member {
   id?: string;
   user_id: string;
   username: string;
-  role: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+  role: CampaignRole;
   invited_at: string;
   joined_at: string | null;
   invited_by: string;
@@ -443,11 +444,14 @@ export interface CampaignTypeResource {
   resource_name: string;
 }
 
+export const CAMPAIGN_PHASE_MAX_LENGTH = 50;
+
 export interface CampaignType {
   id: string;
   campaign_type_name: string | null;
   image_url?: string | null;
   trading_posts?: string[] | null;
+  phases?: string[] | null;
   /** edition_id is written by the admin editor; edition_slug is what app code
    *  reads, resolved server-side. */
   edition_id?: string | null;

@@ -125,7 +125,6 @@ export default function FighterRow({
   campaignId,
   editionSlug,
   candidateGangs,
-  isSkirmish,
   onXpChanged,
   onConditionsChanged,
   onActivationsChange,
@@ -149,7 +148,6 @@ export default function FighterRow({
   campaignId?: string | null;
   editionSlug?: string | null;
   candidateGangs: CampaignGangWithFighters[];
-  isSkirmish: boolean;
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
   onActivationsChange: (activations: number) => void;
@@ -299,14 +297,7 @@ export default function FighterRow({
               campaignId={campaignId}
               editionSlug={editionSlug}
               candidateGangs={candidateGangs}
-              isSkirmish={isSkirmish}
-              isSpyrer={isSpyrer}
-              fighterWeapons={(gangFighter?.weapons ?? []).map((w) => ({
-                id: w.fighter_weapon_id,
-                name: w.weapon_name,
-                equipment_category: w.equipment_category,
-                effect_names: w.effect_names,
-              }))}
+              gangFighter={gangFighter}
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}

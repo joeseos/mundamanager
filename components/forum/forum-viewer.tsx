@@ -130,7 +130,7 @@ export function ForumThreadTitleLink({ number, href, title }: { number: number; 
     <Link
       href={href}
       prefetch={false}
-      className={`${unread ? 'font-bold' : 'font-medium'} truncate group-hover:text-red-800 transition-colors after:absolute after:inset-0`}
+      className={`${unread ? 'font-bold' : 'font-medium'} min-w-0 truncate group-hover:text-red-800 transition-colors after:absolute after:inset-0`}
     >
       {title}
     </Link>
