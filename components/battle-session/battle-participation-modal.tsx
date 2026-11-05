@@ -18,7 +18,7 @@ export default function BattleParticipationModal({
   gangFightersList: GangFighter[];
   editionSlug?: string | null;
   /**
-   * The amounts that changed: by session fighter id for the crew, and by
+   * The amounts: by session fighter id for every crew fighter, and by
    * fighter id for fighters outside the crew raised above 0, who join the session.
    */
   onConfirm: (changes: { crew: Record<string, number>; added: Record<string, number> }) => void;
@@ -69,11 +69,8 @@ export default function BattleParticipationModal({
       title="Participation XP"
       onClose={onClose}
       onConfirm={async () => {
-        const crew = Object.fromEntries(
-          crewFighters
-            .filter((f) => crewXp[f.id] !== (f.session_record?.participation_xp ?? 0))
-            .map((f) => [f.id, crewXp[f.id] ?? 0])
-        );
+        // Every crew row is sent, changed or not: confirming is what makes it count.
+        const crew = Object.fromEntries(crewFighters.map((f) => [f.id, crewXp[f.id] ?? 0]));
         const added = Object.fromEntries(Object.entries(otherXp).filter(([, xp]) => xp > 0));
         onConfirm({ crew, added });
         return true;
@@ -82,7 +79,7 @@ export default function BattleParticipationModal({
     >
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-          Each fighter gains this XP when the battle is completed. Lower it to 0 for a fighter who did not take part.
+          Confirm to add this XP to each fighter when the battle is completed. Lower it to 0 for a fighter who did not take part.
         </p>
         {crewFighters.map((f) => {
           const gf = gangFightersList.find(

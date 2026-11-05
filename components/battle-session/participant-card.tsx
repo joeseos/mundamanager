@@ -37,16 +37,12 @@ import {
 import { createGangLog } from '@/app/actions/logs/gang-logs';
 import FighterRow from '@/components/battle-session/fighter-row';
 import BattleParticipationModal from '@/components/battle-session/battle-participation-modal';
-import { applyConditionsUpdate, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition } from '@/types/battle-session';
+import { applyConditionsUpdate, hasDualActivation, newSessionRecord, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition } from '@/types/battle-session';
 import { beastSubtypeName, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
 
 const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
-
-const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
-const hasDualActivation = (rules?: string[] | null) =>
-  rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
 /** Splits session injuries by fighter_types.is_spyrer; a gang can field both. */
 export function splitInjuryCounts(
@@ -336,21 +332,13 @@ export default function ParticipantCard({
     const gf = gangFighters.find((f) => f.id === fighterId && (!loadoutId || f.loadout_id === loadoutId))
       ?? gangFighters.find((f) => f.id === fighterId);
     const fullGf = gangFightersList.find((f) => f.id === fighterId);
-    const isDual = hasDualActivation(fullGf?.special_rules);
     return {
       id: `temp-${Date.now()}-${fighterId}`,
       battle_session_id: session.id,
       participant_id: participant.id,
       fighter_id: fighterId,
       loadout_id: loadoutId,
-      session_record: {
-        xp_earned: 0,
-        // As bulkAddFightersToSession: a type that can't gain XP starts at 0.
-        participation_xp: fullGf?.starting_xp === null ? 0 : 1,
-        injuries: [],
-        conditions: [],
-        activations: isDual ? 2 : 1,
-      },
+      session_record: newSessionRecord({ special_rules: fullGf?.special_rules, starting_xp: fullGf?.starting_xp }),
       created_at: new Date().toISOString(),
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, special_rules: fullGf?.special_rules } : undefined,
     };
@@ -577,6 +565,8 @@ export default function ParticipantCard({
               {canPostBattle && localFighters.length > 0 && (
                 <Button
                   variant="default"
+                  // Rows added from the modal have no session row id to save to until the refetch.
+                  disabled={localFighters.some((f) => f.id.startsWith('temp-'))}
                   onClick={() => setShowParticipationModal(true)}
                 >
                   Participation XP
@@ -745,16 +735,15 @@ export default function ParticipantCard({
                 setShowParticipationModal(false);
                 return;
               }
-              const prev = localFighters;
               setLocalFighters((cur) => [
                 ...cur.map((f) =>
                   f.id in crew
-                    ? { ...f, session_record: { ...f.session_record, participation_xp: crew[f.id] } }
+                    ? { ...f, session_record: { ...f.session_record, participation_xp: crew[f.id], participation_xp_confirmed: true } }
                     : f
                 ),
                 ...addedEntries.map(([fighterId, xp]) => {
                   const optimistic = buildOptimisticFighter(fighterId);
-                  return { ...optimistic, session_record: { ...optimistic.session_record, participation_xp: xp } };
+                  return { ...optimistic, session_record: { ...optimistic.session_record, participation_xp: xp, participation_xp_confirmed: true } };
                 }),
               ]);
               const calls: Promise<{ success: boolean }>[] = crewEntries.map(([sessionFighterId, xp]) =>
@@ -768,8 +757,8 @@ export default function ParticipantCard({
                 }));
               }
               Promise.all(calls).then((results) => {
+                // No rollback: the refetch below shows what was saved.
                 if (results.some((r) => !r.success)) {
-                  setLocalFighters(prev);
                   toast.error('Failed to update participation XP');
                 } else {
                   toast.success(`Participation XP updated for ${count} fighter${count !== 1 ? 's' : ''}`);
@@ -824,7 +813,8 @@ export default function ParticipantCard({
                         loadoutName={match?.loadout_name}
                         cost={cost}
                         xp={xp}
-                        participationXp={isPostBattle ? (f.session_record?.participation_xp ?? 0) : undefined}
+                        // null until confirmed: the stored default doesn't count yet.
+                        participationXp={isPostBattle ? (f.session_record?.participation_xp_confirmed ? (f.session_record.participation_xp ?? 0) : null) : undefined}
                         injuryCount={injuryCount}
                         // A reinforcement's optimistic row has no session row id to act on until the refetch.
                         canInteract={canInteract && !f.id.startsWith('temp-')}

@@ -10,6 +10,8 @@ import { after } from 'next/server';
 import { updateGang } from '@/app/actions/update-gang';
 import {
   applyConditionsUpdate,
+  hasDualActivation,
+  newSessionRecord,
   normalizeSessionRecord,
   sessionScenarioLabel,
   type BattleSessionFull,
@@ -38,9 +40,6 @@ const GANG_EDITION_SELECT = `
   gang_types!gang_type_id ( editions:edition_id ( id, slug ) ),
   custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( id, slug ) )
 `;
-
-/** Special rules that give a fighter two activations a round. */
-const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
 
 // =============================================================================
 // Data Fetching
@@ -656,7 +655,7 @@ export async function advanceRound(
         const activationResults = await Promise.all(
           fighters.map((f) => {
             const rules = rulesMap.get(f.fighter_id);
-            const isDual = rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
+            const isDual = hasDualActivation(rules);
             // Injured fighters are Out of Action and fighters who left the
             // battlefield are out of play, so neither gets a fresh activation.
             // An injured fighter can still be granted one manually via
@@ -1232,18 +1231,6 @@ async function loadParticipantFighters(
   return { fighters };
 }
 
-/** A fighter's record when they join the session. */
-function newSessionRecord(fighter: SessionFighterSource, participationXp: number): SessionRecord {
-  const isDual = fighter.special_rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
-  return {
-    xp_earned: 0,
-    participation_xp: participationXp,
-    injuries: [],
-    conditions: [],
-    activations: isDual ? 2 : 1,
-  };
-}
-
 export async function bulkAddFightersToSession(params: {
   session_id: string;
   participant_id: string;
@@ -1273,15 +1260,12 @@ export async function bulkAddFightersToSession(params: {
     if ('error' in loaded) return { success: false, error: loaded.error };
 
     const rows = params.fighter_entries.map((entry) => {
-      const fighter = loaded.fighters.get(entry.fighter_id)!;
-      // A type that can't gain XP (starting XP N/A) starts at 0, not 1.
-      const participationXp = fighter.starting_xp === null ? 0 : 1;
       return {
         battle_session_id: params.session_id,
         participant_id: auth.participantId!,
         fighter_id: entry.fighter_id,
         ...(entry.loadout_id ? { loadout_id: entry.loadout_id } : {}),
-        session_record: newSessionRecord(fighter, participationXp),
+        session_record: newSessionRecord(loaded.fighters.get(entry.fighter_id)!),
       };
     });
 
@@ -1339,7 +1323,10 @@ export async function addParticipationXpFighters(params: {
       battle_session_id: params.session_id,
       participant_id: auth.participantId!,
       fighter_id: entry.fighter_id,
-      session_record: newSessionRecord(loaded.fighters.get(entry.fighter_id)!, entry.participation_xp),
+      session_record: {
+        ...newSessionRecord(loaded.fighters.get(entry.fighter_id)!, entry.participation_xp),
+        participation_xp_confirmed: true,
+      },
     }));
 
     const { error } = await supabase
@@ -1422,7 +1409,7 @@ export async function updateSessionParticipationXp(params: {
   return withSessionRecord(params.session_fighter_id, (record) =>
     record.participation_xp_awarded
       ? { error: 'Participation XP was already added to this fighter' }
-      : { ...record, participation_xp: params.participation_xp }
+      : { ...record, participation_xp: params.participation_xp, participation_xp_confirmed: true }
   );
 }
 
@@ -1873,7 +1860,7 @@ export async function completeBattleSession(
         const record = normalizeSessionRecord(sf.session_record);
         const xp = record.participation_xp;
         const gangId = gangByParticipant.get(sf.participant_id);
-        if (!gangId || record.participation_xp_awarded) continue;
+        if (!gangId || !record.participation_xp_confirmed || record.participation_xp_awarded) continue;
         if (typeof xp !== 'number' || !Number.isInteger(xp) || xp <= 0) continue;
         awards.set(sf.fighter_id, { rowId: sf.id, gangId, xp, record });
       }

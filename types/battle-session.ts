@@ -147,12 +147,40 @@ export interface SessionRecord {
    * amount can't change after it was paid.
    */
   participation_xp_awarded?: boolean;
+  /**
+   * Set when a player confirms the Participation XP modal. Completion only
+   * pays confirmed participation XP, so nothing is added without a confirm.
+   */
+  participation_xp_confirmed?: boolean;
   injuries: SessionInjuryRecord[];
   conditions: SessionCondition[];
   note?: string;
   activations: number;
   /** N26: removed from play without going Out of Action, so no fresh activations. */
   left_battlefield?: boolean;
+}
+
+/** Special rules that give a fighter two activations a round. */
+const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
+
+export const hasDualActivation = (rules?: string[] | null) =>
+  rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
+
+/**
+ * A fighter's record when they join the session. A type that can't gain XP
+ * (starting XP N/A) joins with 0 participation XP instead of 1.
+ */
+export function newSessionRecord(
+  fighter: { special_rules?: string[] | null; starting_xp?: number | null },
+  participationXp = fighter.starting_xp === null ? 0 : 1
+): SessionRecord {
+  return {
+    xp_earned: 0,
+    participation_xp: participationXp,
+    injuries: [],
+    conditions: [],
+    activations: hasDualActivation(fighter.special_rules) ? 2 : 1,
+  };
 }
 
 /**
