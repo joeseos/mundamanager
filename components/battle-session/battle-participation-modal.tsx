@@ -78,9 +78,6 @@ export default function BattleParticipationModal({
       confirmText="Confirm"
     >
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          Confirm to add this XP to each fighter when the battle is completed. Lower it to 0 for a fighter who did not take part.
-        </p>
         {crewFighters.map((f) => {
           const gf = gangFightersList.find(
             (g) => g.id === f.fighter_id && g.active_loadout_id === (f.loadout_id ?? undefined)
