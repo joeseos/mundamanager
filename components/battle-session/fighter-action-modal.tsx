@@ -81,7 +81,7 @@ const ammoTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_pr
 
 // Ammo is a roll target ("4+") or "*" for special ammo. Profiles without one
 // store "", "-", a literal '""', or "0" (Stun lance).
-const hasAmmoRoll = (profile: WeaponProfile) => /[1-6]|\*/.test(String(profile.ammo ?? ''));
+const hasAmmoRoll = (profile: WeaponProfile) => /^([1-6]\+?|\*)$/.test(String(profile.ammo ?? '').trim());
 
 /**
  * Weapons that can run out, each with the weapon or its profiles as the things to
@@ -93,25 +93,27 @@ function ammoWeapons(weapons: WeaponProps[], perProfile: boolean): AmmoWeapon[] 
   for (const w of weapons) {
     for (const p of (w.weapon_profiles ?? []) as WeaponProfile[]) {
       if (!hasAmmoRoll(p)) continue;
-      const parent =
+      // Every copy of the parent weapon gets the ammo, e.g. both of a gunslinger's autopistols.
+      const parents =
         p.weapon_group_id && p.weapon_group_id !== w.weapon_id
-          ? weapons.find((x) => x.weapon_id === p.weapon_group_id) ?? w
-          : w;
-      if (!profilesByWeapon.has(parent)) profilesByWeapon.set(parent, new Map());
-      profilesByWeapon.get(parent)!.set(p.id, p);
+          ? weapons.filter((x) => x.weapon_id === p.weapon_group_id)
+          : [];
+      for (const parent of parents.length > 0 ? parents : [w]) {
+        if (!profilesByWeapon.has(parent)) profilesByWeapon.set(parent, new Map());
+        profilesByWeapon.get(parent)!.set(p.id, p);
+      }
     }
   }
 
   return weapons.flatMap((w) => {
-    const profiles = [...(profilesByWeapon.get(w)?.values() ?? [])].sort(
-      (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
-    );
+    // Already in the fighter card's profile order.
+    const profiles = [...(profilesByWeapon.get(w)?.values() ?? [])];
     if (profiles.length === 0) return [];
     const targets: AmmoTarget[] =
       perProfile && profiles.length > 1
         ? profiles.map((p) => {
             // Special-ammo profiles are named "- phosphor rounds" under their weapon.
-            const profileName = p.profile_name.replace(/^-\s*/, '');
+            const profileName = (p.profile_name ?? '').replace(/^-\s*/, '') || w.weapon_name;
             return {
               fighter_weapon_id: w.fighter_weapon_id,
               weapon_profile_id: p.id,
