@@ -31,7 +31,6 @@ interface EquipmentCategory {
 
 interface AdminEditEquipmentModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
@@ -97,7 +96,7 @@ interface Equipment {
   equipment_availabilities?: EquipmentAvailability[];
 }
 
-export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmentModalProps) {
+export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProps) {
   const queryClient = useQueryClient();
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('');
   const [equipmentName, setEquipmentName] = useState('');
@@ -760,11 +759,6 @@ export function AdminEditEquipmentModal({ onClose, onSubmit }: AdminEditEquipmen
         queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-subtypes'] }),
       ]);
-
-      if (onSubmit) {
-        onSubmit();
-      }
-      onClose();
     } catch (error) {
       console.error('Error updating equipment:', error);
       toast.error('Failed to update equipment');

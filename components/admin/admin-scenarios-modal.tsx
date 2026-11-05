@@ -24,10 +24,9 @@ interface Scenario {
 
 interface AdminScenariosModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
-export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalProps) {
+export function AdminScenariosModal({ onClose }: AdminScenariosModalProps) {
   const queryClient = useQueryClient();
 
   const [selectedScenarioId, setSelectedScenarioId] = useState('');
@@ -150,19 +149,23 @@ export function AdminScenariosModal({ onClose, onSubmit }: AdminScenariosModalPr
         throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} scenario`);
       }
 
+      const resultData = operation === OperationType.DELETE
+        ? null
+        : await response.json() as Scenario;
+
       toast.success(`Scenario ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
       // Refresh the scenarios list
       await queryClient.invalidateQueries({ queryKey: ['admin-scenarios'] });
-      
-      // Reset form
-      setSelectedScenarioId('');
-      setScenarioName('');
-      setScenarioNumber('');
-      setIsCreateMode(false);
 
-      if (onSubmit) {
-        onSubmit();
+      if (operation === OperationType.POST && resultData?.id) {
+        setSelectedScenarioId(resultData.id);
+        setIsCreateMode(false);
+      } else if (operation === OperationType.DELETE) {
+        setSelectedScenarioId('');
+        setScenarioName('');
+        setScenarioNumber('');
+        setIsCreateMode(false);
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);

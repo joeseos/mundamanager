@@ -14,7 +14,6 @@ import { EditionSelect } from '@/components/edition-select';
 
 interface AdminEditVehicleTypeModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
 const numericInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -415,7 +414,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
   );
 };
 
-export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicleTypeModalProps) {
+export function AdminEditVehicleTypeModal({ onClose }: AdminEditVehicleTypeModalProps) {
   const queryClient = useQueryClient();
   
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
@@ -632,12 +631,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
       ]);
 
-      resetVehicleForm();
-      if (onSubmit) {
-        onSubmit();
-      }
-      onClose();
-      return true;
+      return false;
     } catch (error) {
       console.error('Error updating vehicle type:', error);
       toast.error("Error", { description: "Failed to update vehicle type" });

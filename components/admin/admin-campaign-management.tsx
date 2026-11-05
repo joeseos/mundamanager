@@ -49,7 +49,6 @@ interface TradingPostType {
 
 interface AdminCampaignManagementModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
 const CARD_RANKS = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
@@ -149,10 +148,7 @@ const EMPTY_PORTRAIT_STATE: PortraitFormState = {
   isCreateMode: false,
 };
 
-export function AdminCampaignManagementModal({ 
-  onClose, 
-  onSubmit 
-}: AdminCampaignManagementModalProps) {
+export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagementModalProps) {
   
   
   const queryClient = useQueryClient();
@@ -492,20 +488,10 @@ export function AdminCampaignManagementModal({
       toast.success(`Campaign type ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
       await invalidateAllData();
-      
-      // Reset form
-      setSelectedCampaignTypeId('');
-      setCampaignTypeName('');
-      setImageUrl('');
-      setRelatedTerritories([]);
-      setRelatedTriumphs([]);
-      setRelatedTradingPostIds([]);
-      setCampaignTypeResources([]);
-      setCampaignTypePhases([]);
-      setIsCreateModeCampaignType(false);
 
-      if (onSubmit) {
-        onSubmit();
+      if (operation === OperationType.POST && campaignTypeId) {
+        setSelectedCampaignTypeId(campaignTypeId);
+        setIsCreateModeCampaignType(false);
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
@@ -588,20 +574,14 @@ export function AdminCampaignManagementModal({
         throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : 'update'} territory`);
       }
 
+      const savedTerritory = await response.json() as Territory;
       toast.success(`Territory ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
       await invalidateAllData();
-      
-      // Reset form
-      setSelectedTerritoryId('');
-      setTerritoryName('');
-      setTerritoryCampaignTypeId('');
-      setTerritoryCardValue('');
-      setTerritoryCredits('');
-      setIsCreateModeTerritory(false);
 
-      if (onSubmit) {
-        onSubmit();
+      if (operation === OperationType.POST && savedTerritory?.id) {
+        setSelectedTerritoryId(savedTerritory.id);
+        setIsCreateModeTerritory(false);
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);
@@ -678,19 +658,14 @@ export function AdminCampaignManagementModal({
         throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : 'update'} triumph`);
       }
 
+      const savedTriumph = await response.json() as CampaignTriumph;
       toast.success(`Triumph ${operation === OperationType.POST ? 'created' : 'updated'} successfully`);
 
       await invalidateAllData();
-      
-      // Reset form
-      setSelectedTriumphId('');
-      setTriumphName('');
-      setTriumphCriteria('');
-      setTriumphCampaignTypeId('');
-      setIsCreateModeTriumph(false);
 
-      if (onSubmit) {
-        onSubmit();
+      if (operation === OperationType.POST && savedTriumph?.id) {
+        setSelectedTriumphId(savedTriumph.id);
+        setIsCreateModeTriumph(false);
       }
     } catch (error) {
       console.error(`Error executing ${operation} operation:`, error);

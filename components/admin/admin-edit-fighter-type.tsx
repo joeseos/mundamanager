@@ -35,7 +35,6 @@ interface EquipmentWithId extends Equipment {
 
 interface AdminEditFighterTypeModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
 interface FighterSubtype {
@@ -110,7 +109,7 @@ interface GangAffiliation {
 const availabilityKey = (rule: FighterTypeGrant) =>
   `${rule.fighter_type_id ?? ''}|${rule.fighter_subtype ?? ''}|${gangScopeKey(rule)}`;
 
-export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
+export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModalProps) {
   const queryClient = useQueryClient();
   // Update state to track fighter type+subtype combinations
   const [selectedFighterTypeCombo, setSelectedFighterTypeCombo] = useState<string>('');
@@ -1141,16 +1140,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-lineages'] }),
       ]);
-
-      if (onSubmit) {
-        onSubmit();
-      }
-      onClose();
-      return true;
     } catch (error) {
       console.error('Error updating fighter type:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update fighter type');
-      return false;
     } finally {
       setIsLoading(false);
     }
