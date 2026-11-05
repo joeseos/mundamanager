@@ -1889,6 +1889,17 @@ export async function completeBattleSession(
         await Promise.all((awardedFighters ?? []).map(async (fighter) => {
           const award = awards.get(fighter.id)!;
           if (fighter.gang_id !== award.gangId) return;
+          // Flag first: if paying then fails, the player is told to add it by
+          // hand, rather than a missing flag paying it again on a re-completion.
+          const { error: markError } = await serviceSupabase
+            .from('battle_session_fighters')
+            .update({ session_record: { ...award.record, participation_xp_awarded: true } })
+            .eq('id', award.rowId);
+          if (markError) {
+            console.error(`Failed to mark participation XP as awarded on ${award.rowId}:`, markError);
+            failedNames.push(fighter.fighter_name);
+            return;
+          }
           const newXp = (fighter.xp ?? 0) + award.xp;
           const { error: xpError } = await serviceSupabase
             .from('fighters')
@@ -1899,11 +1910,6 @@ export async function completeBattleSession(
             failedNames.push(fighter.fighter_name);
             return;
           }
-          const { error: markError } = await serviceSupabase
-            .from('battle_session_fighters')
-            .update({ session_record: { ...award.record, participation_xp_awarded: true } })
-            .eq('id', award.rowId);
-          if (markError) console.error(`Failed to mark participation XP as awarded on ${award.rowId}:`, markError);
           participationLogs.push({
             gang_id: fighter.gang_id,
             user_id: user.id,
