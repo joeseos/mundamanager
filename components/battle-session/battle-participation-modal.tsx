@@ -89,12 +89,7 @@ export default function BattleParticipationModal({
         })}
         {otherFighters.length > 0 && (
           <div className="space-y-3 border-t pt-3">
-            <div>
-              <h4 className="text-sm font-medium text-neutral-500">Not in the crew</h4>
-              <p className="text-xs text-muted-foreground">
-                Raise a fighter who joined the battle, e.g. as reinforcements, to add them.
-              </p>
-            </div>
+            <h4 className="text-sm font-medium text-neutral-500">Not in the crew</h4>
             {otherFighters.map((gf) =>
               renderRow(gf.id, gf, undefined, otherXp[gf.id] ?? 0, (delta) => adjust(setOtherXp, gf.id, delta))
             )}
