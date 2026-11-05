@@ -131,14 +131,12 @@ function ammoWeapons(weapons: WeaponProps[], perProfile: boolean): AmmoWeapon[] 
 }
 
 function OutOfAmmoModal({
-  fighterName,
   weapons,
   perProfile,
   selected,
   onConfirm,
   onClose,
 }: {
-  fighterName?: string;
   weapons: AmmoWeapon[];
   perProfile: boolean;
   selected: SessionCondition[];
@@ -169,7 +167,6 @@ function OutOfAmmoModal({
   return (
     <Modal
       title="Select Weapon"
-      helper={fighterName}
       onClose={onClose}
       confirmDisabled={unchanged}
       onConfirm={() => {
@@ -474,7 +471,6 @@ export default function FighterActionModal({
 
       {showAmmoModal && (
         <OutOfAmmoModal
-          fighterName={gangFighter?.fighter_name}
           weapons={outOfAmmoWeapons}
           perProfile={ammoPerProfile}
           selected={outOfAmmoEntries}
