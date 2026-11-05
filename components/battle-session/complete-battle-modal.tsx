@@ -210,7 +210,7 @@ export default function CompleteBattleModal({
 
               const fighters = p.fighters ?? [];
               // Only confirmed participation XP is added at completion.
-              const participationConfirmed = fighters.some((f) => f.session_record?.participation_xp_confirmed);
+              const participationConfirmed = fighters.every((f) => f.session_record?.participation_xp_confirmed);
               const totalXp = fighters.reduce(
                 (sum, f) => sum + (f.session_record?.xp_earned ?? 0)
                   + (f.session_record?.participation_xp_confirmed ? (f.session_record.participation_xp ?? 0) : 0),
@@ -242,7 +242,7 @@ export default function CompleteBattleModal({
                     <span>Rating: {rating}</span>
                     <span>{(p.fighters ?? []).length} fighters</span>
                     {totalXp > 0 && <span>+{totalXp} XP</span>}
-                    {fighters.length > 0 && !participationConfirmed && (
+                    {!participationConfirmed && (
                       <span className="text-amber-600 dark:text-amber-400">Participation XP not confirmed</span>
                     )}
                     {totalInjuries > 0 && (
