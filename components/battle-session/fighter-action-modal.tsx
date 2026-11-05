@@ -64,19 +64,20 @@ function MarkerToggleButton({
 }
 
 // ---------------------------------------------------------------------------
-// Out of Ammo — which weapons (N23) or weapon profiles (N26) are out
+// Weapon conditions — Out of Ammo on a weapon (N23) or weapon profile (N26),
+// Jammed on a whole weapon (N26)
 // ---------------------------------------------------------------------------
 
-type AmmoTarget = Required<Pick<SessionCondition, 'fighter_weapon_id' | 'target_name'>> &
+type WeaponTarget = Required<Pick<SessionCondition, 'fighter_weapon_id' | 'target_name'>> &
   Pick<SessionCondition, 'weapon_profile_id'> & { profile_name?: string };
 
-interface AmmoWeapon {
+interface TargetWeapon {
   fighter_weapon_id: string;
   weapon_name: string;
-  targets: AmmoTarget[];
+  targets: WeaponTarget[];
 }
 
-const ammoTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_profile_id'>) =>
+const weaponTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_profile_id'>) =>
   `${t.fighter_weapon_id}:${t.weapon_profile_id ?? ''}`;
 
 // N23 keeps the roll in the Ammo column ("4+", or "*" for special ammo); profiles
@@ -85,16 +86,28 @@ const ammoTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_pr
 const hasAmmoRoll = (profile: WeaponProfile) =>
   /^([1-6]\+?|\*)$/.test(String(profile.ammo ?? '').trim()) || /\bAmmo\s*\(/i.test(profile.traits ?? '');
 
+// Ranged profiles can jam. Melee profiles have range "E"; name-only header
+// profiles have no range at all.
+const isRangedProfile = (profile: WeaponProfile) => {
+  const short = String(profile.range_short ?? '').trim();
+  return short !== 'E' && /\d|T/.test(`${short}${profile.range_long ?? ''}`);
+};
+
 /**
- * Weapons that can run out, each with the weapon or its profiles as the things to
- * mark. Ammo bought for a weapon (weapon_group_id, e.g. Phosphor rounds for an
- * Autogun) goes under that weapon, as on the fighter card, so it isn't its own row.
+ * Weapons whose profiles pass `offered`, each with the weapon or its profiles as
+ * the things to mark. Ammo bought for a weapon (weapon_group_id, e.g. Phosphor
+ * rounds for an Autogun) goes under that weapon, as on the fighter card, so it
+ * isn't its own row.
  */
-function ammoWeapons(weapons: WeaponProps[], perProfile: boolean): AmmoWeapon[] {
+function targetWeapons(
+  weapons: WeaponProps[],
+  perProfile: boolean,
+  offered: (profile: WeaponProfile) => boolean
+): TargetWeapon[] {
   const profilesByWeapon = new Map<WeaponProps, Map<string, WeaponProfile>>();
   for (const w of weapons) {
     for (const p of (w.weapon_profiles ?? []) as WeaponProfile[]) {
-      if (!hasAmmoRoll(p)) continue;
+      if (!offered(p)) continue;
       // Every copy of the parent weapon gets the ammo, e.g. both of a gunslinger's autopistols.
       const parents =
         p.weapon_group_id && p.weapon_group_id !== w.weapon_id
@@ -111,7 +124,7 @@ function ammoWeapons(weapons: WeaponProps[], perProfile: boolean): AmmoWeapon[] 
     // Already in the fighter card's profile order.
     const profiles = [...(profilesByWeapon.get(w)?.values() ?? [])];
     if (profiles.length === 0) return [];
-    const targets: AmmoTarget[] =
+    const targets: WeaponTarget[] =
       perProfile && profiles.length > 1
         ? profiles.map((p) => {
             // Special-ammo profiles are named "- phosphor rounds" under their weapon.
@@ -132,22 +145,24 @@ function ammoWeapons(weapons: WeaponProps[], perProfile: boolean): AmmoWeapon[] 
   });
 }
 
-function OutOfAmmoModal({
+function WeaponConditionModal({
+  conditionName,
   weapons,
   perProfile,
   selected,
   onConfirm,
   onClose,
 }: {
-  weapons: AmmoWeapon[];
+  conditionName: string;
+  weapons: TargetWeapon[];
   perProfile: boolean;
   selected: SessionCondition[];
-  onConfirm: (targets: AmmoTarget[]) => void;
+  onConfirm: (targets: WeaponTarget[]) => void;
   onClose: () => void;
 }) {
-  const [initial] = useState(() => new Set(selected.map(ammoTargetId)));
+  const [initial] = useState(() => new Set(selected.map(weaponTargetId)));
   const [checked, setChecked] = useState(initial);
-  // Confirm replaces every Out of Ammo entry, so a no-op confirm must not drop one it can't show.
+  // Confirm replaces every entry of the condition, so a no-op confirm must not drop one it can't show.
   const unchanged = checked.size === initial.size && [...checked].every((id) => initial.has(id));
   const toggle = (id: string) =>
     setChecked((prev) => {
@@ -156,8 +171,8 @@ function OutOfAmmoModal({
       return next;
     });
 
-  const row = (target: AmmoTarget, label: string) => {
-    const id = ammoTargetId(target);
+  const row = (target: WeaponTarget, label: string) => {
+    const id = weaponTargetId(target);
     return (
       <label key={id} className="flex items-center gap-2 cursor-pointer">
         <Checkbox checked={checked.has(id)} onCheckedChange={() => toggle(id)} />
@@ -172,11 +187,11 @@ function OutOfAmmoModal({
       onClose={onClose}
       confirmDisabled={unchanged}
       onConfirm={() => {
-        onConfirm(weapons.flatMap((w) => w.targets).filter((t) => checked.has(ammoTargetId(t))));
+        onConfirm(weapons.flatMap((w) => w.targets).filter((t) => checked.has(weaponTargetId(t))));
       }}
     >
       <p className="text-sm text-muted-foreground mb-4">
-        Select the {perProfile ? 'weapon profiles' : 'weapons'} that are <span className="font-bold">Out of Ammo</span>:
+        Select the {perProfile ? 'weapon profiles' : 'weapons'} that are <span className="font-bold">{conditionName}</span>:
       </p>
       <div className="space-y-2">
         {weapons.map((w) =>
@@ -227,7 +242,7 @@ export default function FighterActionModal({
 }) {
   const [showXpModal, setShowXpModal] = useState(false);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
-  const [showAmmoModal, setShowAmmoModal] = useState(false);
+  const [weaponConditionKey, setWeaponConditionKey] = useState<string | null>(null);
   const isSpyrer = gangFighter?.is_spyrer ?? false;
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
     fighter.session_record?.conditions ?? []
@@ -253,22 +268,29 @@ export default function FighterActionModal({
 
   const currentConditions = fighter.session_record?.conditions ?? [];
 
-  // Out of Ammo is on a weapon (N23) or a weapon profile (N26), one entry each.
-  // A fighter with no weapon that rolls for ammo keeps the plain toggle.
+  // Out of Ammo is on a weapon (N23) or a weapon profile (N26), Jammed on a whole
+  // weapon; one entry each. A fighter with no weapon to offer keeps the plain toggle.
   const ammoPerProfile = isOutOfAmmoPerProfile(editionSlug);
-  const outOfAmmoWeapons = ammoWeapons(gangFighter?.weapons ?? [], ammoPerProfile);
-  const outOfAmmoEntries = draftConditions.filter((c) => c.key === 'out_of_ammo');
-  const setOutOfAmmoTargets = (targets: AmmoTarget[]) =>
+  const fighterWeapons = gangFighter?.weapons ?? [];
+  const weaponConditions: Record<string, { perProfile: boolean; weapons: TargetWeapon[] }> = {
+    out_of_ammo: { perProfile: ammoPerProfile, weapons: targetWeapons(fighterWeapons, ammoPerProfile, hasAmmoRoll) },
+    jammed: { perProfile: false, weapons: targetWeapons(fighterWeapons, false, isRangedProfile) },
+  };
+  const entriesFor = (key: string) => draftConditions.filter((c) => c.key === key);
+  const setWeaponTargets = (condition: SessionMarkerDef, targets: WeaponTarget[]) =>
     setDraftConditions([
-      ...draftConditions.filter((c) => c.key !== 'out_of_ammo'),
+      ...draftConditions.filter((c) => c.key !== condition.key),
       ...targets.map(({ fighter_weapon_id, weapon_profile_id, target_name }) => ({
-        key: 'out_of_ammo',
-        name: 'Out of Ammo',
+        key: condition.key,
+        name: markerName(condition, editionSlug),
         fighter_weapon_id,
         ...(weapon_profile_id && { weapon_profile_id }),
         target_name,
       })),
     ]);
+  const openWeaponCondition = weaponConditionKey
+    ? mainConditionMarkers.find((c) => c.key === weaponConditionKey)
+    : undefined;
 
   const EXCLUSIVE_PAIRS: Record<string, string> = {
     hidden: 'revealed',
@@ -397,14 +419,14 @@ export default function FighterActionModal({
             )}
             <div className="flex flex-wrap gap-2">
               {mainConditionMarkers.map((condition) =>
-                condition.key === 'out_of_ammo' && outOfAmmoWeapons.length > 0 ? (
+                weaponConditions[condition.key]?.weapons.length ? (
                   <MarkerToggleButton
                     key={condition.key}
                     condition={condition}
                     editionSlug={editionSlug}
-                    isActive={outOfAmmoEntries.length > 0}
-                    count={outOfAmmoEntries.filter((c) => c.fighter_weapon_id).length}
-                    onToggle={() => setShowAmmoModal(true)}
+                    isActive={entriesFor(condition.key).length > 0}
+                    count={entriesFor(condition.key).filter((c) => c.fighter_weapon_id).length}
+                    onToggle={() => setWeaponConditionKey(condition.key)}
                   />
                 ) : (
                   <MarkerToggleButton
@@ -471,13 +493,14 @@ export default function FighterActionModal({
         />
       )}
 
-      {showAmmoModal && (
-        <OutOfAmmoModal
-          weapons={outOfAmmoWeapons}
-          perProfile={ammoPerProfile}
-          selected={outOfAmmoEntries}
-          onClose={() => setShowAmmoModal(false)}
-          onConfirm={setOutOfAmmoTargets}
+      {openWeaponCondition && (
+        <WeaponConditionModal
+          conditionName={markerName(openWeaponCondition, editionSlug)}
+          weapons={weaponConditions[openWeaponCondition.key].weapons}
+          perProfile={weaponConditions[openWeaponCondition.key].perProfile}
+          selected={entriesFor(openWeaponCondition.key)}
+          onClose={() => setWeaponConditionKey(null)}
+          onConfirm={(targets) => setWeaponTargets(openWeaponCondition, targets)}
         />
       )}
 
