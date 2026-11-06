@@ -222,10 +222,10 @@ function canPickWyrdPowerAsSkill(
  *
  * `highlightAccess`:
  * - `'primary'` / `'secondary'`: greys/italicises sets that are not that access level.
- * - `null`: greys sets the fighter has no access to.
+ * - `null`: greys sets the fighter has no access to, and Allowed (`( — )`) sets.
  * - `'any'`: the N26 roll of 12. Every Skill Set is pickable, including sets
  *   exclusive to other gangs and Inherent skills, so nothing is greyed except
- *   Wyrd Powers the fighter cannot take as skills. `(Allowed)` is dropped since
+ *   Wyrd Powers the fighter cannot take as skills. `( — )` is dropped since
  *   Allowed access adds nothing when every set is open.
  */
 function buildSkillSetComboboxOptions(
@@ -246,14 +246,14 @@ function buildSkillSetComboboxOptions(
       let accessLabel = '';
       if (effectiveLevel === 'primary') accessLabel = '(Primary)';
       else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
-      else if (effectiveLevel === 'allowed' && !anySkill) accessLabel = '(Allowed)';
+      else if (effectiveLevel === 'allowed' && !anySkill) accessLabel = '( — )';
       const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
       const useNormalLabelStyle = anySkill
         ? !isWyrdPowerSkillSet(category.name, editionSlug) ||
           canPickWyrdPowerAsSkill(wyrdPowersCountAsSkills, effectiveLevel)
         : highlightAccess
           ? effectiveLevel === highlightAccess
-          : !!effectiveLevel;
+          : effectiveLevel === 'primary' || effectiveLevel === 'secondary';
       return {
         label: useNormalLabelStyle ? (
           <span className="pl-4">{labelText}</span>
