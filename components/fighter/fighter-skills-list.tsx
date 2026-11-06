@@ -252,10 +252,11 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
         let accessLabel = '';
         if (effectiveLevel === 'primary') accessLabel = '(Primary)';
         else if (effectiveLevel === 'secondary') accessLabel = '(Secondary)';
-        else if (effectiveLevel === 'allowed') accessLabel = '(Allowed)';
+        else if (effectiveLevel === 'allowed') accessLabel = '( — )';
         const labelText = accessLabel ? `${category.name} ${accessLabel}` : category.name;
+        const useNormalLabelStyle = effectiveLevel === 'primary' || effectiveLevel === 'secondary';
         return {
-          label: effectiveLevel ? (
+          label: useNormalLabelStyle ? (
             <span className="pl-3">{labelText}</span>
           ) : (
             <span className="pl-3 italic text-neutral-400">{labelText}</span>
