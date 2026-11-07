@@ -222,12 +222,14 @@ export default function CampaignEditModal({
       discord_guild_id: null,
       discord_channel_id: null,
       discord_channel_type: 0,
+      discord_dice_rolls: false,
       discord_dice_roll_channel_id: null,
       discord_dice_roll_channel_type: 0,
     });
     if (result) {
       setDiscordChannels([]);
       setSelectedChannelId('');
+      setPostDiceRolls(false);
       setDiceRollChannelId('');
     }
   };
