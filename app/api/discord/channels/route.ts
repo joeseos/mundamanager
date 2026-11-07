@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
 import { getUserIdFromClaims } from "@/utils/auth"
+import { DISCORD_CHANNEL_TYPES } from '@/utils/discord'
 
 export async function GET(request: NextRequest) {
   const guildId = request.nextUrl.searchParams.get('guild_id')
@@ -67,12 +68,9 @@ export async function GET(request: NextRequest) {
 
     const channels = await discordResponse.json()
 
-    const DISCORD_TEXT_CHANNEL = 0
-    const DISCORD_FORUM_CHANNEL = 15
-
     // Filter to text and forum channels and return id, name, type
     const textChannels = channels
-      .filter((ch: { type: number }) => ch.type === DISCORD_TEXT_CHANNEL || ch.type === DISCORD_FORUM_CHANNEL)
+      .filter((ch: { type: number }) => ch.type === DISCORD_CHANNEL_TYPES.TEXT || ch.type === DISCORD_CHANNEL_TYPES.FORUM)
       .map((ch: { id: string; name: string; type: number }) => ({ id: ch.id, name: ch.name, type: ch.type }))
       .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name))
 
