@@ -36,6 +36,8 @@ async function _getCampaignBasic(campaignId: string) {
       campaign_portrait_id: true,
       discord_guild_id: true,
       discord_channel_id: true,
+      discord_dice_rolls: true,
+      discord_dice_roll_channel_id: true,
       allow_join_requests: true,
       current_cycle: true,
       current_phase: true,

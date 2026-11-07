@@ -37,5 +37,6 @@ export async function logPostCycleAction(
     action_type: actionType,
     description,
     user_id: params.user_id,
+    dice_roll: !!params.roll,
   });
 }

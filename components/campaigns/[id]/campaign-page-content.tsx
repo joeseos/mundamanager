@@ -142,6 +142,8 @@ interface CampaignPageContentProps {
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
+    discord_dice_rolls?: boolean;
+    discord_dice_roll_channel_id?: string | null;
     allow_join_requests?: boolean;
     battles: Battle[];
     battleSessions?: BattleSession[];
@@ -1038,6 +1040,8 @@ export default function CampaignPageContent({
               discord_guild_id: campaignData.discord_guild_id,
               discord_channel_id: campaignData.discord_channel_id,
               discord_channel_type: campaignData.discord_channel_type,
+              discord_dice_rolls: campaignData.discord_dice_rolls,
+              discord_dice_roll_channel_id: campaignData.discord_dice_roll_channel_id,
             }}
             tradingPostTypes={tradingPostTypes || []}
             customTradingPostTypes={customTradingPostTypes}

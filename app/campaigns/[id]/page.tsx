@@ -170,6 +170,8 @@ export default async function CampaignPage(props: {
       custom_trading_posts: campaignBasic.custom_trading_posts || [],
       discord_guild_id: campaignBasic.discord_guild_id || null,
       discord_channel_id: campaignBasic.discord_channel_id || null,
+      discord_dice_rolls: campaignBasic.discord_dice_rolls,
+      discord_dice_roll_channel_id: campaignBasic.discord_dice_roll_channel_id,
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
       note: campaignBasic.note,
       current_cycle: campaignBasic.current_cycle ?? null,
