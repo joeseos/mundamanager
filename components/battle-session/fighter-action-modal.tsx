@@ -194,7 +194,7 @@ export default function FighterActionModal({
                       variant="outline_remove"
                       size="sm"
                       className="text-xs px-1.5 h-6"
-                      title="Remove"
+                      title="Delete"
                       onClick={() => setInjuryToRemove(injury)}
                     >
                       <LuTrash2 className="h-4 w-4" />
@@ -385,21 +385,16 @@ export default function FighterActionModal({
 
       {injuryToRemove && (
         <Modal
-          title={isSpyrer ? 'Remove Rig Glitch' : 'Remove Lasting Injury'}
-          helper={gangFighter?.fighter_name}
+          title={isSpyrer ? 'Delete Rig Glitch' : 'Delete Lasting Injury'}
           content={
-            <div className="space-y-2">
-              <p>
-                Remove <strong>{injuryToRemove.effect_name}</strong>? It is deleted from the fighter and from this battle.
+            <div>
+              <p>Are you sure you want to delete <strong>{injuryToRemove.effect_name}</strong>?</p>
+              <br />
+              <p className="text-sm text-red-600">
+                This action cannot be undone.
               </p>
-              {(injuryToRemove.send_to_recovery || injuryToRemove.set_captured) && (
-                <p className="text-sm text-muted-foreground">
-                  The fighter stays {[injuryToRemove.send_to_recovery && 'in Recovery', injuryToRemove.set_captured && 'Captured'].filter(Boolean).join(' and ')}. Change that on the fighter page.
-                </p>
-              )}
             </div>
           }
-          confirmText="Remove"
           onClose={() => setInjuryToRemove(null)}
           onConfirm={async () => {
             const result = await removeSessionInjury({
@@ -407,12 +402,12 @@ export default function FighterActionModal({
               injury_id: injuryToRemove.fighter_effect_id,
             });
             if (!result.success) {
-              toast.error(result.error || 'Failed to remove the injury');
+              toast.error(result.error || (isSpyrer ? 'Failed to delete rig glitch' : 'Failed to delete lasting injury'));
               return false;
             }
             onInjuryRemoved(injuryToRemove.fighter_effect_id);
             onBroadcast?.();
-            toast.success(`${injuryToRemove.effect_name} removed`);
+            toast.success(`${injuryToRemove.effect_name} removed successfully`);
             return true;
           }}
         />
