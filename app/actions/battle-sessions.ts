@@ -21,6 +21,7 @@ import {
 } from '@/types/battle-session';
 import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
+import { deleteFighterInjury } from '@/app/actions/fighter-injury';
 import { canLeaveBattlefield, editionsConflict, editionSlugFromJoin, gangEditionJoin, gangEditionSlug } from '@/types/edition';
 import {
   customPartNames,
@@ -1347,10 +1348,16 @@ export async function addParticipationXpFighters(params: {
 // Session Record — XP & Injury Tracking
 // =============================================================================
 
+type SessionRecordUpdate = SessionRecord | { error: string };
+
 /** editionSlug is only looked up when `needsEditionSlug` is set, and is null otherwise. */
 async function withSessionRecord(
   sessionFighterId: string,
-  updateFn: (record: SessionRecord, editionSlug: string | null) => SessionRecord | { error: string },
+  updateFn: (
+    record: SessionRecord,
+    editionSlug: string | null,
+    fighterId: string
+  ) => SessionRecordUpdate | Promise<SessionRecordUpdate>,
   { needsEditionSlug = false }: { needsEditionSlug?: boolean } = {}
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
@@ -1358,7 +1365,7 @@ async function withSessionRecord(
 
   const { data: fighter, error: fetchError } = await supabase
     .from('battle_session_fighters')
-    .select('session_record, battle_session_id, participant_id')
+    .select('session_record, battle_session_id, participant_id, fighter_id')
     .eq('id', sessionFighterId)
     .single();
 
@@ -1376,7 +1383,7 @@ async function withSessionRecord(
       .single();
     editionSlug = editionSlugFromJoin(session?.editions);
   }
-  const result = updateFn(normalizeSessionRecord(fighter.session_record), editionSlug);
+  const result = await updateFn(normalizeSessionRecord(fighter.session_record), editionSlug, fighter.fighter_id);
   if ('error' in result) return { success: false, error: result.error };
 
   const { error } = await supabase
@@ -1456,16 +1463,32 @@ export async function addSessionInjury(params: {
   }));
 }
 
+/**
+ * Removes a lasting injury added in this battle from the fighter and from the
+ * session record. One already deleted on the fighter page only leaves the record.
+ */
 export async function removeSessionInjury(params: {
   session_fighter_id: string;
   injury_id: string;
 }): Promise<{ success: boolean; error?: string }> {
-  return withSessionRecord(params.session_fighter_id, (record) => {
-    const idx = record.injuries.findIndex((i) => i.fighter_effect_id === params.injury_id);
-    if (idx === -1) return { error: 'Injury not found' };
+  return withSessionRecord(params.session_fighter_id, async (record, _editionSlug, fighterId) => {
+    if (!record.injuries.some((i) => i.fighter_effect_id === params.injury_id))
+      return { error: 'Injury not found' };
+
+    const supabase = await createClient();
+    const { data: effect } = await supabase
+      .from('fighter_effects')
+      .select('id')
+      .eq('id', params.injury_id)
+      .maybeSingle();
+    if (effect) {
+      const deleted = await deleteFighterInjury({ fighter_id: fighterId, injury_id: params.injury_id });
+      if (!deleted.success) return { error: deleted.error ?? 'Failed to remove the injury' };
+    }
+
     return {
       ...record,
-      injuries: record.injuries.filter((_, i) => i !== idx),
+      injuries: record.injuries.filter((i) => i.fighter_effect_id !== params.injury_id),
     };
   });
 }

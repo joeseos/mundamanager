@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { LuTrash2 } from 'react-icons/lu';
 import { Button } from '@/components/ui/button';
 import { Counter } from '@/components/ui/counter';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,7 +18,7 @@ import {
   type SessionMarkerDef,
 } from '@/components/battle-session/session-markers';
 import { InjuriesList } from '@/components/fighter/fighter-injury-list';
-import { addSessionInjury } from '@/app/actions/battle-sessions';
+import { addSessionInjury, removeSessionInjury } from '@/app/actions/battle-sessions';
 import type { GangFighter } from '@/types/gang';
 import type { BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 import { canLeaveBattlefield, hasFleshWoundCondition, hasN26CompositeBattleMarkers } from '@/types/edition';
@@ -68,6 +69,7 @@ export default function FighterActionModal({
   onXpChanged,
   onConditionsChanged,
   onInjuryAdded,
+  onInjuryRemoved,
   onBroadcast,
   onClose,
 }: {
@@ -80,11 +82,14 @@ export default function FighterActionModal({
   onXpChanged: (delta: number) => void;
   onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
+  onInjuryRemoved: (injuryId: string) => void;
   onBroadcast?: () => void;
   onClose: () => void;
 }) {
   const [showXpModal, setShowXpModal] = useState(false);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const [injuryToRemove, setInjuryToRemove] = useState<SessionInjuryRecord | null>(null);
+  const sessionInjuries = fighter.session_record?.injuries ?? [];
   const isSpyrer = gangFighter?.is_spyrer ?? false;
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
     fighter.session_record?.conditions ?? []
@@ -176,6 +181,29 @@ export default function FighterActionModal({
               {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
             </Button>
           </div>
+          {sessionInjuries.length > 0 && (
+            <div className="space-y-2 border-t pt-3 text-left">
+              <h4 className="text-sm font-medium text-neutral-500">
+                {isSpyrer ? 'Rig Glitches This Battle' : 'Lasting Injuries This Battle'}
+              </h4>
+              <ul className="space-y-1">
+                {sessionInjuries.map((injury) => (
+                  <li key={injury.fighter_effect_id} className="flex items-center justify-between gap-2">
+                    <span className="text-sm">{injury.effect_name}</span>
+                    <Button
+                      variant="outline_remove"
+                      size="sm"
+                      className="text-xs px-1.5 h-6"
+                      title="Remove"
+                      onClick={() => setInjuryToRemove(injury)}
+                    >
+                      <LuTrash2 className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {useCompositeMarkers && statusMarkers.length > 0 && (
             <div className="space-y-2 border-t pt-3 text-left">
               <h4 className="text-sm font-medium text-neutral-500">Status</h4>
@@ -353,6 +381,41 @@ export default function FighterActionModal({
             }}
           />
         </Modal>
+      )}
+
+      {injuryToRemove && (
+        <Modal
+          title={isSpyrer ? 'Remove Rig Glitch' : 'Remove Lasting Injury'}
+          helper={gangFighter?.fighter_name}
+          content={
+            <div className="space-y-2">
+              <p>
+                Remove <strong>{injuryToRemove.effect_name}</strong>? It is deleted from the fighter and from this battle.
+              </p>
+              {(injuryToRemove.send_to_recovery || injuryToRemove.set_captured) && (
+                <p className="text-sm text-muted-foreground">
+                  The fighter stays {[injuryToRemove.send_to_recovery && 'in Recovery', injuryToRemove.set_captured && 'Captured'].filter(Boolean).join(' and ')}. Change that on the fighter page.
+                </p>
+              )}
+            </div>
+          }
+          confirmText="Remove"
+          onClose={() => setInjuryToRemove(null)}
+          onConfirm={async () => {
+            const result = await removeSessionInjury({
+              session_fighter_id: fighter.id,
+              injury_id: injuryToRemove.fighter_effect_id,
+            });
+            if (!result.success) {
+              toast.error(result.error || 'Failed to remove the injury');
+              return false;
+            }
+            onInjuryRemoved(injuryToRemove.fighter_effect_id);
+            onBroadcast?.();
+            toast.success(`${injuryToRemove.effect_name} removed`);
+            return true;
+          }}
+        />
       )}
     </>
   );

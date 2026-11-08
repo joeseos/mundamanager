@@ -129,6 +129,7 @@ export default function FighterRow({
   onConditionsChanged,
   onActivationsChange,
   onInjuryAdded,
+  onInjuryRemoved,
   onNoteChanged,
   onBroadcast,
 }: {
@@ -152,6 +153,7 @@ export default function FighterRow({
   onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
   onActivationsChange: (activations: number) => void;
   onInjuryAdded: (injury: SessionInjuryRecord) => void;
+  onInjuryRemoved: (injuryId: string) => void;
   onNoteChanged: (note: string) => void;
   onBroadcast?: () => void;
 }) {
@@ -301,6 +303,7 @@ export default function FighterRow({
               onXpChanged={onXpChanged}
               onConditionsChanged={onConditionsChanged}
               onInjuryAdded={onInjuryAdded}
+              onInjuryRemoved={onInjuryRemoved}
               onBroadcast={onBroadcast}
               onClose={() => setShowActionModal(false)}
             />,

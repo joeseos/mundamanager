@@ -849,6 +849,15 @@ export default function ParticipantCard({
                             )
                           );
                         }}
+                        onInjuryRemoved={(injuryId) => {
+                          setLocalFighters((cur) =>
+                            cur.map((lf) =>
+                              lf.id === f.id
+                                ? { ...lf, session_record: { ...lf.session_record, injuries: (lf.session_record?.injuries ?? []).filter((i) => i.fighter_effect_id !== injuryId) } }
+                                : lf
+                            )
+                          );
+                        }}
                         onNoteChanged={(note) => {
                           updateNoteMutation.mutate({ sessionFighterId: f.id, note });
                         }}
