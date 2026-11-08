@@ -1476,11 +1476,12 @@ export async function removeSessionInjury(params: {
       return { error: 'Injury not found' };
 
     const supabase = await createClient();
-    const { data: effect } = await supabase
+    const { data: effect, error: effectError } = await supabase
       .from('fighter_effects')
       .select('id')
       .eq('id', params.injury_id)
       .maybeSingle();
+    if (effectError) return { error: effectError.message };
     if (effect) {
       const deleted = await deleteFighterInjury({ fighter_id: fighterId, injury_id: params.injury_id });
       if (!deleted.success) return { error: deleted.error ?? 'Failed to remove the injury' };

@@ -37,7 +37,7 @@ import {
 import { createGangLog } from '@/app/actions/logs/gang-logs';
 import FighterRow from '@/components/battle-session/fighter-row';
 import BattleParticipationModal from '@/components/battle-session/battle-participation-modal';
-import { applyConditionsUpdate, hasDualActivation, newSessionRecord, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition } from '@/types/battle-session';
+import { applyConditionsUpdate, hasDualActivation, newSessionRecord, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/battle-session';
 import { beastSubtypeName, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
@@ -103,6 +103,17 @@ export default function ParticipantCard({
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
   const [localResourceChanges, setLocalResourceChanges] = useState(participant.resource_changes ?? []);
   const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
+  const setLocalInjuries = (
+    sessionFighterId: string,
+    update: (injuries: SessionInjuryRecord[]) => SessionInjuryRecord[]
+  ) =>
+    setLocalFighters((cur) =>
+      cur.map((lf) =>
+        lf.id === sessionFighterId
+          ? { ...lf, session_record: { ...lf.session_record, injuries: update(lf.session_record?.injuries ?? []) } }
+          : lf
+      )
+    );
   // The phase the crew modal was opened in, so a phase change while it is open can't switch its mode.
   const [crewModalMode, setCrewModalMode] = useState<'crew' | 'reinforcements' | null>(null);
   const [showParticipationModal, setShowParticipationModal] = useState(false);
@@ -840,24 +851,12 @@ export default function ParticipantCard({
                             activations,
                           });
                         }}
-                        onInjuryAdded={(injury) => {
-                          setLocalFighters((cur) =>
-                            cur.map((lf) =>
-                              lf.id === f.id
-                                ? { ...lf, session_record: { ...lf.session_record, injuries: [...(lf.session_record?.injuries ?? []), injury] } }
-                                : lf
-                            )
-                          );
-                        }}
-                        onInjuryRemoved={(injuryId) => {
-                          setLocalFighters((cur) =>
-                            cur.map((lf) =>
-                              lf.id === f.id
-                                ? { ...lf, session_record: { ...lf.session_record, injuries: (lf.session_record?.injuries ?? []).filter((i) => i.fighter_effect_id !== injuryId) } }
-                                : lf
-                            )
-                          );
-                        }}
+                        onInjuryAdded={(injury) =>
+                          setLocalInjuries(f.id, (injuries) => [...injuries, injury])
+                        }
+                        onInjuryRemoved={(injuryId) =>
+                          setLocalInjuries(f.id, (injuries) => injuries.filter((i) => i.fighter_effect_id !== injuryId))
+                        }
                         onNoteChanged={(note) => {
                           updateNoteMutation.mutate({ sessionFighterId: f.id, note });
                         }}
