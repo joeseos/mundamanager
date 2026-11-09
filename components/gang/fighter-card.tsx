@@ -19,6 +19,7 @@ import { Weapon } from '@/types/equipment';
 import { FighterCardActionMenu } from './fighter-card-action-menu';
 import { FancyPrintTopBarArt } from './fancy-print-top-bar-art';
 import { useViewportWidth } from '@/hooks/use-viewport-width';
+import { dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
 
@@ -547,6 +548,8 @@ const FighterCard = memo(function FighterCard({
     fighter_specialisation?.fighter_specialisation,
   ].filter(Boolean).join(', ');
 
+  const dragSurface = dragSurfaceProps(dragHandle !== undefined);
+
   const cardBody = (
     <div
       id={fighterCardId}
@@ -568,12 +571,9 @@ const FighterCard = memo(function FighterCard({
           // was never ours — there's no vibration code in the app — and it can't be reinstated:
           // since iOS 18.4 navigator.vibrate needs a recent *click* to be granted, and dragging
           // doesn't count. Losing it is the accepted trade for losing the magnifier.
-          ...(dragHandle ? {
-            WebkitUserSelect: 'none' as const,
-            userSelect: 'none' as const,
-            WebkitTouchCallout: 'none' as const,
-          } : {})
+          ...dragSurface.style,
         }}
+        onContextMenu={dragSurface.onContextMenu}
       >
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/10 rounded-lg">
