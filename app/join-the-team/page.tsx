@@ -115,7 +115,7 @@ export default function JoinTheTeamPage() {
                   <li className="text-muted-foreground">Review pull requests from other contributors</li>
                 </ul>
                 <p className="text-muted-foreground mb-2 mt-4">
-                  Our tech stack includes Next.js, React, TypeScript, Supabase, and Tailwind CSS. Check out our <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">GitHub repository</a> to get started.
+                  Our tech stack includes Next.js, React, TypeScript, Supabase, and Tailwind CSS.
                 </p>
 
                 <h3 className="text-lg font-semibold text-foreground mt-6 mb-2">Design & UX</h3>
@@ -169,9 +169,9 @@ export default function JoinTheTeamPage() {
                   Ready to contribute? Here&apos;s how to get started:
                 </p>
                 <ol className="list-decimal pl-6 space-y-2 marker:text-red-800 mb-4">
-                  <li className="text-muted-foreground">Fill out our <a href="https://forms.gle/rkkqyqLEdfV6ZTSc7" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">application form</a> to tell us what you&apos;re interested in helping with</li>
-                  <li className="text-muted-foreground">Join our <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">Discord server</a> and introduce yourself</li>
-                  <li className="text-muted-foreground">For developers, check out our <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">GitHub repository</a> and read the <a href="https://github.com/joeseos/mundamanager/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">contributing guide</a></li>
+                  <li className="text-muted-foreground">Join our <a href="https://discord.gg/ZWXXqd5NUt" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">Discord server</a></li>
+                  <li className="text-muted-foreground">Fill out the form in the <strong className="text-foreground">#join-the-team</strong> channel to tell us what you&apos;re interested in helping with</li>
+                  <li className="text-muted-foreground">For developers, get an idea of the code on our <a href="https://github.com/joeseos/mundamanager" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">GitHub repository</a> and read the <a href="https://github.com/joeseos/mundamanager/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener noreferrer" className="underline hover:text-red-800">contributing guide</a></li>
                 </ol>
               </section>
 
@@ -195,7 +195,6 @@ export default function JoinTheTeamPage() {
                   We value all contributions, big and small! Contributors are recognised in:
                 </p>
                 <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
-                  <li className="text-muted-foreground">GitHub contributor list</li>
                   <li className="text-muted-foreground">Release notes for significant contributions</li>
                   <li className="text-muted-foreground">Our <Link href="/contributors" className="underline hover:text-red-800">Contributors page</Link> for content creators</li>
                   <li className="text-muted-foreground">Community acknowledgements in Discord</li>
