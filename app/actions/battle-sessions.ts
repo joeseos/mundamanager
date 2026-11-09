@@ -21,6 +21,7 @@ import {
 } from '@/types/battle-session';
 import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
+import { deleteFighterInjury } from '@/app/actions/fighter-injury';
 import { canLeaveBattlefield, editionsConflict, editionSlugFromJoin, gangEditionJoin, gangEditionSlug } from '@/types/edition';
 import {
   customPartNames,
@@ -1456,18 +1457,41 @@ export async function addSessionInjury(params: {
   }));
 }
 
+/**
+ * Removes a lasting injury added in this battle from the fighter and from the
+ * session record. One already deleted on the fighter page only leaves the record.
+ * The fighter is deleted from first, so the record's read-modify-write stays short.
+ */
 export async function removeSessionInjury(params: {
   session_fighter_id: string;
   injury_id: string;
 }): Promise<{ success: boolean; error?: string }> {
-  return withSessionRecord(params.session_fighter_id, (record) => {
-    const idx = record.injuries.findIndex((i) => i.fighter_effect_id === params.injury_id);
-    if (idx === -1) return { error: 'Injury not found' };
-    return {
-      ...record,
-      injuries: record.injuries.filter((_, i) => i !== idx),
-    };
-  });
+  const supabase = await createClient();
+  const { data: sessionFighter, error: fetchError } = await supabase
+    .from('battle_session_fighters')
+    .select('fighter_id, session_record')
+    .eq('id', params.session_fighter_id)
+    .single();
+  if (fetchError || !sessionFighter) return { success: false, error: 'Fighter not found' };
+  if (!normalizeSessionRecord(sessionFighter.session_record).injuries.some((i) => i.fighter_effect_id === params.injury_id))
+    return { success: false, error: 'Injury not found' };
+
+  const { data: effect, error: effectError } = await supabase
+    .from('fighter_effects')
+    .select('id')
+    .eq('id', params.injury_id)
+    .eq('fighter_id', sessionFighter.fighter_id)
+    .maybeSingle();
+  if (effectError) return { success: false, error: effectError.message };
+  if (effect) {
+    const deleted = await deleteFighterInjury({ fighter_id: sessionFighter.fighter_id, injury_id: params.injury_id });
+    if (!deleted.success) return { success: false, error: deleted.error ?? 'Failed to remove the injury' };
+  }
+
+  return withSessionRecord(params.session_fighter_id, (record) => ({
+    ...record,
+    injuries: record.injuries.filter((i) => i.fighter_effect_id !== params.injury_id),
+  }));
 }
 
 export async function updateSessionNote(params: {
