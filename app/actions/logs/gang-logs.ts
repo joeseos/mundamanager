@@ -69,7 +69,7 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
 }
 
 type DiceRollTarget = {
-  gangs: { name: string };
+  gangs: { name: string; profiles: { username: string } };
   campaigns: {
     discord_channel_id: string | null;
     discord_channel_type: number;
@@ -82,7 +82,7 @@ type DiceRollTarget = {
 async function postDiceRollToDiscord(supabase: SupabaseClient, params: CreateGangLogParams) {
   const { data: rows, error } = await supabase
     .from('campaign_gangs')
-    .select('gangs(name), campaigns!inner(discord_channel_id, discord_channel_type, discord_dice_roll_channel_id, discord_dice_roll_channel_type)')
+    .select('gangs(name, profiles(username)), campaigns!inner(discord_channel_id, discord_channel_type, discord_dice_roll_channel_id, discord_dice_roll_channel_type)')
     .eq('gang_id', params.gang_id)
     .eq('status', 'ACCEPTED')
     .eq('campaigns.discord_dice_rolls', true)
@@ -99,8 +99,9 @@ async function postDiceRollToDiscord(supabase: SupabaseClient, params: CreateGan
       : campaign.discord_channel_id && { id: campaign.discord_channel_id, type: campaign.discord_channel_type };
     if (!channel) continue;
 
-    const res = await postDiscordEmbeds(process.env.DISCORD_BOT_TOKEN!, channel, `${gang.name} — ${label}`, [{
-      author: { name: gang.name },
+    const owner = gang.profiles.username;
+    const res = await postDiscordEmbeds(process.env.DISCORD_BOT_TOKEN!, channel, `${gang.name} (${owner}) — ${label}`, [{
+      author: { name: `${gang.name} • ${owner}` },
       title: `🎲 ${label}`,
       description: params.description,
       color: 0xd4a017,
