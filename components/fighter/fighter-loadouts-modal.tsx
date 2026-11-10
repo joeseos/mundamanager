@@ -61,7 +61,7 @@ export default function FighterLoadoutsModal({
       item.granted_by_equipment_id && ids.has(item.granted_by_equipment_id) ? item.granted_by_equipment_id : null;
   }, [filteredEquipment]);
 
-  // Apply same sorting as fighter-equipment-list.tsx
+  // Same sorting as fighter-equipment-list.tsx; here granted items also nest under their source
   const loadoutEquipment = useMemo(() => {
     // Separate equipment into parent items and child items: equipment targeting other equipment,
     // and equipment granted by other equipment

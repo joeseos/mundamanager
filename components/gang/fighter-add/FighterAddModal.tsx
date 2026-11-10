@@ -43,6 +43,7 @@ import {
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
 import { GrantOptionsPicker } from '@/components/equipment/grant-options-picker';
+import { grantOptionsCost, maxGrantSelections } from '@/utils/equipment-grants';
 
 /** 'vehicles' is the 'roster' query narrowed to vehicle fighter types. */
 export type FighterAddCatalog = 'roster' | 'additions' | 'vehicles';
@@ -130,7 +131,9 @@ function mapFighterType(type: any): FighterType {
 
 /** Default equipment that comes with a choice of items, e.g. an Outrider Quad and its weapon. */
 function choiceGrantDefaults(type?: FighterType): DefaultEquipment[] {
-  return (type?.default_equipment ?? []).filter((item: DefaultEquipment) =>
+  // One pick per equipment id, as the server grants it once per equipment id
+  return (type?.default_equipment ?? []).filter((item: DefaultEquipment, index: number, all: DefaultEquipment[]) =>
+    all.findIndex(other => other.id === item.id) === index &&
     item.grants_equipment &&
     item.grants_equipment.selection_type !== 'fixed' &&
     item.grants_equipment.options.length > 0
@@ -149,10 +152,7 @@ function defaultGrantPicks(type?: FighterType): Record<string, string[]> {
 
 function grantPicksCost(type: FighterType | undefined, picks: Record<string, string[]>): number {
   return choiceGrantDefaults(type).reduce((sum, item) =>
-    sum + item.grants_equipment!.options
-      .filter(opt => picks[item.id]?.includes(opt.equipment_id))
-      .reduce((optSum, opt) => optSum + opt.additional_cost, 0),
-  0);
+    sum + grantOptionsCost(item.grants_equipment!, picks[item.id]), 0);
 }
 
 function countLimitsFromType(type?: { min_count?: number | null; max_count?: number | null } | null) {
@@ -517,7 +517,7 @@ export default function FighterAddModal({
       const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
       const actualBaseCost = getBaseCost(selectedType, variables.use_delegation_cost);
       const totalEquipmentCost = variables.selected_equipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0)
-        + grantPicksCost(selectedType, grantPicks);
+        + grantPicksCost(selectedType, variables.selected_grant_equipment_ids ?? {});
       const ratingCost = variables.use_base_cost_for_rating
         ? (actualBaseCost + totalEquipmentCost)
         : variables.cost;
@@ -637,8 +637,9 @@ export default function FighterAddModal({
   const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0)
     + grantPicksCost(currentFighterType, grantPicks);
 
-  // A `single` category with no default requires an explicit selection.
+  // A `single` category with no default, or a choice grant, requires an explicit selection.
   const requiredSelectionMissing = (() => {
+    if (choiceGrantDefaults(currentFighterType).some(item => !grantPicks[item.id]?.length)) return true;
     const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
     if (!selectedType?.equipment_selection) return false;
     const normalized: NormalizedEquipmentSelection = normalizeEquipmentSelection(selectedType.equipment_selection);
@@ -1196,7 +1197,7 @@ export default function FighterAddModal({
         <div key={item.id} className="space-y-1">
           <label className="block text-sm font-medium text-muted-foreground">
             {item.equipment_name} ({item.grants_equipment!.selection_type === 'multiple_select'
-              ? `Choose up to ${item.grants_equipment!.max_selections || item.grants_equipment!.options.length}`
+              ? `Choose up to ${maxGrantSelections(item.grants_equipment!)}`
               : 'Choose one'})
           </label>
           <GrantOptionsPicker

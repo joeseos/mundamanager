@@ -8,6 +8,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { GrantOptionsPicker } from '@/components/equipment/grant-options-picker';
+import { grantOptionsCost, maxGrantSelections } from '@/utils/equipment-grants';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
@@ -346,15 +347,13 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
   if (showGrantsSelection && grantsConfig) {
     const isMultiple = grantsConfig.selection_type === 'multiple_select';
-    const maxSelections = grantsConfig.max_selections || grantsConfig.options.length;
+    const maxSelections = maxGrantSelections(grantsConfig);
     const selectionIsValid = isMultiple
       ? selectedGrantIds.length > 0 && selectedGrantIds.length <= maxSelections
       : selectedGrantIds.length === 1;
 
     // Calculate total additional cost from selected options
-    const totalAdditionalCost = grantsConfig.options
-      .filter(opt => selectedGrantIds.includes(opt.equipment_id))
-      .reduce((sum, opt) => sum + opt.additional_cost, 0);
+    const totalAdditionalCost = grantOptionsCost(grantsConfig, selectedGrantIds);
 
     // Check if user can afford the total cost (base + additional)
     const baseCost = Number(manualCost);

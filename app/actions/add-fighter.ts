@@ -416,7 +416,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         custom_equipment_id,
         skills!skill_id(
           id,
-          name
+          name,
+          grants_equipment
         ),
         equipment!equipment_id(
           id,
@@ -465,6 +466,11 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // costs, because the additional cost of a chosen option is paid with the fighter.
     const grantSourceIds = Array.from(new Set([
       ...fighterDefaultEquipmentData.map((item: any) => item.equipment_id as string),
+      // Equipment a default skill comes with (fixed grants only, see skillGrants below)
+      ...fighterDefaultsData.flatMap((item: any) => {
+        const skillGrants = item.skills?.grants_equipment as EquipmentGrants | null;
+        return skillGrants?.selection_type === 'fixed' ? skillGrants.options.map(opt => opt.equipment_id) : [];
+      }),
       ...(params.default_equipment ?? []).map(item => item.equipment_id),
       ...(params.selected_equipment ?? []).map(item => item.equipment_id),
     ].filter(id => !id.startsWith('custom_'))));

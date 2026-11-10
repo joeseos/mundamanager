@@ -2,6 +2,7 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import type { EquipmentGrants } from '@/types/equipment';
+import { maxGrantSelections } from '@/utils/equipment-grants';
 
 interface GrantOptionsPickerProps {
   grants: EquipmentGrants;
@@ -17,7 +18,7 @@ interface GrantOptionsPickerProps {
  */
 export function GrantOptionsPicker({ grants, selectedIds, onChange, name }: GrantOptionsPickerProps) {
   const isMultiple = grants.selection_type === 'multiple_select';
-  const maxSelections = grants.max_selections || grants.options.length;
+  const maxSelections = maxGrantSelections(grants);
 
   return (
     <div className="space-y-2">

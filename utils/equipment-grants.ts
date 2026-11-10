@@ -1,5 +1,17 @@
 import type { EquipmentGrantOption, EquipmentGrants } from '@/types/equipment';
 
+/** How many options a multiple_select grant allows */
+export function maxGrantSelections(grants: EquipmentGrants): number {
+  return grants.max_selections || grants.options.length;
+}
+
+/** Additional cost of the chosen options of a grant */
+export function grantOptionsCost(grants: EquipmentGrants, selectedEquipmentIds: string[] = []): number {
+  return grants.options
+    .filter(opt => selectedEquipmentIds.includes(opt.equipment_id))
+    .reduce((sum, opt) => sum + opt.additional_cost, 0);
+}
+
 /**
  * The options a grant gives: all of them for a fixed grant, otherwise the chosen ones,
  * checked against the grant's selection type.
@@ -16,7 +28,7 @@ export function chosenGrantOptions(
     throw new Error('Single select requires exactly one option to be selected');
   }
   if (grants.selection_type === 'multiple_select') {
-    const maxSelections = grants.max_selections || grants.options.length;
+    const maxSelections = maxGrantSelections(grants);
     if (chosen.length === 0) {
       throw new Error('At least one option must be selected');
     }
