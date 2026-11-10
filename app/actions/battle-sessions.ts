@@ -807,6 +807,9 @@ export async function changeSessionPhase(
   }
 }
 
+// Completing the session files the challenge with the session's gangs, so they must stay the challenge's.
+const CHALLENGE_GANGS_FIXED = "This session plays a challenge, so its gangs can't change. Cancel the session to change the challenge.";
+
 export async function addParticipant(params: {
   session_id: string;
   gang_id: string;
@@ -827,13 +830,14 @@ export async function addParticipant(params: {
     // Verify session exists and is active
     const { data: session } = await supabase
       .from('battle_sessions')
-      .select('id, status, campaign_id, created_by, editions:edition_id ( slug )')
+      .select('id, status, campaign_id, created_by, campaign_battle_id, editions:edition_id ( slug )')
       .eq('id', params.session_id)
       .single();
 
     if (!session) return { success: false, error: 'Session not found' };
     if (session.status !== 'pre_battle')
       return { success: false, error: 'Can only add players during pre-battle' };
+    if (session.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
     if (!(await canManageSession(currentUser.id, session)))
       return { success: false, error: 'Only the session creator or an arbitrator can add participants' };
 
@@ -930,12 +934,16 @@ export async function removeParticipant(
     // Allow session creator or self-removal
     const { data: participant } = await supabase
       .from('battle_session_participants')
-      .select('user_id, gang_id')
+      .select('user_id, gang_id, battle_sessions(campaign_battle_id)')
       .eq('id', participantId)
       .eq('battle_session_id', sessionId)
       .single();
 
     if (!participant) return { success: false, error: 'Participant not found' };
+    const session = Array.isArray(participant.battle_sessions)
+      ? participant.battle_sessions[0]
+      : participant.battle_sessions;
+    if (session?.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     const isSelfRemoval = participant.user_id === user.id;
     if (!isSelfRemoval) {
