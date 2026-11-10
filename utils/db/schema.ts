@@ -701,7 +701,6 @@ export const campaigns = pgTable('campaigns', {
   campaign_portrait_id: uuid('campaign_portrait_id'),
   discord_dice_rolls: boolean('discord_dice_rolls').default(false).notNull(),
   discord_dice_roll_channel_id: text('discord_dice_roll_channel_id'),
-  discord_dice_roll_channel_type: integer('discord_dice_roll_channel_type').default(0).notNull(),
 });
 
 export const campaignMembers = pgTable('campaign_members', {

@@ -23,7 +23,6 @@ export interface UpdateCampaignSettingsParams {
   discord_channel_type?: number | null;
   discord_dice_rolls?: boolean;
   discord_dice_roll_channel_id?: string | null;
-  discord_dice_roll_channel_type?: number;
   custom_trading_posts?: string[];
   allow_join_requests?: boolean;
 }
@@ -49,7 +48,6 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       discord_channel_type,
       discord_dice_rolls,
       discord_dice_roll_channel_id,
-      discord_dice_roll_channel_type,
       custom_trading_posts,
       allow_join_requests
     } = params;
@@ -71,7 +69,6 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
     if (discord_channel_type !== undefined) updateData.discord_channel_type = discord_channel_type;
     if (discord_dice_rolls !== undefined) updateData.discord_dice_rolls = discord_dice_rolls;
     if (discord_dice_roll_channel_id !== undefined) updateData.discord_dice_roll_channel_id = discord_dice_roll_channel_id;
-    if (discord_dice_roll_channel_type !== undefined) updateData.discord_dice_roll_channel_type = discord_dice_roll_channel_type;
     if (allow_join_requests !== undefined) updateData.allow_join_requests = allow_join_requests;
 
     const { data, error } = await supabase

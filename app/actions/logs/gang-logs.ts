@@ -4,7 +4,7 @@ import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
-import { postDiscordEmbeds } from "@/utils/discord";
+import { DISCORD_CHANNEL_TYPES, postDiscordEmbeds } from "@/utils/discord";
 import { getLogTypeLabel } from "@/utils/log-types";
 
 export interface CreateGangLogParams {
@@ -74,7 +74,6 @@ type DiceRollTarget = {
     discord_channel_id: string | null;
     discord_channel_type: number;
     discord_dice_roll_channel_id: string | null;
-    discord_dice_roll_channel_type: number;
   };
 };
 
@@ -82,7 +81,7 @@ type DiceRollTarget = {
 async function postDiceRollToDiscord(supabase: SupabaseClient, params: CreateGangLogParams) {
   const { data: rows, error } = await supabase
     .from('campaign_gangs')
-    .select('gangs(name, profiles(username)), campaigns!inner(discord_channel_id, discord_channel_type, discord_dice_roll_channel_id, discord_dice_roll_channel_type)')
+    .select('gangs(name, profiles(username)), campaigns!inner(discord_channel_id, discord_channel_type, discord_dice_roll_channel_id)')
     .eq('gang_id', params.gang_id)
     .eq('status', 'ACCEPTED')
     .eq('campaigns.discord_dice_rolls', true)
@@ -95,7 +94,7 @@ async function postDiceRollToDiscord(supabase: SupabaseClient, params: CreateGan
   const label = getLogTypeLabel(params.action_type);
   for (const { gangs: gang, campaigns: campaign } of rows) {
     const channel = campaign.discord_dice_roll_channel_id
-      ? { id: campaign.discord_dice_roll_channel_id, type: campaign.discord_dice_roll_channel_type }
+      ? { id: campaign.discord_dice_roll_channel_id, type: DISCORD_CHANNEL_TYPES.TEXT }
       : campaign.discord_channel_id && { id: campaign.discord_channel_id, type: campaign.discord_channel_type };
     if (!channel) continue;
 

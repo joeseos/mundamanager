@@ -15,6 +15,7 @@ import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-all
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
 import { Badge } from "@/components/ui/badge";
 import { sameEditionForDisplay } from '@/types/edition';
+import { DISCORD_CHANNEL_TYPES } from '@/utils/discord';
 
 interface TradingPostType {
   id: string;
@@ -34,7 +35,6 @@ interface SettingsFormValues {
   discord_channel_type?: number | null;
   discord_dice_rolls?: boolean;
   discord_dice_roll_channel_id?: string | null;
-  discord_dice_roll_channel_type?: number;
 }
 
 interface EditCampaignModalProps {
@@ -192,7 +192,6 @@ export default function CampaignEditModal({
       saveData.discord_channel_type = selectedChannel?.type ?? 0;
       saveData.discord_dice_rolls = postDiceRolls;
       saveData.discord_dice_roll_channel_id = diceRollChannelId || null;
-      saveData.discord_dice_roll_channel_type = discordChannels.find(ch => ch.id === diceRollChannelId)?.type ?? 0;
     }
 
     return saveSettings(saveData);
@@ -224,7 +223,6 @@ export default function CampaignEditModal({
       discord_channel_type: 0,
       discord_dice_rolls: false,
       discord_dice_roll_channel_id: null,
-      discord_dice_roll_channel_type: 0,
     });
     if (result) {
       setDiscordChannels([]);
@@ -556,7 +554,9 @@ export default function CampaignEditModal({
                           Dice roll channel
                         </label>
                         <Combobox
-                          options={discordChannels.map(ch => ({ value: ch.id, label: `# ${ch.name}` }))}
+                          options={discordChannels
+                            .filter(ch => ch.type === DISCORD_CHANNEL_TYPES.TEXT)
+                            .map(ch => ({ value: ch.id, label: `# ${ch.name}` }))}
                           value={diceRollChannelId}
                           onValueChange={setDiceRollChannelId}
                           placeholder="Same as Battle Log channel"
