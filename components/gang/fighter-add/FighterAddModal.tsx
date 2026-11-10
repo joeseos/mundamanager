@@ -3,7 +3,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
-import { FighterType, EquipmentOption, NormalizedEquipmentSelection } from '@/types/fighter-type';
+import { FighterType, EquipmentOption, NormalizedEquipmentSelection, DefaultEquipment } from '@/types/fighter-type';
 import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
@@ -42,6 +42,7 @@ import {
   getBaseCost,
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
+import { GrantOptionsPicker } from '@/components/equipment/grant-options-picker';
 
 /** 'vehicles' is the 'roster' query narrowed to vehicle fighter types. */
 export type FighterAddCatalog = 'roster' | 'additions' | 'vehicles';
@@ -127,6 +128,33 @@ function mapFighterType(type: any): FighterType {
   } as FighterType;
 }
 
+/** Default equipment that comes with a choice of items, e.g. an Outrider Quad and its weapon. */
+function choiceGrantDefaults(type?: FighterType): DefaultEquipment[] {
+  return (type?.default_equipment ?? []).filter((item: DefaultEquipment) =>
+    item.grants_equipment &&
+    item.grants_equipment.selection_type !== 'fixed' &&
+    item.grants_equipment.options.length > 0
+  );
+}
+
+/** Each choice starts on its cheapest option, the standard one (e.g. the harpoon launcher). */
+function defaultGrantPicks(type?: FighterType): Record<string, string[]> {
+  return Object.fromEntries(choiceGrantDefaults(type).map(item => {
+    const cheapest = item.grants_equipment!.options.reduce((min, opt) =>
+      opt.additional_cost < min.additional_cost ? opt : min
+    );
+    return [item.id, [cheapest.equipment_id]];
+  }));
+}
+
+function grantPicksCost(type: FighterType | undefined, picks: Record<string, string[]>): number {
+  return choiceGrantDefaults(type).reduce((sum, item) =>
+    sum + item.grants_equipment!.options
+      .filter(opt => picks[item.id]?.includes(opt.equipment_id))
+      .reduce((optSum, opt) => optSum + opt.additional_cost, 0),
+  0);
+}
+
 function countLimitsFromType(type?: { min_count?: number | null; max_count?: number | null } | null) {
   return {
     min_count: type?.min_count ?? null,
@@ -166,6 +194,8 @@ export default function FighterAddModal({
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<SelectedEquipmentItem[]>([]);
+  // Picked options per default equipment id, for default equipment with a choice grant
+  const [grantPicks, setGrantPicks] = useState<Record<string, string[]>>({});
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true);
   const [useDelegationCost, setUseDelegationCost] = useState(false);
   const [includeCustomFighters, setIncludeCustomFighters] = useState(false);
@@ -292,7 +322,9 @@ export default function FighterAddModal({
   const applyDefaultEquipmentAndCost = (typeId: string, delegation: boolean) => {
     const selectedType = fighterTypes.find(t => t.id === typeId);
     if (!selectedType) return;
-    const baseCost = getBaseCost(selectedType, delegation);
+    const picks = defaultGrantPicks(selectedType);
+    setGrantPicks(picks);
+    const baseCost = getBaseCost(selectedType, delegation) + grantPicksCost(selectedType, picks);
     if (selectedType.equipment_selection) {
       const defaultEquipment = getDefaultEquipmentFromSelection(selectedType.equipment_selection);
       setSelectedEquipment(defaultEquipment);
@@ -313,6 +345,7 @@ export default function FighterAddModal({
     setSelectedArchetypeId('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);
+    setGrantPicks({});
     setUseDelegationCost(false);
 
     if (!typeId) {
@@ -375,7 +408,8 @@ export default function FighterAddModal({
     const enteredCost = parseInt(fighterCost);
     const actualBaseCost = getBaseCost(selectedType, useDelegationCost);
 
-    const totalEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0);
+    const totalEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0)
+      + grantPicksCost(selectedType, grantPicks);
     const displayCost = useBaseCostForRating ? (actualBaseCost + totalEquipmentCost) : enteredCost;
 
     const defaultEquipment = selectedType?.default_equipment || [];
@@ -460,6 +494,7 @@ export default function FighterAddModal({
       use_delegation_cost: boolean;
       fighter_gang_legacy_id?: string;
       selected_archetype_id?: string;
+      selected_grant_equipment_ids?: string[];
     }) => {
       const result = await addFighterToGang(params);
       if (!result.success) {
@@ -481,7 +516,8 @@ export default function FighterAddModal({
 
       const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
       const actualBaseCost = getBaseCost(selectedType, variables.use_delegation_cost);
-      const totalEquipmentCost = variables.selected_equipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0);
+      const totalEquipmentCost = variables.selected_equipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0)
+        + grantPicksCost(selectedType, grantPicks);
       const ratingCost = variables.use_base_cost_for_rating
         ? (actualBaseCost + totalEquipmentCost)
         : variables.cost;
@@ -570,6 +606,7 @@ export default function FighterAddModal({
       use_delegation_cost: useDelegationCost,
       fighter_gang_legacy_id: selectedLegacyId || undefined,
       selected_archetype_id: canUseArchetypes ? (selectedArchetypeId || undefined) : undefined,
+      selected_grant_equipment_ids: Object.values(grantPicks).flat(),
     });
 
     return true;
@@ -585,6 +622,7 @@ export default function FighterAddModal({
     setFighterCost('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);
+    setGrantPicks({});
     setSelectedLegacyId('');
     setSelectedArchetypeId('');
     setUseBaseCostForRating(true);
@@ -596,7 +634,8 @@ export default function FighterAddModal({
 
   const availableLegacies = currentFighterType?.available_legacies || [];
   const delegationType = fighterTypes.find(t => t.id === (selectedSpecialisationId || selectedFighterTypeId));
-  const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0);
+  const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+    + grantPicksCost(currentFighterType, grantPicks);
 
   // A `single` category with no default requires an explicit selection.
   const requiredSelectionMissing = (() => {
@@ -1151,6 +1190,28 @@ export default function FighterAddModal({
         setFighterCost={setFighterCost}
         editionSlug={currentEditionSlug}
       />
+
+      {/* Items that come with default equipment, e.g. an Outrider Quad's weapon */}
+      {choiceGrantDefaults(currentFighterType).map(item => (
+        <div key={item.id} className="space-y-1">
+          <label className="block text-sm font-medium text-muted-foreground">
+            {item.equipment_name} ({item.grants_equipment!.selection_type === 'multiple_select'
+              ? `Choose up to ${item.grants_equipment!.max_selections || item.grants_equipment!.options.length}`
+              : 'Choose one'})
+          </label>
+          <GrantOptionsPicker
+            grants={item.grants_equipment!}
+            selectedIds={grantPicks[item.id] ?? []}
+            onChange={(ids) => {
+              const nextPicks = { ...grantPicks, [item.id]: ids };
+              const costChange = grantPicksCost(currentFighterType, nextPicks) - grantPicksCost(currentFighterType, grantPicks);
+              setGrantPicks(nextPicks);
+              setFighterCost(prev => String(parseInt(prev || '0') + costChange));
+            }}
+            name={`grant-selection-${item.id}`}
+          />
+        </div>
+      ))}
 
       {/* Cost */}
       <div className="space-y-2">

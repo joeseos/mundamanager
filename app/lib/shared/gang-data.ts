@@ -613,6 +613,7 @@ const EQUIPMENT_QUERY = {
     is_editable: true,
     cost_resource: true,
     fighter_skill_id: true,
+    granted_by_equipment_id: true,
   },
   with: {
     equipment: {

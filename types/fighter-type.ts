@@ -1,3 +1,5 @@
+import type { EquipmentGrants } from '@/types/equipment';
+
 export interface EquipmentOption {
   id: string;
   cost: number;
@@ -17,6 +19,8 @@ export interface DefaultEquipment {
   equipment_category?: string;
   cost?: number;
   is_editable?: boolean;
+  /** Items this equipment comes with, with option names (get_fighter_types_with_cost) */
+  grants_equipment?: EquipmentGrants | null;
 }
 
 /**

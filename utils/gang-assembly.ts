@@ -1146,6 +1146,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
       is_consumable: (item.equipment as any)?.is_consumable ?? (item.custom_equipment as any)?.is_consumable ?? false,
       cost_resource: item.cost_resource ?? null,
       fighter_skill_id: item.fighter_skill_id ?? null,
+      granted_by_equipment_id: item.granted_by_equipment_id ?? null,
       granted_by_skill_name: item.fighter_skill_id ? skillNameById.get(item.fighter_skill_id) : undefined
     };
   });
