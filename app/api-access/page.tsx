@@ -129,7 +129,7 @@ export default function ApiAccessPage() {
             <section id="gang-fighter-data" className="scroll-mt-24">
               <h2 className="text-xl font-semibold text-foreground mb-4">Campaign, Gang and Fighter Data</h2>
               <p className="text-muted-foreground mb-4">
-                There is one endpoint each for a campaign, a gang and a fighter. All three accept <code>?format=xml</code>, and each response links to the next by ID:
+                There is one endpoint each for a campaign, a gang and a fighter. All three return JSON by default (<code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">?format=json</code>) or XML with <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">?format=xml</code>, and each response links to the next by ID:
               </p>
               <ul className="list-disc marker:text-red-800 pl-6 space-y-2 mb-4">
                 <li className="text-muted-foreground">
@@ -143,7 +143,7 @@ export default function ApiAccessPage() {
                 </li>
               </ul>
               <p className="text-muted-foreground mb-4">
-                Each path starts with <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">https://www.mundamanager.com</code>. To go from a campaign to a fighter, take a gang&apos;s <code>id</code> from the campaign data and call the gang endpoint, then take a fighter&apos;s <code>id</code> from the gang data and call the fighter endpoint. Each ID is also the last part of its page&apos;s address in Munda Manager: <code>/campaigns/&#123;campaign_id&#125;</code>, <code>/gang/&#123;gang_id&#125;</code> and <code>/fighter/&#123;fighter_id&#125;</code>.
+                Each path starts with <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">https://www.mundamanager.com</code>. To go from a campaign to a fighter, take a gang&apos;s <code>id</code> from the campaign data and call the gang endpoint, then take a fighter&apos;s <code>id</code> from the gang data and call the fighter endpoint. Each ID is also the last part of its page&apos;s address in Munda Manager: <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/campaigns/&#123;campaign_id&#125;</code>, <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/gang/&#123;gang_id&#125;</code> and <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/fighter/&#123;fighter_id&#125;</code>.
               </p>
               <p className="text-muted-foreground">
                 The gang&apos;s fighters follow its saved display order, with unpositioned entries appended alphabetically. Killed and retired fighters are included; use the status flags to filter them. The gang and fighter endpoints return 404 for hidden gangs, and captives from hidden gangs are left out. Private user identifiers and private notes are never included.
