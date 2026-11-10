@@ -40,7 +40,6 @@ import {
   normalizeEquipmentSelection,
   getDefaultEquipmentFromSelection,
   getBaseCost,
-  choiceGrantDefaults,
   defaultGrantPicks,
   grantPicksCost,
 } from '@/utils/equipment-selection';
@@ -612,9 +611,8 @@ export default function FighterAddModal({
   const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0)
     + grantPicksCost(currentFighterType, grantPicks);
 
-  // A `single` category with no default, or a choice grant, requires an explicit selection.
+  // A `single` category with no default requires an explicit selection.
   const requiredSelectionMissing = (() => {
-    if (choiceGrantDefaults(currentFighterType).some(item => !grantPicks[item.id]?.length)) return true;
     const selectedType = fighterTypes.find(t => t.id === selectedFighterTypeId);
     if (!selectedType?.equipment_selection) return false;
     const normalized: NormalizedEquipmentSelection = normalizeEquipmentSelection(selectedType.equipment_selection);
