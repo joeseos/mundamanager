@@ -246,19 +246,17 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       campaignTerritories,
       campaignBattles,
       campaignResources,
-      campaignCaptives
+      captives
     ] = await Promise.all([
       getCampaignBasic(campaignId),
       getCampaignMembers(campaignId),
       getCampaignTerritories(campaignId),
       getCampaignBattles(campaignId, 100),
       getCampaignResources(campaignId),
-      getCampaignCaptives(campaignId)
+      getCampaignCaptives(campaignId).then(transformCaptivesForData)
     ]);
 
     if (!campaignBasic) return null;
-
-    const captives = await transformCaptivesForData(campaignCaptives);
 
     // Transform members data to include territories under their gangs
     // Note: We exclude auth user IDs for privacy, only include campaign-scoped IDs

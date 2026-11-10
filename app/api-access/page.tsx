@@ -116,6 +116,7 @@ export default function ApiAccessPage() {
                   <li><a href="#get-gang-territories" className="underline hover:text-red-800">Get the Territories of a Gang by ID</a></li>
                   <li><a href="#get-gang-fighters" className="underline hover:text-red-800">Get the Fighters of a Gang by ID</a></li>
                   <li><a href="#get-gang-wealth-dynamic" className="underline hover:text-red-800">Get the Wealth of a Gang Using a Cell Reference</a></li>
+                  <li><a href="#get-fighter-weapons" className="underline hover:text-red-800">Get the Weapons of a Fighter by ID</a></li>
                 </ul>
               </li>
               <li><a href="#usage-guidelines" className="underline hover:text-red-800">Usage Guidelines</a></li>
@@ -141,6 +142,9 @@ export default function ApiAccessPage() {
                   <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/fighters/&#123;fighter_id&#125;/data</code>: one fighter in full: characteristics with injuries and advancements applied, special rules, skills, weapons with their profiles, wargear, effects (injuries, advancements, bionics and so on), and the vehicle of a crew fighter.
                 </li>
               </ul>
+              <p className="text-muted-foreground mb-4">
+                Each path starts with <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">https://www.mundamanager.com</code>. To go from a campaign to a fighter, take a gang&apos;s <code>id</code> from the campaign data and call the gang endpoint, then take a fighter&apos;s <code>id</code> from the gang data and call the fighter endpoint. Each ID is also the last part of its page&apos;s address in Munda Manager: <code>/campaigns/&#123;campaign_id&#125;</code>, <code>/gang/&#123;gang_id&#125;</code> and <code>/fighter/&#123;fighter_id&#125;</code>.
+              </p>
               <p className="text-muted-foreground">
                 The gang&apos;s fighters follow its saved display order, with unpositioned entries appended alphabetically. Killed and retired fighters are included; use the status flags to filter them. The gang and fighter endpoints return 404 for hidden gangs, and captives from hidden gangs are left out. Private user identifiers and private notes are never included.
               </p>
@@ -284,6 +288,23 @@ Gang Sympathisers`}</code></pre>
                   <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">1355</code>
                 </p>
               </div>
+
+              {/* Example 7: Get Fighter Weapons */}
+              <div id="get-fighter-weapons" className="scroll-mt-24 mb-8">
+                <h3 className="text-lg font-semibold text-foreground mb-2">Get the Weapons of a Fighter by ID</h3>
+                <p className="text-muted-foreground mb-2">
+                  This uses a fighter <code>id</code> from the gang data above:
+                </p>
+                <div className="bg-neutral-900 rounded-lg p-4 my-4 overflow-x-auto">
+                  <pre className="text-sm text-green-400 whitespace-pre-wrap"><code>{`=IMPORTXML(
+  "https://www.mundamanager.com/api/fighters/f50be422-5b5a-4e8d-90aa-e193282d86dd/data?format=xml",
+  "//weapon/name"
+)`}</code></pre>
+                </div>
+                <p className="text-muted-foreground">
+                  Returns the fighter&apos;s weapon names. Use <code>//stats/toughness</code> for a characteristic, <code>//skill</code> for the skills, or <code>//weapon[name='Lasgun']/profile/strength</code> for a weapon profile&apos;s strength.
+                </p>
+              </div>
             </section>
 
             <section id="usage-guidelines" className="scroll-mt-24">
@@ -294,6 +315,9 @@ Gang Sympathisers`}</code></pre>
               <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                 <li className="text-muted-foreground">
                   <strong className="text-foreground">Fair use:</strong> Avoid excessive requests. If you&apos;re polling for updates, consider reasonable intervals (e.g., once every 15 minutes) rather than continuous requests.
+                </li>
+                <li className="text-muted-foreground">
+                  <strong className="text-foreground">Rate limit:</strong> Each IP address can make 10 requests per minute, shared across the campaign, gang and fighter endpoints. Every <code>IMPORTXML</code> formula counts as a request.
                 </li>
                 <li className="text-muted-foreground">
                   <strong className="text-foreground">Caching:</strong> Cache responses locally when possible to reduce load on our servers and improve your application&apos;s performance.

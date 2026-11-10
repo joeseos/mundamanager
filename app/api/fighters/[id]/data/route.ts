@@ -4,16 +4,14 @@ import type { GangFighter } from "@/types/gang";
 import type { FighterProps } from "@/types/fighter";
 import { applySpecialRulesModifiers, calculateAdjustedStats, calculateVehicleStats } from "@/utils/effect-modifiers";
 import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
+import { transformFighterSummaryForData } from "@/utils/public-fighter-summary";
 
 export const OPTIONS = publicDataOptions;
-
-/** Effect rows grouped by category, as the gang page assembly returns them. */
-type EffectsByCategory = Record<string, Array<{ effect_name: string; type_specific_data?: any }> | undefined>;
 
 /**
  * Flatten effects into { category, name } rows for data endpoint
  */
-function transformEffectsForData(effects: EffectsByCategory | undefined) {
+function transformEffectsForData(effects: GangFighter['effects']) {
   return Object.entries(effects ?? {}).flatMap(([category, rows]) =>
     (rows ?? []).map(effect => ({ category, name: effect.effect_name }))
   );
@@ -28,7 +26,8 @@ function transformWeaponForData(weapon: any) {
     id: weapon.fighter_weapon_id ?? weapon.vehicle_weapon_id,
     name: weapon.weapon_name ?? weapon.equipment_name,
     cost: weapon.cost ?? weapon.purchase_cost ?? 0,
-    master_crafted: weapon.is_master_crafted ?? false,
+    // Vehicle weapons carry the flag on their profiles
+    master_crafted: weapon.is_master_crafted ?? weapon.weapon_profiles?.[0]?.is_master_crafted ?? false,
     profiles: (weapon.weapon_profiles ?? []).map((profile: any) => ({
       name: profile.profile_name || null,
       range_short: profile.range_short ?? null,
@@ -65,7 +64,7 @@ function transformVehicleForData(vehicle: any) {
       handling: stats.handling,
       save: stats.save
     },
-    special_rules: applySpecialRulesModifiers(vehicle.special_rules ?? [], Object.values(effects).flat() as any[]),
+    special_rules: applySpecialRulesModifiers(Array.isArray(vehicle.special_rules) ? vehicle.special_rules : [], Object.values(effects).flat() as any[]),
     equipment_items: (vehicle.equipment ?? []).map((item: any) => ({
       ...transformWeaponForData(item),
       type: item.equipment_type
@@ -82,25 +81,15 @@ function transformFighterForData(fighter: GangFighter, gang: { id: string; name:
   const stats = calculateAdjustedStats(fighter as unknown as FighterProps);
   const allEffects = Object.values(fighter.effects ?? {}).flat();
 
+  const { id, ...summary } = transformFighterSummaryForData(fighter);
+
   return {
-    id: fighter.id,
+    id,
     gang_id: gang.id,
     gang_name: gang.name,
-    name: fighter.fighter_name ?? '',
+    ...summary,
     label: fighter.label ?? null,
-    type: fighter.fighter_type,
-    subtypes: fighter.fighter_subtypes ?? [],
     specialisation: fighter.fighter_specialisation?.fighter_specialisation ?? null,
-    cost: fighter.credits,
-    xp: fighter.xp ?? 0,
-    kills: fighter.kills,
-    is_vehicle: fighter.is_vehicle ?? false,
-    killed: fighter.killed,
-    retired: fighter.retired,
-    enslaved: fighter.enslaved,
-    recovery: fighter.recovery,
-    captured: fighter.captured,
-    starved: fighter.starved,
     stats: {
       movement: stats.movement,
       weapon_skill: stats.weapon_skill,
@@ -142,11 +131,15 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     if (!fighterBasic?.gang_id) return null;
 
     // The same cache entries the fighter and gang pages read
-    const [gang, fighters] = await Promise.all([
-      getGangCore(fighterBasic.gang_id),
-      getGangFightersList(fighterBasic.gang_id)
-    ]);
+    const gang = await getGangCore(fighterBasic.gang_id);
     if (!gang || gang.hidden) return null;
+
+    const fighters = await getGangFightersList(gang.id, {
+      gangEditionSlug: gang.edition_slug ?? null,
+      gangTypeId: gang.gang_type_id,
+      gangOriginId: gang.gang_origin_id ?? null,
+      gangSubtypeIds: gang.gang_subtypes ?? []
+    });
 
     const fighter = fighters.find(f => f.id === fighterId);
     if (!fighter) return null;

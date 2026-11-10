@@ -8,47 +8,9 @@ import {
 import type { GangFighter } from "@/types/gang";
 import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
+import { transformFighterSummaryForData } from "@/utils/public-fighter-summary";
 
 export const OPTIONS = publicDataOptions;
-
-interface DataFighterSummary {
-  id: string;
-  name: string;
-  type: string;
-  subtypes: string[];
-  cost: number;
-  xp: number;
-  kills: number;
-  is_vehicle: boolean;
-  killed: boolean;
-  retired: boolean;
-  enslaved: boolean;
-  recovery: boolean;
-  captured: boolean;
-  starved: boolean;
-}
-
-/**
- * Transform an assembled gang page fighter into its roster summary for data endpoint
- */
-function transformFighterSummaryForData(fighter: GangFighter): DataFighterSummary {
-  return {
-    id: fighter.id,
-    name: fighter.fighter_name ?? '',
-    type: fighter.fighter_type,
-    subtypes: fighter.fighter_subtypes ?? [],
-    cost: fighter.credits,
-    xp: fighter.xp ?? 0,
-    kills: fighter.kills,
-    is_vehicle: fighter.is_vehicle ?? false,
-    killed: fighter.killed,
-    retired: fighter.retired,
-    enslaved: fighter.enslaved,
-    recovery: fighter.recovery,
-    captured: fighter.captured,
-    starved: fighter.starved
-  };
-}
 
 /**
  * A gang's details, fighter roster and stash, read from the gang page's caches.
@@ -62,7 +24,12 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
     if (!gang || gang.hidden) return null;
 
     const [fighters, positioning, stash, subtypes] = await Promise.all([
-      getGangFightersList(gangId),
+      getGangFightersList(gangId, {
+        gangEditionSlug: gang.edition_slug ?? null,
+        gangTypeId: gang.gang_type_id,
+        gangOriginId: gang.gang_origin_id ?? null,
+        gangSubtypeIds: gang.gang_subtypes ?? []
+      }),
       getGangPositioning(gangId),
       getGangStash(gangId),
       getGangSubtypes(gang.gang_subtypes ?? [])

@@ -190,16 +190,12 @@ export async function publicDataResponse(
   load: (id: string) => Promise<object | null>
 ): Promise<NextResponse> {
   // API routes skip the proxy's UUID lower-casing, and stored ids are lower case
-  const id = rawId?.toLowerCase();
+  const id = rawId.toLowerCase();
   const name = entity.toLowerCase();
   const corsHeaders = getCorsHeaders();
 
   // Get format from query parameter (e.g., ?format=xml)
   const format = new URL(request.url).searchParams.get('format') || 'json';
-
-  if (!id) {
-    return errorResponse(format, 400, `${entity} ID is required`, corsHeaders);
-  }
 
   try {
     // Extract client IP from Vercel headers
