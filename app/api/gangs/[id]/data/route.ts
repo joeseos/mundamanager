@@ -7,8 +7,7 @@ import {
 } from "@/app/lib/shared/gang-data";
 import type { GangFighter } from "@/types/gang";
 import { sortFightersByPositioning } from "@/utils/fighter-positioning";
-import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
-import { transformFighterSummaryForData } from "@/utils/public-fighter-summary";
+import { publicDataOptions, publicDataResponse, transformFighterSummaryForData } from "@/utils/public-data-response";
 
 export const OPTIONS = publicDataOptions;
 

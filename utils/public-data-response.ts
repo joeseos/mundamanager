@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { isUuid } from "@/utils/uuid";
+import type { GangFighter } from "@/types/gang";
 
 // Shared handling for the public data endpoints (/api/campaigns/[id]/data,
 // /api/gangs/[id]/data, /api/fighters/[id]/data): ?format=xml, CORS, the per-IP
-// rate limit (one budget for all of them on a server instance), and the error
-// responses.
+// rate limit (one budget for all of them on a server instance), the error
+// responses, and the fighter summary the gang and fighter endpoints share.
 
 // IP-based rate limiting storage
 interface RateLimitEntry {
@@ -253,4 +254,27 @@ export async function publicDataResponse(
     console.error(`Error generating ${name} data:`, error);
     return errorResponse(format, 500, `Failed to generate ${name} data`, corsHeaders);
   }
+}
+
+/**
+ * A fighter's roster summary for the public data endpoints: the gang endpoint
+ * lists one per fighter, and the fighter endpoint starts from it
+ */
+export function transformFighterSummaryForData(fighter: GangFighter) {
+  return {
+    id: fighter.id,
+    name: fighter.fighter_name ?? '',
+    type: fighter.fighter_type,
+    subtypes: fighter.fighter_subtypes ?? [],
+    cost: fighter.credits,
+    xp: fighter.xp ?? 0,
+    kills: fighter.kills,
+    is_vehicle: fighter.is_vehicle ?? false,
+    killed: fighter.killed,
+    retired: fighter.retired,
+    enslaved: fighter.enslaved,
+    recovery: fighter.recovery,
+    captured: fighter.captured,
+    starved: fighter.starved
+  };
 }
