@@ -44,8 +44,8 @@ interface AddFighterParams {
   use_delegation_cost?: boolean;
   fighter_gang_legacy_id?: string;
   selected_archetype_id?: string;
-  /** Options chosen for equipment that grants a choice, e.g. an Outrider Quad's weapon */
-  selected_grant_equipment_ids?: string[];
+  /** Options chosen per equipment id that grants a choice, e.g. an Outrider Quad's weapon */
+  selected_grant_equipment_ids?: Record<string, string[]>;
 }
 
 interface FighterStats {
@@ -480,10 +480,10 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       for (const source of grantSources ?? []) {
         const grants = source.grants_equipment as EquipmentGrants;
         if (!grants.options?.length) continue;
+        const picks = params.selected_grant_equipment_ids?.[source.id];
         // A choice grant nobody chose from grants nothing
-        const hasChoice = grants.options.some(opt => params.selected_grant_equipment_ids?.includes(opt.equipment_id));
-        if (grants.selection_type !== 'fixed' && !hasChoice) continue;
-        grantOptionsByEquipmentId.set(source.id, chosenGrantOptions(grants, params.selected_grant_equipment_ids));
+        if (grants.selection_type !== 'fixed' && !picks?.length) continue;
+        grantOptionsByEquipmentId.set(source.id, chosenGrantOptions(grants, picks));
       }
     }
     const grantsCost = Array.from(grantOptionsByEquipmentId.values())

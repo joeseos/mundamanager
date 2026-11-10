@@ -494,7 +494,7 @@ export default function FighterAddModal({
       use_delegation_cost: boolean;
       fighter_gang_legacy_id?: string;
       selected_archetype_id?: string;
-      selected_grant_equipment_ids?: string[];
+      selected_grant_equipment_ids?: Record<string, string[]>;
     }) => {
       const result = await addFighterToGang(params);
       if (!result.success) {
@@ -606,7 +606,7 @@ export default function FighterAddModal({
       use_delegation_cost: useDelegationCost,
       fighter_gang_legacy_id: selectedLegacyId || undefined,
       selected_archetype_id: canUseArchetypes ? (selectedArchetypeId || undefined) : undefined,
-      selected_grant_equipment_ids: Object.values(grantPicks).flat(),
+      selected_grant_equipment_ids: grantPicks,
     });
 
     return true;
