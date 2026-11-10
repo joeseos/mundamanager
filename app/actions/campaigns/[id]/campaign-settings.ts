@@ -1,7 +1,7 @@
 'use server';
 
 import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaignCore, invalidateCampaignAll, invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
@@ -105,6 +105,51 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to update campaign settings' 
     };
+  }
+}
+
+/**
+ * Connect the campaign to the Discord server that gave out the code. Anyone in a server the
+ * bot is in can get a code with /link, so an arbitrator can connect a server the bot is
+ * already in without the bot invite screen, which needs Manage Server.
+ */
+export async function linkDiscordServer(campaignId: string, code: string) {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    if (!(await checkCampaignArbitrator(user.id, campaignId))) {
+      return { success: false, error: 'Only the campaign owner or arbitrators can connect Discord' };
+    }
+
+    // Codes are single use: taking one deletes it. Only the service role can read them.
+    const { data: link, error: codeError } = await createServiceRoleClient()
+      .from('discord_link_codes')
+      .delete()
+      .eq('code', code.trim().toUpperCase())
+      .gt('expires_at', new Date().toISOString())
+      .select('guild_id')
+      .maybeSingle();
+
+    if (codeError) throw codeError;
+    if (!link) {
+      return { success: false, error: 'That code is wrong or has expired. Run /link in Discord again.' };
+    }
+
+    const { error } = await supabase
+      .from('campaigns')
+      .update({ discord_guild_id: link.guild_id, updated_at: new Date().toISOString() })
+      .eq('id', campaignId)
+      .select('id')
+      .single();
+
+    if (error) throw error;
+
+    invalidateCampaignCore(campaignId);
+    return { success: true, guildId: link.guild_id as string };
+  } catch (error) {
+    console.error('Error linking Discord server:', error);
+    return { success: false, error: 'Failed to connect Discord' };
   }
 }
 

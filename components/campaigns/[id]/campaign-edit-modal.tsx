@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { useRouter } from "next/navigation";
-import { deleteCampaign, updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
+import { deleteCampaign, linkDiscordServer, updateCampaignSettings } from "@/app/actions/campaigns/[id]/campaign-settings";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { tradingPostRank } from "@/utils/tradingPostRank";
 import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-allegiances-actions";
@@ -111,6 +111,8 @@ export default function CampaignEditModal({
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
   const [postDiceRolls, setPostDiceRolls] = useState(campaignData.discord_dice_rolls ?? false);
   const [diceRollChannelId, setDiceRollChannelId] = useState<string>(campaignData.discord_dice_roll_channel_id || '');
+  const [linkCode, setLinkCode] = useState('');
+  const [isLinking, setIsLinking] = useState(false);
 
   const router = useRouter();
 
@@ -208,6 +210,24 @@ export default function CampaignEditModal({
 
     // The connect route adds the state nonce and sends the popup on to Discord
     window.open(`${appUrl}/api/discord/connect?campaign_id=${campaignData.id}`, '_blank', 'width=500,height=800');
+  };
+
+  const handleLinkDiscord = async () => {
+    setIsLinking(true);
+    try {
+      const result = await linkDiscordServer(campaignData.id, linkCode);
+      if (!result.success || !result.guildId) {
+        toast.error(result.error);
+        return;
+      }
+      setLinkCode('');
+      onDiscordConnected?.(result.guildId);
+      toast.success('Discord connected');
+    } catch {
+      toast.error('Failed to connect Discord');
+    } finally {
+      setIsLinking(false);
+    }
   };
 
   const handleDisconnectDiscord = async () => {
@@ -575,7 +595,7 @@ export default function CampaignEditModal({
                     </Button>
                   </div>
                 ) : (
-                  <div className="mt-2">
+                  <div className="mt-2 space-y-2">
                     <Button
                       type="button"
                       onClick={handleConnectDiscord}
@@ -583,6 +603,31 @@ export default function CampaignEditModal({
                     >
                       Connect Discord Bot
                     </Button>
+                    <div>
+                      <label htmlFor="discord-link-code" className="block text-xs text-muted-foreground mb-1">
+                        Bot already in your server? Run /link there and enter the code.
+                      </label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="discord-link-code"
+                          value={linkCode}
+                          onChange={(e) => setLinkCode(e.target.value)}
+                          placeholder="Link code"
+                          autoComplete="off"
+                          maxLength={6}
+                          className="uppercase"
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleLinkDiscord}
+                          size="sm"
+                          variant="outline"
+                          disabled={!linkCode.trim() || isLinking}
+                        >
+                          {isLinking ? 'Connecting...' : 'Connect'}
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
