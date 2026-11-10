@@ -210,7 +210,7 @@ export default function ActiveSession({
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             {canManage && (
               <>
-                {isPreBattle && (
+                {isPreBattle && !session.campaign_battle_id && (
                   <Button className="flex-1 sm:flex-none" onClick={() => setShowAddPlayerModal(true)}>
                     Add Player
                   </Button>

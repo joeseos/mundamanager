@@ -609,7 +609,7 @@ export default function ParticipantCard({
                   {canInteract ? 'Reinforcements' : 'Select Crew'}
                 </Button>
               )}
-              {(canManage || isMyGang) && editable && !isPostBattle && (
+              {(canManage || isMyGang) && editable && !isPostBattle && !session.campaign_battle_id && (
                 <Button
                   variant="outline_remove"
                   size="icon"
