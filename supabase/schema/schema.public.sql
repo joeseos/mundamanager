@@ -5706,6 +5706,8 @@ CREATE TABLE public.campaigns (
     current_cycle integer,
     current_phase text,
     campaign_portrait_id uuid,
+    discord_dice_rolls boolean DEFAULT false NOT NULL,
+    discord_dice_roll_channel_id text,
     CONSTRAINT campaigns_current_cycle_positive CHECK (((current_cycle IS NULL) OR (current_cycle >= 1))),
     CONSTRAINT campaigns_current_phase_length CHECK (((current_phase IS NULL) OR ((char_length(current_phase) >= 1) AND (char_length(current_phase) <= 50))))
 );
