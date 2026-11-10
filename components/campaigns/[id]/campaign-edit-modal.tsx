@@ -536,14 +536,14 @@ export default function CampaignEditModal({
                     </div>
                     <label
                       htmlFor="discord-dice-rolls"
-                      className="flex items-center space-x-2 cursor-pointer"
+                      className="flex items-center space-x-2 cursor-pointer text-sm"
                     >
                       <Checkbox
                         id="discord-dice-rolls"
                         checked={postDiceRolls}
                         onCheckedChange={(checked) => setPostDiceRolls(checked === true)}
                       />
-                      <span className="text-sm">Post dice rolls</span>
+                      <span>Post dice rolls</span>
                       <InfoTooltip ariaLabel="About posting dice rolls">
                         Posts every roll the players make for their gangs in this campaign, such as Lasting Injuries, Advancements and Post-cycle Actions, so arbitrators can follow them on Discord.
                       </InfoTooltip>
