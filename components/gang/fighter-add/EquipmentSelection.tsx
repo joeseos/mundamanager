@@ -1,13 +1,15 @@
 'use client';
 
 import React from 'react';
-import { EquipmentOption, DefaultEquipment, EquipmentSelectionDataModel } from '@/types/fighter-type';
+import { EquipmentOption, DefaultEquipment, EquipmentSelectionDataModel, FighterType } from '@/types/fighter-type';
 import { Checkbox } from '@/components/ui/checkbox';
 import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
 import {
   SelectedEquipmentItem,
   normalizeEquipmentSelection,
   inferCategoryFromEquipmentName,
+  choiceGrantDefaults,
+  grantPicksCost,
 } from '@/utils/equipment-selection';
 
 interface EquipmentSelectionProps {
@@ -18,6 +20,11 @@ interface EquipmentSelectionProps {
   setSelectedEquipment: React.Dispatch<React.SetStateAction<SelectedEquipmentItem[]>>;
   setFighterCost: React.Dispatch<React.SetStateAction<string>>;
   editionSlug?: string | null;
+  /** Fighter type whose default equipment may come with a choice, e.g. an Outrider Quad's weapon */
+  fighterType?: FighterType;
+  /** Picked options per default equipment id */
+  grantPicks: Record<string, string[]>;
+  setGrantPicks: (picks: Record<string, string[]>) => void;
 }
 
 /**
@@ -36,12 +43,15 @@ export function EquipmentSelection({
   setSelectedEquipment,
   setFighterCost,
   editionSlug,
+  fighterType,
+  grantPicks,
+  setGrantPicks,
 }: EquipmentSelectionProps) {
-  if (!equipmentSelection) return null;
-
-  const normalizedSelection = normalizeEquipmentSelection(equipmentSelection);
-  const allCategories = Object.entries(normalizedSelection);
-  if (allCategories.length === 0) return null;
+  const allCategories = equipmentSelection
+    ? Object.entries(normalizeEquipmentSelection(equipmentSelection))
+    : [];
+  const grantDefaults = choiceGrantDefaults(fighterType);
+  if (allCategories.length === 0 && grantDefaults.length === 0) return null;
 
   return (
     <div className="space-y-4">
@@ -393,6 +403,39 @@ export function EquipmentSelection({
           </div>
         );
       })}
+
+      {/* The item default equipment comes with, e.g. an Outrider Quad's weapon */}
+      {grantDefaults.map(item => (
+        <div key={item.id} className="space-y-1">
+          <label className="block text-sm font-medium text-muted-foreground">
+            {item.equipment_name} (Choose one)
+          </label>
+          <div className="space-y-1">
+            {item.grants_equipment!.options.map(option => {
+              const optionId = `grant-${item.id}-${option.equipment_id}`;
+              return (
+                <div key={optionId} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`grant-selection-${item.id}`}
+                    id={optionId}
+                    checked={grantPicks[item.id]?.includes(option.equipment_id) ?? false}
+                    onChange={() => {
+                      const nextPicks = { ...grantPicks, [item.id]: [option.equipment_id] };
+                      const costChange = grantPicksCost(fighterType, nextPicks) - grantPicksCost(fighterType, grantPicks);
+                      setGrantPicks(nextPicks);
+                      setFighterCost(prev => String(parseInt(prev || '0') + costChange));
+                    }}
+                  />
+                  <label htmlFor={optionId} className="text-sm">
+                    {option.equipment_name} +{option.additional_cost} credits
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

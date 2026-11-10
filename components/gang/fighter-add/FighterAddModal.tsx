@@ -40,6 +40,9 @@ import {
   normalizeEquipmentSelection,
   getDefaultEquipmentFromSelection,
   getBaseCost,
+  choiceGrantDefaults,
+  defaultGrantPicks,
+  grantPicksCost,
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
 
@@ -125,34 +128,6 @@ function mapFighterType(type: any): FighterType {
     is_granted_with_fighter: type.is_granted_with_fighter || false,
     associated_pet_owner_id: type.associated_pet_owner_id || null,
   } as FighterType;
-}
-
-/** Default equipment that comes with a choice of items, e.g. an Outrider Quad and its weapon. */
-function choiceGrantDefaults(type?: FighterType): DefaultEquipment[] {
-  // One pick per equipment id, as the server grants it once per equipment id
-  return (type?.default_equipment ?? []).filter((item: DefaultEquipment, index: number, all: DefaultEquipment[]) =>
-    all.findIndex(other => other.id === item.id) === index &&
-    item.grants_equipment?.selection_type === 'single_select' &&
-    item.grants_equipment.options.length > 0
-  );
-}
-
-/** Each choice starts on its cheapest option, the standard one (e.g. the harpoon launcher). */
-function defaultGrantPicks(type?: FighterType): Record<string, string[]> {
-  return Object.fromEntries(choiceGrantDefaults(type).map(item => {
-    const cheapest = item.grants_equipment!.options.reduce((min, opt) =>
-      opt.additional_cost < min.additional_cost ? opt : min
-    );
-    return [item.id, [cheapest.equipment_id]];
-  }));
-}
-
-function grantPicksCost(type: FighterType | undefined, picks: Record<string, string[]>): number {
-  return choiceGrantDefaults(type).reduce((sum, item) =>
-    sum + item.grants_equipment!.options
-      .filter(opt => picks[item.id]?.includes(opt.equipment_id))
-      .reduce((optSum, opt) => optSum + opt.additional_cost, 0),
-  0);
 }
 
 function countLimitsFromType(type?: { min_count?: number | null; max_count?: number | null } | null) {
@@ -1190,40 +1165,11 @@ export default function FighterAddModal({
         setSelectedEquipment={setSelectedEquipment}
         setFighterCost={setFighterCost}
         editionSlug={currentEditionSlug}
+        fighterType={currentFighterType}
+        grantPicks={grantPicks}
+        setGrantPicks={setGrantPicks}
       />
 
-      {/* The item default equipment comes with, e.g. an Outrider Quad's weapon */}
-      {choiceGrantDefaults(currentFighterType).map(item => (
-        <div key={item.id} className="space-y-1">
-          <label className="block text-sm font-medium text-muted-foreground">
-            {item.equipment_name} (Choose one)
-          </label>
-          <div className="space-y-1">
-            {item.grants_equipment!.options.map(option => {
-              const optionId = `grant-${item.id}-${option.equipment_id}`;
-              return (
-                <div key={optionId} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`grant-selection-${item.id}`}
-                    id={optionId}
-                    checked={grantPicks[item.id]?.includes(option.equipment_id) ?? false}
-                    onChange={() => {
-                      const nextPicks = { ...grantPicks, [item.id]: [option.equipment_id] };
-                      const costChange = grantPicksCost(currentFighterType, nextPicks) - grantPicksCost(currentFighterType, grantPicks);
-                      setGrantPicks(nextPicks);
-                      setFighterCost(prev => String(parseInt(prev || '0') + costChange));
-                    }}
-                  />
-                  <label htmlFor={optionId} className="text-sm">
-                    {option.equipment_name} +{option.additional_cost} credits
-                  </label>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
 
       {/* Cost */}
       <div className="space-y-2">
