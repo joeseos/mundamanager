@@ -7,8 +7,6 @@ import { Input } from "@/components/ui/input";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
-import { GrantOptionsPicker } from '@/components/equipment/grant-options-picker';
-import { grantOptionsCost, maxGrantSelections } from '@/utils/equipment-grants';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
@@ -56,6 +54,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
   // Grants selection state
   const [showGrantsSelection, setShowGrantsSelection] = useState(false);
   const [selectedGrantIds, setSelectedGrantIds] = useState<string[]>([]);
+  const [grantOptions, setGrantOptions] = useState<Array<{ id: string; name: string; cost: number; additional_cost: number }>>([]);
   const [grantsConfig, setGrantsConfig] = useState<EquipmentGrants | null>(null);
 
   const hasResourceCost = Boolean(item.cost_resource_name && item.cost_resource_amount != null);
@@ -130,6 +129,15 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
       const grants = item.grants_equipment as EquipmentGrants;
 
       if (grants.selection_type === 'single_select' || grants.selection_type === 'multiple_select') {
+        // Use equipment names from the RPC data (already enriched)
+        const options = grants.options.map((opt: any) => ({
+          id: opt.equipment_id,
+          name: opt.equipment_name || 'Unknown',
+          cost: 0, // Not needed for display
+          additional_cost: opt.additional_cost
+        }));
+
+        setGrantOptions(options);
         setGrantsConfig(grants);
         setSelectedEffectIds(effectIds);
         setShowGrantsSelection(true);
@@ -347,13 +355,15 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
   if (showGrantsSelection && grantsConfig) {
     const isMultiple = grantsConfig.selection_type === 'multiple_select';
-    const maxSelections = maxGrantSelections(grantsConfig);
+    const maxSelections = grantsConfig.max_selections || grantOptions.length;
     const selectionIsValid = isMultiple
       ? selectedGrantIds.length > 0 && selectedGrantIds.length <= maxSelections
       : selectedGrantIds.length === 1;
 
     // Calculate total additional cost from selected options
-    const totalAdditionalCost = grantOptionsCost(grantsConfig, selectedGrantIds);
+    const totalAdditionalCost = grantOptions
+      .filter(opt => selectedGrantIds.includes(opt.id))
+      .reduce((sum, opt) => sum + opt.additional_cost, 0);
 
     // Check if user can afford the total cost (base + additional)
     const baseCost = Number(manualCost);
@@ -372,12 +382,49 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                 : 'Choose one equipment option to receive with your purchase:'}
             </p>
 
-            <GrantOptionsPicker
-              grants={grantsConfig}
-              selectedIds={selectedGrantIds}
-              onChange={setSelectedGrantIds}
-              name="grant-selection"
-            />
+            <div className="space-y-2">
+              {grantOptions.map((option) => (
+                <label
+                  key={option.id}
+                  className={`flex items-center p-3 border rounded-lg cursor-pointer hover:bg-muted/50 ${
+                    selectedGrantIds.includes(option.id) ? 'border-primary bg-primary/5' : ''
+                  }`}
+                >
+                  {isMultiple ? (
+                    <Checkbox
+                      checked={selectedGrantIds.includes(option.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          if (selectedGrantIds.length < maxSelections) {
+                            setSelectedGrantIds([...selectedGrantIds, option.id]);
+                          }
+                        } else {
+                          setSelectedGrantIds(selectedGrantIds.filter(id => id !== option.id));
+                        }
+                      }}
+                      disabled={!selectedGrantIds.includes(option.id) && selectedGrantIds.length >= maxSelections}
+                      className="mr-3"
+                    />
+                  ) : (
+                    <input
+                      type="radio"
+                      name="grant-selection"
+                      checked={selectedGrantIds.includes(option.id)}
+                      onChange={() => setSelectedGrantIds([option.id])}
+                      className="mr-3"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <span className="font-medium">{option.name}</span>
+                    {option.additional_cost > 0 && (
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        (+{option.additional_cost} credits)
+                      </span>
+                    )}
+                  </div>
+                </label>
+              ))}
+            </div>
 
             {totalAdditionalCost > 0 && (
               <p className="text-sm font-medium">

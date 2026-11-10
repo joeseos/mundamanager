@@ -42,8 +42,6 @@ import {
   getBaseCost,
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
-import { GrantOptionsPicker } from '@/components/equipment/grant-options-picker';
-import { grantOptionsCost, maxGrantSelections } from '@/utils/equipment-grants';
 
 /** 'vehicles' is the 'roster' query narrowed to vehicle fighter types. */
 export type FighterAddCatalog = 'roster' | 'additions' | 'vehicles';
@@ -134,8 +132,7 @@ function choiceGrantDefaults(type?: FighterType): DefaultEquipment[] {
   // One pick per equipment id, as the server grants it once per equipment id
   return (type?.default_equipment ?? []).filter((item: DefaultEquipment, index: number, all: DefaultEquipment[]) =>
     all.findIndex(other => other.id === item.id) === index &&
-    item.grants_equipment &&
-    item.grants_equipment.selection_type !== 'fixed' &&
+    item.grants_equipment?.selection_type === 'single_select' &&
     item.grants_equipment.options.length > 0
   );
 }
@@ -152,7 +149,10 @@ function defaultGrantPicks(type?: FighterType): Record<string, string[]> {
 
 function grantPicksCost(type: FighterType | undefined, picks: Record<string, string[]>): number {
   return choiceGrantDefaults(type).reduce((sum, item) =>
-    sum + grantOptionsCost(item.grants_equipment!, picks[item.id]), 0);
+    sum + item.grants_equipment!.options
+      .filter(opt => picks[item.id]?.includes(opt.equipment_id))
+      .reduce((optSum, opt) => optSum + opt.additional_cost, 0),
+  0);
 }
 
 function countLimitsFromType(type?: { min_count?: number | null; max_count?: number | null } | null) {
@@ -1192,25 +1192,36 @@ export default function FighterAddModal({
         editionSlug={currentEditionSlug}
       />
 
-      {/* Items that come with default equipment, e.g. an Outrider Quad's weapon */}
+      {/* The item default equipment comes with, e.g. an Outrider Quad's weapon */}
       {choiceGrantDefaults(currentFighterType).map(item => (
         <div key={item.id} className="space-y-1">
           <label className="block text-sm font-medium text-muted-foreground">
-            {item.equipment_name} ({item.grants_equipment!.selection_type === 'multiple_select'
-              ? `Choose up to ${maxGrantSelections(item.grants_equipment!)}`
-              : 'Choose one'})
+            {item.equipment_name} (Choose one)
           </label>
-          <GrantOptionsPicker
-            grants={item.grants_equipment!}
-            selectedIds={grantPicks[item.id] ?? []}
-            onChange={(ids) => {
-              const nextPicks = { ...grantPicks, [item.id]: ids };
-              const costChange = grantPicksCost(currentFighterType, nextPicks) - grantPicksCost(currentFighterType, grantPicks);
-              setGrantPicks(nextPicks);
-              setFighterCost(prev => String(parseInt(prev || '0') + costChange));
-            }}
-            name={`grant-selection-${item.id}`}
-          />
+          <div className="space-y-1">
+            {item.grants_equipment!.options.map(option => {
+              const optionId = `grant-${item.id}-${option.equipment_id}`;
+              return (
+                <div key={optionId} className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`grant-selection-${item.id}`}
+                    id={optionId}
+                    checked={grantPicks[item.id]?.includes(option.equipment_id) ?? false}
+                    onChange={() => {
+                      const nextPicks = { ...grantPicks, [item.id]: [option.equipment_id] };
+                      const costChange = grantPicksCost(currentFighterType, nextPicks) - grantPicksCost(currentFighterType, grantPicks);
+                      setGrantPicks(nextPicks);
+                      setFighterCost(prev => String(parseInt(prev || '0') + costChange));
+                    }}
+                  />
+                  <label htmlFor={optionId} className="text-sm">
+                    {option.equipment_name} +{option.additional_cost} credits
+                  </label>
+                </div>
+              );
+            })}
+          </div>
         </div>
       ))}
 
