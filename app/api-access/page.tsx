@@ -301,8 +301,11 @@ Gang Sympathisers`}</code></pre>
   "//weapon/name"
 )`}</code></pre>
                 </div>
+                <p className="text-muted-foreground mb-2">
+                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">&apos;Hystrar&apos; pattern energy shield</code> and <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">Multi-melta*</code>
+                </p>
                 <p className="text-muted-foreground">
-                  Returns the fighter&apos;s weapon names. Use <code>//stats/toughness</code> for a characteristic, <code>//skill</code> for the skills, or <code>//weapon[name='Lasgun']/profile/strength</code> for a weapon profile&apos;s strength.
+                  Use <code>{`//stats/toughness`}</code> instead for a characteristic, <code>{`//skill`}</code> for the skills, or <code>{`//weapon[1]/profile/strength`}</code> for the strength of the first weapon.
                 </p>
               </div>
             </section>
