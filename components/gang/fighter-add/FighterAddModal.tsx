@@ -3,7 +3,7 @@
 import React, { useState, useRef, useMemo } from 'react';
 import { Input } from '@/components/ui/input';
 import Modal from '@/components/ui/modal';
-import { FighterType, EquipmentOption, NormalizedEquipmentSelection, DefaultEquipment } from '@/types/fighter-type';
+import { FighterType, EquipmentOption, NormalizedEquipmentSelection } from '@/types/fighter-type';
 import { FighterProps, Archetype } from '@/types/fighter';
 import { toast } from 'sonner';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
@@ -1169,7 +1169,6 @@ export default function FighterAddModal({
         grantPicks={grantPicks}
         setGrantPicks={setGrantPicks}
       />
-
 
       {/* Cost */}
       <div className="space-y-2">

@@ -196,7 +196,7 @@ export function getBaseCost(type: Pick<FighterType, 'total_cost' | 'delegation_c
 /** Default equipment that comes with a choice of items, e.g. an Outrider Quad and its weapon. */
 export function choiceGrantDefaults(type?: FighterType): DefaultEquipment[] {
   // One pick per equipment id, as the server grants it once per equipment id
-  return (type?.default_equipment ?? []).filter((item: DefaultEquipment, index: number, all: DefaultEquipment[]) =>
+  return (type?.default_equipment ?? []).filter((item, index, all) =>
     all.findIndex(other => other.id === item.id) === index &&
     item.grants_equipment?.selection_type === 'single_select' &&
     item.grants_equipment.options.length > 0
