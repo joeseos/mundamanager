@@ -29,7 +29,8 @@ export function chosenGrantOptions(
 
 /**
  * Insert granted equipment linked to the fighter_equipment row that granted it, so it is
- * deleted with it. purchase_cost is the option's additional cost.
+ * deleted with it. purchase_cost is the option's additional cost. Returns the rows with their
+ * weapon profiles, for the fighter card.
  */
 export async function insertGrantedEquipment(
   supabase: any,
@@ -65,13 +66,13 @@ export async function insertGrantedEquipment(
   const { data: inserted, error } = await supabase
     .from('fighter_equipment')
     .insert(inserts)
-    .select('id, equipment_id, purchase_cost, equipment!equipment_id(equipment_name, equipment_type)');
+    .select('id, equipment_id, purchase_cost, equipment!equipment_id(equipment_name, equipment_type, weapon_profiles(*))');
 
   if (error) console.error('Failed to add granted equipment:', error);
   return (inserted ?? []) as Array<{
     id: string;
     equipment_id: string;
     purchase_cost: number;
-    equipment: { equipment_name: string; equipment_type: string } | null;
+    equipment: { equipment_name: string; equipment_type: string; weapon_profiles: any[] } | null;
   }>;
 }

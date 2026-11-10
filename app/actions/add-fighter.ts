@@ -1067,32 +1067,17 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 }));
               }
 
-              if (grantedEquipment.length > 0) {
-                const grantedWeaponIds = grantedEquipment
-                  .filter(item => item.equipment?.equipment_type === 'weapon')
-                  .map(item => item.equipment_id);
-
-                let grantedWeaponProfiles: any[] = [];
-                if (grantedWeaponIds.length > 0) {
-                  const { data: grantedProfilesData } = await supabase
-                    .from('weapon_profiles')
-                    .select('*')
-                    .in('equipment_id', grantedWeaponIds);
-                  grantedWeaponProfiles = grantedProfilesData || [];
-                }
-
-                equipmentWithProfiles = [...equipmentWithProfiles, ...grantedEquipment.map(item => ({
-                  fighter_equipment_id: item.id,
-                  equipment_id: item.equipment_id,
-                  custom_equipment_id: undefined,
-                  equipment_name: item.equipment?.equipment_name || 'Unknown',
-                  equipment_type: item.equipment?.equipment_type || 'unknown',
-                  equipment_category: 'unknown',
-                  cost: item.purchase_cost,
-                  weapon_profiles: grantedWeaponProfiles.filter((wp: any) => wp.equipment_id === item.equipment_id),
-                  is_editable: false
-                }))];
-              }
+              equipmentWithProfiles = [...equipmentWithProfiles, ...grantedEquipment.map(item => ({
+                fighter_equipment_id: item.id,
+                equipment_id: item.equipment_id,
+                custom_equipment_id: undefined,
+                equipment_name: item.equipment?.equipment_name || 'Unknown',
+                equipment_type: item.equipment?.equipment_type || 'unknown',
+                equipment_category: 'unknown',
+                cost: item.purchase_cost,
+                weapon_profiles: item.equipment?.weapon_profiles ?? [],
+                is_editable: false
+              }))];
             } else if (queryResult.error) {
               console.warn(`Failed to insert equipment: ${queryResult.error.message}`);
             }
