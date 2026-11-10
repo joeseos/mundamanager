@@ -837,9 +837,9 @@ export async function addParticipant(params: {
     if (!session) return { success: false, error: 'Session not found' };
     if (session.status !== 'pre_battle')
       return { success: false, error: 'Can only add players during pre-battle' };
-    if (session.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
     if (!(await canManageSession(currentUser.id, session)))
       return { success: false, error: 'Only the session creator or an arbitrator can add participants' };
+    if (session.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     // Validate gang belongs to the specified user
     const { data: gangOwner } = await supabase
@@ -940,16 +940,17 @@ export async function removeParticipant(
       .single();
 
     if (!participant) return { success: false, error: 'Participant not found' };
-    const session = Array.isArray(participant.battle_sessions)
-      ? participant.battle_sessions[0]
-      : participant.battle_sessions;
-    if (session?.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     const isSelfRemoval = participant.user_id === user.id;
     if (!isSelfRemoval) {
       const auth = await verifySessionManager(supabase, sessionId, user.id);
       if (!auth.authorized) return { success: false, error: 'Only the session creator or an arbitrator can remove other participants' };
     }
+
+    const session = Array.isArray(participant.battle_sessions)
+      ? participant.battle_sessions[0]
+      : participant.battle_sessions;
+    if (session?.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     const { error } = await supabase
       .from('battle_session_participants')
