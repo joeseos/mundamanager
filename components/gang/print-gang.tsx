@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
-import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
+import { calculateAdjustedStats, applySpecialRulesModifiers, calculateVehicleStats } from "@/utils/effect-modifiers";
 import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
@@ -131,63 +131,6 @@ interface PrintGangProps {
     fightersActiveLoadoutOnly?: FighterProps[];
   };
 }
-
-const calculateVehicleStats = (
-  baseStats: Vehicle | undefined,
-) => {
-  if (!baseStats) return null;
-
-  const stats = {
-    movement: baseStats.movement ?? 0,
-    front: baseStats.front ?? 0,
-    side: baseStats.side ?? 0,
-    rear: baseStats.rear ?? 0,
-    hull_points: baseStats.hull_points ?? 0,
-    handling: baseStats.handling ?? 0,
-    save: baseStats.save ?? 0,
-    body_slots: baseStats.body_slots ?? 0,
-    drive_slots: baseStats.drive_slots ?? 0,
-    engine_slots: baseStats.engine_slots ?? 0,
-  };
-
-  // Apply modifiers from vehicle effects (lasting damages, vehicle upgrades, and user adjustments)
-  if (baseStats.effects) {
-    const effectCategories = ["lasting damages", "vehicle upgrades", "user"];
-    effectCategories.forEach((categoryName) => {
-      if (baseStats.effects && baseStats.effects[categoryName]) {
-        baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
-          if (
-            effect.fighter_effect_modifiers &&
-            Array.isArray(effect.fighter_effect_modifiers)
-          ) {
-            effect.fighter_effect_modifiers.forEach((modifier) => {
-              // Convert stat_name to lowercase to match our stats object keys
-              const statName = modifier.stat_name.toLowerCase();
-
-              // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
-              if (
-                statName === "body_slots" ||
-                statName === "drive_slots" ||
-                statName === "engine_slots"
-              ) {
-                return;
-              }
-
-              // Only apply if the stat exists in our stats object
-              if (statName in stats) {
-                // Apply the numeric modifier to the appropriate stat
-                stats[statName as keyof typeof stats] +=
-                  modifier.numeric_value;
-              }
-            });
-          }
-        });
-      }
-    });
-  }
-
-  return stats;
-};
 
 export default function PrintGang({ gang }: PrintGangProps) {
   const {

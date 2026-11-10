@@ -1,172 +1,15 @@
-import { NextResponse } from "next/server";
 import {
   getCampaignBasic,
   getCampaignMembers,
   getCampaignTerritories,
   getCampaignBattles,
-  getCampaignResources
+  getCampaignResources,
+  getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
+import { getGangCore } from "@/app/lib/shared/gang-data";
+import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
 
-// IP-based rate limiting storage
-interface RateLimitEntry {
-  count: number;
-  resetTime: number;
-}
-
-const dataRateLimitMap = new Map<string, RateLimitEntry>();
-
-function getCorsHeaders(): Record<string, string> {
-  return {
-    // Public endpoint: allow cross-origin consumers.
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type"
-  };
-}
-
-export async function OPTIONS(request: Request) {
-  return new NextResponse(null, {
-    status: 204,
-    headers: getCorsHeaders()
-  });
-}
-
-/**
- * Extract client IP from Vercel request headers
- * Vercel sets x-forwarded-for with the true client IP
- */
-function getClientIP(request: Request): string {
-  // Primary: x-forwarded-for (set by Vercel)
-  const forwarded = request.headers.get("x-forwarded-for");
-  if (forwarded) {
-    // Can be comma-separated list, take first IP
-    return forwarded.split(',')[0].trim();
-  }
-
-  // Fallback: x-real-ip
-  const realIP = request.headers.get("x-real-ip");
-  if (realIP) return realIP;
-
-  // Development fallback
-  return "127.0.0.1";
-}
-
-/**
- * Check rate limiting for data endpoint (10 requests per minute per IP)
- * @param ip - Client IP address
- * @returns Rate limit status with details for response headers
- */
-function checkDataRateLimit(ip: string): {
-  allowed: boolean;
-  remaining: number;
-  reset: number;
-  limit: number;
-} {
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute window
-  const maxRequests = 10;
-
-  const entry = dataRateLimitMap.get(ip);
-
-  // Create new window if doesn't exist or expired
-  if (!entry || now > entry.resetTime) {
-    dataRateLimitMap.set(ip, {
-      count: 1,
-      resetTime: now + windowMs
-    });
-
-    // Cleanup expired entries (memory leak prevention)
-    const expirationThreshold = now - windowMs;
-    const entries = Array.from(dataRateLimitMap.entries());
-    for (const [key, value] of entries) {
-      if (value.resetTime < expirationThreshold) {
-        dataRateLimitMap.delete(key);
-      }
-    }
-
-    return {
-      allowed: true,
-      remaining: maxRequests - 1,
-      reset: now + windowMs,
-      limit: maxRequests
-    };
-  }
-
-  // Check if limit exceeded
-  if (entry.count >= maxRequests) {
-    return {
-      allowed: false,
-      remaining: 0,
-      reset: entry.resetTime,
-      limit: maxRequests
-    };
-  }
-
-  // Increment counter
-  entry.count++;
-  return {
-    allowed: true,
-    remaining: maxRequests - entry.count,
-    reset: entry.resetTime,
-    limit: maxRequests
-  };
-}
-
-
-// Helper function to convert object to XML
-function objectToXml(obj: any, rootName: string = 'root'): string {
-  function buildXml(data: any, nodeName: string): string {
-    if (data === null || data === undefined) {
-      return ''; // Return empty string to omit undefined/null fields
-    }
-
-    if (typeof data !== 'object') {
-      // Escape special XML characters
-      const escaped = String(data)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;');
-      return `<${nodeName}>${escaped}</${nodeName}>`;
-    }
-
-    if (Array.isArray(data)) {
-      // Empty arrays return self-closing tag
-      if (data.length === 0) {
-        return `<${nodeName} />`; // Self-closing tag for empty arrays
-      }
-
-      // Handle plural to singular conversion for XML node names
-      let singularName = nodeName;
-      if (nodeName.endsWith('ies')) {
-        // territories -> territory, categories -> category
-        singularName = nodeName.slice(0, -3) + 'y';
-      } else if (nodeName.endsWith('s')) {
-        // gangs -> gang, members -> member
-        singularName = nodeName.slice(0, -1);
-      }
-
-      // Wrap array items in the plural parent tag to maintain grouping
-      const items = data.map(item => buildXml(item, singularName)).join('');
-      return `<${nodeName}>${items}</${nodeName}>`;
-    }
-
-    const children = Object.entries(data)
-      .map(([key, value]) => buildXml(value, key))
-      .filter(xml => xml !== '') // Filter out empty strings from undefined/null values
-      .join('');
-
-    // If no children after filtering, return self-closing tag
-    if (children === '') {
-      return `<${nodeName} />`;
-    }
-
-    return `<${nodeName}>${children}</${nodeName}>`;
-  }
-
-  return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
-}
+export const OPTIONS = publicDataOptions;
 
 // TypeScript interfaces for data structures
 
@@ -236,6 +79,16 @@ interface DataBattle {
    * `winners` when present.
    */
   territory_claimer?: { id: string; name: string } | null;
+}
+
+interface DataCaptive {
+  fighter_id: string;
+  fighter_name: string;
+  fighter_type: string | null;
+  original_gang_id: string | null;
+  original_gang_name: string;
+  holding_gang_id: string;
+  holding_gang_name: string;
 }
 
 // Transformation functions to clean up data field names
@@ -355,93 +208,55 @@ function transformBattleForData(battle: any): DataBattle {
   return transformed;
 }
 
+/**
+ * Flatten captives (grouped by holding gang) for data endpoint. A captive whose
+ * own gang is hidden is left out, as hidden gangs publish no fighters.
+ */
+async function transformCaptivesForData(
+  holdingGangs: Awaited<ReturnType<typeof getCampaignCaptives>>
+): Promise<DataCaptive[]> {
+  const captives = holdingGangs.flatMap(holder => holder.captives.map(captive => ({ holder, captive })));
+  const originalGangIds = [...new Set(captives.flatMap(({ captive }) => captive.originalGangId ?? []))];
+  const hiddenGangIds = new Set(
+    (await Promise.all(originalGangIds.map(getGangCore)))
+      .flatMap(gang => (gang?.hidden ? [gang.id] : []))
+  );
+
+  return captives
+    .filter(({ captive }) => !captive.originalGangId || !hiddenGangIds.has(captive.originalGangId))
+    .map(({ holder, captive }) => ({
+      fighter_id: captive.fighterId,
+      fighter_name: captive.fighterName,
+      fighter_type: captive.fighterType ?? null,
+      original_gang_id: captive.originalGangId,
+      original_gang_name: captive.originalGangName,
+      holding_gang_id: holder.gangId,
+      holding_gang_name: holder.gangName
+    }));
+}
+
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const params = await props.params;
-  const { campaignId } = params;
-  const corsHeaders = getCorsHeaders();
-  
-  // Get format from query parameter (e.g., ?format=xml)
-  const url = new URL(request.url);
-  const format = url.searchParams.get('format') || 'json';
 
-  if (!campaignId) {
-    return format === 'xml'
-      ? new NextResponse(objectToXml({ error: "Campaign ID is required" }, 'error'), {
-          status: 400,
-          headers: { 'Content-Type': 'application/xml', ...corsHeaders }
-        })
-      : NextResponse.json(
-          { error: "Campaign ID is required" },
-          { status: 400, headers: corsHeaders }
-        );
-  }
-
-  try {
-    // Extract client IP from Vercel headers
-    const clientIP = getClientIP(request);
-
-    // Apply rate limiting (10 requests per minute per IP)
-    const rateLimitResult = checkDataRateLimit(clientIP);
-
-    if (!rateLimitResult.allowed) {
-      const resetSeconds = Math.ceil((rateLimitResult.reset - Date.now()) / 1000);
-      const errorMessage = `Rate limit exceeded. Maximum ${rateLimitResult.limit} requests per minute per IP. Retry in ${resetSeconds} seconds.`;
-
-      const rateLimitHeaders = {
-        'X-RateLimit-Limit': String(rateLimitResult.limit),
-        'X-RateLimit-Remaining': '0',
-        'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
-        'Retry-After': String(resetSeconds),
-      };
-
-      return format === 'xml'
-        ? new NextResponse(objectToXml({ error: errorMessage }, 'error'), {
-            status: 429,
-            headers: { ...rateLimitHeaders, 'Content-Type': 'application/xml', ...corsHeaders }
-          })
-        : NextResponse.json({ error: errorMessage }, {
-            status: 429,
-            headers: { ...rateLimitHeaders, ...corsHeaders }
-          });
-    }
-
-    // Prepare rate limit headers for successful responses
-    const rateLimitHeaders = {
-      'X-RateLimit-Limit': String(rateLimitResult.limit),
-      'X-RateLimit-Remaining': String(rateLimitResult.remaining),
-      'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
-    };
-
-    // SECURITY NOTE: This endpoint is intentionally public - any campaign ID can be viewed
-    // Rate limiting (10 req/min per IP) provides abuse protection
-
+  return publicDataResponse(request, params.campaignId, 'Campaign', async (campaignId) => {
     // Fetch all campaign data using existing cached functions
     const [
       campaignBasic,
       campaignMembers,
       campaignTerritories,
       campaignBattles,
-      campaignResources
+      campaignResources,
+      captives
     ] = await Promise.all([
       getCampaignBasic(campaignId),
       getCampaignMembers(campaignId),
       getCampaignTerritories(campaignId),
       getCampaignBattles(campaignId, 100),
-      getCampaignResources(campaignId)
+      getCampaignResources(campaignId),
+      getCampaignCaptives(campaignId).then(transformCaptivesForData)
     ]);
 
-    // Return 404 if campaign not found
-    if (!campaignBasic) {
-      return format === 'xml'
-        ? new NextResponse(objectToXml({ error: 'Campaign not found' }, 'error'), {
-            status: 404,
-            headers: { 'Content-Type': 'application/xml', ...rateLimitHeaders, ...corsHeaders }
-          })
-        : NextResponse.json(
-            { error: 'Campaign not found' },
-            { status: 404, headers: { ...rateLimitHeaders, ...corsHeaders } }
-          );
-    }
+    if (!campaignBasic) return null;
 
     // Transform members data to include territories under their gangs
     // Note: We exclude auth user IDs for privacy, only include campaign-scoped IDs
@@ -471,7 +286,7 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
     });
 
     // Build the data structure
-    const campaignData = {
+    return {
       campaign: {
         id: campaignBasic.id,
         campaign_name: campaignBasic.campaign_name,
@@ -490,35 +305,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       members: membersWithTerritories,
       resources: campaignResources,
       available_territories: campaignTerritories.map(t => transformTerritoryForData(t, false)),
-      battle_logs: campaignBattles.map(transformBattleForData)
+      battle_logs: campaignBattles.map(transformBattleForData),
+      captives
     };
-
-    // Return based on requested format
-    if (format === 'xml') {
-      const xmlContent = objectToXml(campaignData, 'campaign_data');
-      return new NextResponse(xmlContent, {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/xml',
-          'Content-Disposition': `inline; filename="campaign_${campaignId}.xml"`,
-          ...rateLimitHeaders,
-          ...corsHeaders
-        }
-      });
-    }
-
-    return NextResponse.json(campaignData, { headers: { ...rateLimitHeaders, ...corsHeaders } });
-  } catch (error) {
-    console.error('Error generating campaign data:', error);
-    return format === 'xml'
-      ? new NextResponse(objectToXml({ error: "Failed to generate campaign data" }, 'error'), {
-          status: 500,
-          headers: { 'Content-Type': 'application/xml', ...corsHeaders }
-        })
-      : NextResponse.json(
-          { error: "Failed to generate campaign data" },
-          { status: 500, headers: corsHeaders }
-        );
-  }
+  });
 }
-
