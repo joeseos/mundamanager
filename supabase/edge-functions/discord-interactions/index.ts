@@ -10,14 +10,6 @@ const supabase = createClient(
 
 const DISCORD_PUBLIC_KEY = Deno.env.get("DISCORD_PUBLIC_KEY")!;
 
-const LINK_CODE_MINUTES = 15;
-// No 0/O, 1/I/L, so a code is easy to read and type
-const LINK_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-
-function linkCode(): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(6)), (b) => LINK_CODE_ALPHABET[b % LINK_CODE_ALPHABET.length]).join("");
-}
-
 function ephemeral(content: string): Response {
   return Response.json({ type: 4, data: { content, flags: 64 } });
 }
@@ -61,30 +53,6 @@ Deno.serve(async (req) => {
   if (interaction.type === 2) {
     const commandName = interaction.data.name;
     const guildId = interaction.guild_id;
-
-    if (commandName === "link") {
-      if (!guildId) {
-        return ephemeral("Run /link in the Discord server you want to connect.");
-      }
-
-      // Expired codes are cleared here, so the table only holds recent ones
-      await supabase.from("discord_link_codes").delete().lt("expires_at", new Date().toISOString());
-
-      const code = linkCode();
-      const { error } = await supabase.from("discord_link_codes").insert({
-        code,
-        guild_id: guildId,
-        expires_at: new Date(Date.now() + LINK_CODE_MINUTES * 60_000).toISOString(),
-      });
-      if (error) {
-        console.error("Failed to save link code:", error);
-        return ephemeral("Could not create a link code. Please try again.");
-      }
-
-      return ephemeral(
-        `Your link code is **${code}**.\n\nIn Munda Manager, open your campaign, click **Edit**, and enter it under **Discord Bot**. Only the campaign's owner or arbitrators can use it. It expires in ${LINK_CODE_MINUTES} minutes.`
-      );
-    }
 
     if (commandName === "gangs") {
       // A server can hold several campaigns: use the one posting to this channel, else the only one
