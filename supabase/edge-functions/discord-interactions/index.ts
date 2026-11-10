@@ -10,10 +10,6 @@ const supabase = createClient(
 
 const DISCORD_PUBLIC_KEY = Deno.env.get("DISCORD_PUBLIC_KEY")!;
 
-function ephemeral(content: string): Response {
-  return Response.json({ type: 4, data: { content, flags: 64 } });
-}
-
 function hexToUint8Array(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
@@ -55,22 +51,21 @@ Deno.serve(async (req) => {
     const guildId = interaction.guild_id;
 
     if (commandName === "gangs") {
-      // A server can hold several campaigns: use the one posting to this channel, else the only one
-      const { data: campaigns } = await supabase
+      // Find campaign linked to this Discord server
+      const { data: campaign } = await supabase
         .from("campaigns")
-        .select("id, campaign_name, discord_channel_id")
-        .eq("discord_guild_id", guildId);
-
-      const campaign =
-        campaigns?.find((c) => c.discord_channel_id === interaction.channel_id) ??
-        (campaigns?.length === 1 ? campaigns[0] : undefined);
+        .select("id, campaign_name")
+        .eq("discord_guild_id", guildId)
+        .single();
 
       if (!campaign) {
-        return ephemeral(
-          campaigns?.length
-            ? `This server has several campaigns: ${campaigns.map((c) => `**${c.campaign_name}**`).join(", ")}. Run /gangs in a campaign's Battle Log channel.`
-            : "No campaign is linked to this Discord server."
-        );
+        return Response.json({
+          type: 4,
+          data: {
+            content: "No campaign is linked to this Discord server.",
+            flags: 64, // Ephemeral
+          },
+        });
       }
 
       // Get all gangs in this campaign with user profiles
@@ -80,7 +75,13 @@ Deno.serve(async (req) => {
         .eq("campaign_id", campaign.id);
 
       if (!campaignGangs || campaignGangs.length === 0) {
-        return ephemeral(`No gangs found in **${campaign.campaign_name}**.`);
+        return Response.json({
+          type: 4,
+          data: {
+            content: `No gangs found in **${campaign.campaign_name}**.`,
+            flags: 64,
+          },
+        });
       }
 
       const gangIds = campaignGangs.map((cg) => cg.gang_id);
@@ -91,7 +92,13 @@ Deno.serve(async (req) => {
         .in("id", gangIds);
 
       if (!gangs || gangs.length === 0) {
-        return ephemeral(`No gangs found in **${campaign.campaign_name}**.`);
+        return Response.json({
+          type: 4,
+          data: {
+            content: `No gangs found in **${campaign.campaign_name}**.`,
+            flags: 64,
+          },
+        });
       }
 
       // Get usernames
