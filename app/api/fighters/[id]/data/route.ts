@@ -1,0 +1,157 @@
+import { getFighterBasic } from "@/app/lib/shared/fighter-data";
+import { getGangCore, getGangFightersList } from "@/app/lib/shared/gang-data";
+import type { GangFighter } from "@/types/gang";
+import type { FighterProps } from "@/types/fighter";
+import { applySpecialRulesModifiers, calculateAdjustedStats } from "@/utils/effect-modifiers";
+import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
+
+export const OPTIONS = publicDataOptions;
+
+/** Effect rows grouped by category, as the gang page assembly returns them. */
+type EffectsByCategory = Record<string, Array<{ effect_name: string; type_specific_data?: any }> | undefined>;
+
+/**
+ * Flatten effects into { category, name } rows for data endpoint
+ */
+function transformEffectsForData(effects: EffectsByCategory | undefined) {
+  return Object.entries(effects ?? {}).flatMap(([category, rows]) =>
+    (rows ?? []).map(effect => ({ category, name: effect.effect_name }))
+  );
+}
+
+/**
+ * Transform a fighter weapon, or any vehicle item, with its profiles as the
+ * gang page shows them for data endpoint
+ */
+function transformWeaponForData(weapon: any) {
+  return {
+    id: weapon.fighter_weapon_id ?? weapon.vehicle_weapon_id,
+    name: weapon.weapon_name ?? weapon.equipment_name,
+    cost: weapon.cost ?? weapon.purchase_cost ?? 0,
+    master_crafted: weapon.is_master_crafted ?? false,
+    profiles: (weapon.weapon_profiles ?? []).map((profile: any) => ({
+      name: profile.profile_name || null,
+      range_short: profile.range_short ?? null,
+      range_long: profile.range_long ?? null,
+      acc_short: profile.acc_short ?? null,
+      acc_long: profile.acc_long ?? null,
+      strength: profile.strength ?? null,
+      ap: profile.ap ?? null,
+      damage: profile.damage ?? null,
+      lethality: profile.lethality ?? null,
+      ammo: profile.ammo ?? null,
+      traits: profile.traits ?? null
+    }))
+  };
+}
+
+/**
+ * Transform a crew fighter's vehicle for data endpoint. Stats are the vehicle's
+ * own profile; lasting damage and upgrades are listed in effects.
+ */
+function transformVehicleForData(vehicle: any) {
+  const effects = vehicle.effects ?? {};
+  return {
+    id: vehicle.id,
+    name: vehicle.vehicle_name,
+    type: vehicle.vehicle_type,
+    stats: {
+      movement: vehicle.movement ?? null,
+      front: vehicle.front ?? null,
+      side: vehicle.side ?? null,
+      rear: vehicle.rear ?? null,
+      hull_points: vehicle.hull_points ?? null,
+      handling: vehicle.handling ?? null,
+      save: vehicle.save ?? null
+    },
+    special_rules: applySpecialRulesModifiers(vehicle.special_rules ?? [], Object.values(effects).flat() as any[]),
+    equipment_items: (vehicle.equipment ?? []).map((item: any) => ({
+      ...transformWeaponForData(item),
+      type: item.equipment_type
+    })),
+    effects: transformEffectsForData(effects)
+  };
+}
+
+/**
+ * Transform an assembled gang page fighter in full for data endpoint
+ */
+function transformFighterForData(fighter: GangFighter, gang: { id: string; name: string }) {
+  // The fighter card shows stats and special rules with every effect applied
+  const stats = calculateAdjustedStats(fighter as unknown as FighterProps);
+  const allEffects = Object.values(fighter.effects ?? {}).flat();
+
+  return {
+    id: fighter.id,
+    gang_id: gang.id,
+    gang_name: gang.name,
+    name: fighter.fighter_name ?? '',
+    label: fighter.label ?? null,
+    type: fighter.fighter_type,
+    subtypes: fighter.fighter_subtypes ?? [],
+    specialisation: fighter.fighter_specialisation?.fighter_specialisation ?? null,
+    cost: fighter.credits,
+    xp: fighter.xp ?? 0,
+    kills: fighter.kills,
+    is_vehicle: fighter.is_vehicle ?? false,
+    killed: fighter.killed,
+    retired: fighter.retired,
+    enslaved: fighter.enslaved,
+    recovery: fighter.recovery,
+    captured: fighter.captured,
+    starved: fighter.starved,
+    stats: {
+      movement: stats.movement,
+      weapon_skill: stats.weapon_skill,
+      ballistic_skill: stats.ballistic_skill,
+      strength: stats.strength,
+      toughness: stats.toughness,
+      wounds: stats.wounds,
+      initiative: stats.initiative,
+      attacks: stats.attacks,
+      leadership: stats.leadership,
+      cool: stats.cool,
+      willpower: stats.willpower,
+      intelligence: stats.intelligence,
+      save: stats.save ?? null
+    },
+    special_rules: applySpecialRulesModifiers(fighter.special_rules ?? [], allEffects),
+    skills: Object.keys(fighter.skills ?? {}),
+    weapons: (fighter.weapons ?? []).map(transformWeaponForData),
+    wargear_items: (fighter.wargear ?? []).map(item => ({
+      id: item.fighter_weapon_id,
+      name: item.wargear_name,
+      cost: item.cost ?? 0,
+      master_crafted: item.is_master_crafted ?? false
+    })),
+    effects: transformEffectsForData(fighter.effects),
+    vehicles: (fighter.vehicles ?? []).map(transformVehicleForData)
+  };
+}
+
+/**
+ * One fighter in full, read from the gang page's caches. Fighters of hidden
+ * gangs are not published.
+ */
+export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
+  const { id: fighterId } = await props.params;
+
+  return publicDataResponse(request, fighterId, 'Fighter', async () => {
+    const fighterBasic = await getFighterBasic(fighterId);
+    if (!fighterBasic?.gang_id) return null;
+
+    const gang = await getGangCore(fighterBasic.gang_id);
+    if (!gang || gang.hidden) return null;
+
+    const fighters = await getGangFightersList(gang.id, {
+      gangEditionSlug: gang.edition_slug ?? null,
+      gangTypeId: gang.gang_type_id ?? null,
+      gangOriginId: gang.gang_origin_id ?? null,
+      gangSubtypeIds: gang.gang_subtypes ?? []
+    });
+    const fighter = fighters.find(f => f.id === fighterId);
+    if (!fighter) return null;
+
+    return { fighter: transformFighterForData(fighter, gang) };
+  }, 'fighter_data', `fighter_${fighterId}.xml`);
+}

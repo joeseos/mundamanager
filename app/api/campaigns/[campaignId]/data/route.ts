@@ -3,11 +3,13 @@ import {
   getCampaignMembers,
   getCampaignTerritories,
   getCampaignBattles,
-  getCampaignResources
+  getCampaignResources,
+  getCampaignCaptives
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
-import { campaignDataOptions, campaignDataResponse } from "./campaign-data-response";
+import { getGangCore } from "@/app/lib/shared/gang-data";
+import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
 
-export const OPTIONS = campaignDataOptions;
+export const OPTIONS = publicDataOptions;
 
 // TypeScript interfaces for data structures
 
@@ -77,6 +79,16 @@ interface DataBattle {
    * `winners` when present.
    */
   territory_claimer?: { id: string; name: string } | null;
+}
+
+interface DataCaptive {
+  fighter_id: string;
+  fighter_name: string;
+  fighter_type: string | null;
+  original_gang_id: string | null;
+  original_gang_name: string;
+  holding_gang_id: string;
+  holding_gang_name: string;
 }
 
 // Transformation functions to clean up data field names
@@ -196,26 +208,57 @@ function transformBattleForData(battle: any): DataBattle {
   return transformed;
 }
 
+/**
+ * Flatten captives (grouped by holding gang) for data endpoint. A captive whose
+ * own gang is hidden is left out, as hidden gangs publish no fighters.
+ */
+async function transformCaptivesForData(
+  holdingGangs: Awaited<ReturnType<typeof getCampaignCaptives>>
+): Promise<DataCaptive[]> {
+  const captives = holdingGangs.flatMap(holder => holder.captives.map(captive => ({ holder, captive })));
+  const originalGangIds = [...new Set(captives.flatMap(({ captive }) => captive.originalGangId ?? []))];
+  const hiddenGangIds = new Set(
+    (await Promise.all(originalGangIds.map(getGangCore)))
+      .flatMap(gang => (gang?.hidden ? [gang.id] : []))
+  );
+
+  return captives
+    .filter(({ captive }) => !captive.originalGangId || !hiddenGangIds.has(captive.originalGangId))
+    .map(({ holder, captive }) => ({
+      fighter_id: captive.fighterId,
+      fighter_name: captive.fighterName,
+      fighter_type: captive.fighterType ?? null,
+      original_gang_id: captive.originalGangId,
+      original_gang_name: captive.originalGangName,
+      holding_gang_id: holder.gangId,
+      holding_gang_name: holder.gangName
+    }));
+}
+
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await props.params;
 
-  return campaignDataResponse(request, campaignId, async () => {
+  return publicDataResponse(request, campaignId, 'Campaign', async () => {
     // Fetch all campaign data using existing cached functions
     const [
       campaignBasic,
       campaignMembers,
       campaignTerritories,
       campaignBattles,
-      campaignResources
+      campaignResources,
+      campaignCaptives
     ] = await Promise.all([
       getCampaignBasic(campaignId),
       getCampaignMembers(campaignId),
       getCampaignTerritories(campaignId),
       getCampaignBattles(campaignId, 100),
-      getCampaignResources(campaignId)
+      getCampaignResources(campaignId),
+      getCampaignCaptives(campaignId)
     ]);
 
     if (!campaignBasic) return null;
+
+    const captives = await transformCaptivesForData(campaignCaptives);
 
     // Transform members data to include territories under their gangs
     // Note: We exclude auth user IDs for privacy, only include campaign-scoped IDs
@@ -264,7 +307,8 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       members: membersWithTerritories,
       resources: campaignResources,
       available_territories: campaignTerritories.map(t => transformTerritoryForData(t, false)),
-      battle_logs: campaignBattles.map(transformBattleForData)
+      battle_logs: campaignBattles.map(transformBattleForData),
+      captives
     };
   }, 'campaign_data', `campaign_${campaignId}.xml`);
 }

@@ -545,7 +545,7 @@ export async function getCampaignCaptives(campaignId: string) {
     async () => {
       return _getCampaignCaptives(campaignId);
     },
-    [`campaign-captives-v2-${campaignId}`],
+    [`campaign-captives-v3-${campaignId}`],
     {
       tags: [
         TAGS.campaignCaptives(campaignId),
@@ -567,7 +567,7 @@ async function _getCampaignCaptives(campaignId: string) {
           captives: {
             columns: { id: true, fighter_name: true, fighter_type: true },
             where: (fighter, { eq }) => eq(fighter.captured, true),
-            with: { gang: { columns: { name: true } } },
+            with: { gang: { columns: { id: true, name: true } } },
           },
         },
       },
@@ -575,7 +575,7 @@ async function _getCampaignCaptives(campaignId: string) {
   });
 
   // Keyed by gang, so a gang listed twice in the campaign still shows once
-  const byHoldingGang = new Map<string, { gangId: string; gangName: string; captives: Array<{ fighterId: string; fighterName: string; fighterType?: string; originalGangName: string }> }>();
+  const byHoldingGang = new Map<string, { gangId: string; gangName: string; captives: Array<{ fighterId: string; fighterName: string; fighterType?: string; originalGangId: string | null; originalGangName: string }> }>();
   for (const { gang_id, gang } of holders) {
     if (!gang_id || !gang?.captives.length) continue;
     byHoldingGang.set(gang_id, {
@@ -585,6 +585,7 @@ async function _getCampaignCaptives(campaignId: string) {
         fighterId: f.id,
         fighterName: f.fighter_name ?? 'Unknown',
         fighterType: f.fighter_type ?? undefined,
+        originalGangId: f.gang?.id ?? null,
         originalGangName: f.gang?.name ?? 'Unknown'
       }))
     });

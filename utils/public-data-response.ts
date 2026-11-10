@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { isUuid } from "@/utils/uuid";
 
-// Shared handling for the public campaign data endpoints (/data and the routes
-// under it): ?format=xml, CORS, the per-IP rate limit (one budget for all of
-// them on a server instance), and the error responses.
+// Shared handling for the public data endpoints (/api/campaigns/[id]/data,
+// /api/gangs/[id]/data, /api/fighters/[id]/data): ?format=xml, CORS, the per-IP
+// rate limit (one budget for all of them on a server instance), and the error
+// responses.
 
 // IP-based rate limiting storage
 interface RateLimitEntry {
@@ -22,7 +23,7 @@ function getCorsHeaders(): Record<string, string> {
   };
 }
 
-export function campaignDataOptions() {
+export function publicDataOptions() {
   return new NextResponse(null, {
     status: 204,
     headers: getCorsHeaders()
@@ -176,14 +177,16 @@ function errorResponse(format: string, status: number, error: string, headers: R
 }
 
 /**
- * Serve one public campaign data endpoint.
- * @param load - Builds the response body; null means the campaign doesn't exist
+ * Serve one public data endpoint.
+ * @param entity - What the id names, for the error messages ("Campaign not found")
+ * @param load - Builds the response body; null means there is nothing to show (404)
  * @param xmlRootName - Root element name for ?format=xml
  * @param xmlFilename - Filename for the XML Content-Disposition header
  */
-export async function campaignDataResponse(
+export async function publicDataResponse(
   request: Request,
-  campaignId: string,
+  id: string,
+  entity: 'Campaign' | 'Gang' | 'Fighter',
   load: () => Promise<object | null>,
   xmlRootName: string,
   xmlFilename: string
@@ -193,8 +196,8 @@ export async function campaignDataResponse(
   // Get format from query parameter (e.g., ?format=xml)
   const format = new URL(request.url).searchParams.get('format') || 'json';
 
-  if (!campaignId) {
-    return errorResponse(format, 400, "Campaign ID is required", corsHeaders);
+  if (!id) {
+    return errorResponse(format, 400, `${entity} ID is required`, corsHeaders);
   }
 
   try {
@@ -225,14 +228,15 @@ export async function campaignDataResponse(
       ...corsHeaders
     };
 
-    // SECURITY NOTE: These endpoints are intentionally public - any campaign ID can be viewed
+    // SECURITY NOTE: These endpoints are intentionally public - any campaign ID can be
+    // viewed, and any gang or fighter ID unless the gang is hidden
     // Rate limiting (10 req/min per IP) provides abuse protection
 
     // Postgres rejects a malformed UUID, so answer it before any database read
-    const data = isUuid(campaignId) ? await load() : null;
+    const data = isUuid(id) ? await load() : null;
 
     if (!data) {
-      return errorResponse(format, 404, 'Campaign not found', headers);
+      return errorResponse(format, 404, `${entity} not found`, headers);
     }
 
     // Return based on requested format
@@ -249,7 +253,7 @@ export async function campaignDataResponse(
 
     return NextResponse.json(data, { headers });
   } catch (error) {
-    console.error('Error generating campaign data:', error);
-    return errorResponse(format, 500, "Failed to generate campaign data", corsHeaders);
+    console.error(`Error generating ${entity.toLowerCase()} data:`, error);
+    return errorResponse(format, 500, `Failed to generate ${entity.toLowerCase()} data`, corsHeaders);
   }
 }

@@ -84,7 +84,7 @@ export default function ApiAccessPage() {
               Munda Manager does not currently provide API keys for full programmatic access to all data. However, we do offer a <strong className="text-foreground">public REST API for campaign data</strong>, allowing you to retrieve campaign information as XML or JSON without authentication.
             </p>
             <p className="text-muted-foreground mb-4">
-              Campaign data includes gang details, and each campaign also has a basic fighter roster endpoint. Standalone gang and fighter endpoints are not currently available in the public API.
+              Besides campaign data, each gang and each fighter has its own endpoint, described below.
             </p>
           </div>
 
@@ -105,7 +105,7 @@ export default function ApiAccessPage() {
           <div className="mb-12">
             <h2 className="text-xl font-semibold text-foreground mb-2">Contents</h2>
             <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
-              <li><a href="#fighter-data" className="underline hover:text-red-800">Fighter Data</a></li>
+              <li><a href="#gang-fighter-data" className="underline hover:text-red-800">Campaign, Gang and Fighter Data</a></li>
               <li><a href="#google-sheets-integration" className="underline hover:text-red-800">How to Access Your Campaign Data from Google Sheets</a></li>
               <li>
                 <span className="text-muted-foreground">Examples:</span>
@@ -125,16 +125,24 @@ export default function ApiAccessPage() {
 
           {/* Main content */}
           <div className="space-y-6">
-            <section id="fighter-data" className="scroll-mt-24">
-              <h2 className="text-xl font-semibold text-foreground mb-4">Fighter Data</h2>
+            <section id="gang-fighter-data" className="scroll-mt-24">
+              <h2 className="text-xl font-semibold text-foreground mb-4">Campaign, Gang and Fighter Data</h2>
               <p className="text-muted-foreground mb-4">
-                Fighter rosters have their own endpoint, so the main campaign data stays small: <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/campaigns/&#123;campaign_id&#125;/data/fighters</code>. It accepts <code>?format=xml</code> like the campaign data, and <code>?gang_id=</code> to return a single gang&apos;s roster. To read every gang&apos;s fighters in one request, leave out <code>gang_id</code> and filter on each fighter&apos;s <code>gang_id</code> instead. Rosters are only included for accepted campaign gangs. Pending gangs, hidden gangs, and gangs without fighters return no fighters.
+                There is one endpoint each for a campaign, a gang and a fighter. All three accept <code>?format=xml</code>, and each response links to the next by ID:
               </p>
-              <p className="text-muted-foreground mb-4">
-                Each fighter includes <code>gang_id</code>, <code>gang_name</code>, <code>id</code>, <code>name</code>, <code>type</code>, <code>subtypes</code> (an array of strings), <code>xp</code> (current unspent XP), <code>is_vehicle</code> (a boolean identifying vehicle entries), and boolean status flags: <code>killed</code>, <code>retired</code>, <code>enslaved</code>, <code>recovery</code>, <code>captured</code>, and <code>starved</code>. A fighter&apos;s <code>gang_id</code> is the gang&apos;s <code>id</code> in the campaign data, so use it to match fighters with their gang&apos;s rating, credits, or territories.
-              </p>
+              <ul className="list-disc marker:text-red-800 pl-6 space-y-2 mb-4">
+                <li className="text-muted-foreground">
+                  <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/campaigns/&#123;campaign_id&#125;/data</code>: the campaign, its members and their gangs (with each gang&apos;s <code>id</code>), territories, resources, battle logs, and <code>captives</code>: fighters held by a campaign gang, with their own gang and the holding gang.
+                </li>
+                <li className="text-muted-foreground">
+                  <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/gangs/&#123;gang_id&#125;/data</code>: the gang&apos;s details (type, subtypes, rating, wealth, credits, reputation, notes), its <code>fighters</code> and its <code>stash_items</code>. Each fighter has <code>id</code>, <code>name</code>, <code>type</code>, <code>subtypes</code>, <code>cost</code>, <code>xp</code> (current unspent XP), <code>kills</code>, <code>is_vehicle</code>, and boolean status flags: <code>killed</code>, <code>retired</code>, <code>enslaved</code>, <code>recovery</code>, <code>captured</code>, and <code>starved</code>.
+                </li>
+                <li className="text-muted-foreground">
+                  <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/fighters/&#123;fighter_id&#125;/data</code>: one fighter in full: characteristics with injuries and advancements applied, special rules, skills, weapons with their profiles, wargear, effects (injuries, advancements, bionics and so on), and the vehicle of a crew fighter.
+                </li>
+              </ul>
               <p className="text-muted-foreground">
-                Each gang&apos;s roster follows its saved display order, with unpositioned entries appended alphabetically. Gangs without a saved order use alphabetical order, matching the gang page&apos;s initial order. It includes inactive fighters, such as killed or retired fighters; use the status flags to filter them. Equipment, full stat profiles, and private user identifiers are not included.
+                The gang&apos;s fighters follow its saved display order, with unpositioned entries appended alphabetically. Killed and retired fighters are included; use the status flags to filter them. Hidden gangs and their fighters are not published, and private user identifiers and private notes are never included.
               </p>
             </section>
 
@@ -248,7 +256,7 @@ Gang Sympathisers`}</code></pre>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Get the Fighters of a Gang by ID</h3>
                 <div className="bg-neutral-900 rounded-lg p-4 my-4 overflow-x-auto">
                   <pre className="text-sm text-green-400 whitespace-pre-wrap"><code>{`=IMPORTXML(
-  "https://www.mundamanager.com/api/campaigns/4a2ab55f-ec68-44ab-9572-e0f68e2450d0/data/fighters?format=xml&gang_id=1a18a45f-b1db-42c2-a212-3af060219b78",
+  "https://www.mundamanager.com/api/gangs/1a18a45f-b1db-42c2-a212-3af060219b78/data?format=xml",
   "//fighter[killed='false' and retired='false' and enslaved='false' and is_vehicle='false']/name"
 )`}</code></pre>
                 </div>
