@@ -82,12 +82,14 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
 
     // Only ACCEPTED gangs publish a roster; an invitation alone must not.
     // A blank ?gang_id= matches no gang rather than every gang.
-    const gangs = campaignMembers
-      .flatMap(member => member.gangs)
-      .filter(gang => gang.status === 'ACCEPTED' && gang.id && (gangId === undefined || gang.id === gangId));
-    const uniqueGangs = new Map(gangs.map(gang => [gang.id, { id: gang.id, name: gang.name }]));
+    const gangs = new Map<string, { id: string; name: string }>();
+    for (const gang of campaignMembers.flatMap(member => member.gangs)) {
+      if (gang.status === 'ACCEPTED' && gang.id && (gangId === undefined || gang.id === gangId)) {
+        gangs.set(gang.id, { id: gang.id, name: gang.name });
+      }
+    }
 
-    const rosters = await Promise.all([...uniqueGangs.values()].map(getGangDataFighters));
+    const rosters = await Promise.all([...gangs.values()].map(getGangDataFighters));
 
     return {
       campaign_id: campaignBasic.id,
