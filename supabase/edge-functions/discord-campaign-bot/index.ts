@@ -2,6 +2,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SCENARIO_PARTS, typedPartNames, type ScenarioPart } from "../../../types/campaign.ts";
+import { postDiscordEmbeds } from "../../../utils/discord.ts";
 
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!);
 const supabase = createClient(
@@ -10,8 +11,6 @@ const supabase = createClient(
 );
 
 const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!
-
-const DISCORD_CHANNEL_TYPES = { TEXT: 0, FORUM: 15 } as const;
 
 const SCENARIO_PART_ICONS = { deployment_id: "🗺️", objective_id: "🎯", crew_selection_id: "🎲" };
 
@@ -311,38 +310,13 @@ Deno.serve(async (req) => {
       infoEmbed.footer = { text: footerText };
     }
 
-    let discordRes: Response
-
-    if (campaign.discord_channel_type === DISCORD_CHANNEL_TYPES.FORUM) {
-      const date = new Date().toISOString().slice(0, 10)
-      discordRes = await fetch(
-        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/threads`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: `${campaign.campaign_name} — Battle Report (${date})`,
-            auto_archive_duration: 10080,
-            message: { embeds },
-          }),
-        }
-      )
-    } else {
-      discordRes = await fetch(
-        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ embeds }),
-        }
-      )
-    }
+    const date = new Date().toISOString().slice(0, 10);
+    const discordRes = await postDiscordEmbeds(
+      DISCORD_BOT_TOKEN,
+      { id: campaign.discord_channel_id, type: campaign.discord_channel_type },
+      `${campaign.campaign_name} — Battle Report (${date})`,
+      embeds
+    );
 
     if (!discordRes.ok) {
       const error = await discordRes.text();

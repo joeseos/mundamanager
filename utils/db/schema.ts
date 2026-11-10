@@ -699,6 +699,8 @@ export const campaigns = pgTable('campaigns', {
   current_cycle: integer('current_cycle'),
   current_phase: text('current_phase'),
   campaign_portrait_id: uuid('campaign_portrait_id'),
+  discord_dice_rolls: boolean('discord_dice_rolls').default(false).notNull(),
+  discord_dice_roll_channel_id: text('discord_dice_roll_channel_id'),
 });
 
 export const campaignMembers = pgTable('campaign_members', {

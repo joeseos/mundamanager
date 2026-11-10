@@ -15,6 +15,7 @@ import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-all
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
 import { Badge } from "@/components/ui/badge";
 import { sameEditionForDisplay } from '@/types/edition';
+import { DISCORD_CHANNEL_TYPES } from '@/utils/discord';
 
 interface TradingPostType {
   id: string;
@@ -32,6 +33,8 @@ interface SettingsFormValues {
   discord_guild_id?: string | null;
   discord_channel_id?: string | null;
   discord_channel_type?: number | null;
+  discord_dice_rolls?: boolean;
+  discord_dice_roll_channel_id?: string | null;
 }
 
 interface EditCampaignModalProps {
@@ -49,6 +52,8 @@ interface EditCampaignModalProps {
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
+    discord_dice_rolls?: boolean;
+    discord_dice_roll_channel_id?: string | null;
   };
   onClose: () => void;
   /** The saved row, straight from the action, for the page to patch into its state. */
@@ -104,6 +109,8 @@ export default function CampaignEditModal({
   const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
   const [loadingChannels, setLoadingChannels] = useState(!!campaignData.discord_guild_id);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
+  const [postDiceRolls, setPostDiceRolls] = useState(campaignData.discord_dice_rolls ?? false);
+  const [diceRollChannelId, setDiceRollChannelId] = useState<string>(campaignData.discord_dice_roll_channel_id || '');
 
   const router = useRouter();
 
@@ -183,6 +190,8 @@ export default function CampaignEditModal({
       saveData.discord_channel_id = selectedChannelId || null;
       const selectedChannel = discordChannels.find(ch => ch.id === selectedChannelId);
       saveData.discord_channel_type = selectedChannel?.type ?? 0;
+      saveData.discord_dice_rolls = postDiceRolls;
+      saveData.discord_dice_roll_channel_id = diceRollChannelId || null;
     }
 
     return saveSettings(saveData);
@@ -212,10 +221,14 @@ export default function CampaignEditModal({
       discord_guild_id: null,
       discord_channel_id: null,
       discord_channel_type: 0,
+      discord_dice_rolls: false,
+      discord_dice_roll_channel_id: null,
     });
     if (result) {
       setDiscordChannels([]);
       setSelectedChannelId('');
+      setPostDiceRolls(false);
+      setDiceRollChannelId('');
     }
   };
 
@@ -494,7 +507,7 @@ export default function CampaignEditModal({
                 <h3 className="text-sm font-medium flex items-center space-x-2">
                   <span>Discord Bot</span>
                   <InfoTooltip ariaLabel="About the Discord bot">
-                    Connect a Discord bot to automatically post battle reports to a channel in your Discord server.
+                    Connect a Discord bot to automatically post Battle Logs, and optionally the players&apos; dice rolls, to channels in your Discord server.
                   </InfoTooltip>
                 </h3>
                 {campaignData.discord_guild_id ? (
@@ -507,7 +520,7 @@ export default function CampaignEditModal({
                     </div>
                     <div>
                       <label className="block text-xs text-muted-foreground mb-1">
-                        Battle report channel
+                        Battle Log channel
                       </label>
                       {loadingChannels ? (
                         <p className="text-xs text-muted-foreground">Loading channels...</p>
@@ -521,6 +534,37 @@ export default function CampaignEditModal({
                         />
                       )}
                     </div>
+                    <label
+                      htmlFor="discord-dice-rolls"
+                      className="flex items-center space-x-2 cursor-pointer text-sm"
+                    >
+                      <Checkbox
+                        id="discord-dice-rolls"
+                        checked={postDiceRolls}
+                        onCheckedChange={(checked) => setPostDiceRolls(checked === true)}
+                      />
+                      <span>Post dice rolls</span>
+                      <InfoTooltip ariaLabel="About posting dice rolls">
+                        Posts every roll the players make for their gangs in this campaign, such as Lasting Injuries, Advancements and Post-cycle Actions, so arbitrators can follow them on Discord.
+                      </InfoTooltip>
+                    </label>
+                    {postDiceRolls && !loadingChannels && (
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">
+                          Dice roll channel
+                        </label>
+                        <Combobox
+                          options={discordChannels
+                            .filter(ch => ch.type === DISCORD_CHANNEL_TYPES.TEXT)
+                            .map(ch => ({ value: ch.id, label: `# ${ch.name}` }))}
+                          value={diceRollChannelId}
+                          onValueChange={setDiceRollChannelId}
+                          placeholder="Same as Battle Log channel"
+                          clearable
+                          className="w-full"
+                        />
+                      </div>
+                    )}
                     <Button
                       type="button"
                       onClick={handleDisconnectDiscord}
