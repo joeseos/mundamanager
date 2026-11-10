@@ -80,6 +80,46 @@ function buildProfileMaps(equipmentRows: any[]) {
   return { standardProfilesMap, standardAmmoByParentWeapon, customProfilesMap, customAmmoByParentWeapon };
 }
 
+/** A weapon's profiles from each list in order, each profile once, marked master-crafted like the item. */
+function combineProfiles(item: any, ...lists: any[][]): any[] {
+  const seenIds = new Set<string>();
+  return lists.flat()
+    .filter((p: any) => {
+      if (seenIds.has(p.id)) return false;
+      seenIds.add(p.id);
+      return true;
+    })
+    .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
+}
+
+/** Fighter or vehicle effect rows as the pages list them, grouped by category name. */
+function effectsByCategory(rows: any[]): Record<string, any[]> {
+  const effects: Record<string, any[]> = {};
+  rows.forEach((effectData: any) => {
+    const categoryName = effectData.fighter_effect_type?.fighter_effect_category?.category_name || 'uncategorized';
+    const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
+    (effects[categoryName] ||= []).push({
+      id: effectData.id,
+      effect_name: effectData.effect_name,
+      fighter_equipment_id: effectData.fighter_equipment_id,
+      type_specific_data: effectData.type_specific_data,
+      sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
+      created_at: effectData.created_at,
+      updated_at: effectData.updated_at,
+      fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
+    });
+  });
+  return effects;
+}
+
+/** The credits the effects add (type_specific_data.credits_increase). */
+const effectCredits = (effects: any[]) =>
+  effects.reduce((sum: number, effect: any) => sum + (effect.type_specific_data?.credits_increase || 0), 0);
+
+/** The credits the skills add. */
+const skillCredits = (skills: any[]) =>
+  skills.reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
+
 /** The gang's rules when the fighter is of the gang's own gang type, else none */
 function gangRulesFor(bundle: GangFightersBundle, fighterType: { gang_type_id?: string | null } | null | undefined) {
   return bundle.gangTypeId && fighterType?.gang_type_id === bundle.gangTypeId ? bundle.gangRules : [];
@@ -318,11 +358,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       const equipmentCost = beastRel.fighter_equipment?.gang_stash
         ? 0
         : beastEquipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
-      const skillsCost = beastSkills.reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
-      const effectsCost = beastEffects.reduce((sum: number, effect: any) => {
-        return sum + (effect.type_specific_data?.credits_increase || 0);
-      }, 0);
-      const advancementsCost = skillsCost + effectsCost + (beastFighter.cost_adjustment || 0);
+      const advancementsCost = skillCredits(beastSkills) + effectCredits(beastEffects) + (beastFighter.cost_adjustment || 0);
 
       if (beastRel.fighter_equipment_id) {
         byEquipmentId[beastRel.fighter_equipment_id] = { equipment: equipmentCost, advancements: advancementsCost };
@@ -356,30 +392,9 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
     const allSkills = mapSkills(skillsData, null);
     const skills = activeLoadoutEquipmentIds === null ? allSkills : mapSkills(skillsData, activeLoadoutEquipmentIds);
 
-    // Process effects into the expected format (grouped by category)
-    const effects: Record<string, any[]> = {};
-    effectsData.forEach((effectData: any) => {
-      const categoryName = (effectData.fighter_effect_type as any)?.fighter_effect_category?.category_name || 'uncategorized';
-      if (!effects[categoryName]) {
-        effects[categoryName] = [];
-      }
-      const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
-      effects[categoryName].push({
-        id: effectData.id,
-        effect_name: effectData.effect_name,
-        fighter_equipment_id: effectData.fighter_equipment_id,
-        type_specific_data: effectData.type_specific_data,
-        sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
-        created_at: effectData.created_at,
-        updated_at: effectData.updated_at,
-        fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
-      });
-    });
-
-    // Calculate unfiltered effects cost for gang rating (before filtering)
-    const unfilteredEffectsCost = Object.values(effects).flat().reduce((sum: number, effect: any) => {
-      return sum + (effect.type_specific_data?.credits_increase || 0);
-    }, 0);
+    // Effects grouped by category; every effect counts towards cost
+    const effects = effectsByCategory(effectsData);
+    const unfilteredEffectsCost = effectCredits(effectsData);
 
     // Filter effects by active loadout (for display and stats)
     if (activeLoadoutEquipmentIds !== null) {
@@ -439,18 +454,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
           const customAmmo = (customAmmoByParentWeapon.get(item.equipment_id) || [])
             .filter((p: any) => fighterCustomIds.has(p.custom_equipment_id) && ammoInScope(p.custom_equipment_id));
 
-          // Combine and deduplicate
-          const seenIds = new Set<string>();
-          weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
-            .filter((p: any) => {
-              if (seenIds.has(p.id)) return false;
-              seenIds.add(p.id);
-              return true;
-            })
-            .map((profile: any) => ({
-              ...profile,
-              is_master_crafted: item.is_master_crafted || false
-            }));
+          weaponProfiles = combineProfiles(item, baseProfiles, standardAmmo, customAmmo);
         } else if (item.custom_equipment_id) {
           // Get base profiles for this custom weapon
           const baseProfiles = customProfilesMap.get(item.custom_equipment_id) || [];
@@ -461,18 +465,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
           const standardAmmo = (standardAmmoByParentWeapon.get(item.custom_equipment_id) || [])
             .filter((p: any) => fighterStandardIds.has(p.equipment_id) && ammoInScope(p.equipment_id));
 
-          // Combine and deduplicate
-          const seenIds = new Set<string>();
-          weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
-            .filter((p: any) => {
-              if (seenIds.has(p.id)) return false;
-              seenIds.add(p.id);
-              return true;
-            })
-            .map((profile: any) => ({
-              ...profile,
-              is_master_crafted: item.is_master_crafted || false
-            }));
+          weaponProfiles = combineProfiles(item, baseProfiles, customAmmo, standardAmmo);
         }
       }
 
@@ -532,30 +525,14 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
               .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
             const customAmmo = (vehicleCustomAmmoByParent.get(item.equipment_id) || [])
               .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
-
-            const seenIds = new Set<string>();
-            weaponProfiles = [...baseProfiles, ...standardAmmo, ...customAmmo]
-              .filter((p: any) => {
-                if (seenIds.has(p.id)) return false;
-                seenIds.add(p.id);
-                return true;
-              })
-              .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
+            weaponProfiles = combineProfiles(item, baseProfiles, standardAmmo, customAmmo);
           } else if (item.custom_equipment_id) {
             const baseProfiles = vehicleCustomProfilesMap.get(item.custom_equipment_id) || [];
             const customAmmo = (vehicleCustomAmmoByParent.get(item.custom_equipment_id) || [])
               .filter((p: any) => vehicleCustomIds.has(p.custom_equipment_id));
             const standardAmmo = (vehicleStandardAmmoByParent.get(item.custom_equipment_id) || [])
               .filter((p: any) => vehicleStandardIds.has(p.equipment_id));
-
-            const seenIds = new Set<string>();
-            weaponProfiles = [...baseProfiles, ...customAmmo, ...standardAmmo]
-              .filter((p: any) => {
-                if (seenIds.has(p.id)) return false;
-                seenIds.add(p.id);
-                return true;
-              })
-              .map((profile: any) => ({ ...profile, is_master_crafted: item.is_master_crafted || false }));
+            weaponProfiles = combineProfiles(item, baseProfiles, customAmmo, standardAmmo);
           }
         }
 
@@ -571,26 +548,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
         };
       });
 
-      // Process effects grouped by category
-      const vehicleEffectsData = vehicleEffectsRows.filter((e: any) => e.vehicle_id === vehicle.id);
-      const vehicleEffects: Record<string, any[]> = {};
-      vehicleEffectsData.forEach((effectData: any) => {
-        const categoryName = effectData.fighter_effect_type?.fighter_effect_category?.category_name || 'uncategorized';
-        const effectType = effectData.fighter_effect_type as { sort_order?: number | null } | null;
-        if (!vehicleEffects[categoryName]) {
-          vehicleEffects[categoryName] = [];
-        }
-        vehicleEffects[categoryName].push({
-          id: effectData.id,
-          fighter_equipment_id: effectData.fighter_equipment_id,
-          effect_name: effectData.effect_name,
-          type_specific_data: effectData.type_specific_data,
-          sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
-          created_at: effectData.created_at,
-          updated_at: effectData.updated_at,
-          fighter_effect_modifiers: effectData.fighter_effect_modifiers || []
-        });
-      });
+      const vehicleEffects = effectsByCategory(vehicleEffectsRows.filter((e: any) => e.vehicle_id === vehicle.id));
 
       return {
         ...vehicle,
@@ -599,14 +557,10 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       };
     });
 
-    const sumCredits = (items: any[]) =>
-      items.reduce((sum: number, item: any) => sum + (item.credits_increase || 0), 0);
     const vehicleCost = processedVehicles.reduce((sum: number, vehicle: any) => {
       let vehicleTotal = vehicle.cost || 0;
       vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => equipSum + (eq.purchase_cost || 0), 0);
-      vehicleTotal += Object.values(vehicle.effects).flat().reduce((effectSum: number, effect: any) => {
-        return effectSum + ((effect as any).type_specific_data?.credits_increase || 0);
-      }, 0);
+      vehicleTotal += effectCredits(Object.values(vehicle.effects).flat());
       return sum + vehicleTotal;
     }, 0);
 
@@ -619,7 +573,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       // Total cost for gang rating uses ALL equipment, skills and effects (not filtered by loadout)
       const allEquipmentCost = processedEquipment
         .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
-      totalCost = fighter.credits + allEquipmentCost + sumCredits(Object.values(allSkills)) + unfilteredEffectsCost +
+      totalCost = fighter.credits + allEquipmentCost + skillCredits(Object.values(allSkills)) + unfilteredEffectsCost +
                   vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total;
     }
 
@@ -653,11 +607,8 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
     const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, gangScope);
 
     // Loadout cost for fighter card display: base cost + loadout equipment + skills + effects
-    const effectsCostForDisplay = Object.values(effects).flat().reduce((sum: number, effect: any) => {
-      return sum + (effect.type_specific_data?.credits_increase || 0);
-    }, 0);
     const displayLoadoutCost = !isOwnedBeast
-      ? fighter.credits + loadoutEquipmentCost + sumCredits(Object.values(skills)) + effectsCostForDisplay + vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total
+      ? fighter.credits + loadoutEquipmentCost + skillCredits(Object.values(skills)) + effectCredits(Object.values(effects).flat()) + vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total
       : 0;
 
     const result: GangFighter = {
@@ -973,10 +924,10 @@ const BEAST_EQUIPMENT_CATEGORIES = new Set(['status items: exotic beasts', 'pets
 export interface FighterView {
   /**
    * The fighter as the gang page assembles it, with the fighter page's vehicle
-   * item fields. Assembled without the gang's edition and scope, so
-   * edition_slug, min_count and max_count are not set.
+   * item fields. Assembled without the gang's edition and scope, which only
+   * edition_slug, min_count and max_count need.
    */
-  fighter: GangFighter;
+  fighter: Omit<GangFighter, 'edition_slug' | 'min_count' | 'max_count'>;
   /** Every item, in or out of the active loadout, with the fighter page's own fields. */
   equipment: any[];
   /** Every skill, in or out of the active loadout; the page mutes the ones outside it. */

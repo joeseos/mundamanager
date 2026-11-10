@@ -71,7 +71,7 @@ function fighterBasicQuery(db: AppDb, fighterId: string) {
     where: (fighter, { eq }) => eq(fighter.id, fighterId),
     with: {
       custom_fighter_type: {
-        columns: { gang_type_id: true, custom_gang_type_id: true, is_vehicle: true },
+        columns: { is_vehicle: true },
         with: { editions: { columns: { slug: true } } },
       },
       fighter_gang_legacy: { columns: { id: true, fighter_type_id: true, name: true } },
