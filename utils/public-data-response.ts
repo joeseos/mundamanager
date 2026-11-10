@@ -178,19 +178,20 @@ function errorResponse(format: string, status: number, error: string, headers: R
 
 /**
  * Serve one public data endpoint.
- * @param entity - What the id names, for the error messages ("Campaign not found")
- * @param load - Builds the response body; null means there is nothing to show (404)
- * @param xmlRootName - Root element name for ?format=xml
- * @param xmlFilename - Filename for the XML Content-Disposition header
+ * @param entity - What the id names: error messages ("Campaign not found") and
+ *   the XML root (campaign_data) and filename (campaign_{id}.xml) follow it
+ * @param load - Builds the response body from the lower-cased id, which cache
+ *   keys and tags use; null means there is nothing to show (404)
  */
 export async function publicDataResponse(
   request: Request,
-  id: string,
+  rawId: string,
   entity: 'Campaign' | 'Gang' | 'Fighter',
-  load: () => Promise<object | null>,
-  xmlRootName: string,
-  xmlFilename: string
+  load: (id: string) => Promise<object | null>
 ): Promise<NextResponse> {
+  // API routes skip the proxy's UUID lower-casing, and stored ids are lower case
+  const id = rawId?.toLowerCase();
+  const name = entity.toLowerCase();
   const corsHeaders = getCorsHeaders();
 
   // Get format from query parameter (e.g., ?format=xml)
@@ -233,7 +234,7 @@ export async function publicDataResponse(
     // Rate limiting (10 req/min per IP) provides abuse protection
 
     // Postgres rejects a malformed UUID, so answer it before any database read
-    const data = isUuid(id) ? await load() : null;
+    const data = isUuid(id) ? await load(id) : null;
 
     if (!data) {
       return errorResponse(format, 404, `${entity} not found`, headers);
@@ -241,11 +242,11 @@ export async function publicDataResponse(
 
     // Return based on requested format
     if (format === 'xml') {
-      return new NextResponse(objectToXml(data, xmlRootName), {
+      return new NextResponse(objectToXml(data, `${name}_data`), {
         status: 200,
         headers: {
           'Content-Type': 'application/xml',
-          'Content-Disposition': `inline; filename="${xmlFilename}"`,
+          'Content-Disposition': `inline; filename="${name}_${id}.xml"`,
           ...headers
         }
       });
@@ -253,7 +254,7 @@ export async function publicDataResponse(
 
     return NextResponse.json(data, { headers });
   } catch (error) {
-    console.error(`Error generating ${entity.toLowerCase()} data:`, error);
-    return errorResponse(format, 500, `Failed to generate ${entity.toLowerCase()} data`, corsHeaders);
+    console.error(`Error generating ${name} data:`, error);
+    return errorResponse(format, 500, `Failed to generate ${name} data`, corsHeaders);
   }
 }

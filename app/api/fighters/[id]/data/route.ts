@@ -2,7 +2,7 @@ import { getFighterBasic } from "@/app/lib/shared/fighter-data";
 import { getGangCore, getGangFightersList } from "@/app/lib/shared/gang-data";
 import type { GangFighter } from "@/types/gang";
 import type { FighterProps } from "@/types/fighter";
-import { applySpecialRulesModifiers, calculateAdjustedStats } from "@/utils/effect-modifiers";
+import { applySpecialRulesModifiers, calculateAdjustedStats, calculateVehicleStats } from "@/utils/effect-modifiers";
 import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
 
 export const OPTIONS = publicDataOptions;
@@ -46,23 +46,24 @@ function transformWeaponForData(weapon: any) {
 }
 
 /**
- * Transform a crew fighter's vehicle for data endpoint. Stats are the vehicle's
- * own profile; lasting damage and upgrades are listed in effects.
+ * Transform a crew fighter's vehicle for data endpoint, with its profile as the
+ * fighter card shows it (lasting damage and upgrades applied)
  */
 function transformVehicleForData(vehicle: any) {
   const effects = vehicle.effects ?? {};
+  const stats = calculateVehicleStats(vehicle);
   return {
     id: vehicle.id,
     name: vehicle.vehicle_name,
     type: vehicle.vehicle_type,
-    stats: {
-      movement: vehicle.movement ?? null,
-      front: vehicle.front ?? null,
-      side: vehicle.side ?? null,
-      rear: vehicle.rear ?? null,
-      hull_points: vehicle.hull_points ?? null,
-      handling: vehicle.handling ?? null,
-      save: vehicle.save ?? null
+    stats: stats && {
+      movement: stats.movement,
+      front: stats.front,
+      side: stats.side,
+      rear: stats.rear,
+      hull_points: stats.hull_points,
+      handling: stats.handling,
+      save: stats.save
     },
     special_rules: applySpecialRulesModifiers(vehicle.special_rules ?? [], Object.values(effects).flat() as any[]),
     equipment_items: (vehicle.equipment ?? []).map((item: any) => ({
@@ -134,24 +135,22 @@ function transformFighterForData(fighter: GangFighter, gang: { id: string; name:
  * gangs are not published.
  */
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
-  const { id: fighterId } = await props.params;
+  const params = await props.params;
 
-  return publicDataResponse(request, fighterId, 'Fighter', async () => {
+  return publicDataResponse(request, params.id, 'Fighter', async (fighterId) => {
     const fighterBasic = await getFighterBasic(fighterId);
     if (!fighterBasic?.gang_id) return null;
 
-    const gang = await getGangCore(fighterBasic.gang_id);
+    // The same cache entries the fighter and gang pages read
+    const [gang, fighters] = await Promise.all([
+      getGangCore(fighterBasic.gang_id),
+      getGangFightersList(fighterBasic.gang_id)
+    ]);
     if (!gang || gang.hidden) return null;
 
-    const fighters = await getGangFightersList(gang.id, {
-      gangEditionSlug: gang.edition_slug ?? null,
-      gangTypeId: gang.gang_type_id ?? null,
-      gangOriginId: gang.gang_origin_id ?? null,
-      gangSubtypeIds: gang.gang_subtypes ?? []
-    });
     const fighter = fighters.find(f => f.id === fighterId);
     if (!fighter) return null;
 
     return { fighter: transformFighterForData(fighter, gang) };
-  }, 'fighter_data', `fighter_${fighterId}.xml`);
+  });
 }

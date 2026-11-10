@@ -236,9 +236,9 @@ async function transformCaptivesForData(
 }
 
 export async function GET(request: Request, props: { params: Promise<{ campaignId: string }> }) {
-  const { campaignId } = await props.params;
+  const params = await props.params;
 
-  return publicDataResponse(request, campaignId, 'Campaign', async () => {
+  return publicDataResponse(request, params.campaignId, 'Campaign', async (campaignId) => {
     // Fetch all campaign data using existing cached functions
     const [
       campaignBasic,
@@ -310,5 +310,5 @@ export async function GET(request: Request, props: { params: Promise<{ campaignI
       battle_logs: campaignBattles.map(transformBattleForData),
       captives
     };
-  }, 'campaign_data', `campaign_${campaignId}.xml`);
+  });
 }

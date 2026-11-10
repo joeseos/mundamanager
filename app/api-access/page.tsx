@@ -10,8 +10,8 @@ const defaultUrl = process.env.NODE_ENV === 'development'
 
 // SEO constants - edit these to update all metadata
 const PAGE_TITLE = 'API Access - Munda Manager REST API Documentation';
-const PAGE_DESCRIPTION = 'Access your Munda Manager campaign data as XML or JSON. Integrate live campaign information into your own tools, dashboards, or spreadsheets with our REST API for Necromunda campaigns.';
-const PAGE_DESCRIPTION_SHORT = 'Access your Munda Manager campaign data as XML or JSON. Integrate live information into your own tools and spreadsheets.';
+const PAGE_DESCRIPTION = 'Access your Munda Manager campaign, gang and fighter data as XML or JSON. Integrate live campaign information into your own tools, dashboards, or spreadsheets with our REST API for Necromunda campaigns.';
+const PAGE_DESCRIPTION_SHORT = 'Access your Munda Manager campaign, gang and fighter data as XML or JSON. Integrate live information into your own tools and spreadsheets.';
 const PAGE_KEYWORDS = 'Munda Manager API, Necromunda API, campaign data API, XML export, JSON export, Google Sheets integration, campaign tracking';
 
 export const metadata: Metadata = {
@@ -81,7 +81,7 @@ export default function ApiAccessPage() {
           
           <div className="mb-8">
             <p className="text-muted-foreground mb-4">
-              Munda Manager does not currently provide API keys for full programmatic access to all data. However, we do offer a <strong className="text-foreground">public REST API for campaign data</strong>, allowing you to retrieve campaign information as XML or JSON without authentication.
+              Munda Manager does not currently provide API keys for full programmatic access to all data. However, we do offer a <strong className="text-foreground">public REST API for campaign, gang and fighter data</strong>, allowing you to retrieve that information as XML or JSON without authentication.
             </p>
             <p className="text-muted-foreground mb-4">
               Besides campaign data, each gang and each fighter has its own endpoint, described below.
@@ -142,7 +142,7 @@ export default function ApiAccessPage() {
                 </li>
               </ul>
               <p className="text-muted-foreground">
-                The gang&apos;s fighters follow its saved display order, with unpositioned entries appended alphabetically. Killed and retired fighters are included; use the status flags to filter them. Hidden gangs and their fighters are not published, and private user identifiers and private notes are never included.
+                The gang&apos;s fighters follow its saved display order, with unpositioned entries appended alphabetically. Killed and retired fighters are included; use the status flags to filter them. The gang and fighter endpoints return 404 for hidden gangs, and captives from hidden gangs are left out. Private user identifiers and private notes are never included.
               </p>
             </section>
 

@@ -55,19 +55,14 @@ function transformFighterSummaryForData(fighter: GangFighter): DataFighterSummar
  * Hidden gangs are not published.
  */
 export async function GET(request: Request, props: { params: Promise<{ id: string }> }) {
-  const { id: gangId } = await props.params;
+  const params = await props.params;
 
-  return publicDataResponse(request, gangId, 'Gang', async () => {
+  return publicDataResponse(request, params.id, 'Gang', async (gangId) => {
     const gang = await getGangCore(gangId);
     if (!gang || gang.hidden) return null;
 
     const [fighters, positioning, stash, subtypes] = await Promise.all([
-      getGangFightersList(gangId, {
-        gangEditionSlug: gang.edition_slug ?? null,
-        gangTypeId: gang.gang_type_id ?? null,
-        gangOriginId: gang.gang_origin_id ?? null,
-        gangSubtypeIds: gang.gang_subtypes ?? []
-      }),
+      getGangFightersList(gangId),
       getGangPositioning(gangId),
       getGangStash(gangId),
       getGangSubtypes(gang.gang_subtypes ?? [])
@@ -107,5 +102,5 @@ export async function GET(request: Request, props: { params: Promise<{ id: strin
         cost: item.cost
       }))
     };
-  }, 'gang_data', `gang_${gangId}.xml`);
+  });
 }
