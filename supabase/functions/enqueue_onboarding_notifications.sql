@@ -8,9 +8,8 @@
 -- cron still picks them up; the profile stamp is the one-shot.
 --
 -- Existing users are never stamped, so they never match. The MundaManager
--- brand profile is the sender when it exists; otherwise sender_id is null.
--- Sender UUID must stay in sync with MM_ONBOARDING_SENDER_ID in
--- utils/notifications.ts. SQL is the source of truth at send time.
+-- brand profile (b09cb332-f4a9-4c9c-815f-2d8a36f265cb) is the sender when it
+-- exists; otherwise sender_id is null.
 --
 -- service_role / cron only. Authenticated clients cannot insert these types
 -- (see the notifications INSERT policy).
@@ -44,7 +43,6 @@ DECLARE
     || '<p>The <a href="/user-guide">User Guide</a> is there when you pick it up again — Venator skill access, Spyrer tiers, Gene-Smithing, Chem-alchemy, and the rest of the fiddly bits.</p>'
     || '<p>If you got stuck, join <a href="https://discord.gg/ZWXXqd5NUt">Discord</a> and post in #feature-requests-and-support. Catalogue mistakes go in #data-is-wrong; bugs in #stuff-is-broken.</p>';
 BEGIN
-  -- Keep in sync with MM_ONBOARDING_SENDER_ID in utils/notifications.ts.
   SELECT id
   INTO v_sender_id
   FROM public.profiles
@@ -84,16 +82,21 @@ BEGIN
       )
       RETURNING receiver_id
     ),
+    -- Stamp every due row, including NOT EXISTS misses, so a leftover
+    -- notification cannot be retried forever. CROSS JOIN ins so Postgres
+    -- actually runs the INSERT CTE (unreferenced data-modifying CTEs are
+    -- skipped).
     stamped AS (
       UPDATE public.profiles p
       SET welcome_notified_at = now()
       FROM due
-      LEFT JOIN ins ON ins.receiver_id = due.id
       WHERE p.id = due.id
         AND p.welcome_notified_at IS NULL
       RETURNING p.id
     )
-    SELECT count(*)::integer INTO v_batch FROM stamped;
+    SELECT count(*)::integer INTO v_batch
+    FROM stamped
+    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
 
     v_welcome_count := v_welcome_count + v_batch;
     EXIT WHEN v_batch = 0;
@@ -150,12 +153,13 @@ BEGIN
       UPDATE public.profiles p
       SET inactive_nudge_notified_at = now()
       FROM due
-      LEFT JOIN ins ON ins.receiver_id = due.id
       WHERE p.id = due.id
         AND p.inactive_nudge_notified_at IS NULL
       RETURNING p.id
     )
-    SELECT count(*)::integer INTO v_batch FROM stamped;
+    SELECT count(*)::integer INTO v_batch
+    FROM stamped
+    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
 
     v_nudge_count := v_nudge_count + v_batch;
     EXIT WHEN v_batch = 0;

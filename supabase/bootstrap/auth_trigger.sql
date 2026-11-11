@@ -9,6 +9,7 @@
 -- Canonical copies:
 --   ../migrations/20260525_create_handle_new_user_trigger.sql
 --   ../migrations/20261111024527_onboarding_notifications.sql
+--   ../functions/handle_new_user.sql
 --   ../functions/stamp_first_confirmed_session.sql
 -- Keep these in sync if a trigger definition ever changes.
 
@@ -18,10 +19,11 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- The onboarding stamp function and profiles.first_confirmed_session_at are
--- added by a migration and only appear in schema.public.sql after the next
--- snapshot. Skip the bind until both exist so supabase start / db reset
--- still succeed on a dump that does not have them yet.
+-- INSERT-time confirmed users are stamped inside handle_new_user (same
+-- function that inserts public.profiles) so we do not depend on AFTER INSERT
+-- trigger name order. This UPDATE trigger covers later email-confirm / first
+-- sign-in. Skip the bind until the function and column exist so supabase
+-- start / db reset still succeed on a dump that does not have them yet.
 -- CREATE TRIGGER is EXECUTE-quoted so plpgsql does not parse NEW/OLD.
 drop trigger if exists on_auth_user_first_confirmed_session on auth.users;
 drop trigger if exists on_auth_user_first_confirmed_session_insert on auth.users;
@@ -41,14 +43,6 @@ begin
   ) then
     return;
   end if;
-
-  execute $t$
-    create trigger on_auth_user_first_confirmed_session_insert
-      after insert on auth.users
-      for each row
-      when (NEW.email_confirmed_at is not null and NEW.last_sign_in_at is not null)
-      execute function public.stamp_first_confirmed_session()
-  $t$;
 
   execute $t$
     create trigger on_auth_user_first_confirmed_session_update

@@ -1,7 +1,9 @@
 -- Stamp profiles.first_confirmed_session_at on the first auth session after
--- email confirm. Bound to auth.users as AFTER INSERT OR UPDATE (WHEN both
--- timestamps are set; UPDATE also requires that at least one was previously
--- null). See supabase/bootstrap/auth_trigger.sql and the
+-- email confirm. Bound to auth.users as AFTER UPDATE only (WHEN both
+-- timestamps are newly complete). INSERT-time confirmed users (SSO /
+-- magic-link) are stamped inside handle_new_user, which creates the profiles
+-- row in the same function so the stamp cannot race a second AFTER INSERT
+-- trigger. See supabase/bootstrap/auth_trigger.sql and the
 -- onboarding_notifications migration. Does not insert notifications.
 --
 -- DEPLOY ORDER: apply the onboarding_notifications migration (which adds the

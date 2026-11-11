@@ -1,9 +1,9 @@
 -- Onboarding welcome (T+30m after first confirmed session) and month-1
 -- inactive nudge. Stamps live on profiles so they survive notification expiry.
--- Canonical RPC copies: supabase/functions/stamp_first_confirmed_session.sql,
--- enqueue_onboarding_notifications.sql, enqueue_notification_email.sql,
--- claim_email_deliveries.sql. Auth trigger bind is also in
--- supabase/bootstrap/auth_trigger.sql.
+-- Canonical RPC copies: supabase/functions/handle_new_user.sql,
+-- stamp_first_confirmed_session.sql, enqueue_onboarding_notifications.sql,
+-- enqueue_notification_email.sql, claim_email_deliveries.sql. Auth trigger
+-- bind is also in supabase/bootstrap/auth_trigger.sql.
 
 BEGIN;
 
@@ -22,6 +22,17 @@ COMMENT ON COLUMN public.profiles.inactive_nudge_notified_at IS
 CREATE INDEX IF NOT EXISTS profiles_first_confirmed_session_at_idx
   ON public.profiles (first_confirmed_session_at)
   WHERE first_confirmed_session_at IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS profiles_welcome_due_idx
+  ON public.profiles (first_confirmed_session_at)
+  WHERE first_confirmed_session_at IS NOT NULL
+    AND welcome_notified_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS profiles_inactive_nudge_due_idx
+  ON public.profiles (first_confirmed_session_at)
+  WHERE first_confirmed_session_at IS NOT NULL
+    AND welcome_notified_at IS NOT NULL
+    AND inactive_nudge_notified_at IS NULL;
 
 ALTER TABLE public.notifications
   DROP CONSTRAINT IF EXISTS notifications_type_check,
@@ -102,15 +113,38 @@ REVOKE EXECUTE ON FUNCTION public.stamp_first_confirmed_session() FROM anon;
 REVOKE EXECUTE ON FUNCTION public.stamp_first_confirmed_session() FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.stamp_first_confirmed_session() TO service_role;
 
+-- Stamp INSERT-time confirmed users here, in the same function that creates
+-- the profiles row. A second AFTER INSERT trigger would depend on name order
+-- and silently no-op if it ran first.
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username)
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data ->> 'username'
+  );
+
+  IF NEW.email_confirmed_at IS NOT NULL AND NEW.last_sign_in_at IS NOT NULL THEN
+    UPDATE public.profiles
+    SET first_confirmed_session_at = NEW.last_sign_in_at
+    WHERE id = NEW.id
+      AND first_confirmed_session_at IS NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM public, anon, authenticated;
+
 DROP TRIGGER IF EXISTS on_auth_user_first_confirmed_session ON auth.users;
 DROP TRIGGER IF EXISTS on_auth_user_first_confirmed_session_insert ON auth.users;
 DROP TRIGGER IF EXISTS on_auth_user_first_confirmed_session_update ON auth.users;
-
-CREATE TRIGGER on_auth_user_first_confirmed_session_insert
-  AFTER INSERT ON auth.users
-  FOR EACH ROW
-  WHEN (NEW.email_confirmed_at IS NOT NULL AND NEW.last_sign_in_at IS NOT NULL)
-  EXECUTE FUNCTION public.stamp_first_confirmed_session();
 
 CREATE TRIGGER on_auth_user_first_confirmed_session_update
   AFTER UPDATE ON auth.users
@@ -192,7 +226,6 @@ DECLARE
     || '<p>The <a href="/user-guide">User Guide</a> is there when you pick it up again — Venator skill access, Spyrer tiers, Gene-Smithing, Chem-alchemy, and the rest of the fiddly bits.</p>'
     || '<p>If you got stuck, join <a href="https://discord.gg/ZWXXqd5NUt">Discord</a> and post in #feature-requests-and-support. Catalogue mistakes go in #data-is-wrong; bugs in #stuff-is-broken.</p>';
 BEGIN
-  -- Keep in sync with MM_ONBOARDING_SENDER_ID in utils/notifications.ts.
   SELECT id
   INTO v_sender_id
   FROM public.profiles
@@ -232,16 +265,21 @@ BEGIN
       )
       RETURNING receiver_id
     ),
+    -- Stamp every due row, including NOT EXISTS misses, so a leftover
+    -- notification cannot be retried forever. CROSS JOIN ins so Postgres
+    -- actually runs the INSERT CTE (unreferenced data-modifying CTEs are
+    -- skipped).
     stamped AS (
       UPDATE public.profiles p
       SET welcome_notified_at = now()
       FROM due
-      LEFT JOIN ins ON ins.receiver_id = due.id
       WHERE p.id = due.id
         AND p.welcome_notified_at IS NULL
       RETURNING p.id
     )
-    SELECT count(*)::integer INTO v_batch FROM stamped;
+    SELECT count(*)::integer INTO v_batch
+    FROM stamped
+    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
 
     v_welcome_count := v_welcome_count + v_batch;
     EXIT WHEN v_batch = 0;
@@ -298,12 +336,13 @@ BEGIN
       UPDATE public.profiles p
       SET inactive_nudge_notified_at = now()
       FROM due
-      LEFT JOIN ins ON ins.receiver_id = due.id
       WHERE p.id = due.id
         AND p.inactive_nudge_notified_at IS NULL
       RETURNING p.id
     )
-    SELECT count(*)::integer INTO v_batch FROM stamped;
+    SELECT count(*)::integer INTO v_batch
+    FROM stamped
+    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
 
     v_nudge_count := v_nudge_count + v_batch;
     EXIT WHEN v_batch = 0;

@@ -184,15 +184,6 @@ export function isAdminNotificationType(value: string): value is AdminNotificati
 export const MM_ANNOUNCEMENT_FROM = 'Munda Manager Team';
 export const MM_ANNOUNCEMENT_FROM_PATH = '/contributors';
 
-/**
- * Brand profile used as sender_id on automated onboarding notifications.
- * Keep in sync with the UUID literal in
- * supabase/functions/enqueue_onboarding_notifications.sql (and the matching
- * migration). SQL is the source of truth at send time; this constant is for
- * app-side checks against that same profile.
- */
-export const MM_ONBOARDING_SENDER_ID = 'b09cb332-f4a9-4c9c-815f-2d8a36f265cb';
-
 /** Visible-text cap for an admin broadcast. Each recipient stores their own row. */
 export const NOTIFICATION_BROADCAST_MAX_LENGTH = 1000;
 

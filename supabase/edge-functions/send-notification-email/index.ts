@@ -133,11 +133,17 @@ function ctaLabelForPath(path: string | null | undefined): string | undefined {
   try {
     if (/^https?:\/\//i.test(path)) {
       pathname = new URL(path).pathname;
+    } else if (path.startsWith("/")) {
+      pathname = new URL(path, "http://localhost").pathname;
+    } else {
+      pathname = path.split(/[?#]/)[0] ?? path;
     }
   } catch {
     pathname = path.split(/[?#]/)[0] ?? path;
   }
-  if (pathname === "/user-guide") return "Open the User Guide";
+  if (pathname === "/user-guide" || pathname.startsWith("/user-guide/")) {
+    return "Open the User Guide";
+  }
   if (pathname === "/") return "Create a gang";
   return undefined;
 }
