@@ -19,14 +19,13 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify user has access: must be owner/arbitrator/admin of a campaign linked to this guild
-    const [campaignResult, profileResult] = await Promise.all([
+    // Verify user has access: must be owner/arbitrator of a campaign linked to this guild, or an app admin.
+    // A guild can hold several campaigns, so check them all.
+    const [campaignsResult, profileResult] = await Promise.all([
       supabase
         .from('campaigns')
         .select('id')
-        .eq('discord_guild_id', guildId)
-        .limit(1)
-        .maybeSingle(),
+        .eq('discord_guild_id', guildId),
       supabase
         .from('profiles')
         .select('user_role')
@@ -35,13 +34,17 @@ export async function GET(request: NextRequest) {
     ])
 
     const isAppAdmin = profileResult.data?.user_role === 'admin'
+    const campaignIds = campaignsResult.data?.map(c => c.id) ?? []
 
-    if (!isAppAdmin && campaignResult.data) {
-      // Check if user is owner/arbitrator of the linked campaign
+    if (!isAppAdmin) {
+      if (campaignIds.length === 0) {
+        return Response.json({ error: 'No campaign linked to this guild' }, { status: 404 })
+      }
+
       const { data: memberData } = await supabase
         .from('campaign_members')
         .select('role')
-        .eq('campaign_id', campaignResult.data.id)
+        .in('campaign_id', campaignIds)
         .eq('user_id', userId)
         .in('role', ['OWNER', 'ARBITRATOR'])
         .limit(1)
@@ -50,8 +53,6 @@ export async function GET(request: NextRequest) {
       if (!memberData) {
         return Response.json({ error: 'Unauthorized' }, { status: 403 })
       }
-    } else if (!isAppAdmin) {
-      return Response.json({ error: 'No campaign linked to this guild' }, { status: 404 })
     }
 
     // Fetch channels from Discord API using bot token
