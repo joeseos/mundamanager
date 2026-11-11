@@ -14,12 +14,11 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import type { FighterEffect } from '@/types/fighter-effect';
 import type { GangTacticsCard } from '@/types/tactics-card';
 import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
-import { editFighterStatus, updateFighterXp } from './edit-fighter';
+import { editFighterStatus, updateFighterDetails, updateFighterXp } from './edit-fighter';
 import { addGangTacticsCards } from './gang-tactics-cards';
 import { applySelfUpgradesToEquipment } from './equipment';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
-import { invalidateFighter } from '@/utils/cache-tags';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
   ENHANCE_WEAPON_COST,
@@ -103,8 +102,13 @@ export interface ResolvePostCycleActionResult {
   gang?: { credits: number; rating: number; wealth: number; trade_points: number };
 }
 
-/** A handler reports only what happened; the caller adds who and which action. */
-type HandlerOutcome = Omit<PostCycleActionOutcome, 'fighterId' | 'fighterName' | 'action'>;
+/**
+ * A handler reports only what happened; the caller adds who and which action.
+ * `landed` is for a handler that can fail partway, to say whether anything stuck.
+ */
+type HandlerOutcome = Omit<PostCycleActionOutcome, 'fighterId' | 'fighterName' | 'action'> & {
+  landed?: boolean;
+};
 
 /** A fighter as getGangFightersList returns it, which is all the handlers read. */
 type Fighter = Awaited<ReturnType<typeof getGangFightersList>>[number];
@@ -456,44 +460,42 @@ async function handleEnhanceWeapon(
     return { outcome: `Failed to enhance ${weapon.weapon_name}: ${applied.error}`, creditsDelta: 0, failed: true };
   }
 
-  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
   return {
     outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}.`,
     creditsDelta: -ENHANCE_WEAPON_COST,
-    updatedFighter: fighters.find((f) => f.id === ctx.performer.id),
+    updatedFighter: await rereadPerformer(ctx),
   };
 }
 
 /**
- * Suit Evolution, once per pick and in order: clear the Rig Glitches the way
- * Suit Maintenance does, or add an Augmentation tier the way the fighter page's
- * Edit does. Stops at the first failure and spends the Kill Count of the picks
- * that landed.
+ * Suit Evolution, once per pick and in order: clear every Rig Glitch, or add an
+ * Augmentation tier the way the fighter page's Edit does. Stops at the first
+ * failure and spends the Kill Count of the picks that landed.
  */
 async function handleSuitEvolution(ctx: HandlerContext, picks: SuitEvolutionPick[]): Promise<HandlerOutcome> {
   const spyrer = ctx.performer;
   const items = spyrerItems(spyrer);
-  const upgrades = await getEquipmentUpgrades(items.map((item) => item.equipmentId));
+  const augmented = items.filter((item) => picks.some((pick) => pick.kind === 'augment' && pick.itemId === item.id));
+  const upgrades = augmented.length > 0 ? await getEquipmentUpgrades(augmented.map((item) => item.equipmentId)) : [];
 
   const done: string[] = [];
   let failure: string | undefined;
   for (const pick of picks) {
     if (pick.kind === 'clear_glitches') {
       const glitches = rigGlitchesOf(spyrer);
-      const cleared = await clearRigGlitchesDowntime({
-        fighter_id: spyrer.id,
-        glitch_ids: glitches.map((glitch) => glitch.id),
-        credit_cost: 0,
-      });
-      if (!cleared.success) {
-        failure = `Failed to clear the Rig Glitches: ${cleared.error}`;
-        break;
+      for (const glitch of glitches) {
+        const deleted = await deleteFighterInjury({ fighter_id: spyrer.id, injury_id: glitch.id });
+        if (!deleted.success) {
+          failure = `Failed to clear ${glitch.effect_name}: ${deleted.error}`;
+          break;
+        }
       }
+      if (failure) break;
       done.push(`Cleared ${rigGlitchNames(glitches)}.`);
       continue;
     }
 
-    const item = items.find((i) => i.id === pick.equipmentId)!;
+    const item = items.find((i) => i.id === pick.itemId)!;
     const upgrade = upgrades.find((u) => u.id === pick.upgradeId && u.equipment_id === item.equipmentId);
     if (!upgrade) {
       failure = `Choose one of the upgrades of ${item.name}.`;
@@ -516,27 +518,24 @@ async function handleSuitEvolution(ctx: HandlerContext, picks: SuitEvolutionPick
   if (done.length === 0) return { outcome: failure!, creditsDelta: 0, failed: true };
 
   const spent = done.length * SUIT_EVOLUTION_KILL_COST;
-  const { error: killCountError } = await ctx.supabase
-    .from('fighters')
-    .update({ kill_count: (spyrer.kill_count ?? 0) - spent, updated_at: new Date().toISOString() })
-    .eq('id', spyrer.id);
-  invalidateFighter(spyrer.id, ctx.gangId);
+  const spend = await updateFighterDetails({ fighter_id: spyrer.id, kill_count: (spyrer.kill_count ?? 0) - spent });
+  const spendLine = spend.success
+    ? `Spent ${spent} Kill Count.`
+    : `Spending ${spent} Kill Count failed: ${spend.error}.`;
 
-  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
   return {
-    outcome: [
-      ...done,
-      killCountError
-        ? `Spending ${spent} Kill Count failed: ${killCountError.message}.`
-        : `Spent ${spent} Kill Count.`,
-      failure ?? '',
-    ]
-      .filter(Boolean)
-      .join(' '),
+    outcome: [...done, spendLine, failure].filter(Boolean).join(' '),
     creditsDelta: 0,
-    updatedFighter: fighters.find((f) => f.id === spyrer.id),
-    failed: Boolean(failure || killCountError),
+    updatedFighter: await rereadPerformer(ctx),
+    failed: Boolean(failure) || !spend.success,
+    landed: true,
   };
+}
+
+/** The performer as the page shows them, read again once a handler changed their gear. */
+async function rereadPerformer(ctx: HandlerContext): Promise<Fighter | undefined> {
+  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
+  return fighters.find((f) => f.id === ctx.performer.id);
 }
 
 async function runHandler(
@@ -636,7 +635,7 @@ async function resolvePostCycleAction(
       return { success: false, error: 'Not enough credits' };
     }
 
-    const handled = await runHandler(
+    const { landed: handlerLanded, ...handled } = await runHandler(
       { supabase, gangId, editionSlug, performer, target },
       assignment
     );
@@ -649,10 +648,8 @@ async function resolvePostCycleAction(
     };
 
     const landed =
-      !outcome.failed ||
-      outcome.creditsDelta !== 0 ||
-      (outcome.changes?.length ?? 0) > 0 ||
-      outcome.updatedFighter !== undefined;
+      handlerLanded ??
+      (!outcome.failed || outcome.creditsDelta !== 0 || (outcome.changes?.length ?? 0) > 0);
 
     // Billed from the outcome rather than the plan. Called even at zero, since
     // it also returns the rating and wealth the helpers above moved.

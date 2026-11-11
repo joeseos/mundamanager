@@ -279,8 +279,8 @@ export interface PostCycleFighter {
   recovery?: boolean;
   kill_count?: number;
   skills?: FighterSkills;
-  weapons?: Pick<WeaponProps, 'fighter_weapon_id'>[];
-  wargear?: Pick<WargearItem, 'fighter_weapon_id'>[];
+  weapons?: Pick<WeaponProps, 'fighter_weapon_id' | 'weapon_id' | 'weapon_name'>[];
+  wargear?: Pick<WargearItem, 'fighter_weapon_id' | 'wargear_id' | 'wargear_name'>[];
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
@@ -446,22 +446,15 @@ export function rigGlitchNames(glitches: FighterEffect[]): string {
 }
 
 /** A Spyrer's weapons and wargear, the items Suit Evolution can augment, each with its catalog item's id. */
-export const spyrerItems = (fighter: {
-  weapons: Pick<WeaponProps, 'fighter_weapon_id' | 'weapon_id' | 'weapon_name'>[];
-  wargear: Pick<WargearItem, 'fighter_weapon_id' | 'wargear_id' | 'wargear_name'>[];
-}) => [
-  ...fighter.weapons.map((w) => ({ id: w.fighter_weapon_id, name: w.weapon_name, equipmentId: w.weapon_id })),
-  ...fighter.wargear.map((w) => ({ id: w.fighter_weapon_id, name: w.wargear_name, equipmentId: w.wargear_id })),
+export const spyrerItems = (fighter: PostCycleFighter) => [
+  ...(fighter.weapons ?? []).map((w) => ({ id: w.fighter_weapon_id, name: w.weapon_name, equipmentId: w.weapon_id })),
+  ...(fighter.wargear ?? []).map((w) => ({ id: w.fighter_weapon_id, name: w.wargear_name, equipmentId: w.wargear_id })),
 ];
 
-/**
- * One use of Suit Evolution: clear every Rig Glitch, or put one of an item's
- * upgrades (its Augmentation tiers) on a weapon or piece of wargear the Spyrer
- * carries, by its fighter_equipment id.
- */
+/** One use of Suit Evolution: clear every Rig Glitch, or put one of an item's Augmentation tiers on it. */
 export type SuitEvolutionPick =
   | { kind: 'clear_glitches' }
-  | { kind: 'augment'; equipmentId: string; upgradeId: string };
+  | { kind: 'augment'; itemId: string; upgradeId: string };
 
 export type PostCycleAssignment =
   | { fighterId: string; action: 'medical_escort'; targetFighterId: string }
@@ -563,18 +556,18 @@ export function validatePostCycleAssignment(
     case 'suit_evolution': {
       const { picks } = assignment;
       const kills = picks.length * SUIT_EVOLUTION_KILL_COST;
-      const items = new Set(
-        [...(performer.weapons ?? []), ...(performer.wargear ?? [])].map((item) => item.fighter_weapon_id)
-      );
-      if (picks.length === 0 || (performer.kill_count ?? 0) < kills) {
-        issues.push(`${label} needs a Kill Count of at least ${Math.max(kills, SUIT_EVOLUTION_KILL_COST)}.`);
+      const items = new Set(spyrerItems(performer).map((item) => item.id));
+      if (picks.length === 0) {
+        issues.push(`Choose what ${label}'s Suit Evolution does.`);
+      } else if ((performer.kill_count ?? 0) < kills) {
+        issues.push(`${label} needs a Kill Count of at least ${kills}.`);
       }
       // Once cleared there is nothing left to clear.
       const clears = picks.filter((pick) => pick.kind === 'clear_glitches').length;
       if (clears > 1 || (clears === 1 && rigGlitchesOf(performer).length === 0)) {
         issues.push(`${label} has no Rig Glitches to clear.`);
       }
-      if (picks.some((pick) => pick.kind === 'augment' && !items.has(pick.equipmentId))) {
+      if (picks.some((pick) => pick.kind === 'augment' && !items.has(pick.itemId))) {
         issues.push(`Choose a weapon or wargear that ${label} has.`);
       }
       break;
