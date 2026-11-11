@@ -396,11 +396,11 @@ export async function deleteFighterInjury(
     }
 
     // Skills granted by this injury go with it (fighter_skills.fighter_effect_id cascade)
-    const { data: relatedSkills } = await supabase
+    const { count: relatedSkillCount } = await supabase
       .from('fighter_skills')
-      .select('id')
+      .select('id', { count: 'exact', head: true })
       .eq('fighter_effect_id', params.injury_id);
-    const hasRelatedSkills = !!relatedSkills?.length;
+    const hasRelatedSkills = !!relatedSkillCount;
 
     // Delete the injury (this will cascade delete the modifiers and granted skills)
     const { error: deleteError } = await supabase

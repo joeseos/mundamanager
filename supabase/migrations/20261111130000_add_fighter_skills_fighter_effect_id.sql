@@ -1,38 +1,34 @@
 -- Step 1 of 2: link an effect-granted skill straight to its effect
 -- (fighter_skills.fighter_effect_id) instead of through fighter_effect_skills.
--- Apply BEFORE the app deploys. Step 2 (20261111130100) drops the link table
+-- Apply BEFORE merging: supabase/functions/add_fighter_injury.sql deploys on
+-- merge and writes this column. Step 2 (20261111130100) drops the link table
 -- once the new app is live.
 --
--- Run fix-copied-skill-links.sql first: this refuses to backfill a skill that
--- is linked to another fighter's effect.
+-- The foreign key also holds the effect to the skill's own fighter, so a skill
+-- can never hang off another fighter's injury (a copy inheriting the source's
+-- link). Run the copied-skill repair SQL from PR #2427 first, or it fails.
 
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM fighter_skills fs
-    JOIN fighter_effect_skills fes ON fes.id = fs.fighter_effect_skill_id
-    JOIN fighter_effects fe ON fe.id = fes.fighter_effect_id
-    WHERE fe.fighter_id IS DISTINCT FROM fs.fighter_id
-  ) THEN
-    RAISE EXCEPTION 'Skills linked to another fighter''s effect: run fix-copied-skill-links.sql first';
-  END IF;
-END $$;
+ALTER TABLE public.fighter_skills ADD COLUMN fighter_effect_id uuid;
+
+UPDATE public.fighter_skills fs
+SET fighter_effect_id = fes.fighter_effect_id
+FROM public.fighter_effect_skills fes
+WHERE fes.id = fs.fighter_effect_skill_id;
+
+ALTER TABLE public.fighter_effects
+  ADD CONSTRAINT fighter_effects_id_fighter_id_key UNIQUE (id, fighter_id);
 
 ALTER TABLE public.fighter_skills
-  ADD COLUMN fighter_effect_id uuid REFERENCES public.fighter_effects(id) ON DELETE CASCADE;
+  ADD CONSTRAINT fighter_skills_fighter_effect_id_fkey
+  FOREIGN KEY (fighter_effect_id, fighter_id)
+  REFERENCES public.fighter_effects (id, fighter_id) ON DELETE CASCADE;
 
 CREATE INDEX fighter_skills_fighter_effect_id_idx
   ON public.fighter_skills (fighter_effect_id)
   WHERE fighter_effect_id IS NOT NULL;
 
 COMMENT ON COLUMN public.fighter_skills.fighter_effect_id IS
-  'Effect (injury or gear effect) that granted this skill. Deleted with the effect. Null = not granted by an effect.';
-
-UPDATE public.fighter_skills fs
-SET fighter_effect_id = fes.fighter_effect_id
-FROM public.fighter_effect_skills fes
-WHERE fes.id = fs.fighter_effect_skill_id;
+  'Effect (injury or gear effect) of the same fighter that granted this skill. Deleted with the effect. Null = not granted by an effect.';
 
 -- Until step 2, the running app and add_fighter_injury still write link rows:
 -- keep the new column in step with them.
