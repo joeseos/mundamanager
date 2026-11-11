@@ -5,8 +5,10 @@
 -- simultaneous worker runs never claim the same row, and flipping status to 'processing'
 -- (with attempts++ and locked_at) makes the claim visible to the reaper branch.
 --
--- Due = pending, OR a retryable failure whose backoff has elapsed, OR a row stuck in
--- 'processing' for >10 minutes (a worker that died after claiming — re-claim it).
+-- Due = pending whose next_attempt_at has elapsed, OR a retryable failure whose
+-- backoff has elapsed, OR a row stuck in 'processing' for >10 minutes (a worker
+-- that died after claiming — re-claim it). Pending honors next_attempt_at so a
+-- delayed retry (unconfirmed email) is not claimed on the next sweep.
 --
 -- service_role only: the worker uses the service-role key; nothing else may claim work.
 
@@ -20,7 +22,7 @@ BEGIN
    WITH due AS (
       SELECT id
       FROM email_deliveries
-      WHERE status = 'pending'
+      WHERE (status = 'pending' AND next_attempt_at <= now())
          OR (status = 'failed' AND attempts < 5 AND next_attempt_at <= now())
          OR (status = 'processing' AND locked_at < now() - interval '10 minutes')
       ORDER BY created_at

@@ -29,7 +29,9 @@ export type NotificationType =
   | 'mm_announcement'
   | 'forum_reply'
   | 'forum_mention'
-  | 'forum_article';
+  | 'forum_article'
+  | 'welcome'
+  | 'inactive_nudge';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -46,6 +48,13 @@ export interface NotificationEmailConfig {
    * When this is absent, the button uses `link`.
    */
   ctaPath?: string;
+  /** Email button label. When absent, the layout default ("View in Munda Manager") is used. */
+  ctaLabel?: string;
+  /**
+   * Preference row (and unsubscribe token `t`) this type shares. Hidden from the
+   * preferences UI; toggling that category also covers this type.
+   */
+  preferenceType?: NotificationType;
 }
 
 export const notificationEmailConfig: Record<NotificationType, NotificationEmailConfig> = {
@@ -121,6 +130,23 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     subject: 'A message from Munda Manager',
     ctaPath: '/account',
   },
+  // Automated onboarding. Email follows the Munda Manager messages preference.
+  welcome: {
+    label: 'Welcome',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'Welcome to Munda Manager',
+    ctaPath: '/user-guide',
+    ctaLabel: 'Open the User Guide',
+    preferenceType: 'mm_staff_message',
+  },
+  inactive_nudge: {
+    label: 'Getting started reminder',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'Need a hand getting started?',
+    preferenceType: 'mm_staff_message',
+  },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
   warning: { label: 'Warnings', supportsEmail: false, defaultEnabled: false, subject: '' },
@@ -157,6 +183,15 @@ export function isAdminNotificationType(value: string): value is AdminNotificati
 /** From line for mm_announcement. Links to the contributors page, not a user profile. */
 export const MM_ANNOUNCEMENT_FROM = 'Munda Manager Team';
 export const MM_ANNOUNCEMENT_FROM_PATH = '/contributors';
+
+/**
+ * Brand profile used as sender_id on automated onboarding notifications.
+ * Keep in sync with the UUID literal in
+ * supabase/functions/enqueue_onboarding_notifications.sql (and the matching
+ * migration). SQL is the source of truth at send time; this constant is for
+ * app-side checks against that same profile.
+ */
+export const MM_ONBOARDING_SENDER_ID = 'b09cb332-f4a9-4c9c-815f-2d8a36f265cb';
 
 /** Visible-text cap for an admin broadcast. Each recipient stores their own row. */
 export const NOTIFICATION_BROADCAST_MAX_LENGTH = 1000;
@@ -271,6 +306,8 @@ const MESSAGE_NOTIFICATION_TYPES = new Set<NotificationType>([
   'user_message',
   'campaign_message',
   'mm_staff_message',
+  'welcome',
+  'inactive_nudge',
 ]);
 
 /** Direct, campaign, and staff messages, as opposed to event notifications. */
@@ -280,15 +317,17 @@ export function isMessageNotificationType(type: NotificationType): boolean {
 
 /** The categories a user can toggle email for (the email-eligible ones). */
 export function emailEligibleTypes(): NotificationType[] {
-  return (Object.keys(notificationEmailConfig) as NotificationType[]).filter(
-    (t) => notificationEmailConfig[t].supportsEmail,
-  );
+  return (Object.keys(notificationEmailConfig) as NotificationType[]).filter((t) => {
+    const cfg = notificationEmailConfig[t];
+    return cfg.supportsEmail && !cfg.preferenceType;
+  });
 }
 
 /**
  * Resolve whether an email should be sent for a category given the user's stored
  * rows. `master` = the 'all' pref (defaults to on); per-category defaults to the
- * config's defaultEnabled. Used by the worker at send time.
+ * config's defaultEnabled. Types with `preferenceType` read that category's row.
+ * Used by the worker at send time.
  */
 export function isEmailEnabled(
   type: NotificationType,
@@ -300,8 +339,12 @@ export function isEmailEnabled(
   const master = prefs.find((p) => p.notification_type === MASTER_PREF_KEY);
   if (master && master.enabled === false) return false;
 
-  const perType = prefs.find((p) => p.notification_type === type);
-  return perType ? perType.enabled : cfg.defaultEnabled;
+  const prefKey = cfg.preferenceType ?? type;
+  const perType = prefs.find((p) => p.notification_type === prefKey);
+  const defaultEnabled = cfg.preferenceType
+    ? (notificationEmailConfig[cfg.preferenceType]?.defaultEnabled ?? cfg.defaultEnabled)
+    : cfg.defaultEnabled;
+  return perType ? perType.enabled : defaultEnabled;
 }
 
 // Shared renderer for notification `text`: escapes HTML then applies the `**bold**`
@@ -437,6 +480,14 @@ export function getNotificationLinkLabel(link: string, campaignName?: string | n
 
   if (pathname.startsWith('/account')) {
     return 'View account';
+  }
+
+  if (pathname === '/user-guide' || pathname.startsWith('/user-guide/')) {
+    return 'Open the User Guide';
+  }
+
+  if (pathname === '/') {
+    return 'Create a gang';
   }
 
   if (href.startsWith('http')) {

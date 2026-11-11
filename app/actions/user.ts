@@ -49,9 +49,10 @@ export const updateNotificationPreference = async (
   }
 
   // Only the master switch or a genuinely email-eligible category may be stored.
+  // Types that share another category's toggle (preferenceType) cannot be stored.
   const isMaster = notificationType === MASTER_PREF_KEY;
   const cfg = notificationEmailConfig[notificationType as NotificationType];
-  if (!isMaster && (!cfg || !cfg.supportsEmail)) {
+  if (!isMaster && (!cfg || !cfg.supportsEmail || cfg.preferenceType)) {
     return { error: "Unknown notification category" };
   }
 

@@ -322,6 +322,8 @@ export default function NotificationsContent({ userId }: { userId: string }) {
       case 'user_message':
       case 'campaign_message':
       case 'mm_staff_message':
+      case 'welcome':
+      case 'inactive_nudge':
         return <LuMessageSquareText className="h-5 w-5 text-green-500" />;
       case 'forum_reply':
         return <LuReply className="h-5 w-5 text-teal-500" />;
