@@ -525,7 +525,9 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       const serviceClient = createServiceRoleClient();
       for (const { sourceEffectId, skillId } of effectGrantedSkills) {
         const newEffectId = effectIdMap.get(sourceEffectId);
-        if (newEffectId) await linkSkillToEffect(supabase, serviceClient, newEffectId, skillId);
+        if (newEffectId && !await linkSkillToEffect(supabase, serviceClient, newEffectId, skillId)) {
+          await cleanupOnError(new Error('Failed to link a copied skill to its copied injury'));
+        }
       }
     }
 

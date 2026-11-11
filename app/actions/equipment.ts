@@ -138,7 +138,10 @@ export async function grantSkillsForEffects(
       continue;
     }
 
-    if (!await linkSkillToEffect(supabase, serviceClient, effect.id, skill.id)) continue;
+    if (!await linkSkillToEffect(supabase, serviceClient, effect.id, skill.id)) {
+      await supabase.from('fighter_skills').delete().eq('id', skill.id);
+      continue;
+    }
 
     granted.push({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' });
   }
@@ -148,7 +151,7 @@ export async function grantSkillsForEffects(
 
 /**
  * Links a granted fighter_skills row to the effect that grants it, so removing
- * the effect cascades the skill away. Deletes the skill if linking fails.
+ * the effect cascades the skill away.
  */
 export async function linkSkillToEffect(
   supabase: any,
@@ -164,7 +167,6 @@ export async function linkSkillToEffect(
 
   if (!link) {
     console.error('Failed to link granted skill to effect:', linkError);
-    await supabase.from('fighter_skills').delete().eq('id', fighterSkillId);
     return false;
   }
 
@@ -177,7 +179,6 @@ export async function linkSkillToEffect(
 
   if (backfillError) {
     console.error('Failed to back-fill granted skill provenance:', backfillError);
-    await supabase.from('fighter_skills').delete().eq('id', fighterSkillId);
     await serviceClient.from('fighter_effect_skills').delete().eq('id', link.id);
     return false;
   }
