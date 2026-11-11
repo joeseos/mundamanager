@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
-import { createClient } from '@/utils/supabase/client';
 import {
   buildCatalogueIndex,
   catalogueFileUrl,
@@ -41,14 +40,11 @@ const combineRuleFiles = combineFiles<EquipmentCatalogueGangType>;
 export function useEquipmentCatalogue(gangId: string, fighterId: string | null) {
   const overlayQuery = useQuery({
     queryKey: ['equipment-overlay', gangId, fighterId],
-    queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc('get_equipment_overlay', {
-        p_gang_id: gangId,
-        p_fighter_id: fighterId,
-      });
-      if (error) throw new Error(error.message);
-      return data as EquipmentOverlay;
+    queryFn: async (): Promise<EquipmentOverlay> => {
+      const query = fighterId ? `?fighter_id=${fighterId}` : '';
+      const response = await fetch(`/api/gangs/${gangId}/equipment-overlay${query}`);
+      if (!response.ok) throw new Error('Failed to load equipment categories');
+      return response.json();
     },
     // One call per opening of the modal: it carries the catalogue version.
     staleTime: 0,

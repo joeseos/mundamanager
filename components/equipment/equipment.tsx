@@ -555,7 +555,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
           <div>
             <div className="flex flex-col">
-              {error && <p className="text-red-500 p-4">{error}</p>
+              {error && <p className="text-red-500 p-4">{error}</p>}
 
               {categoryGroups.map((group) => (
                 <div key={group.superCategory ?? '__ungrouped__'}>
