@@ -19,9 +19,12 @@ import { addGangTacticsCards } from './gang-tactics-cards';
 import { applySelfUpgradesToEquipment } from './equipment';
 import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
+import { invalidateFighter } from '@/utils/cache-tags';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
   ENHANCE_WEAPON_COST,
+  ENHANCE_WEAPON_EQUIPMENT_ID,
+  SUIT_EVOLUTION_KILL_COST,
   SUIT_MAINTENANCE_COST,
   TRAIN_XP,
   assignmentCreditsDelta,
@@ -34,11 +37,13 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  spyrerItems,
   territoryIncome,
   tradePointsText,
   tradingPostTradePoints,
   validatePostCycleAssignment,
   type PostCycleAssignment,
+  type SuitEvolutionPick,
 } from '@/utils/postCycleActions';
 import {
   medicalEscortStabilisedRoll,
@@ -81,7 +86,7 @@ export interface PostCycleActionOutcome {
   changes?: PostCycleFighterChange[];
   /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
   addedTacticsCard?: GangTacticsCard;
-  /** Enhance Weapon: the fighter re-read with the upgraded weapon, for the page to swap in. */
+  /** Enhance Weapon and Suit Evolution: the fighter re-read once changed, for the page to swap in. */
   updatedFighter?: Fighter;
   failed?: boolean;
 }
@@ -403,19 +408,24 @@ async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcom
   };
 }
 
-/** The upgrades Enhance Weapon picks one from, with what each adds to the weapon's value. */
-export async function getEnhanceWeaponUpgrades() {
-  const ENHANCE_WEAPON_EQUIPMENT_ID = '7ab2d8fd-9a6b-4638-b7dc-567fb22ea5d5';
+/**
+ * The upgrades the fighter page's Edit offers for these catalog items (their
+ * equipment ids): a Spyrer weapon's Augmentation tiers, or Enhance weapon's
+ * upgrades. Each with what it adds to the item's value.
+ */
+export async function getEquipmentUpgrades(equipmentIds: string[]) {
   const supabase = await createClient();
   await getAuthenticatedUser(supabase);
   const { data, error } = await supabase
     .from('fighter_effect_types')
-    .select('id, effect_name, credits_increase:type_specific_data->credits_increase')
-    .eq('type_specific_data->>equipment_id', ENHANCE_WEAPON_EQUIPMENT_ID)
+    .select(
+      'id, effect_name, equipment_id:type_specific_data->>equipment_id, credits_increase:type_specific_data->credits_increase'
+    )
+    .in('type_specific_data->>equipment_id', equipmentIds)
     .eq('type_specific_data->>is_editable', 'true')
     .order('sort_order');
-  if (error) throw new Error(`Failed to read the Enhance Weapon upgrades: ${error.message}`);
-  return data as Array<{ id: string; effect_name: string; credits_increase: number | null }>;
+  if (error) throw new Error(`Failed to read the equipment upgrades: ${error.message}`);
+  return data as Array<{ id: string; effect_name: string; equipment_id: string; credits_increase: number | null }>;
 }
 
 /**
@@ -429,7 +439,7 @@ async function handleEnhanceWeapon(
   upgradeId: string
 ): Promise<HandlerOutcome> {
   const weapon = ctx.performer.weapons.find((w) => w.fighter_weapon_id === weaponId)!;
-  const upgrade = (await getEnhanceWeaponUpgrades()).find((u) => u.id === upgradeId);
+  const upgrade = (await getEquipmentUpgrades([ENHANCE_WEAPON_EQUIPMENT_ID])).find((u) => u.id === upgradeId);
   if (!upgrade) {
     return { outcome: 'Choose one of the Enhance Weapon upgrades.', creditsDelta: 0, failed: true };
   }
@@ -454,6 +464,81 @@ async function handleEnhanceWeapon(
   };
 }
 
+/**
+ * Suit Evolution, once per pick and in order: clear the Rig Glitches the way
+ * Suit Maintenance does, or add an Augmentation tier the way the fighter page's
+ * Edit does. Stops at the first failure and spends the Kill Count of the picks
+ * that landed.
+ */
+async function handleSuitEvolution(ctx: HandlerContext, picks: SuitEvolutionPick[]): Promise<HandlerOutcome> {
+  const spyrer = ctx.performer;
+  const items = spyrerItems(spyrer);
+  const upgrades = await getEquipmentUpgrades(items.map((item) => item.equipmentId));
+
+  const done: string[] = [];
+  let failure: string | undefined;
+  for (const pick of picks) {
+    if (pick.kind === 'clear_glitches') {
+      const glitches = rigGlitchesOf(spyrer);
+      const cleared = await clearRigGlitchesDowntime({
+        fighter_id: spyrer.id,
+        glitch_ids: glitches.map((glitch) => glitch.id),
+        credit_cost: 0,
+      });
+      if (!cleared.success) {
+        failure = `Failed to clear the Rig Glitches: ${cleared.error}`;
+        break;
+      }
+      done.push(`Cleared ${rigGlitchNames(glitches)}.`);
+      continue;
+    }
+
+    const item = items.find((i) => i.id === pick.equipmentId)!;
+    const upgrade = upgrades.find((u) => u.id === pick.upgradeId && u.equipment_id === item.equipmentId);
+    if (!upgrade) {
+      failure = `Choose one of the upgrades of ${item.name}.`;
+      break;
+    }
+    const applied = await applySelfUpgradesToEquipment({
+      fighter_equipment_id: item.id,
+      effect_type_ids: [upgrade.id],
+      fighter_id: spyrer.id,
+      gang_id: ctx.gangId,
+      credits_increase: upgrade.credits_increase ?? 0,
+    });
+    if (!applied.success) {
+      failure = `Failed to augment ${item.name}: ${applied.error}`;
+      break;
+    }
+    done.push(`Augmented ${item.name} with ${upgrade.effect_name}.`);
+  }
+
+  if (done.length === 0) return { outcome: failure!, creditsDelta: 0, failed: true };
+
+  const spent = done.length * SUIT_EVOLUTION_KILL_COST;
+  const { error: killCountError } = await ctx.supabase
+    .from('fighters')
+    .update({ kill_count: (spyrer.kill_count ?? 0) - spent, updated_at: new Date().toISOString() })
+    .eq('id', spyrer.id);
+  invalidateFighter(spyrer.id, ctx.gangId);
+
+  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
+  return {
+    outcome: [
+      ...done,
+      killCountError
+        ? `Spending ${spent} Kill Count failed: ${killCountError.message}.`
+        : `Spent ${spent} Kill Count.`,
+      failure ?? '',
+    ]
+      .filter(Boolean)
+      .join(' '),
+    creditsDelta: 0,
+    updatedFighter: fighters.find((f) => f.id === spyrer.id),
+    failed: Boolean(failure || killCountError),
+  };
+}
+
 async function runHandler(
   ctx: HandlerContext,
   assignment: PostCycleAssignment
@@ -471,6 +556,8 @@ async function runHandler(
       return handleVisitChopShop(ctx, assignment.damageIds);
     case 'enhance_weapon':
       return handleEnhanceWeapon(ctx, assignment.weaponId, assignment.upgradeId);
+    case 'suit_evolution':
+      return handleSuitEvolution(ctx, assignment.picks);
     case 'suit_maintenance':
       return handleSuitMaintenance(ctx);
     case 'visit_trading_post':
@@ -562,7 +649,10 @@ async function resolvePostCycleAction(
     };
 
     const landed =
-      !outcome.failed || outcome.creditsDelta !== 0 || (outcome.changes?.length ?? 0) > 0;
+      !outcome.failed ||
+      outcome.creditsDelta !== 0 ||
+      (outcome.changes?.length ?? 0) > 0 ||
+      outcome.updatedFighter !== undefined;
 
     // Billed from the outcome rather than the plan. Called even at zero, since
     // it also returns the rating and wealth the helpers above moved.

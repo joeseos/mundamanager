@@ -18,6 +18,7 @@ import { tracksXp, xpTowardNextTier } from '@/utils/advancementRanks';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
+  ENHANCE_WEAPON_EQUIPMENT_ID,
   FIT_BIONICS_COST_PER_INJURY,
   POST_CYCLE_ACTIONS,
   SUIT_EVOLUTION_KILL_COST,
@@ -33,16 +34,18 @@ import {
   reputationIncome,
   rigGlitchNames,
   rigGlitchesOf,
+  spyrerItems,
   territoryIncome,
   tradePointsText,
   tradingPostTradePoints,
   validatePostCycleAssignment,
   type PostCycleActionId,
   type PostCycleAssignment,
+  type SuitEvolutionPick,
 } from '@/utils/postCycleActions';
 import {
   applyPostCycleSequence,
-  getEnhanceWeaponUpgrades,
+  getEquipmentUpgrades,
   type PostCycleFighterChange,
 } from '@/app/actions/post-cycle-actions';
 
@@ -81,11 +84,23 @@ interface RowState {
   /** Enhance Weapon: the fighter's weapon and the upgrade it gets. */
   weaponId?: string;
   upgradeId?: string;
+  /** Suit Evolution: one pick per use, in order. */
+  evolutions?: SuitEvolutionPick[];
 }
+
+/** A Suit Evolution pick as one Combobox value. */
+const CLEAR_GLITCHES = 'clear_glitches';
+const evolutionValue = (pick: SuitEvolutionPick) =>
+  pick.kind === 'augment' ? `${pick.equipmentId}:${pick.upgradeId}` : CLEAR_GLITCHES;
+const evolutionPick = (value: string): SuitEvolutionPick => {
+  if (value === CLEAR_GLITCHES) return { kind: 'clear_glitches' };
+  const [equipmentId, upgradeId] = value.split(':');
+  return { kind: 'augment', equipmentId, upgradeId };
+};
 
 /** Null while the row still lacks a pick its action needs. */
 function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | null {
-  const { action, targetFighterId, injuryIds, tacticsCard, damageIds, weaponId, upgradeId } = row;
+  const { action, targetFighterId, injuryIds, tacticsCard, damageIds, weaponId, upgradeId, evolutions } = row;
   switch (action) {
     case 'medical_escort':
       return targetFighterId ? { fighterId, action, targetFighterId } : null;
@@ -99,6 +114,8 @@ function toAssignment(fighterId: string, row: RowState): PostCycleAssignment | n
       return damageIds?.length ? { fighterId, action, damageIds } : null;
     case 'enhance_weapon':
       return weaponId && upgradeId ? { fighterId, action, weaponId, upgradeId } : null;
+    case 'suit_evolution':
+      return evolutions?.length ? { fighterId, action, picks: evolutions } : null;
     default:
       return { fighterId, action };
   }
@@ -335,18 +352,64 @@ export default function PostCycleActions({
     return counts;
   }, [activeRows]);
 
-  const { data: enhanceUpgrades = [] } = useQuery({
-    queryKey: ['enhance-weapon-upgrades'],
-    queryFn: () => getEnhanceWeaponUpgrades(),
-    enabled: takenCounts.has('enhance_weapon'),
+  // The catalog items whose upgrades the picked rows offer.
+  const upgradeEquipmentIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [fighterId, { action }] of activeRows) {
+      if (action === 'enhance_weapon') ids.add(ENHANCE_WEAPON_EQUIPMENT_ID);
+      if (action === 'suit_evolution') {
+        spyrerItems(fighterById.get(fighterId)!).forEach((item) => ids.add(item.equipmentId));
+      }
+    }
+    return [...ids].sort();
+  }, [activeRows, fighterById]);
+
+  const { data: upgrades = [] } = useQuery({
+    queryKey: ['equipment-upgrades', upgradeEquipmentIds],
+    queryFn: () => getEquipmentUpgrades(upgradeEquipmentIds),
+    enabled: upgradeEquipmentIds.length > 0,
     staleTime: Infinity,
   });
+
+  /**
+   * Suit Evolution's choices for one pick: clearing the Rig Glitches, or an
+   * upgrade an item has not got yet. What the Spyrer's other picks took is left out.
+   */
+  const evolutionOptions = (fighter: FighterProps, index: number) => {
+    const others = new Set(
+      (rows[fighter.id]?.evolutions ?? []).filter((_, i) => i !== index).map(evolutionValue)
+    );
+    const effects = Object.values(fighter.effects ?? {}).flat();
+    const options = rigGlitchesOf(fighter).length > 0 && !others.has(CLEAR_GLITCHES)
+      ? [{ value: CLEAR_GLITCHES, label: 'Clear Rig Glitches' }]
+      : [];
+    for (const item of spyrerItems(fighter)) {
+      for (const upgrade of upgrades) {
+        const value = evolutionValue({ kind: 'augment', equipmentId: item.id, upgradeId: upgrade.id });
+        const owned = effects.some(
+          (effect) => effect.fighter_equipment_id === item.id && effect.fighter_effect_type_id === upgrade.id
+        );
+        if (upgrade.equipment_id === item.equipmentId && !owned && !others.has(value)) {
+          options.push({ value, label: `${item.name} - ${upgrade.effect_name}` });
+        }
+      }
+    }
+    return options;
+  };
 
   const setRow = (fighterId: string, next: Partial<RowState>) =>
     setRows((prev) => {
       const current = prev[fighterId];
       return current ? { ...prev, [fighterId]: { ...current, ...next } } : prev;
     });
+
+  /** Clearing a pick drops it; the picks after it move up. */
+  const setEvolution = (fighterId: string, index: number, value: string) => {
+    const picks = [...(rows[fighterId]?.evolutions ?? [])];
+    if (value) picks[index] = evolutionPick(value);
+    else picks.splice(index, 1);
+    setRow(fighterId, { evolutions: picks });
+  };
 
   const handleActionChange = (fighterId: string, value: string) =>
     setRows((prev) => {
@@ -427,6 +490,9 @@ export default function PostCycleActions({
       return `+${tradePointsText(tradingPostTradePoints(fighterById.get(assignment.fighterId)!))}`;
     }
     if (assignment.action === 'develop_tactics') return rows[assignment.fighterId]?.tacticsCard?.name ?? null;
+    if (assignment.action === 'suit_evolution') {
+      return `-${assignment.picks.length * SUIT_EVOLUTION_KILL_COST} Kill Count`;
+    }
     const delta = assignmentCreditsDelta(assignment, fighterById.get(assignment.fighterId)!);
     // A Doc discount can make an action free, which is still worth saying.
     const isDocAction = assignment.action === 'medical_escort' || assignment.action === 'fit_bionics';
@@ -717,10 +783,9 @@ export default function PostCycleActions({
                             disabled={!canEdit || applying}
                           />
                           <Combobox
-                            options={enhanceUpgrades.map((upgrade) => ({
-                              value: upgrade.id,
-                              label: upgrade.effect_name,
-                            }))}
+                            options={upgrades
+                              .filter((upgrade) => upgrade.equipment_id === ENHANCE_WEAPON_EQUIPMENT_ID)
+                              .map((upgrade) => ({ value: upgrade.id, label: upgrade.effect_name }))}
                             value={row.upgradeId ?? ''}
                             onValueChange={(id) => setRow(fighter.id, { upgradeId: id || undefined })}
                             placeholder="Upgrade"
@@ -729,6 +794,29 @@ export default function PostCycleActions({
                           />
                         </>
                       )}
+
+                      {row?.action === 'suit_evolution' &&
+                        // One Combobox per pick, and an empty one while the Kill Count covers another.
+                        Array.from(
+                          {
+                            length: Math.min(
+                              (row.evolutions?.length ?? 0) + 1,
+                              Math.floor((fighter.kill_count ?? 0) / SUIT_EVOLUTION_KILL_COST)
+                            ),
+                          },
+                          (_, index) => (
+                            <Combobox
+                              key={index}
+                              options={evolutionOptions(fighter, index)}
+                              value={row.evolutions?.[index] ? evolutionValue(row.evolutions[index]) : ''}
+                              onValueChange={(value) => setEvolution(fighter.id, index, value)}
+                              placeholder={index === 0 ? 'Evolution' : 'Another evolution'}
+                              noResultsText="No Rig Glitches or upgrades left"
+                              clearable
+                              disabled={!canEdit || applying}
+                            />
+                          )
+                        )}
 
                       {row?.action === 'develop_tactics' && (
                         <Button
