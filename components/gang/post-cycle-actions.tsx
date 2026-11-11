@@ -667,9 +667,10 @@ export default function PostCycleActions({
                 // Shown even once the row is cleared, for an action that partly applied.
                 const failure = failures[fighter.id];
                 // Suit Evolution: a Combobox per pick, plus an empty one while the Kill Count covers another.
-                const evolutionSlots = Math.min(
-                  (row?.evolutions?.length ?? 0) + 1,
-                  Math.floor((fighter.kill_count ?? 0) / SUIT_EVOLUTION_KILL_COST)
+                const evolutionCount = row?.evolutions?.length ?? 0;
+                const evolutionSlots = Math.max(
+                  evolutionCount,
+                  Math.min(evolutionCount + 1, Math.floor((fighter.kill_count ?? 0) / SUIT_EVOLUTION_KILL_COST))
                 );
 
                 return (

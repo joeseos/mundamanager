@@ -479,6 +479,7 @@ async function handleSuitEvolution(ctx: HandlerContext, picks: SuitEvolutionPick
   const upgrades = augmented.length > 0 ? await getEquipmentUpgrades(augmented.map((item) => item.equipmentId)) : [];
 
   const done: string[] = [];
+  const clearedIds: string[] = [];
   let failure: string | undefined;
   for (const pick of picks) {
     if (pick.kind === 'clear_glitches') {
@@ -489,6 +490,7 @@ async function handleSuitEvolution(ctx: HandlerContext, picks: SuitEvolutionPick
           failure = `Failed to clear ${glitch.effect_name}: ${deleted.error}`;
           break;
         }
+        clearedIds.push(glitch.id);
       }
       if (failure) break;
       done.push(`Cleared ${rigGlitchNames(glitches)}.`);
@@ -515,7 +517,15 @@ async function handleSuitEvolution(ctx: HandlerContext, picks: SuitEvolutionPick
     done.push(`Augmented ${item.name} with ${upgrade.effect_name}.`);
   }
 
-  if (done.length === 0) return { outcome: failure!, creditsDelta: 0, failed: true };
+  if (done.length === 0) {
+    return {
+      outcome: failure!,
+      creditsDelta: 0,
+      changes: [{ fighterId: spyrer.id, removedEffectIds: clearedIds }],
+      failed: true,
+      landed: clearedIds.length > 0,
+    };
+  }
 
   const spent = done.length * SUIT_EVOLUTION_KILL_COST;
   const spend = await updateFighterDetails({ fighter_id: spyrer.id, kill_count: (spyrer.kill_count ?? 0) - spent });
