@@ -6,7 +6,7 @@ import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { hasSaveCharacteristic } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { calculateAdjustedStats, calculateVehicleStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { countAdvancementsTaken, openAdvancementsFor, tracksXp } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 import { injuryAggregationLabel } from '@/utils/injuryTarget';
@@ -82,55 +82,6 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   dragHandle?: (element: Element | null) => void;  // dnd-kit drag handle; set only when the card can be dragged
   disableHoverEffects?: boolean;  // Used by constrained modal previews; omit to keep normal gang-page hover scale/shadow.
 }
-
-const calculateVehicleStats = (
-  baseStats: Vehicle | undefined,
-) => {
-  if (!baseStats) return null;
-
-  const stats = {
-    movement: baseStats.movement ?? 0,
-    front: baseStats.front ?? 0,
-    side: baseStats.side ?? 0,
-    rear: baseStats.rear ?? 0,
-    hull_points: baseStats.hull_points ?? 0,
-    handling: baseStats.handling ?? 0,
-    save: baseStats.save ?? 0,
-    body_slots: baseStats.body_slots ?? 0,
-    drive_slots: baseStats.drive_slots ?? 0,
-    engine_slots: baseStats.engine_slots ?? 0,
-  };
-  
-  // Apply modifiers from vehicle effects (lasting damages, vehicle upgrades, and user adjustments)
-  if (baseStats.effects) {
-    const effectCategories = ["lasting damages", "vehicle upgrades", "user"];
-    effectCategories.forEach(categoryName => {
-      if (baseStats.effects && baseStats.effects[categoryName]) {
-        baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
-      if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
-        effect.fighter_effect_modifiers.forEach(modifier => {
-          // Convert stat_name to lowercase to match our stats object keys
-          const statName = modifier.stat_name.toLowerCase();
-          
-          // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
-          if (statName === 'body_slots' || statName === 'drive_slots' || statName === 'engine_slots') {
-            return;
-          }
-          
-          // Only apply if the stat exists in our stats object
-          if (statName in stats) {
-            // Apply the numeric modifier to the appropriate stat
-            stats[statName as keyof typeof stats] += modifier.numeric_value;
-              }
-            });
-          }
-        });
-      }
-    });
-  }
-
-  return stats;
-};
 
 const FighterCard = memo(function FighterCard({
   id,

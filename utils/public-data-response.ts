@@ -1,0 +1,280 @@
+import { NextResponse } from "next/server";
+import { isUuid } from "@/utils/uuid";
+import type { GangFighter } from "@/types/gang";
+
+// Shared handling for the public data endpoints (/api/campaigns/[id]/data,
+// /api/gangs/[id]/data, /api/fighters/[id]/data): ?format=xml, CORS, the per-IP
+// rate limit (one budget for all of them on a server instance), the error
+// responses, and the fighter summary the gang and fighter endpoints share.
+
+// IP-based rate limiting storage
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+const dataRateLimitMap = new Map<string, RateLimitEntry>();
+
+function getCorsHeaders(): Record<string, string> {
+  return {
+    // Public endpoint: allow cross-origin consumers.
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type"
+  };
+}
+
+export function publicDataOptions() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: getCorsHeaders()
+  });
+}
+
+/**
+ * Extract client IP from Vercel request headers
+ * Vercel sets x-forwarded-for with the true client IP
+ */
+function getClientIP(request: Request): string {
+  // Primary: x-forwarded-for (set by Vercel)
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    // Can be comma-separated list, take first IP
+    return forwarded.split(',')[0].trim();
+  }
+
+  // Fallback: x-real-ip
+  const realIP = request.headers.get("x-real-ip");
+  if (realIP) return realIP;
+
+  // Development fallback
+  return "127.0.0.1";
+}
+
+/**
+ * Check rate limiting for data endpoint (10 requests per minute per IP)
+ * @param ip - Client IP address
+ * @returns Rate limit status with details for response headers
+ */
+function checkDataRateLimit(ip: string): {
+  allowed: boolean;
+  remaining: number;
+  reset: number;
+  limit: number;
+} {
+  const now = Date.now();
+  const windowMs = 60 * 1000; // 1 minute window
+  const maxRequests = 10;
+
+  const entry = dataRateLimitMap.get(ip);
+
+  // Create new window if doesn't exist or expired
+  if (!entry || now > entry.resetTime) {
+    dataRateLimitMap.set(ip, {
+      count: 1,
+      resetTime: now + windowMs
+    });
+
+    // Cleanup expired entries (memory leak prevention)
+    const expirationThreshold = now - windowMs;
+    const entries = Array.from(dataRateLimitMap.entries());
+    for (const [key, value] of entries) {
+      if (value.resetTime < expirationThreshold) {
+        dataRateLimitMap.delete(key);
+      }
+    }
+
+    return {
+      allowed: true,
+      remaining: maxRequests - 1,
+      reset: now + windowMs,
+      limit: maxRequests
+    };
+  }
+
+  // Check if limit exceeded
+  if (entry.count >= maxRequests) {
+    return {
+      allowed: false,
+      remaining: 0,
+      reset: entry.resetTime,
+      limit: maxRequests
+    };
+  }
+
+  // Increment counter
+  entry.count++;
+  return {
+    allowed: true,
+    remaining: maxRequests - entry.count,
+    reset: entry.resetTime,
+    limit: maxRequests
+  };
+}
+
+
+// Helper function to convert object to XML
+function objectToXml(obj: any, rootName: string = 'root'): string {
+  function buildXml(data: any, nodeName: string): string {
+    if (data === null || data === undefined) {
+      return ''; // Return empty string to omit undefined/null fields
+    }
+
+    if (typeof data !== 'object') {
+      // Escape special XML characters
+      const escaped = String(data)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+      return `<${nodeName}>${escaped}</${nodeName}>`;
+    }
+
+    if (Array.isArray(data)) {
+      // Empty arrays return self-closing tag
+      if (data.length === 0) {
+        return `<${nodeName} />`; // Self-closing tag for empty arrays
+      }
+
+      // Handle plural to singular conversion for XML node names
+      let singularName = nodeName;
+      if (nodeName.endsWith('ies')) {
+        // territories -> territory, categories -> category
+        singularName = nodeName.slice(0, -3) + 'y';
+      } else if (nodeName.endsWith('s')) {
+        // gangs -> gang, members -> member
+        singularName = nodeName.slice(0, -1);
+      }
+
+      // Wrap array items in the plural parent tag to maintain grouping
+      const items = data.map(item => buildXml(item, singularName)).join('');
+      return `<${nodeName}>${items}</${nodeName}>`;
+    }
+
+    const children = Object.entries(data)
+      .map(([key, value]) => buildXml(value, key))
+      .filter(xml => xml !== '') // Filter out empty strings from undefined/null values
+      .join('');
+
+    // If no children after filtering, return self-closing tag
+    if (children === '') {
+      return `<${nodeName} />`;
+    }
+
+    return `<${nodeName}>${children}</${nodeName}>`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${buildXml(obj, rootName)}`;
+}
+
+function errorResponse(format: string, status: number, error: string, headers: Record<string, string>) {
+  return format === 'xml'
+    ? new NextResponse(objectToXml({ error }, 'error'), {
+        status,
+        headers: { ...headers, 'Content-Type': 'application/xml' }
+      })
+    : NextResponse.json({ error }, { status, headers });
+}
+
+/**
+ * Serve one public data endpoint.
+ * @param entity - What the id names: error messages ("Campaign not found") and
+ *   the XML root (campaign_data) and filename (campaign_{id}.xml) follow it
+ * @param load - Builds the response body from the lower-cased id, which cache
+ *   keys and tags use; null means there is nothing to show (404)
+ */
+export async function publicDataResponse(
+  request: Request,
+  rawId: string,
+  entity: 'Campaign' | 'Gang' | 'Fighter',
+  load: (id: string) => Promise<object | null>
+): Promise<NextResponse> {
+  // API routes skip the proxy's UUID lower-casing, and stored ids are lower case
+  const id = rawId.toLowerCase();
+  const name = entity.toLowerCase();
+  const corsHeaders = getCorsHeaders();
+
+  // Get format from query parameter (e.g., ?format=xml)
+  const format = new URL(request.url).searchParams.get('format') || 'json';
+
+  try {
+    // Extract client IP from Vercel headers
+    const clientIP = getClientIP(request);
+
+    // Apply rate limiting (10 requests per minute per IP)
+    const rateLimitResult = checkDataRateLimit(clientIP);
+
+    if (!rateLimitResult.allowed) {
+      const resetSeconds = Math.ceil((rateLimitResult.reset - Date.now()) / 1000);
+      const errorMessage = `Rate limit exceeded. Maximum ${rateLimitResult.limit} requests per minute per IP. Retry in ${resetSeconds} seconds.`;
+
+      return errorResponse(format, 429, errorMessage, {
+        'X-RateLimit-Limit': String(rateLimitResult.limit),
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
+        'Retry-After': String(resetSeconds),
+        ...corsHeaders
+      });
+    }
+
+    // Prepare rate limit headers for successful responses
+    const headers = {
+      'X-RateLimit-Limit': String(rateLimitResult.limit),
+      'X-RateLimit-Remaining': String(rateLimitResult.remaining),
+      'X-RateLimit-Reset': String(Math.ceil(rateLimitResult.reset / 1000)),
+      ...corsHeaders
+    };
+
+    // SECURITY NOTE: These endpoints are intentionally public - any campaign ID can be
+    // viewed, and any gang or fighter ID unless the gang is hidden
+    // Rate limiting (10 req/min per IP) provides abuse protection
+
+    // Postgres rejects a malformed UUID, so answer it before any database read
+    const data = isUuid(id) ? await load(id) : null;
+
+    if (!data) {
+      return errorResponse(format, 404, `${entity} not found`, headers);
+    }
+
+    // Return based on requested format
+    if (format === 'xml') {
+      return new NextResponse(objectToXml(data, `${name}_data`), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml',
+          'Content-Disposition': `inline; filename="${name}_${id}.xml"`,
+          ...headers
+        }
+      });
+    }
+
+    return NextResponse.json(data, { headers });
+  } catch (error) {
+    console.error(`Error generating ${name} data:`, error);
+    return errorResponse(format, 500, `Failed to generate ${name} data`, corsHeaders);
+  }
+}
+
+/**
+ * A fighter's roster summary for the public data endpoints: the gang endpoint
+ * lists one per fighter, and the fighter endpoint starts from it
+ */
+export function transformFighterSummaryForData(fighter: GangFighter) {
+  return {
+    id: fighter.id,
+    name: fighter.fighter_name ?? '',
+    type: fighter.fighter_type,
+    subtypes: fighter.fighter_subtypes ?? [],
+    cost: fighter.credits,
+    xp: fighter.xp ?? 0,
+    kills: fighter.kills,
+    is_vehicle: fighter.is_vehicle ?? false,
+    killed: fighter.killed,
+    retired: fighter.retired,
+    enslaved: fighter.enslaved,
+    recovery: fighter.recovery,
+    captured: fighter.captured,
+    starved: fighter.starved
+  };
+}

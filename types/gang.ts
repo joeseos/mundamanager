@@ -188,6 +188,7 @@ export interface GangFighter {
   captured: boolean;
   free_skill: boolean;
   image_url?: string;
+  captured_by_gang_name?: string;
   owner_id?: string;
   owner_name?: string;
   beast_equipment_stashed?: boolean;

@@ -807,6 +807,9 @@ export async function changeSessionPhase(
   }
 }
 
+// Completing the session files the challenge with the session's gangs, so they must stay the challenge's.
+const CHALLENGE_GANGS_FIXED = "This session plays a challenge, so its gangs can't change. Cancel the session to change the challenge.";
+
 export async function addParticipant(params: {
   session_id: string;
   gang_id: string;
@@ -827,7 +830,7 @@ export async function addParticipant(params: {
     // Verify session exists and is active
     const { data: session } = await supabase
       .from('battle_sessions')
-      .select('id, status, campaign_id, created_by, editions:edition_id ( slug )')
+      .select('id, status, campaign_id, created_by, campaign_battle_id, editions:edition_id ( slug )')
       .eq('id', params.session_id)
       .single();
 
@@ -836,6 +839,7 @@ export async function addParticipant(params: {
       return { success: false, error: 'Can only add players during pre-battle' };
     if (!(await canManageSession(currentUser.id, session)))
       return { success: false, error: 'Only the session creator or an arbitrator can add participants' };
+    if (session.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     // Validate gang belongs to the specified user
     const { data: gangOwner } = await supabase
@@ -930,7 +934,7 @@ export async function removeParticipant(
     // Allow session creator or self-removal
     const { data: participant } = await supabase
       .from('battle_session_participants')
-      .select('user_id, gang_id')
+      .select('user_id, gang_id, battle_sessions(campaign_battle_id)')
       .eq('id', participantId)
       .eq('battle_session_id', sessionId)
       .single();
@@ -942,6 +946,11 @@ export async function removeParticipant(
       const auth = await verifySessionManager(supabase, sessionId, user.id);
       if (!auth.authorized) return { success: false, error: 'Only the session creator or an arbitrator can remove other participants' };
     }
+
+    const session = Array.isArray(participant.battle_sessions)
+      ? participant.battle_sessions[0]
+      : participant.battle_sessions;
+    if (session?.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     const { error } = await supabase
       .from('battle_session_participants')
