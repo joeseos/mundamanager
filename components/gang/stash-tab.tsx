@@ -997,7 +997,6 @@ export default function GangInventory({
           onClose={() => setShowTradingPost(false)}
           gangCredits={gangCredits}
           gangId={gangId}
-          gangTypeId={gangTypeId || ''}
           fighterId=""
           fighterTypeId=""
           fighterCredits={0}

@@ -4,6 +4,7 @@ import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Equipment, ResourceCost } from '@/types/equipment';
 import { toast } from 'sonner';
 import { parseTradePointsCost } from '@/utils/campaigns/resources';
+import type { EquipmentTab } from '@/utils/equipment/resolve';
 
 // This is for the wrapper function to inject dependencies from the parent component.
 export interface PurchaseEquipmentContext {
@@ -14,6 +15,9 @@ export interface PurchaseEquipmentContext {
   isStashMode?: boolean;
   fighterCredits: number;
   campaignGangId?: string;
+  /** The modal's tab and Gang Legacy switch: the server resolves the listed price for them. */
+  equipmentListType: EquipmentTab;
+  includeLegacy: boolean;
   onEquipmentBought?: (result: EquipmentBoughtResult) => void;
   onPurchaseRequest?: (payload: { params: BuyEquipmentPayload; item: Equipment }) => void;
   closePurchaseModal?: () => void;
@@ -55,7 +59,8 @@ export interface BuyEquipmentPayload {
   fighter_id?: string;
   vehicle_id?: string;
   equipment_target?: EquipmentTarget;
-  listed_cost?: number;
+  equipment_list_type: EquipmentTab;
+  include_legacy: boolean;
   selected_grant_equipment_ids?: string[];
   resourceCost?: ResourceCost;
   campaign_gang_id?: string;
@@ -87,6 +92,8 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       onPurchaseRequest,
       closePurchaseModal,
       campaignGangId,
+      equipmentListType,
+      includeLegacy,
     } = deps;
 
     // Determine if this is a gang stash purchase
@@ -100,7 +107,8 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       use_base_cost_for_rating: useBaseCostForRating,
       buy_for_gang_stash: isGangStashPurchase,
       selected_effect_ids: selectedEffectIds,
-      listed_cost: item.adjusted_cost ?? item.cost,
+      equipment_list_type: equipmentListType,
+      include_legacy: includeLegacy,
 
       // Only include fighter_id or vehicle_id if not buying for gang stash
       ...(!isGangStashPurchase &&

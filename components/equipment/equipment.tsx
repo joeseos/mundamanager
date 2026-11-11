@@ -4,8 +4,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Equipment, WeaponProfile, EquipmentGrants } from '@/types/equipment';
+import { Equipment } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +13,13 @@ import { RangeSlider } from "@/components/ui/range-slider";
 import { EquipmentTooltipTrigger } from './equipment-tooltip';
 import { PurchaseModal } from './purchase-modal';
 import { usePurchaseEquipment, type EquipmentBoughtResult } from '@/hooks/use-purchase-equipment';
+import { useEquipmentCatalogue } from '@/hooks/use-equipment-catalogue';
+import {
+  equipmentForTab,
+  resolveEquipment,
+  type EquipmentTab,
+  type ResolvedEquipmentRow,
+} from '@/utils/equipment/resolve';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasEquipmentSuperCategories, hasTradePoints } from '@/types/edition';
 import { isExclusiveTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
@@ -30,12 +36,10 @@ interface ItemModalProps {
   onClose: () => void;
   gangCredits: number;
   gangId: string;
-  gangTypeId?: string | null;
   fighterId: string;
   fighterTypeId?: string;
   fighterCredits: number;
   fighterHasLegacy?: boolean;
-  fighterLegacyName?: string;
   vehicleId?: string;
   vehicleTypeId?: string;
   isVehicleEquipment?: boolean;
@@ -57,70 +61,31 @@ interface ItemModalProps {
   fighterWeapons?: { id: string; name: string; equipment_category?: string; effect_names?: string[] }[];
 }
 
-interface RawEquipmentData {
-  id: string;
-  equipment_name: string;
-  availability: string | null;
-  base_cost: number;
-  adjusted_cost: number;
-  trade_points?: string | null;
-  equipment_category: string;
-  equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';
-  created_at: string;
-  weapon_profiles?: WeaponProfile[];
-  fighter_type_equipment: boolean;
-  fighter_type_equipment_tp: boolean;
-  fighter_weapon_id?: string;
-  fighter_equipment_id: string;
-  master_crafted?: boolean;
-  is_custom: boolean;
-  vehicle_upgrade_slot?: string;
-  grants_equipment?: EquipmentGrants;
-  equipment_tradingpost?: boolean;
-  trading_post_names?: string[];
-  cost_resource_name?: string | null;
-  cost_resource_amount?: number | null;
-  cost_type_resource_id?: string | null;
-  cost_campaign_resource_id?: string | null;
-  banned?: boolean;
-  min_count?: number | null;
-  max_count?: number | null;
+/** A resolved row, shaped as the modal has always used the RPC's rows. */
+function toModalEquipment(row: ResolvedEquipmentRow, fromFightersList: boolean): Equipment {
+  return {
+    ...row,
+    equipment_id: row.id,
+    fighter_equipment_id: '',
+    cost: row.adjusted_cost,
+    base_cost: row.base_cost,
+    adjusted_cost: row.adjusted_cost,
+    trade_points: row.trade_points ?? undefined,
+    fighter_weapon_id: undefined,
+    master_crafted: false,
+    vehicle_upgrade_slot: row.vehicle_upgrade_slot || undefined,
+    from_fighters_list: fromFightersList,
+  } as unknown as Equipment;
 }
 
-const VEHICLE_UPGRADE_SLOT_ORDER: Record<string, number> = { Body: 1, Drive: 2, Engine: 3 };
-
-/** Formats get_equipment_detailed_data rows and groups them by category, sorted by name. */
-function groupEquipmentByCategory(data: RawEquipmentData[], markFightersList: boolean): Record<string, Equipment[]> {
-  const byId = new Map<string, Equipment & { equipment_category: string }>();
-  for (const item of data) {
-    if (byId.has(item.id)) continue;
-    byId.set(item.id, {
-      ...item,
-      equipment_id: item.id,
-      fighter_equipment_id: '',
-      cost: item.adjusted_cost,
-      trade_points: item.trade_points ?? undefined,
-      fighter_weapon_id: item.fighter_weapon_id || undefined,
-      master_crafted: item.master_crafted || false,
-      vehicle_upgrade_slot: item.vehicle_upgrade_slot || undefined,
-      from_fighters_list: markFightersList && item.fighter_type_equipment
-    });
-  }
-
-  const equipmentByCategory: Record<string, Equipment[]> = {};
-  const sorted = [...byId.values()].sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
-  for (const item of sorted) {
-    (equipmentByCategory[item.equipment_category] ??= []).push(item);
-  }
-  // Vehicle Upgrades go by slot (no slot first), keeping name order within a slot.
-  equipmentByCategory['Vehicle Upgrades']?.sort((a, b) =>
-    (VEHICLE_UPGRADE_SLOT_ORDER[a.vehicle_upgrade_slot ?? ''] ?? 0) -
-    (VEHICLE_UPGRADE_SLOT_ORDER[b.vehicle_upgrade_slot ?? ''] ?? 0)
-  );
-  return equipmentByCategory;
+/** Vehicle upgrades by slot (unslotted first), then by name. */
+const VEHICLE_SLOT_ORDER: Record<string, number> = { Body: 1, Drive: 2, Engine: 3 };
+function compareVehicleUpgrades(a: Equipment, b: Equipment) {
+  const aOrder = VEHICLE_SLOT_ORDER[a.vehicle_upgrade_slot || ''] || 0;
+  const bOrder = VEHICLE_SLOT_ORDER[b.vehicle_upgrade_slot || ''] || 0;
+  if (aOrder !== bOrder) return aOrder - bOrder;
+  return a.equipment_name.localeCompare(b.equipment_name);
 }
-
-const NO_EQUIPMENT: Record<string, Equipment[]> = {};
 
 interface Category {
   id: string;
@@ -132,7 +97,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   onClose,
   gangCredits,
   gangId,
-  gangTypeId,
   fighterId,
   fighterTypeId,
   fighterCredits,
@@ -160,7 +124,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
-  const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
+  const [equipmentListType, setEquipmentListType] = useState<EquipmentTab>(
     isStashMode ? "fighters-tradingpost" : "fighters-list"
   );
   const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
@@ -183,60 +147,60 @@ const ItemModal: React.FC<ItemModalProps> = ({
     isStashMode,
     fighterCredits,
     campaignGangId,
+    equipmentListType,
+    includeLegacy,
     onEquipmentBought,
     onPurchaseRequest,
     closePurchaseModal: () => setBuyModalData(null),
   });
 
-  const resolvedTypeId = isVehicleEquipment ? vehicleTypeId : fighterTypeId;
+  // The gang's overlay (one call per opening of the modal) and the catalogue snapshot files it
+  // names. Every tab, and the Legacy switch, is resolved from them without another request.
+  const catalogue = useEquipmentCatalogue(gangId, fighterId || null);
+
+  // The fighter type the modal resolves for: the vehicle's type for an N23 vehicle, else the
+  // fighter's (official, else custom); none at gang level (the stash).
+  const resolvedTypeId =
+    (isVehicleEquipment ? vehicleTypeId : fighterTypeId) ||
+    (!isVehicleEquipment && fighterId && !isCustomFighter ? catalogue.overlay?.fighter?.fighterType : null) ||
+    null;
   // Gang-level access (no fighter) and custom fighters list equipment without a type.
-  const missingTypeError = !resolvedTypeId && fighterId && !isCustomFighter
+  const typeError = !resolvedTypeId && fighterId && !isCustomFighter && (isVehicleEquipment || catalogue.overlay)
     ? isVehicleEquipment
       ? 'Vehicle type information is missing'
       : 'Fighter type information is missing'
     : null;
-  // In Trading Post mode with a fighter type, SQL ORs the Trading Post and the fighter's list.
-  const includesFightersList =
-    equipmentListType === 'fighters-list' ||
-    (equipmentListType === 'fighters-tradingpost' && !!resolvedTypeId && !isVehicleEquipment);
 
-  const equipmentParams = new URLSearchParams();
-  if (gangTypeId) equipmentParams.set('gang_type_id', gangTypeId);
-  if (resolvedTypeId) equipmentParams.set('fighter_type_id', resolvedTypeId);
-  if (includesFightersList) equipmentParams.set('fighter_type_equipment', 'true');
-  if (equipmentListType === 'fighters-tradingpost') {
-    equipmentParams.set('equipment_tradingpost', 'true');
-    // A gang in a campaign only sees the campaign's authorised Trading Posts.
-    if (campaignTradingPostIds !== undefined) {
-      equipmentParams.set('campaign_trading_post_type_ids', campaignTradingPostIds.join(','));
-    }
-    if (campaignCustomTradingPostIds?.length) {
-      equipmentParams.set('campaign_custom_trading_post_ids', campaignCustomTradingPostIds.join(','));
-    }
-  }
-  // fighter_id lets the RPC match subtype rules (e.g. Leaders and Champions) against
-  // the fighter's own subtypes, which keep-type promotions change without changing
-  // the fighter type. include_legacy decides whether its Gang Legacy type applies.
-  if (!isVehicleEquipment && fighterId) {
-    equipmentParams.set('fighter_id', fighterId);
-    equipmentParams.set('include_legacy', String(includeLegacy));
-  }
-  const equipmentQuery = equipmentParams.toString();
+  const resolved = useMemo(() => {
+    if (!catalogue.index || !catalogue.overlay || typeError) return null;
+    return resolveEquipment(catalogue.index, catalogue.overlay, {
+      typeId: resolvedTypeId,
+      isVehicle: Boolean(isVehicleEquipment),
+      legacy: includeLegacy,
+    });
+  }, [catalogue.index, catalogue.overlay, typeError, isVehicleEquipment, resolvedTypeId, includeLegacy]);
 
-  const queryClient = useQueryClient();
-  const { data: equipment = NO_EQUIPMENT, error: equipmentError } = useQuery({
-    queryKey: ['available-equipment', gangId, equipmentQuery],
-    queryFn: async () => {
-      const response = await fetch(`/api/gangs/${gangId}/available-equipment?${equipmentQuery}`);
-      if (!response.ok) throw new Error('Failed to load equipment categories');
-      const data: RawEquipmentData[] = await response.json();
-      return groupEquipmentByCategory(data, equipmentListType === 'fighters-tradingpost' && includesFightersList);
-    },
-    enabled: !missingTypeError,
-  });
-  // Lists and costs depend on the fighter, so drop them when the modal closes.
-  useEffect(() => () => queryClient.removeQueries({ queryKey: ['available-equipment', gangId] }), [queryClient, gangId]);
-  const error = missingTypeError ?? equipmentError?.message ?? null;
+  useEffect(() => {
+    if (catalogue.error) console.error('Error loading the equipment catalogue:', catalogue.error);
+  }, [catalogue.error]);
+  const error = typeError ?? (catalogue.error ? 'Failed to load equipment categories' : null);
+
+  // The tab's rows, sorted and grouped by category as before.
+  const { equipment, availableCategories } = useMemo(() => {
+    const byCategory: Record<string, Equipment[]> = {};
+    if (!resolved) return { equipment: byCategory, availableCategories: [] as string[] };
+
+    // On the Trading Post tab a fighter's list items are marked as such.
+    const markListItems = equipmentListType === 'fighters-tradingpost' && Boolean(resolvedTypeId) && !isVehicleEquipment;
+    const items = equipmentForTab(resolved, equipmentListType)
+      .map((row) => toModalEquipment(row, markListItems && row.fighter_type_equipment))
+      .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name));
+    for (const item of items) {
+      (byCategory[item.equipment_category as string] ??= []).push(item);
+    }
+    byCategory['Vehicle Upgrades']?.sort(compareVehicleUpgrades);
+    return { equipment: byCategory, availableCategories: Object.keys(byCategory) };
+  }, [resolved, equipmentListType, resolvedTypeId, isVehicleEquipment]);
 
   const toggleCategory = (category: Category) => {
     const newSet = new Set(expandedCategories);
@@ -320,7 +284,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }, [equipment]);
 
   const equipmentCount = Object.values(equipment).flat().length;
-  const sliderResetKey = `${equipmentQuery}:${equipmentCount > 0 ? 'loaded' : 'empty'}`;
+  const sliderResetKey = `${equipmentListType}:${includeLegacy}:${equipmentCount > 0 ? 'loaded' : 'empty'}`;
   const [prevSliderResetKey, setPrevSliderResetKey] = useState(sliderResetKey);
   if (sliderResetKey !== prevSliderResetKey) {
     setPrevSliderResetKey(sliderResetKey);
@@ -544,9 +508,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   <span>Gang Legacy</span>
                   <Switch
                     checked={includeLegacy}
-                    onCheckedChange={(checked) => {
-                      setIncludeLegacy(!!checked);
-                    }}
+                    onCheckedChange={(checked) => setIncludeLegacy(!!checked)}
                   />
                 </label>
               )}
