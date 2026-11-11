@@ -138,29 +138,8 @@ export async function grantSkillsForEffects(
       continue;
     }
 
-    const { data: link, error: linkError } = await serviceClient
-      .from('fighter_effect_skills')
-      .insert({ fighter_effect_id: effect.id, fighter_skill_id: skill.id })
-      .select('id')
-      .single();
-
-    if (!link) {
-      console.error('Failed to link granted skill to effect:', linkError);
+    if (!await linkSkillToEffect(supabase, serviceClient, effect.id, skill.id)) {
       await supabase.from('fighter_skills').delete().eq('id', skill.id);
-      continue;
-    }
-
-    // The cascade reaches fighter_skills through this column, so a row that never
-    // gets it outlives its effect as a free skill nobody bought.
-    const { error: backfillError } = await supabase
-      .from('fighter_skills')
-      .update({ fighter_effect_skill_id: link.id })
-      .eq('id', skill.id);
-
-    if (backfillError) {
-      console.error('Failed to back-fill granted skill provenance:', backfillError);
-      await supabase.from('fighter_skills').delete().eq('id', skill.id);
-      await serviceClient.from('fighter_effect_skills').delete().eq('id', link.id);
       continue;
     }
 
@@ -168,6 +147,43 @@ export async function grantSkillsForEffects(
   }
 
   return granted;
+}
+
+/**
+ * Links a granted fighter_skills row to the effect that grants it, so removing
+ * the effect cascades the skill away.
+ */
+export async function linkSkillToEffect(
+  supabase: any,
+  serviceClient: any,
+  fighterEffectId: string,
+  fighterSkillId: string
+): Promise<boolean> {
+  const { data: link, error: linkError } = await serviceClient
+    .from('fighter_effect_skills')
+    .insert({ fighter_effect_id: fighterEffectId, fighter_skill_id: fighterSkillId })
+    .select('id')
+    .single();
+
+  if (!link) {
+    console.error('Failed to link granted skill to effect:', linkError);
+    return false;
+  }
+
+  // The cascade reaches fighter_skills through this column, so a row that never
+  // gets it outlives its effect as a free skill nobody bought.
+  const { error: backfillError } = await supabase
+    .from('fighter_skills')
+    .update({ fighter_effect_skill_id: link.id })
+    .eq('id', fighterSkillId);
+
+  if (backfillError) {
+    console.error('Failed to back-fill granted skill provenance:', backfillError);
+    await serviceClient.from('fighter_effect_skills').delete().eq('id', link.id);
+    return false;
+  }
+
+  return true;
 }
 
 /**
