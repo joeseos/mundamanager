@@ -228,10 +228,10 @@ async function resolveGangTypeNames(
   if (ids.length === 0) return {};
   const { data } = await supabase
     .from('gang_types')
-    .select('gang_type_id, gang_type')
-    .in('gang_type_id', ids);
+    .select('id, gang_type')
+    .in('id', ids);
   return (data || []).reduce<Record<string, string>>((acc, gt: any) => {
-    acc[gt.gang_type_id] = gt.gang_type;
+    acc[gt.id] = gt.gang_type;
     return acc;
   }, {});
 }

@@ -15,10 +15,11 @@ import CampaignAllegiancesActions from "@/components/campaigns/[id]/campaign-all
 import CampaignResourcesActions from "@/components/campaigns/[id]/campaign-resources-actions";
 import { Badge } from "@/components/ui/badge";
 import { sameEditionForDisplay } from '@/types/edition';
+import { DISCORD_CHANNEL_TYPES } from '@/utils/discord';
 
 interface TradingPostType {
   id: string;
-  trading_post_name: string;
+  trading_post_name: string | null;
   edition_slug?: string | null;
 }
 
@@ -32,14 +33,15 @@ interface SettingsFormValues {
   discord_guild_id?: string | null;
   discord_channel_id?: string | null;
   discord_channel_type?: number | null;
+  discord_dice_rolls?: boolean;
+  discord_dice_roll_channel_id?: string | null;
 }
 
 interface EditCampaignModalProps {
-  isOpen: boolean;
   campaignData: {
     id: string;
     campaign_name: string;
-    description: string;
+    description: string | null;
     status: string | null;
     allow_join_requests?: boolean;
     trading_posts: string[];
@@ -50,6 +52,8 @@ interface EditCampaignModalProps {
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
+    discord_dice_rolls?: boolean;
+    discord_dice_roll_channel_id?: string | null;
   };
   onClose: () => void;
   /** The saved row, straight from the action, for the page to patch into its state. */
@@ -71,7 +75,6 @@ interface EditCampaignModalProps {
 }
 
 export default function CampaignEditModal({
-  isOpen,
   campaignData,
   onClose,
   onSaved,
@@ -101,11 +104,13 @@ export default function CampaignEditModal({
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [charCount, setCharCount] = useState(0);
+  const [charCount, setCharCount] = useState((campaignData.description ?? '').length);
   const [confirmText, setConfirmText] = useState('');
   const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
-  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [loadingChannels, setLoadingChannels] = useState(!!campaignData.discord_guild_id);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
+  const [postDiceRolls, setPostDiceRolls] = useState(campaignData.discord_dice_rolls ?? false);
+  const [diceRollChannelId, setDiceRollChannelId] = useState<string>(campaignData.discord_dice_roll_channel_id || '');
 
   const router = useRouter();
 
@@ -123,44 +128,25 @@ export default function CampaignEditModal({
     [customTradingPostTypes, campaignData.edition_slug]
   );
 
-  const [prevCampaignData, setPrevCampaignData] = useState(campaignData);
-  if (campaignData !== prevCampaignData) {
-    setPrevCampaignData(campaignData);
-    setFormValues({
-      campaignName: campaignData.campaign_name,
-      description: campaignData.description ?? '',
-      status: campaignData.status || 'Active',
-      allowJoinRequests: campaignData.allow_join_requests ?? false,
-      tradingPosts: campaignData.trading_posts || [],
-      customTradingPosts: campaignData.custom_trading_posts || [],
-    });
-    setCharCount((campaignData.description ?? '').length);
-    setSelectedChannelId(campaignData.discord_channel_id || '');
-  }
-
-  const [prevDiscordKey, setPrevDiscordKey] = useState('');
-  const discordKey = `${campaignData.discord_guild_id}:${isOpen}`;
-  if (discordKey !== prevDiscordKey) {
-    setPrevDiscordKey(discordKey);
-    if (campaignData.discord_guild_id && isOpen) {
-      setLoadingChannels(true);
-    }
+  const [prevDiscordGuildId, setPrevDiscordGuildId] = useState(campaignData.discord_guild_id);
+  if (campaignData.discord_guild_id !== prevDiscordGuildId) {
+    setPrevDiscordGuildId(campaignData.discord_guild_id);
+    setLoadingChannels(!!campaignData.discord_guild_id);
   }
 
   useEffect(() => {
-    if (campaignData.discord_guild_id && isOpen) {
-      fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
-        .then(res => res.ok ? res.json() : [])
-        .then(channels => setDiscordChannels(channels))
-        .catch(() => setDiscordChannels([]))
-        .finally(() => setLoadingChannels(false));
-    }
-  }, [campaignData.discord_guild_id, isOpen]);
+    if (!campaignData.discord_guild_id) return;
+    let cancelled = false;
+    fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(channels => { if (!cancelled) setDiscordChannels(channels); })
+      .catch(() => { if (!cancelled) setDiscordChannels([]); })
+      .finally(() => { if (!cancelled) setLoadingChannels(false); });
+    return () => { cancelled = true; };
+  }, [campaignData.discord_guild_id]);
 
   // Listen for postMessage from Discord OAuth popup
   useEffect(() => {
-    if (!isOpen) return;
-
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
       if (event.data?.type === 'discord-connected' && event.data.guildId) {
@@ -170,7 +156,7 @@ export default function CampaignEditModal({
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [isOpen, onDiscordConnected]);
+  }, [onDiscordConnected]);
 
   const saveSettings = async (saveData: SettingsFormValues): Promise<boolean> => {
     try {
@@ -204,6 +190,8 @@ export default function CampaignEditModal({
       saveData.discord_channel_id = selectedChannelId || null;
       const selectedChannel = discordChannels.find(ch => ch.id === selectedChannelId);
       saveData.discord_channel_type = selectedChannel?.type ?? 0;
+      saveData.discord_dice_rolls = postDiceRolls;
+      saveData.discord_dice_roll_channel_id = diceRollChannelId || null;
     }
 
     return saveSettings(saveData);
@@ -218,16 +206,8 @@ export default function CampaignEditModal({
       return;
     }
 
-    const params = new URLSearchParams({
-      client_id: clientId,
-      permissions: '2048',
-      scope: 'bot identify',
-      redirect_uri: `${appUrl}/api/discord/callback`,
-      response_type: 'code',
-      state: campaignData.id,
-    });
-    const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
-    window.open(url, '_blank', 'width=500,height=800');
+    // The connect route adds the state nonce and sends the popup on to Discord
+    window.open(`${appUrl}/api/discord/connect?campaign_id=${campaignData.id}`, '_blank', 'width=500,height=800');
   };
 
   const handleDisconnectDiscord = async () => {
@@ -241,10 +221,14 @@ export default function CampaignEditModal({
       discord_guild_id: null,
       discord_channel_id: null,
       discord_channel_type: 0,
+      discord_dice_rolls: false,
+      discord_dice_roll_channel_id: null,
     });
     if (result) {
       setDiscordChannels([]);
       setSelectedChannelId('');
+      setPostDiceRolls(false);
+      setDiceRollChannelId('');
     }
   };
 
@@ -306,9 +290,6 @@ export default function CampaignEditModal({
       setConfirmText('');
     }
   };
-
-  // Don't render anything if modal is not open
-  if (!isOpen) return null;
 
   return (
     <div>
@@ -425,14 +406,14 @@ export default function CampaignEditModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {editionTradingPostTypes
                     .sort((a, b) => {
-                      const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
-                      const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;
+                      const rankA = tradingPostRank[(a.trading_post_name ?? '').toLowerCase()] ?? Infinity;
+                      const rankB = tradingPostRank[(b.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                       return rankA - rankB;
                     })
                     .map((type, index, arr) => {
-                      const currentRank = tradingPostRank[type.trading_post_name.toLowerCase()] ?? Infinity;
+                      const currentRank = tradingPostRank[(type.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                       const prevRank = index > 0 
-                        ? (tradingPostRank[arr[index - 1].trading_post_name.toLowerCase()] ?? Infinity)
+                        ? (tradingPostRank[(arr[index - 1].trading_post_name ?? '').toLowerCase()] ?? Infinity)
                         : null;
                       
                       // Add divider between rank <= 2 and rank >= 11
@@ -526,7 +507,7 @@ export default function CampaignEditModal({
                 <h3 className="text-sm font-medium flex items-center space-x-2">
                   <span>Discord Bot</span>
                   <InfoTooltip ariaLabel="About the Discord bot">
-                    Connect a Discord bot to automatically post battle reports to a channel in your Discord server.
+                    Connect a Discord bot to automatically post Battle Logs, and optionally the players&apos; dice rolls, to channels in your Discord server.
                   </InfoTooltip>
                 </h3>
                 {campaignData.discord_guild_id ? (
@@ -539,7 +520,7 @@ export default function CampaignEditModal({
                     </div>
                     <div>
                       <label className="block text-xs text-muted-foreground mb-1">
-                        Battle report channel
+                        Battle Log channel
                       </label>
                       {loadingChannels ? (
                         <p className="text-xs text-muted-foreground">Loading channels...</p>
@@ -553,6 +534,37 @@ export default function CampaignEditModal({
                         />
                       )}
                     </div>
+                    <label
+                      htmlFor="discord-dice-rolls"
+                      className="flex items-center space-x-2 cursor-pointer text-sm"
+                    >
+                      <Checkbox
+                        id="discord-dice-rolls"
+                        checked={postDiceRolls}
+                        onCheckedChange={(checked) => setPostDiceRolls(checked === true)}
+                      />
+                      <span>Post dice rolls</span>
+                      <InfoTooltip ariaLabel="About posting dice rolls">
+                        Posts every roll the players make for their gangs in this campaign, such as Lasting Injuries, Advancements and Post-cycle Actions, so arbitrators can follow them on Discord.
+                      </InfoTooltip>
+                    </label>
+                    {postDiceRolls && !loadingChannels && (
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">
+                          Dice roll channel
+                        </label>
+                        <Combobox
+                          options={discordChannels
+                            .filter(ch => ch.type === DISCORD_CHANNEL_TYPES.TEXT)
+                            .map(ch => ({ value: ch.id, label: `# ${ch.name}` }))}
+                          value={diceRollChannelId}
+                          onValueChange={setDiceRollChannelId}
+                          placeholder="Same as Battle Log channel"
+                          clearable
+                          className="w-full"
+                        />
+                      </div>
+                    )}
                     <Button
                       type="button"
                       onClick={handleDisconnectDiscord}

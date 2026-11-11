@@ -1,24 +1,24 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { getAppDb } from '@/utils/db/client';
 import { CustomGangType } from "@/app/actions/customise/custom-gang-types";
 import { withEditionSlug } from "@/types/edition";
-import type { SupabaseClient } from '@supabase/supabase-js';
 
-export async function getUserCustomGangTypes(userId: string, supabase: SupabaseClient): Promise<CustomGangType[]> {
+export async function getUserCustomGangTypes(userId: string): Promise<CustomGangType[]> {
   return unstable_cache(
     async () => {
-      const { data, error } = await supabase
-        .from('custom_gang_types')
-        .select('*, editions:edition_id (slug)')
-        .eq('user_id', userId)
-        .order('gang_type', { ascending: true });
+      const gangTypes = await getAppDb().query.customGangTypes.findMany({
+        columns: { created_at: false, updated_at: false },
+        extras: (gangType, { sql }) => ({
+          created_at: sql<string>`to_json(${gangType.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${gangType.updated_at})`.as('updated_at'),
+        }),
+        where: (gangType, { eq }) => eq(gangType.user_id, userId),
+        orderBy: (gangType, { asc }) => asc(gangType.gang_type),
+        with: { editions: { columns: { slug: true } } },
+      });
 
-      if (error) {
-        console.error('Error fetching custom gang types:', error);
-        throw new Error(`Failed to fetch custom gang types: ${error.message}`);
-      }
-
-      return (data || []).map(withEditionSlug);
+      return gangTypes.map(withEditionSlug);
     },
     [`user-custom-gang-types-v3-${userId}`],
     {

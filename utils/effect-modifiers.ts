@@ -4,7 +4,7 @@
  * Uses the same database tables: fighter_effects + fighter_effect_modifiers
  */
 
-import { FighterProps, FighterEffect, EffectCategory } from '@/types/fighter';
+import { FighterProps, FighterEffect, EffectCategory, Vehicle } from '@/types/fighter';
 import { WeaponProfile } from '@/types/equipment';
 import { TraitModificationData } from '@/types/fighter-effect';
 
@@ -286,6 +286,44 @@ function applyUserStrengthModifiers(
   return formatUserStrength(result);
 }
 
+function splitTraits(traits: string | null | undefined): string[] {
+  return (traits || '')
+    .split(',')
+    .map((t: string) => t.trim())
+    .filter(Boolean);
+}
+
+function traitListOf(
+  effect: { type_specific_data?: TraitModificationData | string | null },
+  key: 'requires_traits' | 'excludes_traits'
+): string[] {
+  const tsd = typeof effect.type_specific_data === 'object' ? effect.type_specific_data : null;
+  const traits = tsd?.[key];
+  return Array.isArray(traits)
+    ? traits.map(t => t.trim().toLowerCase()).filter(Boolean)
+    : [];
+}
+
+/** A trait's lowercased name without its value: "Toxin (4+)" is "toxin" */
+function traitName(trait: string): string {
+  return trait.toLowerCase().replace(/\s*\(.*\)$/, '');
+}
+
+/** Lowercased traits, each also by its name alone so "Toxin" matches "Toxin (4+)" */
+function traitMatchKeys(traits: string | null | undefined): Set<string> {
+  return new Set(splitTraits(traits).flatMap(t => [t.toLowerCase(), traitName(t)]));
+}
+
+/** The fighter's requires_traits effects (e.g. multi-harness). Trait changes only: their stat modifiers are the fighter's */
+export function fighterWideWeaponEffects<T extends { type_specific_data?: TraitModificationData | string | null }>(effects: T[]): T[] {
+  return effects
+    .filter(e => e && traitListOf(e, 'requires_traits').length > 0)
+    .map(e => ({ ...e, fighter_effect_modifiers: [] }));
+}
+
+/** The weapon profile fields an effect modifier can change */
+export const WEAPON_NUMERIC_FIELDS = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
+
 /**
  * Apply equipment→equipment effect modifiers to weapon profiles
  * Handles numeric fields (strength, ap, damage, ammo) and traits
@@ -308,16 +346,21 @@ export function applyWeaponModifiers(
     // Work on a copy
     const modified = { ...profile };
 
-    // Apply numeric fields with add/set operations
-    const numericFields = ['range_short', 'range_long', 'acc_short', 'acc_long', 'strength', 'ap', 'damage', 'lethality', 'ammo'];
+    const baseTraits = traitMatchKeys(profile.traits);
+    const profileEffects = validEffects.filter(eff => {
+      const required = traitListOf(eff, 'requires_traits');
+      return (required.length === 0 || required.some(t => baseTraits.has(t)))
+        && !traitListOf(eff, 'excludes_traits').some(t => baseTraits.has(t));
+    });
 
-    numericFields.forEach((fieldName) => {
+    // Apply numeric fields with add/set operations
+    WEAPON_NUMERIC_FIELDS.forEach((fieldName) => {
       const baseValue = (modified as any)[fieldName];
       if (baseValue === null || baseValue === undefined) return;
 
       // Collect all modifiers for this field
       const fieldModifiers: EffectModifier[] = [];
-      validEffects.forEach(eff => {
+      profileEffects.forEach(eff => {
         (eff.fighter_effect_modifiers || []).forEach(m => {
           if (m.stat_name === fieldName) {
             fieldModifiers.push(m);
@@ -345,15 +388,13 @@ export function applyWeaponModifiers(
     });
 
     // Traits add/remove via type_specific_data (weapon-specific feature)
-    let traitsArr: string[] = (modified.traits || '')
-      .split(',')
-      .map((t: string) => t.trim())
-      .filter(Boolean);
+    let traitsArr: string[] = splitTraits(modified.traits);
 
-    validEffects.forEach((eff) => {
+    profileEffects.forEach((eff) => {
       const tsd = typeof eff.type_specific_data === 'object' ? eff.type_specific_data || {} : {};
       const toRemove: string[] = tsd.traits_to_remove || [];
       const toAdd: string[] = tsd.traits_to_add || [];
+      const toImprove: string[] = tsd.traits_to_improve || [];
 
       if (toRemove.length > 0) {
         traitsArr = traitsArr.filter(t => !toRemove.includes(t));
@@ -363,12 +404,70 @@ export function applyWeaponModifiers(
           if (!traitsArr.includes(t)) traitsArr.push(t);
         }
       }
+      for (const t of toImprove) {
+        const name = traitName(t);
+        const i = traitsArr.findIndex(existing => traitName(existing) === name);
+        if (i === -1) traitsArr.push(t);
+        else traitsArr[i] = traitsArr[i].replace(/\((\d)\+\)$/, (_, n) => `(${Math.max(2, Number(n) - 1)}+)`);
+      }
     });
     modified.traits = traitsArr.join(', ');
 
     return modified;
   });
 }
+
+/**
+ * A vehicle's profile with lasting damage, vehicle upgrades and user effects applied
+ */
+export const calculateVehicleStats = (
+  baseStats: Vehicle | undefined,
+) => {
+  if (!baseStats) return null;
+
+  const stats = {
+    movement: baseStats.movement ?? 0,
+    front: baseStats.front ?? 0,
+    side: baseStats.side ?? 0,
+    rear: baseStats.rear ?? 0,
+    hull_points: baseStats.hull_points ?? 0,
+    handling: baseStats.handling ?? 0,
+    save: baseStats.save ?? 0,
+    body_slots: baseStats.body_slots ?? 0,
+    drive_slots: baseStats.drive_slots ?? 0,
+    engine_slots: baseStats.engine_slots ?? 0,
+  };
+  
+  // Apply modifiers from vehicle effects (lasting damages, vehicle upgrades, and user adjustments)
+  if (baseStats.effects) {
+    const effectCategories = ["lasting damages", "vehicle upgrades", "user"];
+    effectCategories.forEach(categoryName => {
+      if (baseStats.effects && baseStats.effects[categoryName]) {
+        baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
+      if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
+        effect.fighter_effect_modifiers.forEach(modifier => {
+          // Convert stat_name to lowercase to match our stats object keys
+          const statName = modifier.stat_name.toLowerCase();
+          
+          // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
+          if (statName === 'body_slots' || statName === 'drive_slots' || statName === 'engine_slots') {
+            return;
+          }
+          
+          // Only apply if the stat exists in our stats object
+          if (statName in stats) {
+            // Apply the numeric modifier to the appropriate stat
+            stats[statName as keyof typeof stats] += modifier.numeric_value;
+              }
+            });
+          }
+        });
+      }
+    });
+  }
+
+  return stats;
+};
 
 // =============================================================================
 // SPECIAL RULES MODIFIERS

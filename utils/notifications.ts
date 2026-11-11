@@ -8,19 +8,28 @@
 // files don't use), and the DB knows nothing about these types — the enqueue trigger gates
 // on a coarse capability list and the worker resolves preferences at send time.
 
+import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from './htmlCleanUp';
 import { escapeHtml } from './html';
+import { formatLocalDate } from './local-date';
+import { sanitizeNotificationHtml } from './sanitize-notification-html';
 
 export type NotificationType =
   | 'info'
   | 'warning'
   | 'error'
-  | 'invite'
   | 'campaign_invite'
   | 'friend_request'
   | 'battle_invite'
   | 'gang_invite'
   | 'campaign_join_request'
-  | 'campaign_challenge';
+  | 'campaign_challenge'
+  | 'user_message'
+  | 'campaign_message'
+  | 'mm_staff_message'
+  | 'mm_announcement'
+  | 'forum_reply'
+  | 'forum_mention'
+  | 'forum_article';
 
 export interface NotificationEmailConfig {
   /** Human label shown on the preferences screen. */
@@ -34,6 +43,7 @@ export interface NotificationEmailConfig {
   /**
    * App path for the email button, overriding the notification's `link`. Used when the
    * notification is acted on elsewhere (e.g. accept/decline in the account notifications list).
+   * When this is absent, the button uses `link`.
    */
   ctaPath?: string;
 }
@@ -77,7 +87,39 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     label: 'Campaign challenges',
     supportsEmail: true,
     defaultEnabled: true,
-    subject: 'Your gang has been challenged',
+    subject: '{sender} has challenged your gang',
+  },
+  // Munda Manager news, general announcements, and feature announcements.
+  // The in-app list shows a fixed From line (MM_ANNOUNCEMENT_FROM) linking to the contributors page.
+  mm_announcement: {
+    label: 'Munda Manager announcements',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'An announcement from Munda Manager',
+    ctaPath: '/account',
+  },
+  // A user sends a message to another user. Read from the account notifications list.
+  user_message: {
+    label: 'Direct messages',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: '{sender} sent you a message',
+    ctaPath: '/account',
+  },
+  // A campaign arbitrator messages one or more people in their campaign.
+  campaign_message: {
+    label: 'Campaign messages',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: '{sender} sent a campaign message',
+  },
+  // Munda Manager staff messages to users.
+  mm_staff_message: {
+    label: 'Munda Manager messages',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: 'A message from Munda Manager',
+    ctaPath: '/account',
   },
   // Not email-eligible (in-app only) — kept here so the type union is exhaustive.
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
@@ -85,10 +127,11 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
   error: { label: 'Errors', supportsEmail: false, defaultEnabled: false, subject: '' },
   // Battle-session invitations — in-app only (deliberately not emailed).
   battle_invite: { label: 'Battle session invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
-  // Legacy type: campaign AND battle invites both used 'invite' before they were split
-  // into campaign_invite / battle_invite. Retained (in-app only) so historical rows still
-  // render; no new producer emits it. Safe to remove once all such rows have expired.
-  invite: { label: 'Invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // Forum replies to your thread and @mentions — in-app only.
+  forum_reply: { label: 'Forum replies', supportsEmail: false, defaultEnabled: false, subject: '' },
+  forum_mention: { label: 'Forum mentions', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // A reviewer published your thread as an article, asked for changes or declined it — in-app only.
+  forum_article: { label: 'Article reviews', supportsEmail: false, defaultEnabled: false, subject: '' },
 };
 
 /**
@@ -97,6 +140,143 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
  * Absent row (or enabled=true) means "master on".
  */
 export const MASTER_PREF_KEY = 'all';
+
+/** Types the admin composer may send. */
+export const ADMIN_NOTIFICATION_TYPES = ['mm_announcement', 'mm_staff_message'] as const;
+export type AdminNotificationType = (typeof ADMIN_NOTIFICATION_TYPES)[number];
+
+export const adminNotificationTypeLabel: Record<AdminNotificationType, string> = {
+  mm_announcement: 'Munda Manager Announcement',
+  mm_staff_message: 'Munda Manager Staff Message',
+};
+
+export function isAdminNotificationType(value: string): value is AdminNotificationType {
+  return (ADMIN_NOTIFICATION_TYPES as readonly string[]).includes(value);
+}
+
+/** From line for mm_announcement. Links to the contributors page, not a user profile. */
+export const MM_ANNOUNCEMENT_FROM = 'Munda Manager Team';
+export const MM_ANNOUNCEMENT_FROM_PATH = '/contributors';
+
+/** Visible-text cap for an admin broadcast. Each recipient stores their own row. */
+export const NOTIFICATION_BROADCAST_MAX_LENGTH = 1000;
+
+/** How long a composed notification may stay before the expiry job deletes the recipient rows. */
+export const NOTIFICATION_EXPIRES_MIN_DAYS = 1;
+export const NOTIFICATION_EXPIRES_MAX_DAYS = 365;
+
+/** Campaign message sends allowed per campaign per UTC day. */
+export const CAMPAIGN_MESSAGE_DAILY_CAP = 5;
+
+/** Campaign message sends allowed per sender per UTC day, across every campaign they run. */
+export const CAMPAIGN_MESSAGE_SENDER_DAILY_CAP = 10;
+
+/** Sent history window. The fighter and gang log routes use the same cap. */
+export const SENT_NOTIFICATIONS_FETCH_LIMIT = 100;
+
+const NOTIFICATION_PREVIEW_LENGTH = 60;
+
+export function notificationPlainTextLength(html: string): number {
+  return html.replace(/<[^>]*>/g, '').length;
+}
+
+/** Integer day count in the allowed range, or null. */
+export function parseExpiresInDays(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const days = Math.floor(value);
+  if (days < NOTIFICATION_EXPIRES_MIN_DAYS || days > NOTIFICATION_EXPIRES_MAX_DAYS) return null;
+  return days;
+}
+
+const LOGGED_IN_ON_OR_AFTER_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Local calendar date that many months before today, as YYYY-MM-DD. Clamps short months. */
+export function loggedInOnOrAfterMonthsAgo(months: number): string {
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth() - months, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  target.setDate(Math.min(now.getDate(), lastDay));
+  return formatLocalDate(target);
+}
+
+/** Local calendar date that many days before today, as YYYY-MM-DD. */
+export function loggedInOnOrAfterDaysAgo(days: number): string {
+  const now = new Date();
+  return formatLocalDate(new Date(now.getFullYear(), now.getMonth(), now.getDate() - days));
+}
+
+/** Local calendar date two months before today, as YYYY-MM-DD. */
+export function defaultLoggedInOnOrAfter(): string {
+  return loggedInOnOrAfterMonthsAgo(2);
+}
+
+/** Start of that local calendar day, or null when the day is impossible or in the future. */
+export function loggedInOnOrAfterInstant(value: string): string | null {
+  const match = LOGGED_IN_ON_OR_AFTER_PATTERN.exec(value);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1) return null;
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utc.getUTCFullYear() !== year ||
+    utc.getUTCMonth() !== month - 1 ||
+    utc.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  if (value > formatLocalDate(new Date())) return null;
+  return new Date(year, month - 1, day).toISOString();
+}
+
+const LOGGED_IN_SINCE_INSTANT_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * A real instant that is not after now and not before year 1, or null.
+ * Date-only strings are rejected so a calendar day is not read as UTC midnight.
+ */
+export function parseLoggedInSince(value: unknown): string | null {
+  if (typeof value !== 'string' || !LOGGED_IN_SINCE_INSTANT_PATTERN.test(value)) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1) return null;
+  if (parsed.getTime() > Date.now()) return null;
+  return parsed.toISOString();
+}
+
+export function prepareNotificationHtml(
+  raw: unknown
+): { ok: true; text: string } | { ok: false; error: string } {
+  const text = sanitizeNotificationHtml(typeof raw === 'string' ? raw.trim() : '').trim();
+  if (!text || isHtmlEffectivelyEmpty(text)) {
+    return { ok: false, error: 'Message text is required' };
+  }
+  if (notificationPlainTextLength(text) > NOTIFICATION_BROADCAST_MAX_LENGTH) {
+    return {
+      ok: false,
+      error: `Message must be at most ${NOTIFICATION_BROADCAST_MAX_LENGTH} characters`,
+    };
+  }
+  return { ok: true, text };
+}
+
+export function notificationPreview(html: string): string {
+  const plain = decodeHtmlEntities(html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
+  if (plain.length <= NOTIFICATION_PREVIEW_LENGTH) return plain;
+  return `${plain.slice(0, NOTIFICATION_PREVIEW_LENGTH).trimEnd()}…`;
+}
+
+const MESSAGE_NOTIFICATION_TYPES = new Set<NotificationType>([
+  'user_message',
+  'campaign_message',
+  'mm_staff_message',
+]);
+
+/** Direct, campaign, and staff messages, as opposed to event notifications. */
+export function isMessageNotificationType(type: NotificationType): boolean {
+  return MESSAGE_NOTIFICATION_TYPES.has(type);
+}
 
 /** The categories a user can toggle email for (the email-eligible ones). */
 export function emailEligibleTypes(): NotificationType[] {
@@ -159,7 +339,8 @@ export function isSafeNotificationLink(link: string | null | undefined): link is
 
   try {
     const url = new URL(trimmed);
-    return url.protocol === 'http:' || url.protocol === 'https:';
+    if (url.protocol === 'https:') return true;
+    return url.protocol === 'http:' && url.hostname === 'localhost';
   } catch {
     if (trimmed.includes(':')) {
       return false;
@@ -185,11 +366,12 @@ export function resolveNotificationLink(
   try {
     const url = new URL(trimmed);
 
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    const localhostHttp = url.protocol === 'http:' && url.hostname === 'localhost';
+    if (url.protocol !== 'https:' && !localhostHttp) {
       return null;
     }
 
-    if (APP_HOSTNAMES.has(url.hostname)) {
+    if (localhostHttp || APP_HOSTNAMES.has(url.hostname)) {
       return {
         href: `${url.pathname}${url.search}${url.hash}`,
         isExternal: false,
@@ -206,17 +388,39 @@ export function resolveNotificationLink(
   }
 }
 
-export function getNotificationLinkLabel(link: string): string {
+const CAMPAIGN_LINK_ID = /^\/campaigns\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/** Path only, so a query or hash does not hide a campaign link. External URLs stay whole. */
+function notificationPathname(href: string): string {
+  if (!href.startsWith('/')) {
+    return href.split(/[?#]/)[0] ?? href;
+  }
+  try {
+    return new URL(href, 'http://localhost').pathname;
+  } catch {
+    return href.split(/[?#]/)[0] ?? href;
+  }
+}
+
+export function campaignIdFromNotificationLink(link: string): string | null {
+  const resolved = resolveNotificationLink(link);
+  if (!resolved) return null;
+  const match = notificationPathname(resolved.href).match(CAMPAIGN_LINK_ID);
+  return match?.[1] ?? null;
+}
+
+export function getNotificationLinkLabel(link: string, campaignName?: string | null): string {
   const resolved = resolveNotificationLink(link);
   if (!resolved) {
     return 'Open link';
   }
 
   const { href } = resolved;
-  const pathname = href.split('?')[0];
+  const pathname = notificationPathname(href);
 
-  if (/^\/campaigns\/[^/]+$/.test(pathname)) {
-    return 'View campaign';
+  if (CAMPAIGN_LINK_ID.test(pathname)) {
+    const name = campaignName?.trim();
+    return name ? `View campaign: ${name}` : 'View campaign';
   }
 
   if (pathname.includes('/battle-session/')) {
@@ -225,6 +429,10 @@ export function getNotificationLinkLabel(link: string): string {
 
   if (pathname.startsWith('/gang/')) {
     return 'View gang';
+  }
+
+  if (pathname.startsWith('/forum/')) {
+    return 'View post';
   }
 
   if (pathname.startsWith('/account')) {

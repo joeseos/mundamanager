@@ -20,6 +20,7 @@ export interface GangFinancialUpdateOptions {
   ratingDelta?: number;         // Change to rating
   creditsDelta?: number;        // Credits gained (positive) or spent (negative)
   tradePointsDelta?: number;    // N26 Trade Points gained (positive) or spent (negative)
+  clearTradePoints?: boolean;   // Set Trade Points to 0, from the balance read in the compare-and-swap
   reputationDelta?: number;     // Reputation gained (positive) or spent (negative)
   stashValueDelta?: number;     // Stash value change (affects wealth only)
   applyToRating?: boolean;      // false = skip rating update (inactive fighter)
@@ -65,6 +66,7 @@ export async function updateGangFinancials(
     ratingDelta = 0,
     creditsDelta = 0,
     tradePointsDelta = 0,
+    clearTradePoints = false,
     reputationDelta = 0,
     stashValueDelta = 0,
     applyToRating = true
@@ -74,7 +76,7 @@ export async function updateGangFinancials(
   const effectiveRatingDelta = applyToRating ? ratingDelta : 0;
 
   // Skip if nothing to update
-  if (effectiveRatingDelta === 0 && creditsDelta === 0 && tradePointsDelta === 0 &&
+  if (effectiveRatingDelta === 0 && creditsDelta === 0 && tradePointsDelta === 0 && !clearTradePoints &&
       reputationDelta === 0 && stashValueDelta === 0) {
     // Still fetch current values for logging
     try {
@@ -139,7 +141,8 @@ export async function updateGangFinancials(
         return { success: false, error: 'Insufficient credits' };
       }
 
-      if (oldValues.trade_points + tradePointsDelta < 0) {
+      const tradePointsChange = clearTradePoints ? -oldValues.trade_points : tradePointsDelta;
+      if (oldValues.trade_points + tradePointsChange < 0) {
         return { success: false, error: 'Insufficient Trade Points' };
       }
 
@@ -154,7 +157,7 @@ export async function updateGangFinancials(
         credits: Math.max(0, oldValues.credits + creditsDelta),
         rating: Math.max(0, oldValues.rating + effectiveRatingDelta),
         wealth: Math.max(0, oldValues.wealth + wealthDelta),
-        trade_points: Math.max(0, oldValues.trade_points + tradePointsDelta),
+        trade_points: Math.max(0, oldValues.trade_points + tradePointsChange),
         reputation: Math.max(0, oldValues.reputation + reputationDelta)
       };
 
@@ -200,7 +203,7 @@ export async function updateGangFinancials(
     console.error(
       `Gang financials update for ${gangId} gave up after ${MAX_FINANCIAL_ATTEMPTS} attempts ` +
       `(concurrent modification); deltas:`,
-      { creditsDelta, tradePointsDelta, reputationDelta, ratingDelta: effectiveRatingDelta, stashValueDelta }
+      { creditsDelta, tradePointsDelta, clearTradePoints, reputationDelta, ratingDelta: effectiveRatingDelta, stashValueDelta }
     );
 
     return {

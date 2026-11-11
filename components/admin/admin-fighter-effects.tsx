@@ -16,8 +16,11 @@ import {
   FighterEffectCategory 
 } from "@/types/fighter-effect";
 
+const toList = (value: string) => value.split(',').map(t => t.trim()).filter(Boolean);
+const fromList = (value: string[] | undefined) => value?.join(', ') ?? '';
+
 // Mapping of stat_name (database value) to display_name (UI label)
-const STAT_MAPPINGS = [
+export const STAT_MAPPINGS = [
   { stat_name: 'acc_long', display_name: 'Accuracy (Long)', short_name: 'Acc L', value_suffix: '+' },
   { stat_name: 'acc_short', display_name: 'Accuracy (Short)', short_name: 'Acc S', value_suffix: '+' },
   { stat_name: 'ammo', display_name: 'Ammo', short_name: 'Am', value_suffix: '' },
@@ -147,6 +150,8 @@ export function AdminFighterEffects({
     selection_group: '',
     traits_to_add: '',
     traits_to_remove: '',
+    traits_to_improve: '',
+    requires_traits: '',
     special_rules_to_add: '',
     special_rules_to_remove: '',
     // Picked by id: subtype_name repeats across editions
@@ -204,18 +209,12 @@ export function AdminFighterEffects({
 
     try {
       // Parse traits from comma-separated strings to arrays
-      const traitsToAdd = newEffect.traits_to_add
-        ? newEffect.traits_to_add.split(',').map(t => t.trim()).filter(Boolean)
-        : [];
-      const traitsToRemove = newEffect.traits_to_remove
-        ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
-        : [];
-      const specialRulesToAdd = newEffect.special_rules_to_add
-        ? newEffect.special_rules_to_add.split(',').map(t => t.trim()).filter(Boolean)
-        : [];
-      const specialRulesToRemove = newEffect.special_rules_to_remove
-        ? newEffect.special_rules_to_remove.split(',').map(t => t.trim()).filter(Boolean)
-        : [];
+      const traitsToAdd = toList(newEffect.traits_to_add);
+      const traitsToRemove = toList(newEffect.traits_to_remove);
+      const traitsToImprove = toList(newEffect.traits_to_improve);
+      const requiresTraits = toList(newEffect.requires_traits);
+      const specialRulesToAdd = toList(newEffect.special_rules_to_add);
+      const specialRulesToRemove = toList(newEffect.special_rules_to_remove);
 
       const typeSpecificData: any = {
         ...(isSkill
@@ -230,6 +229,8 @@ export function AdminFighterEffects({
         ...(newEffect.selection_group && { selection_group: newEffect.selection_group }),
         ...(traitsToAdd.length > 0 && { traits_to_add: traitsToAdd }),
         ...(traitsToRemove.length > 0 && { traits_to_remove: traitsToRemove }),
+        ...(traitsToImprove.length > 0 && { traits_to_improve: traitsToImprove }),
+        ...(requiresTraits.length > 0 && { requires_traits: requiresTraits }),
         ...(specialRulesToAdd.length > 0 && { special_rules_to_add: specialRulesToAdd }),
         ...(specialRulesToRemove.length > 0 && { special_rules_to_remove: specialRulesToRemove }),
         ...(newEffect.fighter_subtype_ids_to_add.length > 0 && { fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add }),
@@ -275,6 +276,8 @@ export function AdminFighterEffects({
         selection_group: '',
         traits_to_add: '',
         traits_to_remove: '',
+        traits_to_improve: '',
+        requires_traits: '',
         special_rules_to_add: '',
         special_rules_to_remove: '',
         fighter_subtype_ids_to_add: [],
@@ -317,6 +320,8 @@ export function AdminFighterEffects({
       selection_group: '',
       traits_to_add: '',
       traits_to_remove: '',
+      traits_to_improve: '',
+      requires_traits: '',
       special_rules_to_add: '',
       special_rules_to_remove: '',
       fighter_subtype_ids_to_add: [],
@@ -342,10 +347,12 @@ export function AdminFighterEffects({
       effect_selection: effect.type_specific_data?.effect_selection || 'fixed',
       max_selections: effect.type_specific_data?.max_selections || 1,
       selection_group: effect.type_specific_data?.selection_group || '',
-      traits_to_add: effect.type_specific_data?.traits_to_add?.join(', ') || '',
-      traits_to_remove: effect.type_specific_data?.traits_to_remove?.join(', ') || '',
-      special_rules_to_add: effect.type_specific_data?.special_rules_to_add?.join(', ') || '',
-      special_rules_to_remove: effect.type_specific_data?.special_rules_to_remove?.join(', ') || '',
+      traits_to_add: fromList(effect.type_specific_data?.traits_to_add),
+      traits_to_remove: fromList(effect.type_specific_data?.traits_to_remove),
+      traits_to_improve: fromList(effect.type_specific_data?.traits_to_improve),
+      requires_traits: fromList(effect.type_specific_data?.requires_traits),
+      special_rules_to_add: fromList(effect.type_specific_data?.special_rules_to_add),
+      special_rules_to_remove: fromList(effect.type_specific_data?.special_rules_to_remove),
       fighter_subtype_ids_to_add: effect.type_specific_data?.fighter_subtype_ids_to_add || [],
       fighter_subtype_ids_to_remove: effect.type_specific_data?.fighter_subtype_ids_to_remove || [],
       grants_skill_id: isSkill ? '' : (effect.type_specific_data?.skill_id || ''),
@@ -369,18 +376,12 @@ export function AdminFighterEffects({
     }
 
     // Parse traits from comma-separated strings to arrays
-    const traitsToAdd = newEffect.traits_to_add
-      ? newEffect.traits_to_add.split(',').map(t => t.trim()).filter(Boolean)
-      : [];
-    const traitsToRemove = newEffect.traits_to_remove
-      ? newEffect.traits_to_remove.split(',').map(t => t.trim()).filter(Boolean)
-      : [];
-    const specialRulesToAdd = newEffect.special_rules_to_add
-      ? newEffect.special_rules_to_add.split(',').map(t => t.trim()).filter(Boolean)
-      : [];
-    const specialRulesToRemove = newEffect.special_rules_to_remove
-      ? newEffect.special_rules_to_remove.split(',').map(t => t.trim()).filter(Boolean)
-      : [];
+    const traitsToAdd = toList(newEffect.traits_to_add);
+    const traitsToRemove = toList(newEffect.traits_to_remove);
+    const traitsToImprove = toList(newEffect.traits_to_improve);
+    const requiresTraits = toList(newEffect.requires_traits);
+    const specialRulesToAdd = toList(newEffect.special_rules_to_add);
+    const specialRulesToRemove = toList(newEffect.special_rules_to_remove);
 
     // Build type_specific_data - explicitly set all fields to handle cleared values
     const typeSpecificData: any = {
@@ -397,6 +398,8 @@ export function AdminFighterEffects({
       // Set traits arrays - use empty arrays when cleared
       traits_to_add: traitsToAdd.length > 0 ? traitsToAdd : undefined,
       traits_to_remove: traitsToRemove.length > 0 ? traitsToRemove : undefined,
+      traits_to_improve: traitsToImprove.length > 0 ? traitsToImprove : undefined,
+      requires_traits: requiresTraits.length > 0 ? requiresTraits : undefined,
       special_rules_to_add: specialRulesToAdd.length > 0 ? specialRulesToAdd : undefined,
       special_rules_to_remove: specialRulesToRemove.length > 0 ? specialRulesToRemove : undefined,
       fighter_subtype_ids_to_add: newEffect.fighter_subtype_ids_to_add.length > 0 ? newEffect.fighter_subtype_ids_to_add : undefined,
@@ -640,6 +643,18 @@ export function AdminFighterEffects({
                         {effect.type_specific_data?.traits_to_add && effect.type_specific_data.traits_to_add.length > 0 && (
                           <Badge variant="default" className="bg-green-600">
                             Adds: {effect.type_specific_data.traits_to_add.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.traits_to_improve && effect.type_specific_data.traits_to_improve.length > 0 && (
+                          <Badge variant="default" className="bg-green-600">
+                            Improves: {effect.type_specific_data.traits_to_improve.join(', ')}
+                          </Badge>
+                        )}
+
+                        {effect.type_specific_data?.requires_traits && effect.type_specific_data.requires_traits.length > 0 && (
+                          <Badge variant="outline">
+                            Weapons with {effect.type_specific_data.requires_traits.join(', ')}
                           </Badge>
                         )}
 
@@ -906,7 +921,8 @@ export function AdminFighterEffects({
                     checked={newEffect.applies_to === 'equipment'}
                     onCheckedChange={(checked) => setNewEffect(prev => ({
                       ...prev,
-                      applies_to: checked === true ? 'equipment' : ''
+                      applies_to: checked === true ? 'equipment' : '',
+                      ...(checked === true && { requires_traits: '' })
                     }))}
                   />
                   <span className="text-sm font-medium">
@@ -1037,7 +1053,24 @@ export function AdminFighterEffects({
               </div>
             )}
 
-            {newEffect.applies_to === 'equipment' && (
+            {!hideEquipmentOption && newEffect.applies_to !== 'equipment' && (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-muted-foreground">
+                  Weapons With Traits (optional)
+                </label>
+                <Input
+                  type="text"
+                  value={newEffect.requires_traits}
+                  onChange={(e) => setNewEffect(prev => ({ ...prev, requires_traits: e.target.value }))}
+                  placeholder="e.g., Light"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter trait names separated by commas. The trait changes below apply to every weapon profile the fighter has with any of them
+                </p>
+              </div>
+            )}
+
+            {(newEffect.applies_to === 'equipment' || newEffect.requires_traits.trim() || newEffect.traits_to_add || newEffect.traits_to_remove || newEffect.traits_to_improve) && (
               <>
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-muted-foreground">
@@ -1066,6 +1099,21 @@ export function AdminFighterEffects({
                   />
                   <p className="text-xs text-muted-foreground">
                     Enter trait names separated by commas
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-muted-foreground">
+                    Traits to Improve (optional)
+                  </label>
+                  <Input
+                    type="text"
+                    value={newEffect.traits_to_improve}
+                    onChange={(e) => setNewEffect(prev => ({ ...prev, traits_to_improve: e.target.value }))}
+                    placeholder="e.g., Concussive (6+), Knockback (6+)"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Adds the trait at this value, or improves it by one, (6+) to (5+), if the weapon already has it. Each repeat improves it again
                   </p>
                 </div>
               </>

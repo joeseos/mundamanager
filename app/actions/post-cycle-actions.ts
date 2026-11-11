@@ -1,0 +1,719 @@
+'use server';
+
+import { createClient } from '@/utils/supabase/server';
+import { getAuthenticatedUser } from '@/utils/auth';
+import { hasPostCycleActions } from '@/types/edition';
+import { getEditionIdBySlug } from '@/utils/editions';
+import {
+  getGangCampaigns,
+  getGangCore,
+  getGangFightersList,
+  getGangSubtypes,
+} from '@/app/lib/shared/gang-data';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
+import type { FighterEffect } from '@/types/fighter-effect';
+import type { GangTacticsCard } from '@/types/tactics-card';
+import { addFighterInjury, clearRigGlitchesDowntime, deleteFighterInjury } from './fighter-injury';
+import { editFighterStatus, updateFighterXp } from './edit-fighter';
+import { addGangTacticsCards } from './gang-tactics-cards';
+import { applySelfUpgradesToEquipment } from './equipment';
+import { repairVehicleDamage } from './remove-vehicle-damage';
+import { logPostCycleAction } from './logs/gang-post-cycle-logs';
+import {
+  CHOP_SHOP_COST_PER_DAMAGE,
+  ENHANCE_WEAPON_COST,
+  SUIT_MAINTENANCE_COST,
+  TRAIN_XP,
+  assignmentCreditsDelta,
+  criticalInjuriesOf,
+  fitBionicsCost,
+  lastingDamagesOf,
+  medicalEscortCost,
+  patientOf,
+  postCycleAvailability,
+  reputationIncome,
+  rigGlitchNames,
+  rigGlitchesOf,
+  territoryIncome,
+  tradePointsText,
+  tradingPostTradePoints,
+  validatePostCycleAssignment,
+  type PostCycleAssignment,
+} from '@/utils/postCycleActions';
+import {
+  medicalEscortStabilisedRoll,
+  resolveInjuryFor,
+  resolveMedicalEscort,
+  rollD6,
+  type RollOutcome,
+} from '@/utils/dice';
+
+export interface ResolvePostCycleActionParams {
+  gangId: string;
+  assignment: PostCycleAssignment;
+}
+
+/** What changed on one fighter; the gang page keeps fighters in state and patches them. */
+export interface PostCycleFighterChange {
+  fighterId: string;
+  removedEffectIds?: string[];
+  addedInjury?: FighterEffect;
+  killed?: boolean;
+  recovery?: boolean;
+  xpDelta?: number;
+}
+
+export interface PostCycleActionOutcome {
+  fighterId: string;
+  fighterName: string;
+  action: PostCycleAssignment['action'];
+  /** What happened beyond the action's name, ending on the credits it moved. */
+  outcome: string;
+  roll?: RollOutcome;
+  /**
+   * What is billed once the handler is done: what actually moved, so a failed or
+   * partial action is not billed in full. Zero for Visit Chop Shop and Suit
+   * Maintenance, whose helpers charge the gang themselves.
+   */
+  creditsDelta: number;
+  /** Visit Trading Post: what it adds to the gang's Trade Points. */
+  tradePointsDelta?: number;
+  changes?: PostCycleFighterChange[];
+  /** Develop Tactics: the gang_tactics_cards row it added, for the page to append. */
+  addedTacticsCard?: GangTacticsCard;
+  /** Enhance Weapon: the fighter re-read with the upgraded weapon, for the page to swap in. */
+  updatedFighter?: Fighter;
+  failed?: boolean;
+}
+
+export interface ResolvePostCycleActionResult {
+  success: boolean;
+  error?: string;
+  outcome?: PostCycleActionOutcome;
+  /**
+   * Something was applied, so the action is spent and logged even if `success`
+   * is false: a Fit Bionics that removed two of three injuries, say.
+   */
+  landed?: boolean;
+  gang?: { credits: number; rating: number; wealth: number; trade_points: number };
+}
+
+/** A handler reports only what happened; the caller adds who and which action. */
+type HandlerOutcome = Omit<PostCycleActionOutcome, 'fighterId' | 'fighterName' | 'action'>;
+
+/** A fighter as getGangFightersList returns it, which is all the handlers read. */
+type Fighter = Awaited<ReturnType<typeof getGangFightersList>>[number];
+
+interface HandlerContext {
+  supabase: any;
+  gangId: string;
+  editionSlug: string;
+  performer: Fighter;
+  /** Present for the two actions that act on someone else. */
+  target?: Fighter;
+}
+
+const INJURY_CATEGORY = 'injuries';
+
+/** Injury names repeat across editions, hence the edition. */
+async function findInjuryTypeId(
+  supabase: any,
+  effectName: string,
+  editionSlug: string
+): Promise<string | null> {
+  const editionId = await getEditionIdBySlug(editionSlug);
+  const { data } = await supabase
+    .from('fighter_effect_types')
+    .select('id, fighter_effect_category:fighter_effect_category_id ( category_name )')
+    .eq('effect_name', effectName)
+    .eq('edition_id', editionId)
+    .limit(10);
+
+  const match = (data || []).find(
+    (row: any) => row.fighter_effect_category?.category_name === INJURY_CATEGORY
+  );
+  return match?.id ?? null;
+}
+
+// =============================================================================
+// Handlers — one per action, each resolving only its own fighter
+// =============================================================================
+
+/**
+ * The D6 at the Doc. Complications kills the patient, Stabilised swaps the
+ * Critical Injury for a 51-56 Lasting Injury, Full Recovery just clears it.
+ */
+async function handleMedicalEscort(ctx: HandlerContext): Promise<HandlerOutcome> {
+  const { supabase, editionSlug } = ctx;
+  const target = ctx.target!;
+  // Validation only accepts a patient with a Critical Injury.
+  const criticalInjury = criticalInjuriesOf(target)[0];
+  const escortCost = -medicalEscortCost(ctx.performer);
+
+  const total = rollD6();
+  const escortResult = resolveMedicalEscort(total)!;
+  const roll = { total, dice: [total] };
+
+  if (escortResult === 'Complications') {
+    // Validation only lets a living fighter be the patient, so this toggle kills.
+    const killed = await editFighterStatus({ fighter_id: target.id, action: 'kill' });
+
+    return {
+      roll,
+      outcome: killed.success
+        ? `Complications: ${target.fighter_name} died on the table.`
+        : `Complications rolled, but applying the death failed: ${killed.error}`,
+      creditsDelta: killed.success ? escortCost : 0,
+      // Killing also clears Recovery on the server.
+      changes: killed.success ? [{ fighterId: target.id, killed: true, recovery: false }] : undefined,
+      failed: !killed.success,
+    };
+  }
+
+  // Find the Stabilised injury before deleting anything, so a failed lookup
+  // leaves the patient as they were instead of healed for free.
+  const stabilised = escortResult === 'Stabilised' ? medicalEscortStabilisedRoll() : null;
+  const injuryName = stabilised ? resolveInjuryFor(stabilised.total, editionSlug)!.name : '';
+  const injuryTypeId = stabilised ? await findInjuryTypeId(supabase, injuryName, editionSlug) : null;
+
+  if (stabilised && !injuryTypeId) {
+    return {
+      roll: stabilised,
+      outcome: `Stabilised, but the Lasting Injury "${injuryName}" could not be found. Nothing was changed or charged.`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  const removed = await deleteFighterInjury({
+    fighter_id: target.id,
+    injury_id: criticalInjury.id,
+  });
+  if (!removed.success) {
+    return {
+      roll,
+      outcome: `Failed to clear the Critical Injury: ${removed.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  const removedEffectIds = [criticalInjury.id];
+
+  if (escortResult === 'Full Recovery') {
+    // 'recover' toggles, so only a fighter not already in Recovery is sent.
+    const recovered = target.recovery
+      ? null
+      : await editFighterStatus({ fighter_id: target.id, action: 'recover' });
+
+    if (recovered && !recovered.success) {
+      return {
+        roll,
+        outcome:
+          `Full Recovery rolled and the Critical Injury was cleared, but sending ` +
+          `${target.fighter_name} into Recovery failed: ${recovered.error}`,
+        creditsDelta: escortCost,
+        changes: [{ fighterId: target.id, removedEffectIds }],
+        failed: true,
+      };
+    }
+
+    return {
+      roll,
+      outcome: `Full Recovery: ${target.fighter_name} goes into Recovery with no lasting effects.`,
+      creditsDelta: escortCost,
+      changes: [{ fighterId: target.id, removedEffectIds, recovery: true }],
+    };
+  }
+
+  // Stabilised: the Critical Injury becomes a 51-56 Lasting Injury.
+  const applied = await addFighterInjury({
+    fighter_id: target.id,
+    injury_type_id: injuryTypeId!,
+    send_to_recovery: true,
+  });
+
+  return {
+    roll: stabilised!,
+    outcome: applied.success
+      ? `Stabilised: ${target.fighter_name} suffers ${injuryName}.`
+      : `Stabilised, but applying ${injuryName} failed: ${applied.error}`,
+    // The Critical Injury is gone either way, so the visit is billed.
+    creditsDelta: escortCost,
+    changes: [
+      {
+        fighterId: target.id,
+        removedEffectIds,
+        addedInjury: applied.injury,
+        recovery: applied.success ? applied.recovery_status ?? true : undefined,
+      },
+    ],
+    failed: !applied.success,
+  };
+}
+
+/** Removes the chosen Lasting Injuries, billing only for the ones that went. */
+async function handleFitBionics(
+  ctx: HandlerContext,
+  injuryIds: string[]
+): Promise<HandlerOutcome> {
+  const target = ctx.target!;
+  const removedNames: string[] = [];
+  const removedIds: string[] = [];
+  let failure: string | undefined;
+
+  for (const injuryId of injuryIds) {
+    const injury = (target.effects?.injuries ?? []).find((e) => e.id === injuryId);
+    const removed = await deleteFighterInjury({
+      fighter_id: target.id,
+      injury_id: injuryId,
+    });
+    if (!removed.success) {
+      failure = removed.error;
+      break;
+    }
+    removedIds.push(injuryId);
+    removedNames.push(injury?.effect_name ?? 'a Lasting Injury');
+  }
+
+  return {
+    outcome: failure
+      ? `Removed ${removedNames.length} of ${injuryIds.length} Lasting Injuries from ${target.fighter_name} before failing: ${failure}`
+      : `Removed ${removedNames.join(', ')} from ${target.fighter_name}.`,
+    creditsDelta: -fitBionicsCost(ctx.performer, removedIds.length),
+    changes:
+      removedIds.length > 0
+        ? [{ fighterId: target.id, removedEffectIds: removedIds }]
+        : undefined,
+    failed: Boolean(failure),
+  };
+}
+
+async function handleTrain(ctx: HandlerContext): Promise<HandlerOutcome> {
+  const trained = await updateFighterXp({
+    fighter_id: ctx.performer.id,
+    xp_to_add: TRAIN_XP,
+  });
+
+  return {
+    outcome: trained.success
+      ? `Gained ${TRAIN_XP} XP.`
+      : `Failed to award XP: ${trained.error}`,
+    creditsDelta: 0,
+    changes: trained.success
+      ? [{ fighterId: ctx.performer.id, xpDelta: TRAIN_XP }]
+      : undefined,
+    failed: !trained.success,
+  };
+}
+
+/** Adds the chosen card the same way the Gang Tactics list does, checks included. */
+async function handleDevelopTactics(
+  ctx: HandlerContext,
+  tacticsCardId: string
+): Promise<HandlerOutcome> {
+  const added = await addGangTacticsCards({
+    gangId: ctx.gangId,
+    tacticsCardIds: [tacticsCardId],
+  });
+  const card = added.data?.[0];
+
+  if (!added.success || !card) {
+    return {
+      outcome: added.success
+        ? 'The gang already holds that Gang Tactic. Nothing was added.'
+        : `Failed to add the Gang Tactic: ${added.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  return {
+    outcome: `Added ${card.name} to the gang's tactics.`,
+    creditsDelta: 0,
+    addedTacticsCard: card,
+  };
+}
+
+/**
+ * Repairs the chosen Lasting Damage the same way the vehicle's Repair Damage
+ * modal does. That action charges the gang itself, so nothing is billed after.
+ */
+async function handleVisitChopShop(
+  ctx: HandlerContext,
+  damageIds: string[]
+): Promise<HandlerOutcome> {
+  const vehicle = ctx.performer;
+  // Taken from the vehicle's own list, so a repeated id is repaired and billed once.
+  const damages = lastingDamagesOf(vehicle).filter((damage) => damageIds.includes(damage.id));
+  const repairedIds = damages.map((damage) => damage.id);
+  const repairCost = damages.length * CHOP_SHOP_COST_PER_DAMAGE;
+
+  const repaired = await repairVehicleDamage({
+    damageIds: repairedIds,
+    repairCost,
+    // An N26 vehicle is the fighter itself, with no vehicles row.
+    vehicleId: null,
+    fighterId: vehicle.id,
+    gangId: ctx.gangId,
+  });
+
+  if (!repaired.success) {
+    return {
+      outcome: `Failed to repair the Lasting Damage: ${repaired.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  return {
+    outcome: `Repaired ${damages.map((damage) => damage.effect_name).join(', ')}. Cost ${repairCost} credits.`,
+    creditsDelta: 0,
+    changes: [{ fighterId: vehicle.id, removedEffectIds: repairedIds }],
+  };
+}
+
+/**
+ * Clears every Rig Glitch the way the Post-Cycle option of the fighter page's
+ * Clear all does. That action charges the gang itself, so nothing is billed after.
+ */
+async function handleSuitMaintenance(ctx: HandlerContext): Promise<HandlerOutcome> {
+  const spyrer = ctx.performer;
+  const glitches = rigGlitchesOf(spyrer);
+  const glitchIds = glitches.map((glitch) => glitch.id);
+
+  const cleared = await clearRigGlitchesDowntime({
+    fighter_id: spyrer.id,
+    glitch_ids: glitchIds,
+    credit_cost: SUIT_MAINTENANCE_COST,
+  });
+
+  if (!cleared.success) {
+    return {
+      outcome: `Failed to clear the Rig Glitches: ${cleared.error}`,
+      creditsDelta: 0,
+      failed: true,
+    };
+  }
+
+  return {
+    outcome: `Cleared ${rigGlitchNames(glitches)}. Cost ${SUIT_MAINTENANCE_COST} credits.`,
+    creditsDelta: 0,
+    changes: [{ fighterId: spyrer.id, removedEffectIds: glitchIds }],
+  };
+}
+
+/** The upgrades Enhance Weapon picks one from, with what each adds to the weapon's value. */
+export async function getEnhanceWeaponUpgrades() {
+  const ENHANCE_WEAPON_EQUIPMENT_ID = '7ab2d8fd-9a6b-4638-b7dc-567fb22ea5d5';
+  const supabase = await createClient();
+  await getAuthenticatedUser(supabase);
+  const { data, error } = await supabase
+    .from('fighter_effect_types')
+    .select('id, effect_name, credits_increase:type_specific_data->credits_increase')
+    .eq('type_specific_data->>equipment_id', ENHANCE_WEAPON_EQUIPMENT_ID)
+    .eq('type_specific_data->>is_editable', 'true')
+    .order('sort_order');
+  if (error) throw new Error(`Failed to read the Enhance Weapon upgrades: ${error.message}`);
+  return data as Array<{ id: string; effect_name: string; credits_increase: number | null }>;
+}
+
+/**
+ * Puts the chosen upgrade on the weapon itself, the way the fighter page adds
+ * a Spyrer weapon's upgrades, so the weapon's value rises by the upgrade's
+ * credits increase. The action's own cost is billed after, like any other.
+ */
+async function handleEnhanceWeapon(
+  ctx: HandlerContext,
+  weaponId: string,
+  upgradeId: string
+): Promise<HandlerOutcome> {
+  const weapon = ctx.performer.weapons.find((w) => w.fighter_weapon_id === weaponId)!;
+  const upgrade = (await getEnhanceWeaponUpgrades()).find((u) => u.id === upgradeId);
+  if (!upgrade) {
+    return { outcome: 'Choose one of the Enhance Weapon upgrades.', creditsDelta: 0, failed: true };
+  }
+
+  const applied = await applySelfUpgradesToEquipment({
+    fighter_equipment_id: weaponId,
+    effect_type_ids: [upgradeId],
+    fighter_id: ctx.performer.id,
+    gang_id: ctx.gangId,
+    credits_increase: upgrade.credits_increase ?? 0,
+    allow_repeats: true,
+  });
+  if (!applied.success) {
+    return { outcome: `Failed to enhance ${weapon.weapon_name}: ${applied.error}`, creditsDelta: 0, failed: true };
+  }
+
+  const fighters = await getGangFightersList(ctx.gangId, { gangEditionSlug: ctx.editionSlug });
+  return {
+    outcome: `Enhanced ${weapon.weapon_name} with ${upgrade.effect_name}.`,
+    creditsDelta: -ENHANCE_WEAPON_COST,
+    updatedFighter: fighters.find((f) => f.id === ctx.performer.id),
+  };
+}
+
+async function runHandler(
+  ctx: HandlerContext,
+  assignment: PostCycleAssignment
+): Promise<HandlerOutcome> {
+  switch (assignment.action) {
+    case 'medical_escort':
+      return handleMedicalEscort(ctx);
+    case 'fit_bionics':
+      return handleFitBionics(ctx, assignment.injuryIds);
+    case 'train':
+      return handleTrain(ctx);
+    case 'develop_tactics':
+      return handleDevelopTactics(ctx, assignment.tacticsCardId);
+    case 'visit_chop_shop':
+      return handleVisitChopShop(ctx, assignment.damageIds);
+    case 'enhance_weapon':
+      return handleEnhanceWeapon(ctx, assignment.weaponId, assignment.upgradeId);
+    case 'suit_maintenance':
+      return handleSuitMaintenance(ctx);
+    case 'visit_trading_post':
+      return { outcome: '', creditsDelta: 0, tradePointsDelta: tradingPostTradePoints(ctx.performer) };
+    // The rest move their flat credits, if any, and leave a log line; anything
+    // else they do is applied elsewhere on the page or by hand.
+    default:
+      return { outcome: '', creditsDelta: assignmentCreditsDelta(assignment, ctx.performer) };
+  }
+}
+
+// =============================================================================
+// Entry point
+// =============================================================================
+
+/**
+ * Resolve one fighter's Post-cycle Action.
+ *
+ * One action per call rather than a whole sequence: once an action lands, the
+ * saved rows carry the consequence — the patient's Critical Injury is gone — so
+ * the next action is validated against real state instead of against the other
+ * rows of a plan. The cross-fighter rules a single call cannot see (one action
+ * per fighter, the per-action caps such as a single Ritual Focus, and a patient
+ * taking no action of their own) are held by the panel.
+ *
+ * Not atomic within an action: Fit Bionics removing three injuries makes three
+ * calls, and a failure partway leaves the earlier ones removed. The outcome
+ * reports what landed and bills only that.
+ */
+async function resolvePostCycleAction(
+  params: ResolvePostCycleActionParams
+): Promise<ResolvePostCycleActionResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+    const { assignment, gangId } = params;
+
+    const gang = await getGangCore(gangId);
+    if (!gang) return { success: false, error: 'Gang not found' };
+
+    const editionSlug = gang.edition_slug;
+    if (!editionSlug || !hasPostCycleActions(editionSlug)) {
+      return {
+        success: false,
+        error: 'Post-cycle Actions are only available for Necromunda (2026) gangs',
+      };
+    }
+
+    // The gang row holds subtype ids; the names decide Chaos Corrupted. A gang
+    // with no subtypes skips the lookup, and the rest read a cached list.
+    const [fighters, gangSubtypes] = await Promise.all([
+      getGangFightersList(gangId, { gangEditionSlug: editionSlug }),
+      getGangSubtypes(gang.gang_subtypes ?? []),
+    ]);
+
+    const issues = validatePostCycleAssignment(
+      fighters,
+      assignment,
+      postCycleAvailability({
+        editionSlug,
+        gangType: gang.gang_type,
+        isCustomGangType: Boolean(gang.custom_gang_type_id),
+        subtypeNames: gangSubtypes.map((s) => s.subtype),
+      })
+    );
+    if (issues.length > 0) {
+      return { success: false, error: issues.join(' ') };
+    }
+
+    const byId = new Map(fighters.map((f) => [f.id, f]));
+    const performer = byId.get(assignment.fighterId)!;
+    const patientId = patientOf(assignment);
+    const target = patientId ? byId.get(patientId) : undefined;
+
+    if ((gang.credits ?? 0) < -assignmentCreditsDelta(assignment, performer)) {
+      return { success: false, error: 'Not enough credits' };
+    }
+
+    const handled = await runHandler(
+      { supabase, gangId, editionSlug, performer, target },
+      assignment
+    );
+
+    const outcome: PostCycleActionOutcome = {
+      ...handled,
+      fighterId: performer.id,
+      fighterName: performer.fighter_name,
+      action: assignment.action,
+    };
+
+    const landed =
+      !outcome.failed || outcome.creditsDelta !== 0 || (outcome.changes?.length ?? 0) > 0;
+
+    // Billed from the outcome rather than the plan. Called even at zero, since
+    // it also returns the rating and wealth the helpers above moved.
+    const financials = await updateGangFinancials(supabase, {
+      gangId,
+      creditsDelta: outcome.creditsDelta,
+      tradePointsDelta: outcome.tradePointsDelta,
+    });
+
+    // What landed is still logged, so a failed charge leaves a record to fix by hand.
+    const financialsLine = !financials.success
+      ? `Updating the gang's ${outcome.tradePointsDelta ? 'Trade Points' : 'credits'} failed: ${financials.error}.`
+      : outcome.creditsDelta > 0
+        ? `Gained ${outcome.creditsDelta} credits.`
+        : outcome.creditsDelta < 0
+          ? `Cost ${-outcome.creditsDelta} credits.`
+          : '';
+    const tradePointsLine =
+      financials.success && outcome.tradePointsDelta
+        ? `Gained ${tradePointsText(outcome.tradePointsDelta)}.`
+        : '';
+    outcome.outcome = [outcome.outcome, financialsLine, tradePointsLine].filter(Boolean).join(' ');
+    if (!financials.success) outcome.failed = true;
+
+    if (landed) {
+      try {
+        await logPostCycleAction({
+          gang_id: gangId,
+          fighter_id: outcome.fighterId,
+          fighter_name: outcome.fighterName,
+          action: outcome.action,
+          outcome: outcome.outcome,
+          roll: outcome.roll,
+          user_id: user.id,
+        });
+      } catch (logError) {
+        console.error('Failed to log Post-cycle Action:', logError);
+      }
+    }
+
+    return {
+      success: !outcome.failed,
+      error: outcome.failed ? outcome.outcome : undefined,
+      outcome,
+      landed,
+      gang: financials.newValues,
+    };
+  } catch (error) {
+    console.error('Error resolving Post-cycle Action:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to resolve the action',
+    };
+  }
+}
+
+export interface CollectIncomeParams {
+  gangId: string;
+  /** Collect 10x the gang's Reputation. */
+  reputation: boolean;
+  /** campaign_territories ids; each adds its territoryIncome. */
+  territoryIds: string[];
+}
+
+export interface CollectIncomeResult {
+  success: boolean;
+  error?: string;
+  gang?: { credits: number; rating: number; wealth: number };
+}
+
+/** Collect Income: adds the picked Reputation and territory credits to the gang. */
+async function collectIncome({
+  gangId,
+  reputation,
+  territoryIds,
+}: CollectIncomeParams): Promise<CollectIncomeResult> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    const gang = await getGangCore(gangId);
+    if (!gang) return { success: false, error: 'Gang not found' };
+    if (!hasPostCycleActions(gang.edition_slug)) {
+      return {
+        success: false,
+        error: 'Collect Income is only available for Necromunda (2026) gangs',
+      };
+    }
+
+    const sources: Array<{ name: string; credits: number }> = [];
+    if (reputation) {
+      const credits = reputationIncome(gang.reputation);
+      if (credits === 0) return { success: false, error: 'The gang has no Reputation to collect on' };
+      sources.push({ name: `${gang.reputation} Reputation`, credits });
+    }
+    if (territoryIds.length > 0) {
+      const held = new Map(
+        (await getGangCampaigns(gangId))
+          .flatMap((campaign) => campaign.territories)
+          .map((territory) => [territory.id, territory])
+      );
+      for (const id of new Set(territoryIds)) {
+        const territory = held.get(id);
+        if (!territory) return { success: false, error: 'The gang does not hold that territory' };
+        const credits = territoryIncome(territory, {
+          gangType: gang.gang_type,
+          isCustomGangType: Boolean(gang.custom_gang_type_id),
+        });
+        if (!credits) return { success: false, error: `${territory.territory_name} gives no credits` };
+        sources.push({ name: territory.territory_name, credits });
+      }
+    }
+    if (sources.length === 0) return { success: false, error: 'Nothing to collect' };
+
+    const credits = sources.reduce((sum, source) => sum + source.credits, 0);
+    const financials = await updateGangFinancials(supabase, { gangId, creditsDelta: credits });
+    if (!financials.success) return { success: false, error: financials.error };
+
+    await logPostCycleAction({
+      gang_id: gangId,
+      action: 'collect_income',
+      outcome: `Gained ${credits} credits from ${sources
+        .map((source) => `${source.name} (+${source.credits})`)
+        .join(', ')}.`,
+      user_id: user.id,
+    });
+
+    return { success: true, gang: financials.newValues };
+  } catch (error) {
+    console.error('Error collecting income:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to collect income',
+    };
+  }
+}
+
+/** Collect Income first, so the actions can spend it, then each action in turn, in one request. */
+export async function applyPostCycleSequence({
+  gangId,
+  income,
+  assignments,
+}: {
+  gangId: string;
+  income?: Omit<CollectIncomeParams, 'gangId'>;
+  assignments: PostCycleAssignment[];
+}) {
+  const incomeResult = income && (await collectIncome({ gangId, ...income }));
+  const actions: ResolvePostCycleActionResult[] = [];
+  for (const assignment of assignments) {
+    actions.push(await resolvePostCycleAction({ gangId, assignment }));
+  }
+  return { income: incomeResult, actions };
+}

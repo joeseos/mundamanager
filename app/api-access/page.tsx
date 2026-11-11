@@ -10,8 +10,8 @@ const defaultUrl = process.env.NODE_ENV === 'development'
 
 // SEO constants - edit these to update all metadata
 const PAGE_TITLE = 'API Access - Munda Manager REST API Documentation';
-const PAGE_DESCRIPTION = 'Access your Munda Manager campaign data as XML or JSON. Integrate live campaign information into your own tools, dashboards, or spreadsheets with our REST API for Necromunda campaigns.';
-const PAGE_DESCRIPTION_SHORT = 'Access your Munda Manager campaign data as XML or JSON. Integrate live information into your own tools and spreadsheets.';
+const PAGE_DESCRIPTION = 'Access your Munda Manager campaign, gang and fighter data as XML or JSON. Integrate live campaign information into your own tools, dashboards, or spreadsheets with our REST API for Necromunda campaigns.';
+const PAGE_DESCRIPTION_SHORT = 'Access your Munda Manager campaign, gang and fighter data as XML or JSON. Integrate live information into your own tools and spreadsheets.';
 const PAGE_KEYWORDS = 'Munda Manager API, Necromunda API, campaign data API, XML export, JSON export, Google Sheets integration, campaign tracking';
 
 export const metadata: Metadata = {
@@ -73,7 +73,7 @@ export default function ApiAccessPage() {
         }}
       />
       <main className="flex min-h-screen flex-col items-center">
-      <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-4">
           <h1 className="text-2xl md:text-2xl font-bold mb-4">
             API Access
@@ -81,10 +81,10 @@ export default function ApiAccessPage() {
           
           <div className="mb-8">
             <p className="text-muted-foreground mb-4">
-              Munda Manager does not currently provide API keys for full programmatic access to all data. However, we do offer a <strong className="text-foreground">public REST API for campaign data</strong>, allowing you to retrieve campaign information as XML or JSON without authentication.
+              Munda Manager does not currently provide API keys for full programmatic access to all data. However, we do offer a <strong className="text-foreground">public REST API for campaign, gang and fighter data</strong>, allowing you to retrieve that information as XML or JSON without authentication.
             </p>
             <p className="text-muted-foreground mb-4">
-              We plan to extend API access to other parts of the app in the future, such as gang data and fighter information. Stay tuned for updates!
+              Besides campaign data, each gang and each fighter has its own endpoint, described below.
             </p>
           </div>
 
@@ -105,6 +105,7 @@ export default function ApiAccessPage() {
           <div className="mb-12">
             <h2 className="text-xl font-semibold text-foreground mb-2">Contents</h2>
             <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
+              <li><a href="#gang-fighter-data" className="underline hover:text-red-800">Campaign, Gang and Fighter Data</a></li>
               <li><a href="#google-sheets-integration" className="underline hover:text-red-800">How to Access Your Campaign Data from Google Sheets</a></li>
               <li>
                 <span className="text-muted-foreground">Examples:</span>
@@ -113,7 +114,9 @@ export default function ApiAccessPage() {
                   <li><a href="#get-all-gang-names" className="underline hover:text-red-800">Get All Gang Names</a></li>
                   <li><a href="#get-gang-rating" className="underline hover:text-red-800">Get the Rating of a Gang by ID</a></li>
                   <li><a href="#get-gang-territories" className="underline hover:text-red-800">Get the Territories of a Gang by ID</a></li>
+                  <li><a href="#get-gang-fighters" className="underline hover:text-red-800">Get the Fighters of a Gang by ID</a></li>
                   <li><a href="#get-gang-wealth-dynamic" className="underline hover:text-red-800">Get the Wealth of a Gang Using a Cell Reference</a></li>
+                  <li><a href="#get-fighter-weapons" className="underline hover:text-red-800">Get the Weapons of a Fighter by ID</a></li>
                 </ul>
               </li>
               <li><a href="#usage-guidelines" className="underline hover:text-red-800">Usage Guidelines</a></li>
@@ -123,6 +126,30 @@ export default function ApiAccessPage() {
 
           {/* Main content */}
           <div className="space-y-6">
+            <section id="gang-fighter-data" className="scroll-mt-24">
+              <h2 className="text-xl font-semibold text-foreground mb-4">Campaign, Gang and Fighter Data</h2>
+              <p className="text-muted-foreground mb-4">
+                There is one endpoint each for a campaign, a gang and a fighter. All three return JSON by default (<code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">?format=json</code>) or XML with <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">?format=xml</code>, and each response links to the next by ID:
+              </p>
+              <ul className="list-disc marker:text-red-800 pl-6 space-y-2 mb-4">
+                <li className="text-muted-foreground">
+                  <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/campaigns/&#123;campaign_id&#125;/data</code>: the campaign, its members and their gangs (with each gang&apos;s <code>id</code>), territories, resources, battle logs, and <code>captives</code>: fighters held by a campaign gang, with their own gang and the holding gang.
+                </li>
+                <li className="text-muted-foreground">
+                  <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/gangs/&#123;gang_id&#125;/data</code>: the gang&apos;s details (type, subtypes, rating, wealth, credits, reputation, notes), its <code>fighters</code> and its <code>stash_items</code>. Each fighter has <code>id</code>, <code>name</code>, <code>type</code>, <code>subtypes</code>, <code>cost</code>, <code>xp</code> (current unspent XP), <code>kills</code>, <code>is_vehicle</code>, and boolean status flags: <code>killed</code>, <code>retired</code>, <code>enslaved</code>, <code>recovery</code>, <code>captured</code>, and <code>starved</code>.
+                </li>
+                <li className="text-muted-foreground">
+                  <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/api/fighters/&#123;fighter_id&#125;/data</code>: one fighter in full: characteristics with injuries and advancements applied, special rules, skills, weapons with their profiles, wargear, effects (injuries, advancements, bionics and so on), and the vehicle of a crew fighter.
+                </li>
+              </ul>
+              <p className="text-muted-foreground mb-4">
+                Each path starts with <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">https://www.mundamanager.com</code>. To go from a campaign to a fighter, take a gang&apos;s <code>id</code> from the campaign data and call the gang endpoint, then take a fighter&apos;s <code>id</code> from the gang data and call the fighter endpoint. Each ID is also the last part of its page&apos;s address in Munda Manager: <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/campaigns/&#123;campaign_id&#125;</code>, <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/gang/&#123;gang_id&#125;</code> and <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm text-sm break-all">/fighter/&#123;fighter_id&#125;</code>.
+              </p>
+              <p className="text-muted-foreground">
+                The gang&apos;s fighters follow its saved display order, with unpositioned entries appended alphabetically. Killed and retired fighters are included; use the status flags to filter them. The gang and fighter endpoints return 404 for hidden gangs, and captives from hidden gangs are left out. Private user identifiers and private notes are never included.
+              </p>
+            </section>
+
             <section id="google-sheets-integration" className="scroll-mt-24">
               <h2 className="text-xl font-semibold text-foreground mb-4">How to Access Your Campaign Data from Google Sheets</h2>
               <p className="text-muted-foreground mb-4">
@@ -228,7 +255,21 @@ Gang Sympathisers`}</code></pre>
                 </div>
               </div>
 
-              {/* Example 5: Get Gang Wealth with Cell Reference */}
+              {/* Example 5: Get Gang Fighters */}
+              <div id="get-gang-fighters" className="scroll-mt-24 mb-8">
+                <h3 className="text-lg font-semibold text-foreground mb-2">Get the Fighters of a Gang by ID</h3>
+                <div className="bg-neutral-900 rounded-lg p-4 my-4 overflow-x-auto">
+                  <pre className="text-sm text-green-400 whitespace-pre-wrap"><code>{`=IMPORTXML(
+  "https://www.mundamanager.com/api/gangs/1a18a45f-b1db-42c2-a212-3af060219b78/data?format=xml",
+  "//fighter[killed='false' and retired='false' and enslaved='false' and is_vehicle='false']/name"
+)`}</code></pre>
+                </div>
+                <p className="text-muted-foreground">
+                  Returns the gang&apos;s fighter names in roster order, excluding killed, retired, enslaved, and vehicle entries. Captured fighters and fighters in recovery are still included. Replace <code>name</code> with <code>type</code> or <code>xp</code> to retrieve those fields instead.
+                </p>
+              </div>
+
+              {/* Example 6: Get Gang Wealth with Cell Reference */}
               <div id="get-gang-wealth-dynamic" className="scroll-mt-24 mb-8">
                 <h3 className="text-lg font-semibold text-foreground mb-2">Get the Wealth of a Gang Using a Cell Reference</h3>
                 <p className="text-muted-foreground mb-2">
@@ -247,6 +288,26 @@ Gang Sympathisers`}</code></pre>
                   <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">1355</code>
                 </p>
               </div>
+
+              {/* Example 7: Get Fighter Weapons */}
+              <div id="get-fighter-weapons" className="scroll-mt-24 mb-8">
+                <h3 className="text-lg font-semibold text-foreground mb-2">Get the Weapons of a Fighter by ID</h3>
+                <p className="text-muted-foreground mb-2">
+                  This uses a fighter <code>id</code> from the gang data above:
+                </p>
+                <div className="bg-neutral-900 rounded-lg p-4 my-4 overflow-x-auto">
+                  <pre className="text-sm text-green-400 whitespace-pre-wrap"><code>{`=IMPORTXML(
+  "https://www.mundamanager.com/api/fighters/f50be422-5b5a-4e8d-90aa-e193282d86dd/data?format=xml",
+  "//weapon/name"
+)`}</code></pre>
+                </div>
+                <p className="text-muted-foreground mb-2">
+                  <strong className="text-foreground">Result:</strong> <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">&apos;Hystrar&apos; pattern energy shield</code> and <code className="text-gray-400 bg-neutral-900 px-2 py-0.5 rounded-sm">Multi-melta*</code>
+                </p>
+                <p className="text-muted-foreground">
+                  Use <code>{`//stats/toughness`}</code> instead for a characteristic, <code>{`//skill`}</code> for the skills, or <code>{`//weapon[1]/profile/strength`}</code> for the strength of the first weapon.
+                </p>
+              </div>
             </section>
 
             <section id="usage-guidelines" className="scroll-mt-24">
@@ -257,6 +318,9 @@ Gang Sympathisers`}</code></pre>
               <ul className="list-disc marker:text-red-800 pl-6 space-y-2">
                 <li className="text-muted-foreground">
                   <strong className="text-foreground">Fair use:</strong> Avoid excessive requests. If you&apos;re polling for updates, consider reasonable intervals (e.g., once every 15 minutes) rather than continuous requests.
+                </li>
+                <li className="text-muted-foreground">
+                  <strong className="text-foreground">Rate limit:</strong> Each IP address can make 10 requests per minute, shared across the campaign, gang and fighter endpoints. Every <code>IMPORTXML</code> formula counts as a request.
                 </li>
                 <li className="text-muted-foreground">
                   <strong className="text-foreground">Caching:</strong> Cache responses locally when possible to reduce load on our servers and improve your application&apos;s performance.

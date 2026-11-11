@@ -1,39 +1,56 @@
 'use client';
 
 import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { FighterProps } from '@/types/fighter';
 import { toast } from 'sonner';
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { StashItem, ResourceUpdate, DefaultImageEntry, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
+import { StashItem, ResourceUpdate, resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
 import { VehicleProps } from '@/types/vehicle';
-import Image from 'next/image';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { DraggableFighters } from './draggable-fighters';
 import { GiAncientRuins } from "react-icons/gi";
-import FighterAddModal from './fighter-add/FighterAddModal';
-import AddVehicle from './add-vehicle';
 import { FiPrinter, FiShare2, FiCamera } from 'react-icons/fi';
 import { AiFillEyeInvisible } from "react-icons/ai";
 import { LuLogs } from "react-icons/lu";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import LogModal from '../log-modal';
 import { ViewModeDropdown, isGangPageViewMode, type GangPageViewMode } from './ViewModeDropdown';
-import GangEditModal from './gang-edit-modal';
 import GangResourcesModal from './gang-resources-modal';
 import { UserPermissions } from '@/types/user-permissions';
 import { updateGangPositioning } from '@/app/actions/update-gang-positioning';
 import { FaRegCopy } from 'react-icons/fa';
 import CopyGangModal from './copy-gang-modal';
 import { Tooltip } from 'react-tooltip';
+import { formatLocalDate } from '@/utils/local-date';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
-import { GangImageEditModal } from './gang-image-edit-modal';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
+import { EDITION_N23, EDITION_N26, beastSubtypeName, hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
+import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { detailGangTypeLabel } from '@/utils/gang-type-label';
+import { N23_UNDERHIVE_OUTCASTS_GANG_TYPE_ID } from '@/utils/archetypeEligibility';
+import { withVariantGroups } from '@/utils/variantFamily';
 
+const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
+const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
+const AddVehicle = dynamic(() => import('./add-vehicle'), { ssr: false });
+const LogModal = dynamic(() => import('../log-modal'), { ssr: false });
+const GangImageEditModal = dynamic(
+  () => import('./gang-image-edit-modal').then((mod) => mod.GangImageEditModal),
+  { ssr: false }
+);
+
+function isCompanionSubtype(subtypes: string[]) {
+  return subtypes.some((subtype) => {
+    const name = subtype.toLowerCase();
+    return name === 'exotic beast' || name === 'pet';
+  });
+}
 
 interface GangProps {
   id: string;
@@ -42,10 +59,10 @@ interface GangProps {
   custom_gang_type_id?: string | null;
   gang_type?: string;
   edition_slug?: string | null;
-  gang_type_image_url: string;
   image_url?: string;
-  default_gang_image?: number | null;
-  gang_type_default_image_urls?: DefaultImageEntry[];
+  gang_portrait_id?: string | null;
+  gang_portrait_url?: string | null;
+  parent_gang_type_name?: string | null;
   gang_colour: string | null;
   credits: number | null;
   reputation: number | null;
@@ -100,6 +117,9 @@ interface GangProps {
   onFighterUpdate?: (updatedFighter: FighterProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
   onGangWealthUpdate?: (newWealth: number) => void;
+  onGangRatingUpdate?: (newRating: number) => void;
+  onGangReputationUpdate?: (newReputation: number) => void;
+  onGangTradePointsUpdate?: (newTradePoints: number) => void;
   positioning: Record<number, string>;
   gang_subtypes: Array<{id: string, subtype: string}> | null;
   vehicles?: VehicleProps[];
@@ -120,8 +140,9 @@ export default function Gang({
   gang_type,
   edition_slug,
   image_url,
-  default_gang_image,
-  gang_type_default_image_urls,
+  gang_portrait_id,
+  gang_portrait_url,
+  parent_gang_type_name,
   gang_colour: initialGangColour,
   credits: initialCredits,
   reputation: initialReputation,
@@ -152,6 +173,9 @@ export default function Gang({
   onFighterUpdate,
   onGangCreditsUpdate,
   onGangWealthUpdate,
+  onGangRatingUpdate,
+  onGangReputationUpdate,
+  onGangTradePointsUpdate,
   positioning,
   gang_subtypes,
   vehicles,
@@ -230,7 +254,8 @@ export default function Gang({
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
-  const [currentDefaultGangImage, setCurrentDefaultGangImage] = useState<number | null | undefined>(default_gang_image);
+  const [currentPortraitUrl, setCurrentPortraitUrl] = useState(gang_portrait_url);
+  const [currentPortraitId, setCurrentPortraitId] = useState(gang_portrait_id ?? null);
   const [viewMode, setViewMode] = useState<GangPageViewMode>('normal');
   const isFirstRender = useRef(true);
 
@@ -267,10 +292,21 @@ export default function Gang({
     setWealth(initialWealth ?? 0);
   }
 
-  const [prevDefaultGangImage, setPrevDefaultGangImage] = useState(default_gang_image);
-  if (default_gang_image !== prevDefaultGangImage) {
-    setPrevDefaultGangImage(default_gang_image);
-    setCurrentDefaultGangImage(default_gang_image);
+  const [prevInitialTradePoints, setPrevInitialTradePoints] = useState(initialTradePoints);
+  if (initialTradePoints !== prevInitialTradePoints) {
+    setPrevInitialTradePoints(initialTradePoints);
+    setTradePoints(initialTradePoints ?? 0);
+  }
+
+  const [prevPortraitUrl, setPrevPortraitUrl] = useState(gang_portrait_url);
+  if (gang_portrait_url !== prevPortraitUrl) {
+    setPrevPortraitUrl(gang_portrait_url);
+    setCurrentPortraitUrl(gang_portrait_url);
+  }
+  const [prevPortraitId, setPrevPortraitId] = useState(gang_portrait_id ?? null);
+  if ((gang_portrait_id ?? null) !== prevPortraitId) {
+    setPrevPortraitId(gang_portrait_id ?? null);
+    setCurrentPortraitId(gang_portrait_id ?? null);
   }
 
   const [prevCampaigns, setPrevCampaigns] = useState(campaigns);
@@ -321,13 +357,30 @@ export default function Gang({
     );
   }, [fighters]);
 
-  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes
+  // Fighters composition for tooltip: group by fighter_type and fighter_subtypes.
+  // The left-hand limit sums the variant family. Each row keeps its own cap.
   const fighterTypeSubtypeCounts = useMemo(() => {
-    const counts = new Map<string, { label: string; count: number; subtypes: string[] }>();
+    const familyKeyById = new Map(
+      withVariantGroups(activeFighters.map((fighter) => ({
+        id: fighter.id,
+        fighter_type: fighter.fighter_type,
+        fighter_subtypes: fighter.fighter_subtypes,
+        edition_slug,
+      }))).map((row) => [row.id, row.typeSubtypeKey])
+    );
+    const counts = new Map<string, {
+      label: string;
+      count: number;
+      subtypes: string[];
+      min_count: number | null;
+      max_count: number | null;
+      familyKey: string;
+    }>();
     for (const fighter of activeFighters) {
       const typeLabel = fighter.fighter_type || 'Unknown Type';
       const subtypeLabel = formatFighterSubtypeDisplay(fighter.fighter_subtypes, edition_slug);
       const key = `${typeLabel} (${subtypeLabel})`;
+      const familyKey = familyKeyById.get(fighter.id) ?? key;
       const existing = counts.get(key);
       if (existing) {
         existing.count += 1;
@@ -336,20 +389,106 @@ export default function Gang({
           label: key,
           count: 1,
           subtypes: fighter.fighter_subtypes ?? [],
+          min_count: fighter.min_count ?? null,
+          max_count: fighter.max_count ?? null,
+          familyKey,
         });
       }
     }
-    return Array.from(counts.values()).sort((a, b) => {
-      const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
-      const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
-      if (rankA !== rankB) return rankA - rankB;
-      return a.label.localeCompare(b.label);
-    });
+    const rows = Array.from(counts.values());
+    const familyCount = new Map<string, number>();
+    for (const row of rows) {
+      if (isCompanionSubtype(row.subtypes)) continue;
+      familyCount.set(row.familyKey, (familyCount.get(row.familyKey) ?? 0) + row.count);
+    }
+    return rows
+      .map((row) => ({
+        ...row,
+        familyCount: familyCount.get(row.familyKey) ?? row.count,
+      }))
+      .sort((a, b) => {
+        const rankA = getFighterSubtypeSortRank(a.subtypes, edition_slug);
+        const rankB = getFighterSubtypeSortRank(b.subtypes, edition_slug);
+        if (rankA !== rankB) return rankA - rankB;
+        return a.label.localeCompare(b.label);
+      });
   }, [activeFighters, edition_slug]);
 
   const fighterTypeSubtypeTotal = useMemo(() => {
-    return fighterTypeSubtypeCounts.reduce((sum, item) => sum + item.count, 0);
+    return fighterTypeSubtypeCounts.reduce((sum, item) => (
+      isCompanionSubtype(item.subtypes) ? sum : sum + item.count
+    ), 0);
   }, [fighterTypeSubtypeCounts]);
+
+  // Under the total: exactly one Leader, then the edition's balance.
+  // N26: Champions, Brutes and Hangers-on must not outnumber everyone else.
+  // N23: fighters with Gang Fighter (X) must be at least as many as the other
+  // models of this gang's own type. Hired guns from another gang type are left out.
+  // Catalog fighter types always have a gang type. A fighter with neither id is an
+  // unlinked row and is left out too.
+  // Exotic Beasts and Pets are left out of both "other" counts.
+  const compositionRules = useMemo(() => {
+    const hasSubtype = (fighter: FighterProps, names: Set<string>) =>
+      (fighter.fighter_subtypes ?? []).some((subtype) => names.has(subtype.toLowerCase()));
+    const leaderCount = activeFighters.filter((fighter) => hasSubtype(fighter, new Set(['leader']))).length;
+    const excludedLabel = `(Excl. ${beastSubtypeName(edition_slug)}s)`;
+
+    const balance = (() => {
+      if (edition_slug === EDITION_N26) {
+        const restricted = new Set(['champion', 'brute', 'hanger-on']);
+        let withCount = 0;
+        let withoutCount = 0;
+        for (const fighter of activeFighters) {
+          if (hasSubtype(fighter, restricted)) withCount += 1;
+          else if (!isCompanionSubtype(fighter.fighter_subtypes ?? [])) withoutCount += 1;
+        }
+        const broken = withCount > withoutCount;
+        return [
+          { label: 'Champions, Brutes & Hangers-on', text: String(withCount), broken },
+          { label: `Other Models ${excludedLabel}`, text: String(withoutCount), broken },
+        ];
+      }
+      if (edition_slug === EDITION_N23) {
+        const specialRules = (fighter: FighterProps) => {
+          const effects = fighter.effects ? Object.values(fighter.effects).flat() : [];
+          return applySpecialRulesModifiers(fighter.special_rules ?? [], effects).map((rule) =>
+            String(rule).trim().replace(/^"|"$/g, '')
+          );
+        };
+        const sameGang = activeFighters.filter((fighter) =>
+          (custom_gang_type_id != null && fighter.fighter_custom_gang_type_id === custom_gang_type_id) ||
+          (gang_type_id != null && fighter.fighter_gang_type_id === gang_type_id)
+        );
+        let withCount = 0;
+        let withoutCount = 0;
+        let hierarchyCount = 0;
+        for (const fighter of sameGang) {
+          const rules = specialRules(fighter);
+          const gangFighter = rules.some((rule) => /^gang fighter\s*\(/i.test(rule));
+          if (gangFighter) withCount += 1;
+          else if (!isCompanionSubtype(fighter.fighter_subtypes ?? [])) withoutCount += 1;
+          if (rules.some((rule) => /^gang hierarchy\s*\(\s*champion\s*\)/i.test(rule))) hierarchyCount += 1;
+        }
+        const broken = withCount < withoutCount;
+        const rows = [
+          { label: 'Fighters with Gang Fighter (X) rule', text: String(withCount), broken },
+          { label: `Other Gang fighters ${excludedLabel}`, text: String(withoutCount), broken },
+        ];
+        // Outcasts: one Gang Hierarchy (Champion) for every three Gang Fighters.
+        if (gang_type_id === N23_UNDERHIVE_OUTCASTS_GANG_TYPE_ID) {
+          rows.push({
+            label: 'Champions/Gang Fighters (X)',
+            text: `${hierarchyCount}/${withCount}`,
+            broken: hierarchyCount > Math.floor(withCount / 3),
+          });
+        }
+        return rows;
+      }
+      return null;
+    })();
+
+    return { leaderCount, balance, broken: leaderCount !== 1 || (balance?.some((row) => row.broken) ?? false) };
+  }, [activeFighters, edition_slug, gang_type_id, custom_gang_type_id]);
 
   const wealthBreakdownRows = useMemo(() => {
     return [
@@ -401,23 +540,15 @@ export default function Gang({
     };
   }, [viewMode]);
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
-  };
-
-  const getDefaultImageUrl = useCallback((): string | null => {
-    return resolveGangImageUrl({
-      imageUrl: currentGangImageUrl,
-      defaultGangImage: currentDefaultGangImage,
-      defaultImageUrls: gang_type_default_image_urls,
-    }) ?? null;
-  }, [currentGangImageUrl, currentDefaultGangImage, gang_type_default_image_urls]);
+  const gangImageUrl = resolveGangImageUrl({
+    imageUrl: currentGangImageUrl,
+    portraitUrl: currentPortraitUrl,
+  });
 
   const formatDate = useCallback((date: string | Date | null) => {
     if (!date) return 'N/A';
     const d = new Date(date);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return formatLocalDate(d);
   }, []);
 
   // Screenshot with html-to-image
@@ -510,11 +641,15 @@ export default function Gang({
       }
 
       if (updates.reputation !== undefined && updates.reputation_operation) {
-        setReputation(snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation));
+        const newReputation = snapshot.reputation + (updates.reputation_operation === 'add' ? updates.reputation : -updates.reputation);
+        setReputation(newReputation);
+        onGangReputationUpdate?.(newReputation);
       }
 
       if (updates.trade_points !== undefined && updates.trade_points_operation) {
-        setTradePoints(snapshot.tradePoints + (updates.trade_points_operation === 'add' ? updates.trade_points : -updates.trade_points));
+        const newTradePoints = snapshot.tradePoints + (updates.trade_points_operation === 'add' ? updates.trade_points : -updates.trade_points);
+        setTradePoints(newTradePoints);
+        onGangTradePointsUpdate?.(newTradePoints);
       }
 
       if (updates.gang_subtypes !== undefined) {
@@ -563,7 +698,9 @@ export default function Gang({
         setGangOriginId(s.gangOriginId);
         setGangOriginName(s.gangOriginName);
         setReputation(s.reputation);
+        onGangReputationUpdate?.(s.reputation);
         setTradePoints(s.tradePoints);
+        onGangTradePointsUpdate?.(s.tradePoints);
         setGangSubtypes(s.gangSubtypes);
         setGangHasSubtypes(s.gangHasSubtypes);
         setGangColour(s.gangColour);
@@ -581,6 +718,13 @@ export default function Gang({
       if (result.data) {
         setLastUpdated(result.data.last_updated);
         if (result.data.alliance_name) setAllianceName(result.data.alliance_name);
+        // An alliance change moves rating by the ally's Tithe Price on the server
+        if (variables.alliance_id !== undefined) {
+          setRating(result.data.rating);
+          onGangRatingUpdate?.(result.data.rating);
+          setWealth(result.data.wealth);
+          onGangWealthUpdate?.(result.data.wealth);
+        }
         if (result.data.gang_affiliation_name !== undefined) setGangAffiliationName(result.data.gang_affiliation_name);
         // Only update subtypes if they were actually changed in the request.
         if (variables.gang_subtypes !== undefined && result.data.gang_subtypes) {
@@ -797,19 +941,18 @@ export default function Gang({
     }
   };
 
-  const handleGangImageUpdate = (newImageUrl: string, newDefaultImageIndex?: number | null) => {
-    if (newDefaultImageIndex !== undefined) {
-      // Updating default image index
-      setCurrentGangImageUrl(undefined); // Clear custom image URL
-      setCurrentDefaultGangImage(newDefaultImageIndex); // Update default image index
-    } else {
-      // Updating custom image URL
-      setCurrentGangImageUrl(newImageUrl || undefined);
-      // If setting a custom image, clear the default image index
-      if (newImageUrl) {
-        setCurrentDefaultGangImage(null);
-      }
+  const handleGangImageUpdate = (newImageUrl: string, options?: { clearPortrait?: boolean }) => {
+    setCurrentGangImageUrl(newImageUrl || undefined);
+    if (newImageUrl || options?.clearPortrait) {
+      setCurrentPortraitUrl(null);
+      setCurrentPortraitId(null);
     }
+  };
+
+  const handlePortraitUpdate = (portraitId: string, portraitUrl: string) => {
+    setCurrentPortraitId(portraitId);
+    setCurrentPortraitUrl(portraitUrl);
+    setCurrentGangImageUrl(undefined);
   };
 
   const handlePositionsUpdate = async (newPositions: Record<number, string>) => {
@@ -868,71 +1011,35 @@ export default function Gang({
         <div id="gang_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
           
           {/* Gang Image */}
-          <div className="hidden sm:flex relative size-[200px] md:size-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
-            {getDefaultImageUrl() ? (
-              <Image
-                src={getDefaultImageUrl()!}
-                alt={name}
-                width={180}
-                height={180}
-                className="size-[145px] md:size-[180px] absolute rounded-full object-cover mt-1 z-10"
-                priority={false}
-                quality={100}
-                onError={handleImageError}
-              />
-            ) : (
-              <div className="absolute size-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                {name.charAt(0)}
-              </div>
-            )}
-			      <div className={`absolute z-20 size-[200px] md:size-[250px] ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-			        onClick={handleGangImageClick}
-			      >
-              <Image
-                src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                alt="Cogwheel"
-                width={250}
-                height={250}
-                className="absolute z-20"
-                priority
-                quality={100}
-              />
-			      </div>
+          <div
+            className={`hidden sm:block mt-1 shrink-0 print:hidden ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+            onClick={handleGangImageClick}
+          >
+            <CogwheelPortrait
+              src={gangImageUrl}
+              alt={name}
+              name={name}
+              errorSrc={UNKNOWN_GANG_IMAGE_URL}
+              preload
+              large
+            />
           </div>
 
           <div className="grow w-full">
             <div className="flex justify-between items-center sm:items-start mb-1 gap-2">
-              <div className="sm:hidden relative size-[72px] shrink-0 items-center justify-center print:hidden flex">
-                {getDefaultImageUrl() ? (
-                  <Image
-                    src={getDefaultImageUrl()!}
-                    alt={name}
-                    width={72}
-                    height={72}
-                    className="size-[58px] absolute rounded-full object-cover z-10"
-                    priority={false}
-                    quality={100}
-                    onError={handleImageError}
-                  />
-                ) : (
-                  <div className="absolute size-[58px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                    {name.charAt(0)}
-                  </div>
-                )}
-                <div
-                  className={`absolute z-20 size-[72px] ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
-                  onClick={handleGangImageClick}
-                >
-                  <Image
-                    src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                    alt="Cogwheel"
-                    width={72}
-                    height={72}
-                    className="absolute z-20"
-                    priority
-                    quality={100}
-                  />
-                </div>
+              <div
+                className={`sm:hidden shrink-0 print:hidden ${userPermissions?.canEdit ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                onClick={handleGangImageClick}
+              >
+                <CogwheelPortrait
+                  src={gangImageUrl}
+                  alt={name}
+                  name={name}
+                  errorSrc={UNKNOWN_GANG_IMAGE_URL}
+                  preload
+                  className="size-[72px]"
+                  imageClassName="size-[58px]"
+                />
               </div>
 
               {/* Gang Name */}
@@ -1095,7 +1202,7 @@ export default function Gang({
 
                     {/* Gang Type */}
                     <div className="flex items-center gap-1">
-                      Type: <Badge variant="secondary">{gang_type}</Badge>
+                      Type: <Badge variant="secondary">{detailGangTypeLabel(gang_type, parent_gang_type_name)}</Badge>
                     </div>
 
                     {/* Gang Origin, ie. Prefecture, Path of Faith */}
@@ -1237,7 +1344,7 @@ export default function Gang({
                     data-tooltip-id="gang-composition-tooltip"
                   >
                     <span className="text-muted-foreground">Gang Size:</span>
-                    <span className="font-semibold">{activeFighters.length}</span>
+                    <span className={`font-semibold ${compositionRules.broken ? 'text-red-500' : ''}`}>{fighterTypeSubtypeTotal}</span>
                   </div>
                 </div>
 
@@ -1272,33 +1379,35 @@ export default function Gang({
             </div>
           </div>
 
-          <GangEditModal
-            isOpen={showEditModal}
-            onClose={() => setShowEditModal(false)}
-            gangId={id}
-            gangName={name}
-            editionSlug={edition_slug}
-            isGangOwner={userPermissions?.isOwner}
-            isAdmin={userPermissions?.isAdmin}
-            alignment={alignment}
-            allianceId={allianceId}
-            allianceName={allianceName}
-            gangColour={gangColour}
-            gangSubtypes={gangSubtypes}
-            availableSubtypes={availableSubtypes}
-            gangAffiliationId={gangAffiliationId}
-            gangAffiliationName={gangAffiliationName}
-            gangType={gang_type}
-            customGangTypeId={custom_gang_type_id}
-            gangTypeHasAffiliation={gang_type_has_affiliation}
-            gangOriginId={gangOriginId}
-            gangOriginName={gangOriginName}
-            gangOriginCategoryName={gangOriginCategoryName}
-            gangTypeHasOrigin={gang_type_has_origin || false}
-            hidden={hidden}
-            campaigns={campaignsWithOptimisticData}
-            onSave={handleGangUpdate}
-          />
+          {showEditModal && (
+            <GangEditModal
+              onClose={() => setShowEditModal(false)}
+              gangId={id}
+              gangName={name}
+              editionSlug={edition_slug}
+              credits={credits}
+              isGangOwner={userPermissions?.isOwner}
+              isAdmin={userPermissions?.isAdmin}
+              alignment={alignment}
+              allianceId={allianceId}
+              allianceName={allianceName}
+              gangColour={gangColour}
+              gangSubtypes={gangSubtypes}
+              availableSubtypes={availableSubtypes}
+              gangAffiliationId={gangAffiliationId}
+              gangAffiliationName={gangAffiliationName}
+              gangType={gang_type}
+              customGangTypeId={custom_gang_type_id}
+              gangTypeHasAffiliation={gang_type_has_affiliation}
+              gangOriginId={gangOriginId}
+              gangOriginName={gangOriginName}
+              gangOriginCategoryName={gangOriginCategoryName}
+              gangTypeHasOrigin={gang_type_has_origin || false}
+              hidden={hidden}
+              campaigns={campaignsWithOptimisticData}
+              onSave={handleGangUpdate}
+            />
+          )}
 
           <GangResourcesModal
             isOpen={showResourcesModal}
@@ -1326,6 +1435,7 @@ export default function Gang({
               onFighterReconcile={onFighterReconcile}
               gangSubtypes={gangSubtypes}
               gangAffiliationId={gangAffiliationId}
+              fighters={fighters}
             />
           )}
 
@@ -1346,12 +1456,14 @@ export default function Gang({
                 onFighterReconcile={onFighterReconcile}
                 gangSubtypes={gangSubtypes}
                 gangAffiliationId={gangAffiliationId}
+                fighters={fighters}
               />
             ) : (
               <AddVehicle
                 showModal={showAddVehicleModal}
                 setShowModal={setShowAddVehicleModal}
                 gangId={id}
+                gangTypeId={gang_type_id}
                 initialCredits={credits}
                 onVehicleAdd={handleVehicleAdded}
                 onGangCreditsUpdate={onGangCreditsUpdate}
@@ -1377,33 +1489,39 @@ export default function Gang({
               onFighterRollback={onFighterRollback}
               onFighterReconcile={onFighterReconcile}
               gangAffiliationId={gangAffiliationId}
+              fighters={fighters}
             />
           )}
 
-          <LogModal
-            fetchUrl={`/api/gangs/${id}/logs`}
-            editionSlug={edition_slug}
-            isOpen={showLogsModal}
-            onClose={() => setShowLogsModal(false)}
-            fighters={allFightersForLogs}
-            vehicles={allVehiclesForLogs}
-          />
+          {showLogsModal && (
+            <LogModal
+              fetchUrl={`/api/gangs/${id}/logs`}
+              editionSlug={edition_slug}
+              onClose={() => setShowLogsModal(false)}
+              fighters={allFightersForLogs}
+              vehicles={allVehiclesForLogs}
+            />
+          )}
           <CopyGangModal
             gangId={id}
             currentName={name}
             isOpen={showCopyModal}
             onClose={() => setShowCopyModal(false)}
           />
-          <GangImageEditModal
-            isOpen={showImageModal}
-            onClose={() => setShowImageModal(false)}
-            currentImageUrl={currentGangImageUrl}
-            gangId={id}
-            onImageUpdate={handleGangImageUpdate}
-            defaultImageUrl={getDefaultImageUrl() || undefined}
-            defaultImageUrls={gang_type_default_image_urls}
-            currentDefaultImageIndex={currentDefaultGangImage}
-          />
+          {showImageModal && (
+            <GangImageEditModal
+              onClose={() => setShowImageModal(false)}
+              currentImageUrl={currentGangImageUrl}
+              gangId={id}
+              gangType={gang_type || ''}
+              isCustomGangType={Boolean(custom_gang_type_id)}
+              parentGangTypeName={parent_gang_type_name}
+              gangPortraitId={currentPortraitId}
+              currentPortraitUrl={currentPortraitUrl}
+              onImageUpdate={handleGangImageUpdate}
+              onPortraitUpdate={handlePortraitUpdate}
+            />
+          )}
           <Tooltip
             id="gang-composition-tooltip"
             place="top"
@@ -1412,7 +1530,9 @@ export default function Gang({
             clickable={true}
             style={{
               padding: '6px',
-              maxWidth: '24rem'
+              maxWidth: 'min(24rem, calc(100vw - 1.5rem))',
+              maxHeight: '70dvh',
+              overflowY: 'auto',
             }}
           >
             <div>
@@ -1421,18 +1541,45 @@ export default function Gang({
                 <div>No fighters</div>
               ) : (
                 <>
-                  {fighterTypeSubtypeCounts.map(({ label, count }) => (
-                    <div key={label} className="flex justify-between gap-3">
-                      <span>{label}</span>
-                      <span>{count}</span>
-                    </div>
-                  ))}
-                  <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
-                    <span>Total :</span>
-                    <span>{fighterTypeSubtypeTotal}</span>
-                  </div>
+                  {fighterTypeSubtypeCounts.map(({ label, count, familyCount, subtypes, min_count, max_count }) => {
+                    const isCompanion = isCompanionSubtype(subtypes);
+                    const limit = fighterCountLimitDisplay({ min_count, max_count, current: familyCount });
+                    const limitText = isCompanion ? '\u2014' : limit.text;
+                    // Red only once the count is past the maximum, so 1/1 stays gray.
+                    // The add-fighter dropdown turns red when current >= max (limit.over), so the cap shows as full while hiring.
+                    const overMax = !isCompanion && max_count != null && max_count > 0 && familyCount > max_count;
+                    return (
+                      <div key={label} className={`flex justify-between gap-3 ${isCompanion ? 'text-gray-400' : ''}`}>
+                        <span className="flex min-w-0">
+                          <span className={`w-[5ch] shrink-0 text-left tabular-nums ${overMax ? 'text-red-500' : 'text-gray-400'}`}>
+                            {limitText}
+                          </span>
+                          <span className="min-w-0 break-words">{label}</span>
+                        </span>
+                        <span className="shrink-0">{isCompanion ? `(${count})` : count}</span>
+                      </div>
+                    );
+                  })}
                 </>
               )}
+              <div className="mt-1 flex justify-between gap-3 border-t border-neutral-700 pt-1">
+                <span>Total :</span>
+                <span>{fighterTypeSubtypeTotal}</span>
+              </div>
+              <div className="mt-3 flex justify-between gap-3">
+                <span className="min-w-0 break-words">Leader</span>
+                <span className={`shrink-0 ${compositionRules.leaderCount === 1 ? '' : 'text-red-500'}`}>
+                  {compositionRules.leaderCount}
+                </span>
+              </div>
+              {compositionRules.balance?.map((row) => (
+                <div key={row.label} className="flex justify-between gap-3">
+                  <span className="min-w-0 break-words">{row.label}</span>
+                  <span className={`shrink-0 ${row.broken ? 'text-red-500' : ''}`}>
+                    {row.text}
+                  </span>
+                </div>
+              ))}
             </div>
           </Tooltip>
           <Tooltip
@@ -1443,7 +1590,9 @@ export default function Gang({
             clickable={true}
             style={{
               padding: '6px',
-              maxWidth: '24rem'
+              maxWidth: 'min(24rem, calc(100vw - 1.5rem))',
+              maxHeight: '70dvh',
+              overflowY: 'auto',
             }}
           >
             <div>

@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { notFound } from "next/navigation";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { Badge } from "@/components/ui/badge";
+import { UserRoleBadge } from "@/components/ui/user-role-badge";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { FaUser, FaUsers } from "react-icons/fa6";
 import { MdOutlineColorLens } from "react-icons/md";
@@ -25,6 +26,7 @@ import { useHomeEdition } from "@/hooks/use-home-edition";
 import { EditionToggle } from "@/components/home/edition-toggle";
 import { sameEditionForDisplay } from "@/types/edition";
 import type { UserCampaign } from "@/types/campaign";
+import { compactGangTypeLabel } from "@/utils/gang-type-label";
 import { toast } from 'sonner';
 
 import Link from "next/link";
@@ -43,6 +45,7 @@ interface UserData {
     id: string;
     name: string;
     gang_type: string;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     credits: number;
     reputation: number;
@@ -166,16 +169,14 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container ml-[10px] mr-[10px] max-w-4xl w-full space-y-6 mt-2">
+      <div className="w-full space-y-6 mt-2">
         {/* User Profile Header */}
         <div className="bg-card shadow-md rounded-lg p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
                 {profile.username}
-                {profile.user_role === 'admin' && (
-                  <Badge variant="destructive">Admin</Badge>
-                )}
+                <UserRoleBadge role={profile.user_role} />
               </h1>
               <p className="text-muted-foreground mt-2">
                 Member since: {new Date(profile.created_at).toISOString().split('T')[0]}
@@ -255,7 +256,7 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
                     <h3 className="font-semibold truncate">{gang.name}</h3>
                   </div>
                   <p className="text-sm text-muted-foreground mb-1">
-                    {gang.gang_type}
+                    {compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name)}
                   </p>
                   {gang.rating !== null && gang.rating !== undefined && (
                     <div className="text-sm">

@@ -1,70 +1,46 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait'
 import Link from 'next/link'
 import type { Gang } from '@/app/lib/get-user-gangs'
 import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from '@/types/gang'
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
+import { useSortable } from '@dnd-kit/react/sortable'
 import { FiStar } from 'react-icons/fi'
 import { AiFillStar } from 'react-icons/ai'
 import { dragSurfaceProps } from '@/hooks/use-dnd-sensors'
+import { detailGangTypeLabel } from '@/utils/gang-type-label'
 
 export interface GangCardProps {
   gang: Gang;
   onToggleFavourite: (gangId: string, isFavourite: boolean) => void;
-  dragListeners?: Record<string, unknown>;
-  dragAttributes?: Record<string, unknown>;
+  dragHandle?: (element: Element | null) => void;
   isDragging?: boolean;
   disableLink?: boolean;
 }
 
-export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAttributes, isDragging, disableLink = false }: GangCardProps) {
-  const isDraggable = Boolean(dragListeners);
+export function GangCardContent({ gang, onToggleFavourite, dragHandle, isDragging, disableLink = false }: GangCardProps) {
+  const isDraggable = dragHandle !== undefined;
 
   const imageUrl = resolveGangImageUrl({
     imageUrl: gang.image_url,
-    defaultGangImage: gang.default_gang_image,
-    defaultImageUrls: gang.gang_type_default_image_urls,
-  }) ?? null;
+    portraitUrl: gang.gang_portrait_url,
+  });
 
   const innerContent = (
     <>
-      <div className="relative w-[80px] md:w-20 h-[80px] md:h-20 mr-3 md:mr-4 shrink-0 flex items-center justify-center">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={gang.name}
-            width={60}
-            height={60}
-            className="absolute rounded-full object-cover z-10 w-auto h-auto scale-90"
-            priority={false}
-            onError={(e) => {
-              console.error('Failed to load image:', e.currentTarget.src);
-              e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
-            }}
-          />
-        ) : (
-          <div className="absolute w-[60px] h-[60px] rounded-full bg-secondary z-10 flex items-center justify-center">
-            {gang.name.charAt(0)}
-          </div>
-        )}
-        <Image
-          src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-          alt=""
-          width={80}
-          height={80}
-          className="absolute z-20 scale-110"
-          priority
-          sizes="80px, 80px"
-        />
-      </div>
+      <CogwheelPortrait
+        src={imageUrl}
+        alt={gang.name ?? ''}
+        name={gang.name}
+        errorSrc={UNKNOWN_GANG_IMAGE_URL}
+        className="size-20 mr-3 md:mr-4 scale-110"
+        imageClassName="size-[82%]"
+      />
       <div className="grow min-w-0">
         <h3 className="text-lg md:text-xl font-medium text-foreground truncate">{gang.name}</h3>
         <div className="text-sm md:text-base text-muted-foreground">
           <span className="truncate block">
-            {gang.gang_type}
+            {detailGangTypeLabel(gang.gang_type, gang.parent_gang_type_name)}
             {gang.gang_subtypes && gang.gang_subtypes.length > 0
               ? ` (${gang.gang_subtypes.map(v => v.subtype).join(', ')})`
               : ''}
@@ -80,9 +56,8 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
   return (
     <div
-      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${dragListeners ? 'cursor-grab' : ''}`}
-      {...(dragListeners || {})}
-      {...(dragAttributes || {})}
+      className={`flex items-center p-2 md:p-4 rounded-md hover:bg-muted transition-colors duration-200 ${isDragging ? 'border-[3px] border-rose-700 bg-card' : ''} ${isDraggable ? 'cursor-grab' : ''}`}
+      ref={dragHandle}
       {...dragSurfaceProps(isDraggable)}
     >
       {/* Always rendered — never swapped for a bare div when `disableLink` flips on drag start,
@@ -116,54 +91,21 @@ export function GangCardContent({ gang, onToggleFavourite, dragListeners, dragAt
 
 interface SortableGangCardProps {
   gang: Gang;
+  index: number;
   onToggleFavourite: (gangId: string, isFavourite: boolean) => void;
 }
 
-export function SortableGangCard({ gang, onToggleFavourite }: SortableGangCardProps) {
-  const [isDraggingState, setIsDraggingState] = useState(false);
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging: dndKitIsDragging,
-  } = useSortable({
-    id: gang.id,
-    animateLayoutChanges: () => false,
-  });
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    zIndex: dndKitIsDragging ? 50 : 'auto',
-    position: 'relative',
-    pointerEvents: 'auto',
-  } as const;
-
-  if (dndKitIsDragging !== isDraggingState) {
-    setIsDraggingState(dndKitIsDragging);
-  }
-
-  useEffect(() => {
-    if (!dndKitIsDragging) return;
-    const prevCursor = document.body.style.cursor;
-    document.body.style.cursor = 'grabbing';
-    return () => {
-      document.body.style.cursor = prevCursor;
-    };
-  }, [dndKitIsDragging]);
+export function SortableGangCard({ gang, index, onToggleFavourite }: SortableGangCardProps) {
+  const { ref, handleRef, isDragging } = useSortable({ id: gang.id, index });
 
   return (
-    <li ref={setNodeRef} style={style}>
+    <li ref={ref} style={{ position: 'relative', zIndex: isDragging ? 50 : undefined }}>
       <GangCardContent
         gang={gang}
         onToggleFavourite={onToggleFavourite}
-        dragListeners={listeners as unknown as Record<string, unknown>}
-        dragAttributes={attributes as unknown as Record<string, unknown>}
-        isDragging={dndKitIsDragging}
-        disableLink={isDraggingState}
+        dragHandle={handleRef}
+        isDragging={isDragging}
+        disableLink={isDragging}
       />
     </li>
   );

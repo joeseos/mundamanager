@@ -77,7 +77,7 @@ ON CONFLICT (id) DO NOTHING;
 -- ============================================================================
 -- 5. GANG TYPES
 -- ============================================================================
-INSERT INTO public.gang_types (gang_type_id, gang_type, alignment, affiliation, is_hidden, trading_post_type_id, gang_origin_category_id, edition_id, created_at) VALUES
+INSERT INTO public.gang_types (id, gang_type, alignment, affiliation, is_hidden, trading_post_type_id, gang_origin_category_id, edition_id, created_at) VALUES
 ('c0a579a9-ac5e-4289-96db-43f87537847b', 'House Cawdor', 'Law Abiding', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', '64907bb6-4df4-4f07-9e80-5b86ef629ded', '00000000-0000-0000-0000-000000000023', now()),
 ('2c67ccbc-e103-433c-9535-bc6f9435fa38', 'House Delaque', 'Unaligned', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, '00000000-0000-0000-0000-000000000023', now()),
 ('d66feb66-7a3b-4306-9d0b-58725b72ee0d', 'House Escher', 'Unaligned', false, false, 'cada4005-66e3-4e3c-8a77-146329bd1eda', null, '00000000-0000-0000-0000-000000000023', now()),
@@ -92,7 +92,7 @@ INSERT INTO public.gang_types (gang_type_id, gang_type, alignment, affiliation, 
 -- "vehicle_types.gang_type_id IS NULL" becomes this per-edition pseudo-gang, which
 -- app/api/fighter-types/route.ts resolves by this exact name plus the gang's edition.
 ('26090000-0000-0000-0000-000000000002', 'Available to All', null, false, true, '260a0000-0000-0000-0000-000000000001', null, '00000000-0000-0000-0000-000000000026', now())
-ON CONFLICT (gang_type_id) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
 -- 6. FIGHTER SUBTYPES

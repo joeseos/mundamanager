@@ -46,15 +46,14 @@ function escapeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
-// Attribute-safe href: only allow http(s) or site-relative URLs (blocks javascript:,
-// data:, etc.), then escape for attribute context. Returns null for anything else so the
-// caller can drop the link rather than emit an unsafe href. Defence-in-depth: today
-// notification.link is only ever NULL or UUID-built, but this stops a future producer from
-// turning free text in `link` into an href-attribute breakout.
+// Attribute-safe href: only allow https or site-relative URLs (blocks http, javascript:,
+// data:, and protocol-relative URLs), then escape for attribute context. Returns null
+// for anything else so the caller can drop the link rather than emit an unsafe href.
 function safeUrl(url: string | null | undefined): string | null {
   if (!url) return null;
   const trimmed = url.trim();
-  if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith("/")) return null;
+  if (trimmed.startsWith("//")) return null;
+  if (!/^https:\/\//i.test(trimmed) && !trimmed.startsWith("/")) return null;
   return escapeHtml(trimmed);
 }
 
@@ -72,8 +71,12 @@ export function notificationTextToPlain(text: string): string {
 
 export interface EmailLayoutInput {
   subject: string;
-  bodyHtml: string; // already escaped via notificationTextToHtml
+  // Plain notifications: escaped text with <br> / <strong>, wrapped in a <p>.
+  // HTML notifications (bodyIsHtml): sanitized TipTap blocks, wrapped in a <div>
+  // so headings and lists are not nested inside that <p>.
+  bodyHtml: string;
   bodyText: string;
+  bodyIsHtml?: boolean;
   ctaUrl?: string | null;
   ctaLabel?: string;
   preferencesUrl: string;
@@ -85,6 +88,7 @@ export function emailLayout(input: EmailLayoutInput): { html: string; text: stri
     subject,
     bodyHtml,
     bodyText,
+    bodyIsHtml = false,
     ctaUrl,
     ctaLabel = "View in Munda Manager",
     preferencesUrl,
@@ -140,7 +144,9 @@ export function emailLayout(input: EmailLayoutInput): { html: string; text: stri
           <tr>
             <td style="padding:40px;">
               <h2 style="margin:0 0 16px;font-size:20px;font-weight:600;color:${BRAND.heading};">${escapeHtml(subject)}</h2>
-              <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.body};">${bodyHtml}</p>
+              ${bodyIsHtml
+                ? `<div style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.body};">${bodyHtml}</div>`
+                : `<p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.body};">${bodyHtml}</p>`}
               ${button}
             </td>
           </tr>

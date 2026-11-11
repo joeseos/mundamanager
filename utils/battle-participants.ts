@@ -1,4 +1,4 @@
-import type { BattleParticipant } from '@/types/campaign';
+import { participantSideJob, type BattleParticipant } from '@/types/campaign';
 
 // ---------------------------------------------------------------------------
 // Attacker / defender extraction
@@ -22,13 +22,12 @@ export function getAttackerDefenderIds(participants: BattleParticipant[]): {
 /**
  * Normalise the participants array so that:
  *   - every entry has explicit (potentially false) is_winner / claimed_territory flags;
- *   - if `winner_id` is supplied and no participant is flagged as a winner, the
- *     matching participant is flagged (handles single-winner callers that only
- *     pass `winner_id`);
  *   - if `territory_claimed_by_gang_id` is supplied, the matching participant
  *     becomes the sole claimer (any prior flags are cleared);
  *   - at most one participant may have `claimed_territory: true`, and only if
- *     they are also a winner.
+ *     they are also a winner;
+ *   - an N26 gang's Side Job, rolled or custom, is kept, and other rows stay
+ *     without one.
  *
  * Lives in utils/ (not inside a 'use server' file) so it can be imported by
  * both the server action and the API route without triggering Next.js's
@@ -36,7 +35,6 @@ export function getAttackerDefenderIds(participants: BattleParticipant[]): {
  */
 export function normaliseParticipants(
   participants: BattleParticipant[],
-  winnerIdFromCaller: string | null,
   territoryClaimerFromCaller: string | null | undefined
 ): {
   participants: BattleParticipant[];
@@ -48,14 +46,8 @@ export function normaliseParticipants(
     gang_id: p.gang_id,
     is_winner: p.is_winner === true,
     claimed_territory: false,
+    ...participantSideJob(p),
   }));
-
-  // Backfill is_winner from the legacy winner_id when no participant is flagged.
-  const anyFlagged = normalised.some((p) => p.is_winner === true);
-  if (!anyFlagged && winnerIdFromCaller) {
-    const target = normalised.find((p) => p.gang_id === winnerIdFromCaller);
-    if (target) target.is_winner = true;
-  }
 
   // Decide the claimer. Caller-supplied override wins; otherwise pick any
   // existing claimer flag; otherwise default to the single winner when there is

@@ -1,7 +1,28 @@
 "use server";
 
-import { invalidateUser } from '@/utils/cache-tags';
-import { createClient } from "@/utils/supabase/server";
+import {
+  invalidateBattleSession,
+  invalidateCampaignBattles,
+  invalidateCampaignCore,
+  invalidateCampaignGang,
+  invalidateCampaignMembers,
+  invalidateCampaignTradingPosts,
+  invalidateForumThreadList,
+  invalidateGang,
+  invalidateGangCount,
+  invalidateGangStash,
+  invalidateUser,
+  invalidateUserCount,
+  invalidateUserPermissions,
+} from '@/utils/cache-tags';
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
+import { getOwnedCampaigns, getUserCampaigns } from '@/app/lib/get-user-campaigns';
+import { getUserForumThreads } from '@/app/lib/forum';
+import { getAccountDeleteCacheTargets } from '@/app/lib/delete-account';
+import { getFriendsAndRequests } from '@/app/lib/friends';
+import { gangImageFolders, removeStorageFolders } from '@/utils/storage-cleanup';
+import { signOutAction } from '@/app/actions/auth';
+import { authErrorMessage, readCaptchaToken } from '@/utils/captcha';
 import {
   notificationEmailConfig,
   MASTER_PREF_KEY,
@@ -103,5 +124,148 @@ export const updateUsernameAction = async (userId: string, newUsername: string) 
   } catch (error) {
     console.error('Unexpected error during username update:', error);
     return { error: "An unexpected error occurred" };
+  }
+};
+
+/** Saves an uploaded avatar's URL, or null to remove it. */
+export const updateAvatarAction = async (imageUrl: string | null) => {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: "Not authenticated" };
+  }
+
+  // Users can't write avatar_url themselves: only images in their own avatar
+  // folder are saved, so an avatar can't load from another site. URL.parse resolves
+  // any ../ before the check.
+  const avatarFolderUrl = supabase.storage.from('users-images').getPublicUrl(`avatars/${user.id}/`).data.publicUrl;
+  if (imageUrl !== null) {
+    const url = URL.parse(imageUrl);
+    if (!url || !`${url.origin}${url.pathname}`.startsWith(avatarFolderUrl)) {
+      return { success: false, error: "Invalid avatar image" };
+    }
+  }
+
+  const { error } = await createServiceRoleClient()
+    .from('profiles')
+    .update({ avatar_url: imageUrl, updated_at: new Date().toISOString() })
+    .eq('id', user.id);
+
+  if (error) {
+    console.error('Avatar update error:', error);
+    return { success: false, error: "Failed to update avatar" };
+  }
+
+  invalidateUser(user.id);
+
+  return { success: true };
+};
+
+/**
+ * Deletes the current user's account once they confirm their password.
+ * Refused while they own a campaign: they hand it to an Arbitrator or delete
+ * it first (a trigger on profiles enforces this too). Everything else goes
+ * with the auth user through the foreign key cascades; their gang images and
+ * avatar are then removed from storage, which has no cascade.
+ */
+export const deleteAccountAction = async (formData: FormData) => {
+  const password = formData.get('password') as string | null;
+  const captcha = readCaptchaToken(formData);
+  if ('error' in captcha) {
+    return { success: false, error: captcha.error };
+  }
+
+  const supabase = await createClient();
+
+  try {
+    // getUser, not the JWT claims: it asks the auth server whether the session
+    // is still valid, which a destructive action should not take on trust.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const ownedCampaigns = await getOwnedCampaigns(user.id);
+    if (ownedCampaigns.length > 0) {
+      return {
+        success: false,
+        error: `Hand over or delete your campaigns first: ${ownedCampaigns.map((campaign) => campaign.campaign_name).join(', ')}`,
+      };
+    }
+
+    // Re-authenticate before deleting, so a session left open on another
+    // device can't delete the account. The same sign-in as the sign-in page,
+    // with its CAPTCHA and Auth's rate limits.
+    const { error: passwordError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: password ?? '',
+      options: { captchaToken: captcha.captchaToken },
+    });
+    if (passwordError) {
+      return {
+        success: false,
+        error: passwordError.code === 'invalid_credentials' ? "Incorrect password" : authErrorMessage(passwordError),
+      };
+    }
+
+    // Read before the cascade removes them, to clear storage and caches after.
+    const [campaigns, { data: gangs, error: gangsError }, friends, forumThreads, cacheTargets] = await Promise.all([
+      getUserCampaigns(user.id),
+      supabase.from('gangs').select('id').eq('user_id', user.id),
+      getFriendsAndRequests(user.id),
+      getUserForumThreads(user.id),
+      getAccountDeleteCacheTargets(user.id),
+    ]);
+    // Without the gang ids their images can't be found once the gangs are gone.
+    if (gangsError) {
+      console.error('Account delete gangs read error:', gangsError);
+      return { success: false, error: "Failed to delete account" };
+    }
+
+    const serviceClient = createServiceRoleClient();
+    const { error } = await serviceClient.auth.admin.deleteUser(user.id);
+    if (error) {
+      console.error('Account delete error:', error);
+      return { success: false, error: "Failed to delete account" };
+    }
+
+    // After the delete, so a failed delete keeps the images. The service role,
+    // since the user's session went with the account.
+    await removeStorageFolders(serviceClient, [
+      ...gangs.flatMap((gang) => gangImageFolders(gang.id)),
+      `avatars/${user.id}/`,
+    ]);
+
+    invalidateUser(user.id);
+    invalidateUserPermissions(user.id);
+    friends.forEach((friend) => invalidateUser(friend.id));
+    campaigns.forEach((campaign) => {
+      invalidateCampaignMembers(campaign.id);
+      // Custom content the user shared into the campaign is gone.
+      invalidateCampaignTradingPosts(campaign.id);
+      invalidateCampaignCore(campaign.id);
+      if (campaign.user_gangs?.length) invalidateCampaignBattles(campaign.id);
+      campaign.user_gangs?.forEach((gang) => invalidateCampaignGang(campaign.id, gang.id));
+    });
+    // Other players' gangs lose the user's custom fighter types, equipment and skills.
+    cacheTargets.gangIds.forEach((gangId) => {
+      invalidateGang(gangId);
+      invalidateGangStash(gangId);
+    });
+    cacheTargets.battleSessionIds.forEach(invalidateBattleSession);
+    // Thread headers and lists name their author and last poster, now Unknown User.
+    forumThreads.forEach((thread) =>
+      invalidateForumThreadList(thread.category_id, thread.number, thread.article_published_at !== null)
+    );
+    invalidateUserCount();
+    invalidateGangCount();
+
+    return { success: true, ...(await signOutAction()) };
+  } catch (error) {
+    console.error('Unexpected error during account delete:', error);
+    return { success: false, error: "An unexpected error occurred" };
   }
 };

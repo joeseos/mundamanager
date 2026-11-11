@@ -3,21 +3,39 @@
 import { invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { isUuid, isUuidArray } from "@/utils/uuid";
+import { portraitBelongsToCampaignType } from "@/app/lib/campaigns/campaign-portrait-check";
 
 interface CreateCampaignParams {
   name: string;
   campaignTypeId: string;
   trading_posts?: string[];
+  campaignPortraitId?: string | null;
 }
 
 type CreateCampaignResult =
   | { success: true; data: { id: string; campaign_name: string; campaign_type_id: string; created_at: string } }
   | { success: false; error: string };
 
-export async function createCampaign({ name, campaignTypeId, trading_posts }: CreateCampaignParams): Promise<CreateCampaignResult> {
+export async function createCampaign({ name, campaignTypeId, trading_posts, campaignPortraitId }: CreateCampaignParams): Promise<CreateCampaignResult> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+
+    const tradingPosts = trading_posts || [];
+    if (!isUuidArray(tradingPosts)) {
+      return { success: false, error: 'Invalid trading posts' };
+    }
+    if (!isUuid(campaignTypeId)) {
+      return { success: false, error: 'Invalid campaign type' };
+    }
+    if (campaignPortraitId != null) {
+      if (!isUuid(campaignPortraitId)) {
+        return { success: false, error: 'Invalid campaign portrait' };
+      }
+      const check = await portraitBelongsToCampaignType(supabase, campaignPortraitId, campaignTypeId);
+      if (!check.success) return check;
+    }
 
     const { data: campaign, error: insertError } = await supabase
       .from('campaigns')
@@ -26,7 +44,8 @@ export async function createCampaign({ name, campaignTypeId, trading_posts }: Cr
           campaign_type_id: campaignTypeId,
           campaign_name: name.trimEnd(),
           status: 'Active',
-          trading_posts: trading_posts || [],
+          trading_posts: tradingPosts,
+          campaign_portrait_id: campaignPortraitId ?? null,
         },
       ])
       .select()

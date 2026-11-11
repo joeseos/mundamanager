@@ -336,12 +336,15 @@ export async function deleteFighterOoaRecord(
       throw new Error('Record id is required');
     }
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('fighter_ooa_records')
       .delete()
-      .eq('id', recordId);
+      .eq('id', recordId)
+      .select('id');
 
     if (error) throw error;
+    // RLS filters a DELETE the user may not make down to zero rows, without an error.
+    if (!data?.length) throw new Error('Record not found or you do not have permission to delete it');
 
     return { success: true };
   } catch (error) {

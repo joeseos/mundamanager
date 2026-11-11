@@ -1,4 +1,5 @@
 import type { CampaignResource } from '@/utils/campaigns/resources';
+import { scenarioLabel } from '@/types/campaign';
 
 export type BattleSessionStatus = 'pre_battle' | 'active' | 'post_battle' | 'completed';
 
@@ -30,9 +31,21 @@ export interface BattleSession {
   id: string;
   created_at: string;
   updated_at: string;
-  created_by: string;
+  created_by: string | null;
   campaign_id: string | null;
   scenario: string | null;
+  /** N26: what was rolled on the scenario tables, as scenario_table_entries ids. */
+  deployment_id?: string | null;
+  objective_id?: string | null;
+  crew_selection_id?: string | null;
+  /** N26: a custom Deployment, Objective or Crew named by hand instead of rolled. Null while its id is set. */
+  deployment_name?: string | null;
+  objective_name?: string | null;
+  crew_selection_name?: string | null;
+  /** N26: the rolled entries' names, embedded by the session loaders. */
+  deployment?: { name: string } | null;
+  objective?: { name: string } | null;
+  crew_selection?: { name: string } | null;
   status: BattleSessionStatus;
   winner_gang_id: string | null;
   round: number;
@@ -45,16 +58,31 @@ export interface BattleSession {
   edition_slug?: string | null;
 }
 
+/** What a session is called: its scenario name, or else its Deployment and Objective on N26, picked or custom. */
+export function sessionScenarioLabel(
+  session: Pick<BattleSession, 'scenario' | 'deployment' | 'objective' | 'deployment_name' | 'objective_name'>
+): string {
+  return scenarioLabel(
+    session.scenario,
+    session.deployment?.name ?? session.deployment_name,
+    session.objective?.name ?? session.objective_name
+  );
+}
+
 export interface BattleSessionParticipant {
   id: string;
   battle_session_id: string;
   user_id: string;
   gang_id: string;
   role: 'attacker' | 'defender' | 'none';
+  /** N26: the gang's Side Job (a scenario_table_entries id) or custom Side Job name, and whether it was completed. */
+  side_job_id?: string | null;
+  side_job_name?: string | null;
+  side_job_completed?: boolean;
   gang_rating_snapshot: number | null;
   credits_earned: number;
   reputation_change: number;
-  ready: boolean;
+  ready: boolean | null;
   /**
    * Multi-winner support: any number of participants in a session may be flagged
    * as a winner. Defaults to `false`. Draws have no participants with
@@ -76,15 +104,17 @@ export interface BattleSessionParticipant {
   created_at: string;
   gang?: {
     id: string;
-    name: string;
+    name: string | null;
+    /** Picks the house Side Jobs an N26 gang may roll on. */
+    gang_type_id?: string | null;
     gang_type_name?: string;
-    gang_colour?: string;
-    rating?: number;
+    gang_colour?: string | null;
+    rating?: number | null;
   };
   profile?: {
     username: string;
-    patreon_tier_id?: string;
-    patreon_tier_title?: string;
+    patreon_tier_id?: string | null;
+    patreon_tier_title?: string | null;
   };
 }
 
@@ -100,14 +130,96 @@ export interface SessionCondition {
   key: string;
   name: string;
   value?: number;
+  /** Out of Ammo / Jammed: the weapon it is on, and for N26 Out of Ammo the profile. One entry per weapon or profile. */
+  fighter_weapon_id?: string;
+  weapon_profile_id?: string;
+  /** Out of Ammo / Jammed: the weapon, or "Weapon (Profile)" for N26 Out of Ammo, as named when it was marked. */
+  target_name?: string;
 }
 
 export interface SessionRecord {
   xp_earned: number;
+  /**
+   * Participation XP the fighter gains when the battle is completed. A fighter
+   * joins the crew at 1 (0 if their type can't gain XP); players lower or raise
+   * it in the Participation XP modal. Missing on sessions crewed before it
+   * existed, which award none.
+   */
+  participation_xp?: number;
+  /**
+   * Set once completion has added participation_xp to the fighter, so a session
+   * put back into post-battle and completed again doesn't pay it twice, and the
+   * amount can't change after it was paid.
+   */
+  participation_xp_awarded?: boolean;
+  /**
+   * Set when a player confirms the Participation XP modal. Completion only
+   * pays confirmed participation XP, so nothing is added without a confirm.
+   */
+  participation_xp_confirmed?: boolean;
   injuries: SessionInjuryRecord[];
   conditions: SessionCondition[];
   note?: string;
   activations: number;
+  /** N26: removed from play without going Out of Action, so no fresh activations. */
+  left_battlefield?: boolean;
+}
+
+/** Special rules that give a fighter two activations a round. */
+const DUAL_ACTIVATION_RULES = ['Spyre Hunter', 'Aranthian Beauty Plating'];
+
+export const hasDualActivation = (rules?: string[] | null) =>
+  rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
+
+/**
+ * A fighter's record when they join the session. A type that can't gain XP
+ * (starting XP N/A) joins with 0 participation XP instead of 1.
+ */
+export function newSessionRecord(
+  fighter: { special_rules?: string[] | null; starting_xp?: number | null },
+  participationXp = fighter.starting_xp === null ? 0 : 1
+): SessionRecord {
+  return {
+    xp_earned: 0,
+    participation_xp: participationXp,
+    injuries: [],
+    conditions: [],
+    activations: hasDualActivation(fighter.special_rules) ? 2 : 1,
+  };
+}
+
+/**
+ * A stored session_record with its defaults filled in. Spreads the stored
+ * record first, so an optional field survives every rewrite without each
+ * caller having to list it.
+ */
+export function normalizeSessionRecord(raw?: Partial<SessionRecord> | null): SessionRecord {
+  return {
+    ...raw,
+    xp_earned: raw?.xp_earned ?? 0,
+    injuries: raw?.injuries ?? [],
+    conditions: raw?.conditions ?? [],
+    activations: raw?.activations ?? 1,
+  };
+}
+
+/**
+ * The record after the Fighter Actions modal's Confirm. Shared by the server
+ * action and the optimistic update. Leaving the battlefield spends the
+ * fighter's remaining activations for the round; undefined leaves it as is.
+ */
+export function applyConditionsUpdate(
+  record: SessionRecord,
+  conditions: SessionCondition[],
+  leftBattlefield?: boolean
+): SessionRecord {
+  if (leftBattlefield === undefined) return { ...record, conditions };
+  return {
+    ...record,
+    conditions,
+    left_battlefield: leftBattlefield || undefined,
+    activations: leftBattlefield ? 0 : record.activations,
+  };
 }
 
 export interface BattleSessionFighter {
@@ -115,15 +227,15 @@ export interface BattleSessionFighter {
   battle_session_id: string;
   participant_id: string;
   fighter_id: string;
-  loadout_id?: string;
+  loadout_id?: string | null;
   session_record: SessionRecord;
   created_at: string;
   fighter?: {
     id: string;
-    fighter_name: string;
+    fighter_name: string | null;
     fighter_type?: string;
-    credits?: number;
-    special_rules?: string[];
+    credits?: number | null;
+    special_rules?: string[] | null;
   };
 }
 
@@ -131,7 +243,9 @@ export interface BattleSessionFull extends BattleSession {
   participants: (BattleSessionParticipant & {
     fighters: BattleSessionFighter[];
   })[];
-  campaign_name?: string;
+  campaign_name?: string | null;
+  /** The challenge this session plays, which its completion files. */
+  linked_battle?: { campaign_territory_id: string | null; cycle: number | null; note: string | null } | null;
   campaign_resources?: CampaignResource[];
   campaign_gang_ids?: Record<string, string>;
 }

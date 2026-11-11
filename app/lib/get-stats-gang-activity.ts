@@ -20,6 +20,6 @@ const getCachedGangActivityStats = makeActivityStats(
   TAGS.globalGangActivity()
 );
 
-export async function getGangActivityStats(): Promise<ActivityStats | null> {
+export async function getGangActivityStats(): Promise<ActivityStats> {
   return getCachedGangActivityStats();
 }

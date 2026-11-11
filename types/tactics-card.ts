@@ -44,7 +44,7 @@ export function tacticsCardsPackFilter(
   return typeIds.length ? `${core},gang_type_id.in.(${typeIds.join(',')})` : core;
 }
 
-/** The gang_tactics_cards select every fetcher of these rows uses. */
+/** The gang_tactics_cards select for Data API calls; getGangTacticsCards reads the same columns. */
 export const GANG_TACTICS_CARD_SELECT = `
   id,
   description,
@@ -52,7 +52,7 @@ export const GANG_TACTICS_CARD_SELECT = `
   tactics_cards:tactics_cards_id ( name, d66_min, d66_max )
 `;
 
-/** Flattens a GANG_TACTICS_CARD_SELECT row; the to-one embed may widen to an array. */
+/** Flattens a gang_tactics_cards row with its card; a Data API embed may widen to an array. */
 export function toGangTacticsCard(row: any): GangTacticsCard {
   const card = Array.isArray(row.tactics_cards) ? row.tactics_cards[0] : row.tactics_cards;
   return {

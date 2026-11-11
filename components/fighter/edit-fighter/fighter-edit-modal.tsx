@@ -79,7 +79,6 @@ interface FighterTypesData {
 
 interface EditFighterModalProps {
   fighter: Fighter;
-  isOpen: boolean;
   initialValues: {
     name: string;
     label: string;
@@ -90,6 +89,8 @@ interface EditFighterModalProps {
   gangId: string;
   gangTypeId?: string | null;
   customGangTypeId?: string | null;
+  /** The owning gang's type; gangTypeId is the fighter type's. Archetypes follow the gang, as on the server. */
+  owningGangTypeId?: string | null;
   is_spyrer?: boolean;
   onClose: () => void;
   onSubmit?: (values: {
@@ -116,11 +117,11 @@ interface EditFighterModalProps {
 
 export function EditFighterModal({
   fighter,
-  isOpen,
   initialValues,
   gangId,
   gangTypeId,
   customGangTypeId,
+  owningGangTypeId,
   onClose,
   onSubmit,
   onStatsUpdate,
@@ -162,7 +163,6 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch fighter types');
       return response.json();
     },
-    enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -300,7 +300,6 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
       return response.json();
     },
-    enabled: isOpen,
     staleTime: 10 * 60 * 1000,
   });
 
@@ -365,7 +364,7 @@ export function EditFighterModal({
   }, [selectedFighterSubtypes, fighter.fighter_subtypes, defaultFighterSubtypeName]);
 
   const archetypeCatalogSubtype = getArchetypeCatalogSubtype(subtypesForArchetype, {
-    gangTypeId,
+    gangTypeId: owningGangTypeId,
   });
 
   const archetypeFighterSubtypeId = useMemo(() => {
@@ -475,11 +474,11 @@ export function EditFighterModal({
 
   // Eligible when Outcasts (N23/N26) + any selected subtype is in that gang's archetype list
   const canUseArchetypes = isArchetypeEligible({
-    gangTypeId,
+    gangTypeId: owningGangTypeId,
     fighterSubtypes: subtypesForArchetype,
   });
 
-  // Fetch archetypes using TanStack Query (only if eligible and modal is open)
+  // Fetch archetypes using TanStack Query (only if eligible)
   const { data: archetypesData } = useQuery({
     queryKey: ['skill-archetypes', archetypeFighterSubtypeId],
     queryFn: async () => {
@@ -491,7 +490,7 @@ export function EditFighterModal({
       if (!response.ok) throw new Error('Failed to fetch archetypes');
       return response.json();
     },
-    enabled: isOpen && canUseArchetypes,
+    enabled: canUseArchetypes,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 
@@ -965,8 +964,8 @@ export function EditFighterModal({
       const submitData: any = {
         name: formValues.name,
         label: formValues.label,
-        kills: formValues.kills,
-        kill_count: formValues.kill_count,
+        kills: Number(formValues.kills) || 0,
+        kill_count: Number(formValues.kill_count) || 0,
         costAdjustment: formValues.costAdjustment,
         special_rules: formValues.special_rules,
         selected_archetype_id: effectiveArchetypeId || null
@@ -1060,9 +1059,6 @@ export function EditFighterModal({
       return false;
     }
   };
-
-  // Don't render if modal isn't open
-  if (!isOpen) return null;
 
   return (
     <>

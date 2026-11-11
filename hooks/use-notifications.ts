@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { toast } from 'sonner';
 import { createClient } from '@/utils/supabase/client';
-import type { NotificationType } from '@/utils/notifications';
+import { NOTIFICATION_TOASTER_ID } from '@/utils/notification-toast';
+import type { Notification } from '@/app/lib/notifications';
 
 // How long a tab can stay hidden before it drops its realtime channel. With no
 // channels left the Supabase client closes the tab's WebSocket, which is what
@@ -18,35 +21,16 @@ const SOCKET_CLOSING_RETRY_MS = 250;
 // UPDATE per row), so they are coalesced into one refetch.
 const CHANGE_REFETCH_DEBOUNCE_MS = 300;
 
-export type Notification = {
-  id: string;
-  text: string;
-  type: NotificationType;
-  created_at: string;
-  dismissed: boolean;
-  link: string | null;
-  // Null when no user sent it, e.g. admin notifications
-  sender_id: string | null;
-};
-
 export const notificationsQueryKey = (userId: string) => ['notifications', userId] as const;
 const deleteMutationKey = (userId: string) => ['notifications', userId, 'delete'] as const;
 const markReadMutationKey = (userId: string) => ['notifications', userId, 'mark-read'] as const;
 
 const NO_NOTIFICATIONS: Notification[] = [];
 
-async function fetchNotifications(userId: string, signal: AbortSignal): Promise<Notification[]> {
-  const { data, error } = await createClient()
-    .from('notifications')
-    .select('id, text, dismissed, type, created_at, link, sender_id')
-    .eq('receiver_id', userId)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(20)
-    .abortSignal(signal);
-
-  if (error) throw error;
-  return data as Notification[];
+async function fetchNotifications(signal: AbortSignal): Promise<Notification[]> {
+  const response = await fetch('/api/notifications', { signal });
+  if (!response.ok) throw new Error('Failed to fetch notifications');
+  return response.json();
 }
 
 // The notifications as the user should see them: the cached list with the
@@ -56,7 +40,7 @@ async function fetchNotifications(userId: string, signal: AbortSignal): Promise<
 export function useNotifications(userId: string) {
   const { data, refetch } = useQuery({
     queryKey: notificationsQueryKey(userId),
-    queryFn: ({ signal }) => fetchNotifications(userId, signal),
+    queryFn: ({ signal }) => fetchNotifications(signal),
   });
   const pendingDeletes = useMutationState({
     filters: { mutationKey: deleteMutationKey(userId), status: 'pending' },
@@ -84,6 +68,176 @@ export function useNotifications(userId: string) {
 export function useUnreadNotificationCount(userId: string) {
   const { notifications } = useNotifications(userId);
   return useMemo(() => notifications.filter(n => !n.dismissed).length, [notifications]);
+}
+
+const NOTIFICATIONS_HREF = '/account#notifications';
+const NEW_NOTIFICATION_TOAST_MS = 8_000;
+
+function showNewNotificationToast(count: number, onView: () => void) {
+  toast.message(count === 1 ? 'You received a new notification' : `You received ${count} new notifications`, {
+    toasterId: NOTIFICATION_TOASTER_ID,
+    duration: NEW_NOTIFICATION_TOAST_MS,
+    action: {
+      label: 'View all notifications',
+      onClick: onView,
+    },
+    classNames: {
+      toast: 'flex-wrap',
+      actionButton: 'mt-1 !ml-0 w-full basis-full justify-center !h-8 !px-3 !text-sm',
+    },
+  });
+}
+
+// Newest notification already accounted for in this browser, so a later visit can
+// toast what arrived while the tab was closed or the user was signed out.
+const toastCursorKey = (userId: string) => `notification-toast-cursor:${userId}`;
+
+type ToastCursor = {
+  createdAt: string;
+  ids: string[]; // Notifications that share createdAt and have already been accounted for
+};
+
+function readToastCursor(userId: string): ToastCursor | null {
+  try {
+    const raw = localStorage.getItem(toastCursorKey(userId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ToastCursor;
+    if (typeof parsed?.createdAt !== 'string' || !Array.isArray(parsed.ids)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeToastCursor(userId: string, cursor: ToastCursor) {
+  try {
+    localStorage.setItem(toastCursorKey(userId), JSON.stringify(cursor));
+  } catch {
+    // Storage can be unavailable. Toasts for this visit still work.
+  }
+}
+
+function cursorFromNotifications(notifications: Notification[]): ToastCursor | null {
+  const createdAt = notifications.reduce(
+    (newest, notification) => (notification.created_at > newest ? notification.created_at : newest),
+    ''
+  );
+  if (!createdAt) return null;
+  return {
+    createdAt,
+    ids: notifications.filter(notification => notification.created_at === createdAt).map(notification => notification.id),
+  };
+}
+
+// Moves the cursor forward only through arrivals just announced. An empty list keeps
+// the previous server cursor, and a row we did not announce cannot jump past it.
+function settledCursor(stored: ToastCursor, announced: Notification[]): ToastCursor {
+  let createdAt = stored.createdAt;
+  let ids = stored.ids;
+  for (const notification of announced) {
+    if (notification.created_at > createdAt) {
+      createdAt = notification.created_at;
+      ids = [notification.id];
+    } else if (notification.created_at === createdAt && !ids.includes(notification.id)) {
+      ids = [...ids, notification.id];
+    }
+  }
+  return { createdAt, ids };
+}
+
+function laterCursor(a: ToastCursor | null, b: ToastCursor | null): ToastCursor | null {
+  if (!a) return b;
+  if (!b) return a;
+  if (a.createdAt > b.createdAt) return a;
+  if (b.createdAt > a.createdAt) return b;
+  return { createdAt: a.createdAt, ids: [...new Set([...a.ids, ...b.ids])] };
+}
+
+function cursorsEqual(a: ToastCursor, b: ToastCursor) {
+  if (a.createdAt !== b.createdAt || a.ids.length !== b.ids.length) return false;
+  return a.ids.every((id, index) => id === b.ids[index]);
+}
+
+function isUnseenArrival(notification: Notification, cursor: ToastCursor) {
+  if (notification.dismissed) return false;
+  if (notification.created_at > cursor.createdAt) return true;
+  return notification.created_at === cursor.createdAt && !cursor.ids.includes(notification.id);
+}
+
+// Ids already toasted in this page session, so the header and the account page
+// cannot each announce the same arrival.
+const toastedIds = new Set<string>();
+
+function claimArrivals(notifications: Notification[]): Notification[] {
+  const fresh: Notification[] = [];
+  for (const notification of notifications) {
+    if (toastedIds.has(notification.id)) continue;
+    toastedIds.add(notification.id);
+    fresh.push(notification);
+  }
+  return fresh;
+}
+
+// Toasts when a notification arrives while the site is open, and on the next visit
+// for any that arrived while this browser was closed or signed out. The first list
+// this browser sees only sets the cursor, so an existing unread backlog is not
+// announced as new. An older row that slides into the latest-20 window is not new.
+export function useNotificationToasts(userId: string) {
+  const { data, isSuccess } = useQuery({
+    queryKey: notificationsQueryKey(userId),
+    queryFn: ({ signal }) => fetchNotifications(signal),
+  });
+  const router = useRouter();
+  const pathname = usePathname();
+  const pathnameRef = useRef(pathname);
+  const cursorRef = useRef<ToastCursor | null>(null);
+  const readyRef = useRef(false);
+  const userIdRef = useRef(userId);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
+    // A user switch must drop the previous cursor before this effect reads it.
+    // Doing that here keeps the ref writes out of render.
+    if (userIdRef.current !== userId) {
+      userIdRef.current = userId;
+      cursorRef.current = null;
+      readyRef.current = false;
+    }
+
+    if (!isSuccess || !data) return;
+
+    const stored = laterCursor(readyRef.current ? cursorRef.current : null, readToastCursor(userId));
+    // The first successful list in this browser is a baseline. Later fetches with
+    // no cursor yet (the first list was empty) still announce real arrivals.
+    const establishingBaseline = !readyRef.current && !stored;
+    const missed = establishingBaseline
+      ? []
+      : stored
+        ? data.filter(notification => isUnseenArrival(notification, stored))
+        : data.filter(notification => !notification.dismissed);
+    const claimed = claimArrivals(missed);
+    if (claimed.length > 0) {
+      showNewNotificationToast(claimed.length, () => {
+        if (pathnameRef.current === '/account') {
+          document.getElementById('notifications')?.scrollIntoView();
+          return;
+        }
+        router.push(NOTIFICATIONS_HREF);
+      });
+    }
+
+    // No cursor yet: the whole list is the baseline. Otherwise only announced
+    // rows move the cursor forward.
+    const next = stored ? settledCursor(stored, claimed) : cursorFromNotifications(data);
+    if (next) {
+      cursorRef.current = next;
+      if (!stored || !cursorsEqual(stored, next)) writeToastCursor(userId, next);
+    }
+    readyRef.current = true;
+  }, [data, isSuccess, router, userId]);
 }
 
 // A write that useNotifications shows straight away while it is pending. Once
@@ -119,11 +273,8 @@ export function useMarkNotificationsRead(userId: string) {
     userId,
     markReadMutationKey(userId),
     async ids => {
-      const { error } = await createClient()
-        .from('notifications')
-        .update({ dismissed: true })
-        .in('id', ids);
-      if (error) throw error;
+      const response = await fetch('/api/notifications', { method: 'PATCH', body: JSON.stringify({ ids }) });
+      if (!response.ok) throw new Error(`Failed to mark notifications read: status ${response.status}`);
     },
     (notifications, ids) =>
       notifications.map(n => (ids.includes(n.id) && !n.dismissed ? { ...n, dismissed: true } : n))
@@ -135,21 +286,11 @@ export function useDeleteNotification(userId: string) {
     userId,
     deleteMutationKey(userId),
     async id => {
-      const response = await fetch(`/api/notifications/${id}`, { method: 'DELETE' }).catch(
-        error => {
-          console.error('Error deleting notification via API:', error);
-          return null;
-        }
-      );
+      const response = await fetch(`/api/notifications/${id}`, { method: 'DELETE' });
       // A 404 means it is already gone, e.g. removed by the server action that answered it
-      if (response?.ok || response?.status === 404) return;
-      if (response) {
-        console.error(`Error deleting notification via API: status ${response.status}`);
+      if (!response.ok && response.status !== 404) {
+        throw new Error(`Failed to delete notification: status ${response.status}`);
       }
-
-      // Fallback to direct Supabase delete if the API fails
-      const { error } = await createClient().from('notifications').delete().eq('id', id);
-      if (error) throw error;
     },
     (notifications, id) => notifications.filter(n => n.id !== id)
   );

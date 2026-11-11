@@ -9,6 +9,7 @@ interface Alliance {
   alliance_type: string | null;
   alliance_crew_name: string | null;
   strong_alliance: string | null;
+  tithe_cost: number | null;
   editions?: { slug: string } | { slug: string }[] | null;
 }
 
@@ -23,7 +24,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from('alliances')
-      .select('id, alliance_name, alliance_type, alliance_crew_name, strong_alliance, editions:edition_id (slug)')
+      .select('id, alliance_name, alliance_type, alliance_crew_name, strong_alliance, tithe_cost, editions:edition_id (slug)')
       .order('alliance_name');
 
     if (error) throw error;
@@ -34,6 +35,7 @@ export async function GET() {
       alliance_type: alliance.alliance_type,
       alliance_crew_name: alliance.alliance_crew_name,
       strong_alliance: alliance.strong_alliance,
+      tithe_cost: alliance.tithe_cost,
       edition_slug: editionSlugFromJoin(alliance.editions),
     }));
 

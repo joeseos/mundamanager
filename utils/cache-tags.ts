@@ -15,7 +15,8 @@ import { revalidateTag } from 'next/cache';
  * gang-roster-{id} fighters AND all gang     | any fighter OR vehicle
  *                  vehicles, their equipment,| mutation — NOT
  *                  effects, loadouts, stats  | updateGangFinancials
- *                  (45 KB - 1 MB)            |
+ *                  (45 KB - 1 MB); campaign  |
+ *                  OOA counts (Triumphs)     |
  * gang-overview-{id} name/rating/wealth/     | updateGangFinancials (choke
  *                  credits copies on other   | point) + gang name/reputation
  *                  pages (campaign, home)    | edits — NOT xp/image/loadouts
@@ -39,6 +40,27 @@ import { revalidateTag } from 'next/cache';
  * custom-{id}      custom content            | customise mutations
  * global-gang-types gang type catalog +      | any admin gang-type write
  *                  home-card portraits/names |
+ * global-gang-portraits catalogue file paths | catalogue row rename/delete
+ *                  joined onto gangs         | (invalidateGangPortraits) |
+ * global-campaign-portraits catalogue paths  | catalogue row rename/delete
+ *                  joined onto campaigns     | (invalidateCampaignPortraits) |
+ * global-gang-rules gang rules and their   | admin gang rule and
+ *                  effect types              | rule effect type writes
+ * forum-index      forum categories with     | category edits and thread
+ *                  counts and latest thread  | count changes (new, move,
+ *                  (category page counts)    | delete); else every 60 s
+ * forum-category-{id} a category's thread    | any change to a thread in it
+ *                  list pages                | (new, reply, rename, pin,
+ *                                            | lock, move, delete, like on
+ *                                            | the opening post)
+ * forum-thread-{number} a thread and its     | any change to the thread or
+ *                  post pages                | its posts, likes included;
+ *                                            | post pages also refresh
+ *                                            | every 60 s
+ * forum-articles   published articles' cards | publishing, and any change
+ *                                            | to an article's thread or
+ *                                            | opening post; else every
+ *                                            | 60 s
  */
 export const TAGS = {
   gang: (id: string) => `gang-${id}`,
@@ -72,8 +94,12 @@ export const TAGS = {
   // Global reference data
   globalEditions: () => 'global-editions',
   globalGangTypes: () => 'global-gang-types',
+  globalGangPortraits: () => 'global-gang-portraits',
+  globalCampaignPortraits: () => 'global-campaign-portraits',
+  globalGangRules: () => 'global-gang-rules',
   globalTerritories: () => 'global-territories-list',
   globalScenarios: () => 'global-scenarios',
+  globalScenarioTables: () => 'global-scenario-tables',
   globalTradingPostTypes: () => 'global-trading-post-types',
   globalPatreonSupporters: () => 'global-patreon-supporters',
   globalUserCount: () => 'global-user-count',
@@ -82,6 +108,10 @@ export const TAGS = {
   globalGangActivity: () => 'global-gang-activity',
   globalCampaignActivity: () => 'global-campaign-activity',
   userGuides: () => 'user-guides',
+  forumIndex: () => 'forum-index',
+  forumCategory: (id: string) => `forum-category-${id}`,
+  forumThread: (number: number) => `forum-thread-${number}`,
+  forumArticles: () => 'forum-articles',
   campaignTypes: () => 'campaign-types',
   campaignTriumphs: () => 'campaign-triumphs',
 } as const;
@@ -280,6 +310,21 @@ export function invalidateGangTypesCatalog() {
   bust(TAGS.globalGangTypes());
 }
 
+/** A gang rule, or the effect type behind one, changed. Applied at roster assembly. */
+export function invalidateGangRules() {
+  bust(TAGS.globalGangRules());
+}
+
+/** A gang_portraits row's path or identity changed. Joined portrait URLs are cached with the gang. */
+export function invalidateGangPortraits() {
+  bust(TAGS.globalGangPortraits());
+}
+
+/** A campaign_portraits row's path or identity changed. Joined portrait URLs are cached with the campaign. */
+export function invalidateCampaignPortraits() {
+  bust(TAGS.globalCampaignPortraits());
+}
+
 // Global reference data
 export const invalidatePatreonSupporters = () => bust(TAGS.globalPatreonSupporters());
 export const invalidateUserCount = () => bust(TAGS.globalUserCount());
@@ -287,3 +332,24 @@ export const invalidateGangCount = () => bust(TAGS.globalGangCount());
 export const invalidateCampaignCount = () => bust(TAGS.globalCampaignCount());
 /** An admin saved a user guide (any edition). */
 export const invalidateUserGuides = () => bust(TAGS.userGuides());
+
+/** A forum thread was started or renamed: the forum index shows it too. */
+export function invalidateForumThreadList(categoryId: string, threadNumber: number, isArticle = false) {
+  bust(TAGS.forumIndex());
+  invalidateForumThread(categoryId, threadNumber, isArticle);
+}
+
+/** A forum thread or one of its posts changed. An article's card shows its thread too. */
+export function invalidateForumThread(categoryId: string, threadNumber: number, isArticle = false) {
+  bust(TAGS.forumCategory(categoryId));
+  bust(TAGS.forumThread(threadNumber));
+  if (isArticle) invalidateForumArticles();
+}
+
+/** A thread was published or unpublished, or an article's opening post changed. */
+export const invalidateForumArticles = () => bust(TAGS.forumArticles());
+
+/** A reply's likes changed: only the thread's own pages show them. */
+export function invalidateForumThreadPosts(threadNumber: number) {
+  bust(TAGS.forumThread(threadNumber));
+}

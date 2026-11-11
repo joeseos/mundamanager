@@ -1,31 +1,31 @@
 "use client"
 
 import React, { useState, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Modal from "@/components/ui/modal";
 import { useShare } from '@/hooks/use-share';
 import { toJpeg } from 'html-to-image';
-import Image from 'next/image';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { UNKNOWN_GANG_IMAGE_URL } from '@/types/gang';
-import { CampaignImageEditModal } from '@/components/campaigns/[id]/campaign-image-edit-modal';
+import { resolveCampaignImageUrl } from '@/utils/campaign-image';
 import MemberSearchBar from "@/components/campaigns/[id]/campaign-member-search-bar"
 import MembersTable from "@/components/campaigns/[id]/campaign-members-table"
 import CampaignBattleLogsList from "@/components/campaigns/[id]/campaign-battle-logs-list";
 import { FiCamera, FiShare2 } from "react-icons/fi";
 import { MdFactory } from "react-icons/md";
-import { LuSwords, LuTrophy, LuCodeXml, LuLogs } from "react-icons/lu";
+import { LuSwords, LuTrophy, LuCodeXml, LuLogs, LuMail } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
-import { CampaignBattleLogsListRef } from "@/components/campaigns/[id]/campaign-battle-logs-list";
-import CampaignEditModal from "@/components/campaigns/[id]/campaign-edit-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
+import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
-import type { Battle, CampaignType } from '@/types/campaign';
+import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { BattleSession } from '@/types/battle-session';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
@@ -33,12 +33,24 @@ import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
 import { TbMapSearch } from "react-icons/tb";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
-import LogModal from "@/components/log-modal";
+
+const CampaignEditModal = dynamic(() => import('@/components/campaigns/[id]/campaign-edit-modal'), { ssr: false });
+const CampaignMessageModal = dynamic(
+  () => import('@/components/campaigns/[id]/campaign-message-modal').then((mod) => mod.CampaignMessageModal),
+  { ssr: false }
+);
+const LogModal = dynamic(() => import('@/components/log-modal'), { ssr: false });
+const CampaignPhasesCyclesModal = dynamic(() => import('@/components/campaigns/[id]/campaign-phases-cycles-modal'), { ssr: false });
+const CampaignImageEditModal = dynamic(
+  () => import('@/components/campaigns/[id]/campaign-image-edit-modal').then((mod) => mod.CampaignImageEditModal),
+  { ssr: false }
+);
 
 interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  parent_gang_type_name?: string | null;
   gang_colour: string;
 }
 
@@ -60,6 +72,7 @@ interface Member {
     id: string;
     name: string;
     gang_type: string;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     status: string | null;
     rating?: number;
@@ -78,6 +91,8 @@ interface Territory {
   territory_name: string;
   /** Catalog/template name when linked via territory_id; null for custom territories */
   original_territory_name?: string | null;
+  /** Credits the territory gives; null when unset */
+  credits?: number | null;
   playing_card?: string | null;
   gang_id: string | null;
   created_at: string;
@@ -109,14 +124,17 @@ interface CampaignPageContentProps {
     campaign_type_id: string;
     campaign_type_name: string;
     campaign_type_image_url?: string;
+    campaign_portrait_id?: string | null;
+    campaign_portrait_url?: string | null;
     edition_slug?: string | null;
     image_url?: string;
     status: string | null;
-    description: string;
+    description: string | null;
     created_at: string;
     updated_at: string | null;
     note: string | null;
     current_cycle?: number | null;
+    current_phase?: string | null;
     members: any[];
     territories: Territory[];
     trading_posts: string[];
@@ -124,17 +142,20 @@ interface CampaignPageContentProps {
     discord_guild_id?: string | null;
     discord_channel_id?: string | null;
     discord_channel_type?: number | null;
+    discord_dice_rolls?: boolean;
+    discord_dice_roll_channel_id?: string | null;
     allow_join_requests?: boolean;
     battles: Battle[];
     battleSessions?: BattleSession[];
     triumphs: {
       id: string;
-      triumph: string;
-      criteria: string;
-      campaign_type_id: string;
+      triumph: string | null;
+      criteria: string | null;
+      campaign_type_id: string | null;
       created_at: string;
       updated_at: string | null;
     }[];
+    ooaCounts?: { gang_id: string; ooa_count: number }[];
     captives?: Array<{
       gangId: string;
       gangName: string;
@@ -144,9 +165,13 @@ interface CampaignPageContentProps {
   userId?: string;
   permissions: CampaignPermissions | null;
   hasPendingJoinRequest?: boolean;
+  /** The campaign edition's scenario tables, for the N26 battle log pickers. */
+  scenarioTables?: ScenarioTableWithEntries[];
+  /** The tab to open on load, as its index in the tab bar. */
+  initialTab?: number;
   campaignTypes: CampaignType[];
   allTerritories: AllTerritory[];
-  tradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
+  tradingPostTypes?: Array<{ id: string; trading_post_name: string | null; edition_slug?: string | null }>;
   customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
   campaignResources?: Array<{ id: string; resource_name: string; is_custom: boolean }>;
@@ -173,7 +198,7 @@ interface CampaignPageContentProps {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
 export default function CampaignPageContent({ 
@@ -181,6 +206,8 @@ export default function CampaignPageContent({
   userId,
   permissions,
   hasPendingJoinRequest = false,
+  scenarioTables = [],
+  initialTab = 0,
   campaignTypes, 
   allTerritories,
   tradingPostTypes,
@@ -201,12 +228,13 @@ export default function CampaignPageContent({
   
   const { shareUrl } = useShare();
   const campaignContentRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState(0);
-  const battleLogsRef = useRef<CampaignBattleLogsListRef>(null);
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [showPhasesCyclesModal, setShowPhasesCyclesModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -249,11 +277,27 @@ export default function CampaignPageContent({
       playing_card?: string | null;
       description?: string | null;
       territory_name?: string;
+      credits?: number | null;
       map_object_id?: string | null;
       map_hex_coords?: { x: number; y: number; z: number } | null;
       show_name_on_map?: boolean;
     };
   }
+
+  // A user can hold more than one member row in a campaign (one per gang).
+  // Handing over the Owner role makes the previous Owner an Arbitrator.
+  const handleMemberRoleChange = (userId: string, newRole: string) => {
+    setCampaignData(prev => ({
+      ...prev,
+      members: prev.members.map(member =>
+        member.user_id === userId
+          ? { ...member, role: newRole }
+          : newRole === 'OWNER' && member.role === 'OWNER'
+            ? { ...member, role: 'ARBITRATOR' }
+            : member
+      )
+    }));
+  };
 
   const handleTerritoryUpdate = useCallback((update: TerritoryUpdate) => {
     if (update.action === 'restore' && update.territory) {
@@ -350,21 +394,10 @@ export default function CampaignPageContent({
     && !safePermissions.isAdmin
     && !!campaignData.allow_join_requests;
 
-  // Add this function to handle the Add button click
-  const handleAddBattleLog = () => {
-    console.log('Add battle log button clicked');
-    console.log('User role:', safePermissions.campaignRole);
-    console.log('Is admin:', isAdmin);
-    console.log('battleLogsRef exists:', !!battleLogsRef.current);
-    
-    if (battleLogsRef.current) {
-      console.log('Opening battle log modal via ref');
-      battleLogsRef.current.openAddModal();
-    } else {
-      console.error('battleLogsRef.current is null');
-    }
-  };
-
+  const currentCycle = campaignData.current_cycle ?? null;
+  // Pre-campaign is not stored: it is a campaign with no cycle set and no battle logged.
+  const isPreCampaign = currentCycle === null && (campaignData.battles || []).length === 0;
+  const phaseLabel = campaignData.current_phase ?? (isPreCampaign ? 'Pre-campaign' : null);
   // Add this function to handle the Add territory button click
   const handleAddTerritory = () => {
     setShowTerritoryModal(true);
@@ -409,18 +442,18 @@ export default function CampaignPageContent({
     }
   };
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    console.error('Failed to load image:', e.currentTarget.src);
-    e.currentTarget.src = UNKNOWN_GANG_IMAGE_URL;
-  };
-
   const canEditImage = !!(safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin);
+  const shownImageUrl = resolveCampaignImageUrl({
+    imageUrl: campaignData.image_url,
+    portraitUrl: campaignData.campaign_portrait_url,
+    typeImageUrl: campaignData.campaign_type_image_url,
+  });
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
+    <main className="campaign-page flex min-h-screen flex-col items-center print:min-h-0">
       <div ref={campaignContentRef} className="container mx-auto max-w-5xl w-full space-y-4">
         {/* Tabs navigation */}
-        <div className="bg-card rounded-lg mb-4 flex">
+        <div className="bg-card rounded-lg mb-4 flex print:hidden">
           <button
             onClick={() => setActiveTab(0)}
             className={`flex-1 py-4 text-center transition-colors ${
@@ -497,37 +530,18 @@ export default function CampaignPageContent({
           {/* Campaign header with the Edit button */}
           <div id="campaign_card" className="bg-card shadow-md rounded-lg p-4 flex items-start gap-6 print:print-fighter-card print:border-2 print:border-black">
             {/* Left Section: Campaign Image */}
-            <div className="hidden sm:flex relative w-[200px] h-[200px] md:w-[250px] md:h-[250px] mt-1 shrink-0 items-center justify-center print:hidden">
-              {campaignData.image_url || campaignData.campaign_type_image_url ? (
-                <Image
-                  src={campaignData.image_url || campaignData.campaign_type_image_url || ''}
-                  alt={campaignData.campaign_name}
-                  width={180}
-                  height={180}
-                  className="absolute rounded-full object-cover mt-1 z-10 w-[180px] h-auto"
-                  priority={false}
-                  quality={100}
-                  onError={handleImageError}
-                />
-              ) : (
-                <div className="absolute w-[180px] h-[180px] rounded-full bg-secondary z-10 flex items-center justify-center">
-                  <PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />
-                </div>
-              )}
-              <div
-                className={`absolute z-20 w-[250px] h-[250px] transition-opacity ${canEditImage ? 'cursor-pointer hover:opacity-80' : 'pointer-events-none'}`}
-                {...(canEditImage && { onClick: () => setShowImageModal(true) })}
-              >
-                <Image
-                  src="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/cogwheel-gang-portrait_vbu4c5.webp"
-                  alt="Cogwheel"
-                  width={250}
-                  height={250}
-                  className="absolute z-20 w-[250px] h-auto"
-                  priority
-                  quality={100}
-                />
-              </div>
+            <div
+              className={`hidden sm:block mt-1 shrink-0 print:hidden transition-opacity ${canEditImage ? 'cursor-pointer hover:opacity-80' : ''}`}
+              {...(canEditImage && { onClick: () => setShowImageModal(true) })}
+            >
+              <CogwheelPortrait
+                src={shownImageUrl}
+                alt={campaignData.campaign_name}
+                fallback={<PiFlagBannerFoldBold className="size-[80px] text-muted-foreground" />}
+                errorSrc={UNKNOWN_GANG_IMAGE_URL}
+                preload
+                large
+              />
             </div>
 
             {/* Right Section: Content */}
@@ -555,12 +569,20 @@ export default function CampaignPageContent({
                      )
                    )}
                    {safePermissions.canEditCampaign && (
-                     <Button
-                       onClick={() => setShowEditModal(true)}
-                       className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
-                     >
-                       Edit
-                     </Button>
+                     <>
+                       <Button
+                         onClick={() => setShowPhasesCyclesModal(true)}
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                       >
+                         Phases & Cycles
+                       </Button>
+                       <Button
+                         onClick={() => setShowEditModal(true)}
+                         className="bg-neutral-900 text-white hover:bg-gray-800 print:hidden"
+                       >
+                         Edit
+                       </Button>
+                     </>
                    )}
                  </div>
                </div>
@@ -650,6 +672,16 @@ export default function CampaignPageContent({
                   <div className="flex items-center gap-1">
                     Status: <Badge variant="secondary">{campaignData.status || 'Active'}</Badge>
                   </div>
+                  {phaseLabel && (
+                    <div className="flex items-center gap-1">
+                      Phase: <Badge variant="secondary">{phaseLabel}</Badge>
+                    </div>
+                  )}
+                  {currentCycle !== null && (
+                    <div className="flex items-center gap-1">
+                      Cycle: <Badge variant="secondary">{currentCycle}</Badge>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <div className="flex flex-wrap items-center gap-1">
@@ -735,23 +767,35 @@ export default function CampaignPageContent({
           <div className="bg-card shadow-md rounded-lg p-4">
             {/* Campaign Members Section */}
             <div className="mb-8">
-              <div className="flex items-center gap-2 mb-4">
-                <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
-                <InfoTooltip ariaLabel="How to add gangs and change player roles">
-                  <div className="space-y-2">
-                    <p>
-                      To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
-                    </p>
-                    <p>
-                      You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
-                    </p>
-                  </div>
-                </InfoTooltip>
+              <div className="flex items-center justify-between gap-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl md:text-2xl font-bold">Gangs & Players</h2>
+                  <InfoTooltip ariaLabel="How to add gangs and change player roles">
+                    <div className="space-y-2">
+                      <p>
+                        To add a gang, first add its owner as a player. You can then select from their available gangs. Repeat the process to add more gangs from the same player.
+                      </p>
+                      <p>
+                        You can also change the role of a player from Member to Arbitrator by clicking on their role icon.
+                      </p>
+                    </div>
+                  </InfoTooltip>
+                </div>
+                {safePermissions.canManageMembers && (
+                  <Button
+                    onClick={() => setShowMessageModal(true)}
+                    variant="ghost"
+                    size="icon"
+                    className="print:hidden"
+                    title="Message players"
+                  >
+                    <LuMail className="w-5 h-5" />
+                  </Button>
+                )}
               </div>
               {safePermissions.canManageMembers && (
                 <MemberSearchBar
                   campaignId={campaignData.id}
-                  campaignMembers={campaignData.members}
                   onMemberAdd={(newMember) => {
                     setCampaignData(prev => ({
                       ...prev,
@@ -772,14 +816,7 @@ export default function CampaignPageContent({
                   if (restoredMembers) {
                     setCampaignData(prev => ({ ...prev, members: restoredMembers }));
                   } else if (roleChange) {
-                    setCampaignData(prev => ({
-                      ...prev,
-                      members: prev.members.map(member =>
-                        member.user_id === roleChange.userId
-                          ? { ...member, role: roleChange.newRole }
-                          : member
-                      )
-                    }));
+                    handleMemberRoleChange(roleChange.userId, roleChange.newRole);
                   } else if (removedMemberId) {
                     // Optimistically remove the member from the local state
                     setCampaignData(prev => ({
@@ -880,54 +917,13 @@ export default function CampaignPageContent({
           {/* Battle Log tab content */}
           {activeTab === 2 && (
             <>
-            {(campaignData.battleSessions ?? []).length > 0 || userId ? (
-              <div className="bg-card shadow-md rounded-lg p-4 mb-4">
-                <CampaignBattleSessions
-                  sessions={campaignData.battleSessions || []}
-                  campaignId={campaignData.id}
-                  userId={userId}
-                  canAdd={safePermissions.canAddBattleLogs}
-                  editionSlug={campaignData.edition_slug ?? null}
-                  campaignGangs={campaignData.members.flatMap((m: Member) =>
-                    m.gangs
-                      .filter((g) => g.status === 'ACCEPTED')
-                      .map((g) => ({
-                        id: g.id,
-                        name: g.name,
-                        gang_colour: g.gang_colour,
-                        user_id: m.user_id,
-                        owner_username: m.username,
-                      }))
-                  )}
-                />
-              </div>
-            ) : null}
             <div className="bg-card shadow-md rounded-lg p-4">
               <div>
-                <div className="flex justify-between items-start mb-4">
+                <div className="mb-4">
                   <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-                  <div className="flex gap-2">
-                    {safePermissions.canEditCampaign && (
-                      <Button
-                        variant="outline"
-                        onClick={() => battleLogsRef.current?.openChallengeRoundModal()}
-                      >
-                        Challenge Round
-                      </Button>
-                    )}
-                    {safePermissions.canAddBattleLogs && (
-                      <Button
-                        className="bg-neutral-900 hover:bg-gray-800 text-white"
-                        onClick={handleAddBattleLog}
-                      >
-                        Add
-                      </Button>
-                    )}
-                  </div>
                 </div>
                 <div id="campaign-battle-logs">
                   <CampaignBattleLogsList
-                    ref={battleLogsRef}
                     campaignId={campaignData.id}
                     editionSlug={campaignData.edition_slug ?? null}
                     battles={campaignData.battles || []}
@@ -941,23 +937,36 @@ export default function CampaignPageContent({
                       }));
                     }}
                     onTerritoryUpdate={handleTerritoryUpdate}
-                    onMemberRoleChange={(userId, newRole) => {
-                      // A user can hold more than one member row in a campaign (one per gang).
-                      setCampaignData(prev => ({
-                        ...prev,
-                        members: prev.members.map(member =>
-                          member.user_id === userId ? { ...member, role: newRole } : member
-                        )
-                      }));
-                    }}
+                    onMemberRoleChange={handleMemberRoleChange}
                     members={campaignData.members}
                     territories={campaignData.territories}
-                    noContainer={true}
-                    hideAddButton={true}
+                    hideAddButton={!safePermissions.canAddBattleLogs}
+                    canStartChallengeRound={!!safePermissions.canEditCampaign}
                     userId={userId || ''}
                     isCampaignOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
-                    currentCycle={campaignData.current_cycle ?? null}
+                    currentCycle={currentCycle}
+                    scenarioTables={scenarioTables}
+                    battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
+                      <CampaignBattleSessions
+                        sessions={campaignData.battleSessions || []}
+                        campaignId={campaignData.id}
+                        userId={userId}
+                        canAdd={safePermissions.canAddBattleLogs}
+                        editionSlug={campaignData.edition_slug ?? null}
+                        campaignGangs={campaignData.members.flatMap((m: Member) =>
+                          m.gangs
+                            .filter((g) => g.status === 'ACCEPTED')
+                            .map((g) => ({
+                              id: g.id,
+                              name: g.name,
+                              gang_colour: g.gang_colour,
+                              user_id: m.user_id,
+                              owner_username: m.username,
+                            }))
+                        )}
+                      />
+                    ) : null}
                   />
                 </div>
               </div>
@@ -967,11 +976,12 @@ export default function CampaignPageContent({
 
           {/* Notes tab content */}
           {activeTab === 3 && (
-            <div className="bg-card shadow-md rounded-lg p-4">
+            <div className="bg-card shadow-md rounded-lg p-4 print:bg-transparent print:shadow-none print:p-0 print:rounded-none">
               <div>
               <CampaignNotes
                 campaignId={campaignData.id}
                 initialNote={campaignData.note || ''}
+                canEdit={!!safePermissions.canEditCampaign}
                 onNoteUpdate={(updatedNote) => {
                   setCampaignData(prev => ({ ...prev, note: updatedNote }));
                 }}
@@ -1007,84 +1017,104 @@ export default function CampaignPageContent({
                   battles={campaignData.battles || []}
                   members={campaignData.members || []}
                   territories={campaignData.territories || []}
+                  ooaCounts={campaignData.ooaCounts || []}
                 />
               </div>
             </div>
           )}
 
         {/* Replace the inline modal with our new component */}
-        <CampaignEditModal
-          isOpen={showEditModal}
-          campaignData={{
-            id: campaignData.id,
-            campaign_name: campaignData.campaign_name,
-            description: campaignData.description,
-            trading_posts: campaignData.trading_posts || [],
-            custom_trading_posts: campaignData.custom_trading_posts || [],
-            status: campaignData.status,
-            allow_join_requests: campaignData.allow_join_requests ?? false,
-            campaign_type_name: campaignData.campaign_type_name,
-            campaign_type_id: campaignData.campaign_type_id,
-            edition_slug: campaignData.edition_slug ?? null,
-            discord_guild_id: campaignData.discord_guild_id,
-            discord_channel_id: campaignData.discord_channel_id,
-            discord_channel_type: campaignData.discord_channel_type,
-          }}
-          tradingPostTypes={tradingPostTypes || []}
-          customTradingPostTypes={customTradingPostTypes}
-          onClose={() => setShowEditModal(false)}
-          isArbitrator={!!safePermissions.isArbitrator}
-          isAdmin={isAdmin}
-          onSaved={handleSettingsSaved}
-          isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
-          campaignAllegiances={campaignAllegiances}
-          predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
-          onMembersUpdate={(allegianceId) => {
-            // Optimistically clear allegiance from all gangs that have it
-            setCampaignData(prev => ({
-              ...prev,
-              members: prev.members.map(member => ({
-                ...member,
-                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
-                  ...gang,
-                  allegiance: gang.allegiance?.id === allegianceId ? null : gang.allegiance
+        {showEditModal && (
+          <CampaignEditModal
+            campaignData={{
+              id: campaignData.id,
+              campaign_name: campaignData.campaign_name,
+              description: campaignData.description,
+              trading_posts: campaignData.trading_posts || [],
+              custom_trading_posts: campaignData.custom_trading_posts || [],
+              status: campaignData.status,
+              allow_join_requests: campaignData.allow_join_requests ?? false,
+              campaign_type_name: campaignData.campaign_type_name,
+              campaign_type_id: campaignData.campaign_type_id,
+              edition_slug: campaignData.edition_slug ?? null,
+              discord_guild_id: campaignData.discord_guild_id,
+              discord_channel_id: campaignData.discord_channel_id,
+              discord_channel_type: campaignData.discord_channel_type,
+              discord_dice_rolls: campaignData.discord_dice_rolls,
+              discord_dice_roll_channel_id: campaignData.discord_dice_roll_channel_id,
+            }}
+            tradingPostTypes={tradingPostTypes || []}
+            customTradingPostTypes={customTradingPostTypes}
+            onClose={() => setShowEditModal(false)}
+            isArbitrator={!!safePermissions.isArbitrator}
+            isAdmin={isAdmin}
+            onSaved={handleSettingsSaved}
+            isOwner={!!safePermissions.isOwner || !!safePermissions.isAdmin}
+            campaignAllegiances={campaignAllegiances}
+            predefinedAllegiances={campaignAllegiances.filter(a => !a.is_custom)}
+            onMembersUpdate={(allegianceId) => {
+              // Optimistically clear allegiance from all gangs that have it
+              setCampaignData(prev => ({
+                ...prev,
+                members: prev.members.map(member => ({
+                  ...member,
+                  gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                    ...gang,
+                    allegiance: gang.allegiance?.id === allegianceId ? null : gang.allegiance
+                  }))
                 }))
               }))
-            }))
-          }}
-          onAllegianceRenamed={(allegianceId, newName) => {
-            // Optimistically update allegiance name for all gangs that have it
-            setCampaignData(prev => ({
-              ...prev,
-              members: prev.members.map(member => ({
-                ...member,
-                gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
-                  ...gang,
-                  allegiance: gang.allegiance?.id === allegianceId 
-                    ? {
-                        ...gang.allegiance,
-                        name: newName
-                      }
-                    : gang.allegiance
+            }}
+            onAllegianceRenamed={(allegianceId, newName) => {
+              // Optimistically update allegiance name for all gangs that have it
+              setCampaignData(prev => ({
+                ...prev,
+                members: prev.members.map(member => ({
+                  ...member,
+                  gangs: member.gangs.map((gang: Member['gangs'][0]) => ({
+                    ...gang,
+                    allegiance: gang.allegiance?.id === allegianceId 
+                      ? {
+                          ...gang.allegiance,
+                          name: newName
+                        }
+                      : gang.allegiance
+                  }))
                 }))
               }))
-            }))
-          }}
-          campaignResources={campaignResources}
-          predefinedResources={campaignResources.filter(r => !r.is_custom)}
-          onDiscordConnected={(guildId) => {
-            setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
-          }}
-        />
+            }}
+            campaignResources={campaignResources}
+            predefinedResources={campaignResources.filter(r => !r.is_custom)}
+            onDiscordConnected={(guildId) => {
+              setCampaignData(prev => ({ ...prev, discord_guild_id: guildId }));
+            }}
+          />
+        )}
 
-        <CampaignImageEditModal
-          isOpen={showImageModal}
-          onClose={() => setShowImageModal(false)}
-          currentImageUrl={campaignData.image_url || ''}
-          campaignId={campaignData.id}
-          onImageUpdate={(newUrl) => setCampaignData(prev => ({ ...prev, image_url: newUrl }))}
-          defaultImageUrl={campaignData.campaign_type_image_url}
-        />
+        {showImageModal && (
+          <CampaignImageEditModal
+            onClose={() => setShowImageModal(false)}
+            currentImageUrl={campaignData.image_url || ''}
+            campaignId={campaignData.id}
+            campaignTypeId={campaignData.campaign_type_id}
+            campaignTypeName={campaignData.campaign_type_name}
+            campaignPortraitId={campaignData.campaign_portrait_id}
+            currentPortraitUrl={campaignData.campaign_portrait_url}
+            typeImageUrl={campaignData.campaign_type_image_url}
+            onImageUpdate={(newUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: newUrl,
+              campaign_portrait_id: null,
+              campaign_portrait_url: null,
+            }))}
+            onPortraitUpdate={(portraitId, portraitUrl) => setCampaignData(prev => ({
+              ...prev,
+              image_url: '',
+              campaign_portrait_id: portraitId,
+              campaign_portrait_url: portraitUrl,
+            }))}
+          />
+        )}
 
         <CampaignAddTerritoryModal
           isOpen={showTerritoryModal}
@@ -1109,14 +1139,52 @@ export default function CampaignPageContent({
 
       </div>
 
-      <LogModal
-        fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
-        title="Campaign Activity Logs"
-        emptyMessage="No activity logs found for this campaign."
-        editionSlug={campaignData.edition_slug ?? null}
-        isOpen={showLogsModal}
-        onClose={() => setShowLogsModal(false)}
-      />
+      {showMessageModal && safePermissions.canManageMembers && (
+        <CampaignMessageModal
+          campaignId={campaignData.id}
+          players={campaignData.members
+            .filter((member) => member.user_id)
+            .map((member) => ({
+              id: member.user_id,
+              username: member.username || member.profile?.username || 'Unknown',
+            }))}
+          onClose={() => setShowMessageModal(false)}
+        />
+      )}
+
+      {showPhasesCyclesModal && safePermissions.canEditCampaign && (
+        <CampaignPhasesCyclesModal
+          campaignId={campaignData.id}
+          editionSlug={campaignData.edition_slug ?? null}
+          currentCycle={currentCycle}
+          currentPhase={campaignData.current_phase ?? null}
+          battles={campaignData.battles || []}
+          phases={campaignTypes.find((type) => type.id === campaignData.campaign_type_id)?.phases ?? []}
+          members={campaignData.members}
+          onClose={() => setShowPhasesCyclesModal(false)}
+          onSaved={(balances, campaign) => {
+            const byGangId = new Map(balances.map(({ gangId, ...balance }) => [gangId, balance]));
+            setCampaignData(prev => ({
+              ...prev,
+              ...campaign,
+              members: prev.members.map((member: Member) => ({
+                ...member,
+                gangs: member.gangs.map((gang) => ({ ...gang, ...byGangId.get(gang.id) })),
+              })),
+            }));
+          }}
+        />
+      )}
+
+      {showLogsModal && (
+        <LogModal
+          fetchUrl={`/api/campaigns/${campaignData.id}/logs`}
+          title="Campaign Activity Logs"
+          emptyMessage="No activity logs found for this campaign."
+          editionSlug={campaignData.edition_slug ?? null}
+          onClose={() => setShowLogsModal(false)}
+        />
+      )}
 
       {/* View Campaign Data Modal */}
       {showExportModal && (

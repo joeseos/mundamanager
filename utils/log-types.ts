@@ -2,6 +2,7 @@
  * Shared action type → display label map for log UIs.
  */
 import { downtimePhaseName } from '@/types/edition';
+import { POST_CYCLE_LOG_TYPE_LABELS } from '@/utils/postCycleActions';
 
 export const CAMPAIGN_ACTION_TYPES = [
   'campaign_joined',
@@ -11,6 +12,8 @@ export const CAMPAIGN_ACTION_TYPES = [
   'battle_draw',
   'territory_claimed',
   'territory_lost',
+  'campaign_credits_granted',
+  'campaign_trade_points_cleared',
 ] as const;
 
 export const LOG_TYPE_LABELS: Record<string, string> = {
@@ -36,10 +39,12 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'fighter_captured': 'Fighter captured',
   'fighter_released': 'Fighter released',
   'fighter_copied': 'Fighter copied',
+  'fighter_promoted': 'Fighter promoted',
 
   // Fighter stats
   'fighter_xp_changed': 'XP changed',
   'fighter_total_xp_changed': 'Total XP changed',
+  'fighter_starting_xp_changed': 'Starting XP changed',
   'fighter_kills_changed': 'OOA count changed',
   'fighter_OOA_changed': 'OOA count changed',
   'fighter_kill_count_changed': 'Kill count changed',
@@ -108,6 +113,9 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'tactics_card_added': 'Gang Tactic added',
   'tactics_card_removed': 'Gang Tactic removed',
 
+  // Post-cycle Actions (N26)
+  ...POST_CYCLE_LOG_TYPE_LABELS,
+
   // Campaign
   'campaign_joined': 'Campaign joined',
   'campaign_left': 'Campaign left',
@@ -116,6 +124,8 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'battle_draw': 'Battle draw',
   'territory_claimed': 'Territory claimed',
   'territory_lost': 'Territory lost',
+  'campaign_credits_granted': 'Credits granted',
+  'campaign_trade_points_cleared': 'Trade Points cleared',
 };
 
 /**

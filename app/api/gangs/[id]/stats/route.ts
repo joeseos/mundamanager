@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getGangFighterStats } from "@/app/lib/shared/gang-data";
+import { getUserIdFromClaims } from "@/utils/auth";
 
 /**
  * GET /api/gangs/[id]/stats
@@ -23,7 +24,14 @@ export async function GET(
   }
 
   try {
-    const stats = await getGangFighterStats(gangId, supabase);
+    // The stats are read over the direct connection, which doesn't check who is
+    // asking, so confirm the user first
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const stats = await getGangFighterStats(gangId);
     return NextResponse.json(stats);
   } catch (error: any) {
     console.error('Error fetching gang fighter stats:', error);

@@ -5,9 +5,9 @@ import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 
-import { createExoticBeastsForEquipment } from '@/utils/exotic-beasts';
+import { createExoticBeastsForEquipment, type CreatedFamiliar } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantSkillsForEffects } from './equipment';
+import { grantSkillsForEffects, type GrantedSkill } from './equipment';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logFighterAction } from '@/app/actions/logs/fighter-logs';
 import { mapArchetypeSkillAccessToOverrides } from '@/utils/archetypeEligibility';
@@ -121,48 +121,7 @@ interface AddFighterResult {
       skill_name: string;
     }>;
     special_rules?: string[];
-    created_beasts?: Array<{
-      id: string;
-      fighter_name: string;
-      fighter_type: string;
-      fighter_subtypes: string[];
-      fighter_type_id: string;
-      credits: number;
-      equipment_source: string;
-      created_at: string;
-      owner: {
-        id: string;
-        fighter_name: string;
-      };
-      movement: number;
-      weapon_skill: number;
-      ballistic_skill: number;
-      strength: number;
-      toughness: number;
-      wounds: number;
-      initiative: number;
-      attacks: number;
-      leadership: number;
-      cool: number;
-      willpower: number;
-      intelligence: number;
-      save?: number | null;
-      xp: number;
-      kills: number;
-      special_rules: string[];
-      equipment: Array<{
-        fighter_equipment_id: string;
-        equipment_id: string;
-        equipment_name: string;
-        equipment_type: string;
-        cost: number;
-        weapon_profiles?: any[];
-      }>;
-      skills: Array<{
-        skill_id: string;
-        skill_name: string;
-      }>;
-    }>;
+    created_familiars?: CreatedFamiliar[];
     applied_effects?: Array<{
       id: string;
       effect_name: string;
@@ -189,9 +148,9 @@ async function applyEffectsForEquipmentOptimized(
   fighterId: string,
   userId: string,
   includeCreditIncrease: boolean = false
-): Promise<{ appliedEffects: any[], effectsCreditsIncrease: number }> {
+): Promise<{ appliedEffects: any[], effectsCreditsIncrease: number, grantedSkills: GrantedSkill[] }> {
   if (!effectTypes || effectTypes.length === 0) {
-    return { appliedEffects: [], effectsCreditsIncrease: 0 };
+    return { appliedEffects: [], effectsCreditsIncrease: 0, grantedSkills: [] };
   }
 
   try {
@@ -214,7 +173,7 @@ async function applyEffectsForEquipmentOptimized(
 
     if (effectsError || !insertedEffects) {
       console.error('Failed to insert effects:', effectsError);
-      return { appliedEffects: [], effectsCreditsIncrease: 0 };
+      return { appliedEffects: [], effectsCreditsIncrease: 0, grantedSkills: [] };
     }
 
     // Batch insert modifiers using pre-fetched modifier data
@@ -240,7 +199,7 @@ async function applyEffectsForEquipmentOptimized(
       }
     }
 
-    await grantSkillsForEffects(
+    const grantedSkills = await grantSkillsForEffects(
       supabase,
       fighterId,
       insertedEffects.map((effect: any, index: number) => ({
@@ -278,11 +237,11 @@ async function applyEffectsForEquipmentOptimized(
       }
     });
 
-    return { appliedEffects, effectsCreditsIncrease: totalCreditsIncrease };
+    return { appliedEffects, effectsCreditsIncrease: totalCreditsIncrease, grantedSkills };
 
   } catch (error) {
     console.error('Equipment effect application failed:', error);
-    return { appliedEffects: [], effectsCreditsIncrease: 0 };
+    return { appliedEffects: [], effectsCreditsIncrease: 0, grantedSkills: [] };
   }
 }
 
@@ -848,12 +807,15 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     let gangUpdateError: any = null;
 
     // Collect exotic beast data for cache invalidation after main fighter processing
-    let allCreatedBeasts: any[] = [];
-    let totalBeastsRatingDelta = 0;
+    let allCreatedFamiliars: any[] = [];
+    let totalFamiliarsRatingDelta = 0;
 
     // Collect equipment effects data
     let allAppliedEffects: any[] = [];
     let totalEffectsCreditsIncrease = 0;
+    // What default gear granted after the fighter row and its skills were written
+    let grantedSubtypes: string[] | undefined;
+    const grantedSkills: GrantedSkill[] = [];
 
     for (const result of insertResults) {
       if (result.status === 'fulfilled') {
@@ -937,6 +899,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                           );
 
                           allAppliedEffects.push(...effectsResult.appliedEffects);
+                          grantedSkills.push(...effectsResult.grantedSkills);
                           totalEffectsCreditsIncrease += effectsResult.effectsCreditsIncrease;
                         } catch (effectError) {
                           console.error('Error applying effects for equipment:', equipmentItem.equipment_id, effectError);
@@ -945,7 +908,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                     }
 
                     // Default gear can grant a subtype, e.g. a type shipping a Dirt bike
-                    await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects });
+                    grantedSubtypes = await syncSubtypeGrants(supabase, fighterId, { granted: allAppliedEffects });
                   }
                 } catch (batchError) {
                   console.error('Error in batch effect processing:', batchError);
@@ -990,13 +953,12 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
               });
 
               // Create exotic beasts for equipment that grants them
-              let createdBeasts: any[] = [];
-              let createdBeastsRatingDelta = 0;
+              let createdFamiliarsRatingDelta = 0;
               
               if (exoticBeastEquipment.length > 0) {
                 for (const equipmentItem of exoticBeastEquipment) {
                   try {
-                    const beastResult = await createExoticBeastsForEquipment({
+                    const familiarResult = await createExoticBeastsForEquipment({
                       equipmentId: equipmentItem.equipment_id,
                       ownerFighterId: fighterId,
                       ownerFighterName: insertedFighter.fighter_name,
@@ -1005,17 +967,14 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                       fighterEquipmentId: equipmentItem.id
                     });
 
-                    if (beastResult.success && beastResult.createdBeasts.length > 0) {
-                      createdBeasts.push(...beastResult.createdBeasts);
+                    if (familiarResult.success && familiarResult.createdFamiliars.length > 0) {
+                      allCreatedFamiliars.push(...familiarResult.createdFamiliars);
                       
-                      // Collect beast data for later processing
-                      allCreatedBeasts.push(...beastResult.createdBeasts);
-                      
-                      // Calculate rating delta for created beasts
-                      for (const beast of beastResult.createdBeasts) {
-                        createdBeastsRatingDelta += beast.credits || 0;
+                      // Calculate rating delta for created familiars
+                      for (const familiar of familiarResult.createdFamiliars) {
+                        createdFamiliarsRatingDelta += familiar.credits || 0;
                       }
-                      totalBeastsRatingDelta += createdBeastsRatingDelta;
+                      totalFamiliarsRatingDelta += createdFamiliarsRatingDelta;
                     }
                   } catch (beastError) {
                     console.error('Error creating exotic beast for equipment:', equipmentItem.equipment_id, beastError);
@@ -1218,7 +1177,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Update gang credits, rating and wealth using centralized helper
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
-      ratingDelta: ratingCost + totalBeastsRatingDelta,
+      ratingDelta: ratingCost + totalFamiliarsRatingDelta,
       creditsDelta: -fighterCost // Negative because credits were spent
     });
 
@@ -1259,9 +1218,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
             gangType: gangData.gang_type,
             editionSlug: gangEditionForSync,
             isCustomGangType: Boolean(gangData.custom_gang_type_id),
-            subtypes: Array.isArray(insertedFighter.fighter_subtypes)
-              ? insertedFighter.fighter_subtypes
-              : [],
+            subtypes: grantedSubtypes
+              ?? (Array.isArray(insertedFighter.fighter_subtypes) ? insertedFighter.fighter_subtypes : []),
           },
           supabase,
         );
@@ -1301,7 +1259,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         fighter_type: effectiveFighterData.fighter_type,
-        fighter_subtypes: insertedFighter.fighter_subtypes ?? [],
+        fighter_subtypes: grantedSubtypes ?? insertedFighter.fighter_subtypes ?? [],
         fighter_specialisation_id: fighterInsertData.fighter_specialisation_id,
         fighter_variant: effectiveFighterData.fighter_variant ?? null,
         free_skill: effectiveFighterData.free_skill || false,
@@ -1344,12 +1302,16 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         // Legacy stats field for backward compatibility (use current stats)
         stats: currentStats,
         equipment: equipmentWithProfiles,
-        skills: insertedSkills.map(skill => ({
-          skill_id: skill.skill_id,
-          skill_name: (skill.skills as any)?.name || ''
-        })),
+        // Granted first: the client keys skills by name, so a default skill wins
+        skills: [
+          ...grantedSkills,
+          ...insertedSkills.map(skill => ({
+            skill_id: skill.skill_id,
+            skill_name: (skill.skills as any)?.name || ''
+          }))
+        ],
         special_rules: effectiveFighterData.special_rules,
-        created_beasts: allCreatedBeasts.length > 0 ? allCreatedBeasts : undefined,
+        created_familiars: allCreatedFamiliars.length > 0 ? allCreatedFamiliars : undefined,
         applied_effects: allAppliedEffects.length > 0 ? allAppliedEffects : undefined
       }
     };

@@ -1,9 +1,27 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { getUserIdFromClaims, safePostSignInPath, signInPath } from './utils/auth'
+import { lowerCaseUuids } from './utils/uuid'
+
+function copyAuthResponse(
+  source: NextResponse,
+  target: NextResponse,
+  headerNames: Iterable<string>,
+) {
+  source.cookies.getAll().forEach((cookie) => {
+    target.cookies.set(cookie);
+  });
+  for (const header of headerNames) {
+    const value = source.headers.get(header);
+    if (value) target.headers.set(header, value);
+  }
+  return target;
+}
 
 function createSupabaseProxyClient(request: NextRequest) {
   let response = NextResponse.next({ request });
+  // Cache headers arrive only on the first setAll; keep them across response recreations.
+  let authCacheHeaders: Record<string, string> = {};
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,12 +31,16 @@ function createSupabaseProxyClient(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          authCacheHeaders = { ...authCacheHeaders, ...headers };
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options)
           );
+          Object.entries(authCacheHeaders).forEach(([key, value]) => {
+            response.headers.set(key, value);
+          });
         },
       },
     }
@@ -29,69 +51,51 @@ function createSupabaseProxyClient(request: NextRequest) {
     getResponse() {
       return response;
     },
+    copyTo(target: NextResponse) {
+      return copyAuthResponse(response, target, Object.keys(authCacheHeaders));
+    },
   };
-}
-
-function copyResponseCookies(source: NextResponse, target: NextResponse) {
-  source.cookies.getAll().forEach((cookie) => {
-    target.cookies.set(cookie);
-  });
-  return target;
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Skip proxy for server actions - they handle their own auth
-  if (request.headers.get('Next-Action')) {
-    return NextResponse.next();
+  // An upper-case id would find the row in Postgres but miss lower-case
+  // lookups, cache keys and cache tags, so redirect to the canonical URL
+  const canonicalPath = lowerCaseUuids(pathname);
+  if (canonicalPath !== pathname) {
+    const canonicalUrl = request.nextUrl.clone();
+    canonicalUrl.pathname = canonicalPath;
+    return NextResponse.redirect(canonicalUrl, 308);
+  }
+
+  // Forum pages moved from ?page=<n> to /page/<n>, so links from before (e.g. in notifications) still work
+  const oldForumPage = request.nextUrl.searchParams.get('page');
+  if (oldForumPage && /^\/forum\/[^/]+(?:\/[^/]+)?$/.test(pathname)) {
+    const pageUrl = request.nextUrl.clone();
+    pageUrl.searchParams.delete('page');
+    pageUrl.pathname = `${pathname}/page/${oldForumPage}`;
+    return NextResponse.redirect(pageUrl, 308);
   }
 
   // Auth pages - check if user is already logged in and redirect away
   const authPages = ['/sign-in', '/sign-up'];
 
   if (authPages.includes(pathname)) {
-    const { supabase, getResponse } = createSupabaseProxyClient(request);
+    const { supabase, getResponse, copyTo } = createSupabaseProxyClient(request);
 
     const userId = await getUserIdFromClaims(supabase);
 
     if (userId) {
       const destination = safePostSignInPath(request.nextUrl.searchParams.get('next'));
       const redirectResponse = NextResponse.redirect(new URL(destination, request.url));
-      return copyResponseCookies(getResponse(), redirectResponse);
+      return copyTo(redirectResponse);
     }
     return getResponse();
   }
 
-  // Public pages - accessible to everyone, no auth check
-  const publicPaths = [
-    '/auth/callback',
-    '/confirm-email',
-    '/reset-password',
-    '/reset-password/update',
-    '/user-guide',
-    '/api-access',
-    '/about',
-    '/contributors',
-    '/join-the-team',
-    '/terms',
-    '/contact',
-    '/privacy-policy',
-    '/merch'
-  ];
-
-  // Check for password reset flow
-  const isPasswordResetFlow =
-    pathname.startsWith('/reset-password') ||
-    pathname.startsWith('/auth/callback');
-
-  // Early return for public paths - avoid creating Supabase client unnecessarily
-  if (publicPaths.includes(pathname) || isPasswordResetFlow) {
-    return NextResponse.next({ request });
-  }
-
   // Create response and Supabase client bound to the incoming request/response (Edge-safe)
-  const { supabase, getResponse } = createSupabaseProxyClient(request);
+  const { supabase, getResponse, copyTo } = createSupabaseProxyClient(request);
 
   // Check authentication
   const userId = await getUserIdFromClaims(supabase);
@@ -108,7 +112,7 @@ export async function proxy(request: NextRequest) {
     const redirectPath = `${cleanUrl.pathname}${cleanUrl.search}`;
 
     const redirectResponse = NextResponse.redirect(new URL(signInPath(redirectPath), request.url));
-    return copyResponseCookies(getResponse(), redirectResponse);
+    return copyTo(redirectResponse);
   }
 
   return getResponse();
@@ -124,9 +128,23 @@ export const config = {
      * - Static assets by file extension
      * - Common static files (favicon, robots, sitemap, etc.)
      * - Service workers and special paths
+     * - Public pages (and their .rsc requests) that need no auth check or session refresh:
+     *   the forum and its articles, the auth flow pages and the info pages
      *
      * Note: Query strings are automatically stripped by Next.js before matching
      */
-    '/((?!api/|_next/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
+    {
+      source: '/((?!api/|_next/|favicon.ico|robots.txt|sitemap.xml|manifest.json|sw.js|workbox.*\\.js|site.webmanifest|images/|\\.well-known/.*|health|status|(?:articles|auth/callback|forum|reset-password)(?:[/.]|$)|(?:about|api-access|confirm-email|contact|contributors|join-the-team|merch|privacy-policy|terms|user-guide)(?:\\.|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff|woff2|ttf|eot|otf|pdf|txt|xml|json|map|webmanifest)$).*)',
+      // Server actions check auth themselves
+      missing: [{ type: 'header', key: 'next-action' }],
+    },
+    // Starting a forum thread needs the sign-in check
+    { source: '/forum/:category/new', missing: [{ type: 'header', key: 'next-action' }] },
+    // Forum links from before /page/<n>, for the redirect above
+    {
+      source: '/forum/:category/:thread?',
+      has: [{ type: 'query', key: 'page' }],
+      missing: [{ type: 'header', key: 'next-action' }],
+    },
   ],
 };

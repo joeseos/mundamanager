@@ -556,7 +556,7 @@ export async function PATCH(request: Request) {
     const { data: gangType, error: gangTypeError } = await supabase
       .from('gang_types')
       .select('edition_id')
-      .eq('gang_type_id', data.gang_type_id)
+      .eq('id', data.gang_type_id)
       .single();
 
     if (gangTypeError) {
@@ -994,7 +994,7 @@ export async function POST(request: Request) {
     const { data: gangType, error: gangTypeError } = await supabase
       .from('gang_types')
       .select('gang_type, edition_id')
-      .eq('gang_type_id', data.gangTypeId)
+      .eq('id', data.gangTypeId)
       .single();
 
     if (gangTypeError) {

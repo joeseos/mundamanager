@@ -20,6 +20,6 @@ const getCachedCampaignActivityStats = makeActivityStats(
   TAGS.globalCampaignActivity()
 );
 
-export async function getCampaignActivityStats(): Promise<ActivityStats | null> {
+export async function getCampaignActivityStats(): Promise<ActivityStats> {
   return getCachedCampaignActivityStats();
 }

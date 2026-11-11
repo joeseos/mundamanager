@@ -13,11 +13,14 @@ import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario } from '@/types/campaign';
-import { battleStatusOf, challengeAnswerStatuses } from '@/types/campaign';
+import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, customPartNames, neededScenarioPart, participantSideJob } from '@/types/campaign';
+import { battleStatusLabels, battleStatusOf, challengeAnswerStatuses, isPlayedBattle } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
-import { sameEditionForDisplay } from '@/types/edition';
+import { hasScenarioTables, sameEditionForDisplay } from '@/types/edition';
+import { ScenarioPartsPicker } from '@/components/scenario-parts-picker';
+import type { ScenarioParts } from '@/utils/scenario-parts';
+import { SideJobPicker } from '@/components/side-job-picker';
 
 interface BattleLogTerritory extends BaseTerritory {
   default_gang_territory?: boolean;
@@ -28,7 +31,6 @@ interface CampaignBattleLogModalProps {
   editionSlug?: string | null;
   availableGangs: CampaignGang[];
   territories?: BattleLogTerritory[];
-  isOpen: boolean;
   onClose: () => void;
   onBattleUpdate: (updatedBattles: Battle[] | ((prevBattles: Battle[]) => Battle[])) => void;
   /** Battle logs can claim or release a territory; this reports that to the page. */
@@ -42,6 +44,12 @@ interface CampaignBattleLogModalProps {
   userRole?: 'OWNER' | 'ARBITRATOR' | 'MEMBER';
   /** The challenged gang's owner (or an arbitrator) may accept or decline. */
   canRespondToChallenge?: boolean;
+  /** The campaign edition's scenario tables: an N26 battle is made from them. */
+  scenarioTables?: ScenarioTableWithEntries[];
+  /** Add a challenge instead of a battle report: no result, only a challenge status. */
+  newChallenge?: boolean;
+  /** The campaign's current cycle, prefilled on a new log. */
+  defaultCycle?: number | null;
 }
 
 const reportCharLimit = 4096;
@@ -58,31 +66,45 @@ type GangEntry = {
   id: number;
   gangId: string;
   role: GangRole;
+  /** N26: the gang's Side Job, an entry or a custom name. */
+  sideJobId: string;
+  sideJobName: string;
+  sideJobCompleted: boolean;
 }
+
+const emptyGangEntry = (id: number): GangEntry => ({
+  id, gangId: '', role: 'none', sideJobId: '', sideJobName: '', sideJobCompleted: false,
+});
 
 const CampaignBattleLogModal = ({
   campaignId,
   editionSlug,
   availableGangs,
   territories = [],
-  isOpen,
   onClose,
   onBattleUpdate,
   onTerritoryUpdate,
   battles,
   battleToEdit = null,
   userRole = 'MEMBER',
-  canRespondToChallenge = false
+  canRespondToChallenge = false,
+  scenarioTables = [],
+  newChallenge = false,
+  defaultCycle = null
 }: CampaignBattleLogModalProps) => {
+  // N26 has no scenario list: Deployment, Objective and Crew are rolled for the
+  // battle, and a Side Job for each gang.
+  const usesScenarioTables = hasScenarioTables(editionSlug);
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
-  const [gangsInBattle, setGangsInBattle] = useState<GangEntry[]>([
-    { id: 1, gangId: "", role: 'none' },
-    { id: 2, gangId: "", role: 'none' },
-  ]);
+  const [scenarioParts, setScenarioParts] = useState<ScenarioParts>({});
+  // N26: an optional name for the scenario, kept in the scenario text beside its parts.
+  const [scenarioNamed, setScenarioNamed] = useState(false);
+  const [namedScenario, setNamedScenario] = useState('');
+  const [gangsInBattle, setGangsInBattle] = useState<GangEntry[]>([emptyGangEntry(1), emptyGangEntry(2)]);
   const [notes, setNotes] = useState('');
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [isLoadingBattleData, setIsLoadingBattleData] = useState(false);
+  const [isLoadingBattleData, setIsLoadingBattleData] = useState(!!campaignId && !usesScenarioTables);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const isReportOverLimit = notes.length > reportCharLimit;
 
@@ -105,7 +127,6 @@ const CampaignBattleLogModal = ({
     removeWinnerSlot,
     loadExistingWinners,
     removeGangFromWinners,
-    resetWinnerSelection,
   } = useWinnerSelection({
     maxParticipants: selectedGangs.length,
     selectedTerritory,
@@ -116,7 +137,7 @@ const CampaignBattleLogModal = ({
     const tzOffsetMs = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10);
   });
-  const [cycle, setCycle] = useState<string>('');
+  const [cycle, setCycle] = useState<string>(defaultCycle != null ? String(defaultCycle) : '');
 
   // Check if we're in edit mode
   const isEditMode = !!battleToEdit;
@@ -124,8 +145,10 @@ const CampaignBattleLogModal = ({
   // A challenge has no result yet, so the result fields stay hidden and
   // unvalidated until the user says it has been played.
   const isUnplayedChallenge = !!battleToEdit && battleStatusOf(battleToEdit) !== 'played';
+  const isNewChallenge = newChallenge && !battleToEdit;
+  const [newChallengeStatus, setNewChallengeStatus] = useState<BattleStatus>('challenge_issued');
   const [battlePlayed, setBattlePlayed] = useState(false);
-  const showResultFields = !isUnplayedChallenge || battlePlayed;
+  const showResultFields = !isNewChallenge && (!isUnplayedChallenge || battlePlayed);
   const [challengeResponse, setChallengeResponse] = useState<BattleStatus>('played');
   // A new opponent has not answered yet, so the server re-issues the challenge.
   const opponentUnchanged =
@@ -184,7 +207,12 @@ const CampaignBattleLogModal = ({
         created_at: battleData.created_at || new Date().toISOString(),
         scenario: battleData.scenario,
         scenario_name: battleData.scenario,
-        winner_id: legacyWinnerId,
+        deployment_id: battleData.deployment_id,
+        objective_id: battleData.objective_id,
+        crew_selection_id: battleData.crew_selection_id,
+        deployment_name: battleData.deployment_name,
+        objective_name: battleData.objective_name,
+        crew_selection_name: battleData.crew_selection_name,
         note: battleData.note,
         participants: battleData.participants,
         campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -192,6 +220,13 @@ const CampaignBattleLogModal = ({
           : null,
         territory_name: territoryName,
         cycle: battleData.cycle,
+        ...(battleData.status && battleData.status !== 'played'
+          ? {
+              status: battleData.status,
+              challenger_gang_id: battleData.participants[0]?.gang_id ?? null,
+              challenged_gang_id: battleData.participants[1]?.gang_id ?? null,
+            }
+          : {}),
         attacker: attackerParticipant ? {
           id: attackerParticipant.gang_id,
           name: getGangName(attackerParticipant.gang_id)
@@ -230,15 +265,16 @@ const CampaignBattleLogModal = ({
         );
       }
 
+      const isChallenge = !!_variables.status && _variables.status !== 'played';
       const claimed = _variables.claimed_territories?.[0]?.campaign_territory_id;
-      if (claimed) {
+      if (claimed && !isChallenge) {
         onTerritoryUpdate({
           action: 'assign',
           territoryId: claimed,
           gangId: _variables.participants.find(p => p.claimed_territory === true)?.gang_id
         });
       }
-      toast.success("Battle report added successfully");
+      toast.success(isChallenge ? "Challenge added successfully" : "Battle log added successfully");
     },
     onError: (error, _variables, context) => {
       console.error('Battle creation failed:', error);
@@ -250,7 +286,7 @@ const CampaignBattleLogModal = ({
         );
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create battle report';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create battle log';
       toast.error(errorMessage);
     }
   });
@@ -292,7 +328,16 @@ const CampaignBattleLogModal = ({
               ...battle,
               scenario: battleData.scenario,
               scenario_name: battleData.scenario,
-              winner_id: legacyWinnerId,
+              ...(battleData.deployment_id !== undefined
+                ? {
+                    deployment_id: battleData.deployment_id,
+                    objective_id: battleData.objective_id,
+                    crew_selection_id: battleData.crew_selection_id,
+                    deployment_name: battleData.deployment_name,
+                    objective_name: battleData.objective_name,
+                    crew_selection_name: battleData.crew_selection_name,
+                  }
+                : {}),
               note: battleData.note,
               participants: battleData.participants,
               campaign_territory_id: battleData.claimed_territories && battleData.claimed_territories.length > 0
@@ -344,7 +389,7 @@ const CampaignBattleLogModal = ({
           gangId: _variables.battleData.participants.find(p => p.claimed_territory === true)?.gang_id
         });
       }
-      toast.success("Battle report updated successfully");
+      toast.success("Battle log updated successfully");
     },
     onError: (error, _variables, context) => {
       console.error('Battle update failed:', error);
@@ -356,7 +401,7 @@ const CampaignBattleLogModal = ({
         );
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update battle report';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update battle log';
       toast.error(errorMessage);
     }
   });
@@ -368,7 +413,8 @@ const CampaignBattleLogModal = ({
   useEffect(() => {
     let isMounted = true;
 
-    if (isOpen && campaignId) {
+    // N26 picks from scenarioTables, which come with the page.
+    if (campaignId && !usesScenarioTables) {
       const fetchData = async () => {
         setIsLoadingBattleData(true);
         try {
@@ -411,14 +457,11 @@ const CampaignBattleLogModal = ({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, campaignId, editionSlug]);
+  }, [campaignId, editionSlug, usesScenarioTables]);
 
   // Populate form when modal opens with edit data and scenarios are loaded
   const [populatedForBattle, setPopulatedForBattle] = useState<string | null>(null);
-  if (!isOpen && populatedForBattle !== null) {
-    setPopulatedForBattle(null);
-  }
-  if (isOpen && battleToEdit && scenarios.length > 0 && battleToEdit.id !== populatedForBattle) {
+  if (battleToEdit && (usesScenarioTables || scenarios.length > 0) && battleToEdit.id !== populatedForBattle) {
     setPopulatedForBattle(battleToEdit.id);
     setBattlePlayed(battleStatusOf(battleToEdit) === 'played');
     setChallengeResponse(battleStatusOf(battleToEdit));
@@ -431,7 +474,10 @@ const CampaignBattleLogModal = ({
     // A challenge slot is created without a scenario, so treat "none" as its own
     // state rather than falling through to an empty custom name.
     const existingScenario = battleToEdit.scenario || battleToEdit.scenario_name || '';
-    if (matchingScenario) {
+    if (usesScenarioTables) {
+      setScenarioNamed(!!existingScenario.trim());
+      setNamedScenario(existingScenario);
+    } else if (matchingScenario) {
       setSelectedScenario(matchingScenario.id);
     } else if (existingScenario) {
       setSelectedScenario('custom');
@@ -440,6 +486,15 @@ const CampaignBattleLogModal = ({
       setSelectedScenario('');
       setCustomScenario('');
     }
+
+    setScenarioParts({
+      deployment_id: battleToEdit.deployment_id,
+      objective_id: battleToEdit.objective_id,
+      crew_selection_id: battleToEdit.crew_selection_id,
+      deployment_name: battleToEdit.deployment_name,
+      objective_name: battleToEdit.objective_name,
+      crew_selection_name: battleToEdit.crew_selection_name,
+    });
 
     if (battleToEdit.created_at) {
       const dt = new Date(battleToEdit.created_at);
@@ -468,30 +523,30 @@ const CampaignBattleLogModal = ({
       participants.forEach((participant: BattleParticipant, index: number) => {
         if (participant.gang_id) {
           newGangsInBattle.push({
-            id: index + 1,
+            ...emptyGangEntry(index + 1),
             gangId: participant.gang_id,
-            role: participant.role as GangRole
+            role: participant.role as GangRole,
+            sideJobId: participant.side_job_id ?? '',
+            sideJobName: participant.side_job_name ?? '',
+            sideJobCompleted: participant.side_job_completed === true,
           });
         }
       });
     } else {
       let idx = 1;
       if (battleToEdit.attacker?.id) {
-        newGangsInBattle.push({ id: idx++, gangId: battleToEdit.attacker.id, role: 'attacker' });
+        newGangsInBattle.push({ ...emptyGangEntry(idx++), gangId: battleToEdit.attacker.id, role: 'attacker' });
       }
       if (battleToEdit.defender?.id) {
-        newGangsInBattle.push({ id: idx++, gangId: battleToEdit.defender.id, role: 'defender' });
+        newGangsInBattle.push({ ...emptyGangEntry(idx++), gangId: battleToEdit.defender.id, role: 'defender' });
       }
     }
 
     if (newGangsInBattle.length === 0) {
-      setGangsInBattle([
-        { id: 1, gangId: "", role: 'none' },
-        { id: 2, gangId: "", role: 'none' },
-      ]);
+      setGangsInBattle([emptyGangEntry(1), emptyGangEntry(2)]);
     } else {
       while (newGangsInBattle.length < 2) {
-        newGangsInBattle.push({ id: newGangsInBattle.length + 1, gangId: "", role: 'none' });
+        newGangsInBattle.push(emptyGangEntry(newGangsInBattle.length + 1));
       }
       setGangsInBattle(newGangsInBattle);
     }
@@ -503,9 +558,7 @@ const CampaignBattleLogModal = ({
       // A challenge has no result yet, so it is not a draw — only a played
       // battle with nobody flagged as a winner is.
       isDraw:
-        battleStatusOf(battleToEdit) === 'played' &&
-        battleToEdit.winner_id === null &&
-        winnerIds.length === 0,
+        battleStatusOf(battleToEdit) === 'played' && winnerIds.length === 0,
     });
 
     setNotes(battleToEdit.note || "");
@@ -523,10 +576,17 @@ const CampaignBattleLogModal = ({
     }
     // A challenge stakes a territory before anyone has won it, so the picker is
     // available there too — not only once a winner exists.
-    return hasAnyWinnerSelected || isUnplayedChallenge
+    return hasAnyWinnerSelected || isUnplayedChallenge || isNewChallenge
       ? territories
       : ([] as BattleLogTerritory[]);
-  }, [hasAnyWinnerSelected, isUnplayedChallenge, gangsInBattle, territories]);
+  }, [hasAnyWinnerSelected, isUnplayedChallenge, isNewChallenge, gangsInBattle, territories]);
+
+  // Territories another open challenge already stakes; still pickable, only labelled.
+  const stakedTerritoryIds = useMemo(() => new Set(
+    battles
+      .filter(battle => battle.id !== battleToEdit?.id && !isPlayedBattle(battle) && battleStatusOf(battle) !== 'challenge_declined')
+      .map(battle => battle.campaign_territory_id)
+  ), [battles, battleToEdit]);
 
   // Clear selected territory when no territories are available (non-edit mode only)
   const [prevHasAvailable, setPrevHasAvailable] = useState(false);
@@ -549,7 +609,7 @@ const CampaignBattleLogModal = ({
   const handleGangChange = (gangEntryId: number, gangId: string) => {
     setGangsInBattle((current) =>
       current.map((entry) => (
-        entry.id === gangEntryId ? { ...entry, gangId, role: 'none' } : entry
+        entry.id === gangEntryId ? { ...emptyGangEntry(entry.id), gangId } : entry
       ))
     );
     // If the user changed away from a previously-selected gang, remove it from
@@ -562,7 +622,7 @@ const CampaignBattleLogModal = ({
 
   const addGang = () => {
     const newId = Math.max(...gangsInBattle.map((g) => g.id)) + 1;
-    setGangsInBattle([...gangsInBattle, { id: newId, gangId: "", role: 'none' }]);
+    setGangsInBattle([...gangsInBattle, emptyGangEntry(newId)]);
   };
 
   const removeGang = (gangEntryId: number) => {
@@ -573,6 +633,19 @@ const CampaignBattleLogModal = ({
       removeGangFromWinners(removedGangId);
     }
   };
+
+  const updateGangEntry = (gangEntryId: number, changes: Partial<GangEntry>) => {
+    setGangsInBattle((current) =>
+      current.map((entry) => (entry.id === gangEntryId ? { ...entry, ...changes } : entry))
+    );
+  };
+
+  // Every part of an N26 scenario is needed to file a report, unless the scenario is named;
+  // a challenge may not have rolled them yet.
+  const scenarioNameToSave = usesScenarioTables && scenarioNamed ? namedScenario.trim() : '';
+  const missingScenarioPart = usesScenarioTables && showResultFields && !scenarioNameToSave
+    ? neededScenarioPart(scenarioParts)
+    : undefined;
 
   // Get the list of gangs that are already selected in other entries
   const getSelectedGangs = (excludeEntryId: number): string[] => {
@@ -586,12 +659,17 @@ const CampaignBattleLogModal = ({
     if (isSubmitting) return false;
 
     // Validate required fields
-    if (showResultFields && selectedScenario === '') {
+    if (missingScenarioPart) {
+      toast.error(`Please select a ${missingScenarioPart.label}`);
+      return false;
+    }
+
+    if (!usesScenarioTables && showResultFields && selectedScenario === '') {
       toast.error("Please select a scenario");
       return false;
     }
     
-    if (selectedScenario === 'custom' && !customScenario.trim()) {
+    if (!usesScenarioTables && selectedScenario === 'custom' && !customScenario.trim()) {
       toast.error("Please enter a custom scenario name");
       return false;
     }
@@ -618,6 +696,11 @@ const CampaignBattleLogModal = ({
 
     if (showResultFields && !hasAnyWinnerSelected) {
       toast.error("Please select a winner");
+      return false;
+    }
+
+    if (isNewChallenge && selectedGangs.length !== 2) {
+      toast.error("A challenge needs exactly two gangs");
       return false;
     }
 
@@ -669,6 +752,13 @@ const CampaignBattleLogModal = ({
         gang_id: gang.gangId,
         is_winner: winnerSet.has(gang.gangId),
         claimed_territory: !!claimerForPayload && gang.gangId === claimerForPayload,
+        ...(usesScenarioTables
+          ? participantSideJob({
+              side_job_id: gang.sideJobId,
+              side_job_name: gang.sideJobName,
+              side_job_completed: gang.sideJobCompleted,
+            })
+          : {}),
       }));
 
     // Get the scenario name for the selected scenario
@@ -677,9 +767,7 @@ const CampaignBattleLogModal = ({
       scenarioName = customScenario.trim();
     } else {
       const selectedScenarioObj = scenarios.find(s => s.id === selectedScenario);
-      scenarioName = selectedScenarioObj
-        ? selectedScenarioObj.scenario_name
-        : '';
+      scenarioName = selectedScenarioObj?.scenario_name ?? '';
     }
 
     // Validate and prepare cycle value
@@ -695,7 +783,9 @@ const CampaignBattleLogModal = ({
     // opponent issues the challenge.
     const existingStatus = battleToEdit ? battleStatusOf(battleToEdit) : 'played';
     let nextStatus: BattleStatus | undefined;
-    if (isUnplayedChallenge) {
+    if (isNewChallenge) {
+      nextStatus = newChallengeStatus;
+    } else if (isUnplayedChallenge) {
       if (battlePlayed) {
         nextStatus = 'played';
       } else if (showChallengeResponse && challengeResponse !== existingStatus) {
@@ -705,12 +795,18 @@ const CampaignBattleLogModal = ({
       }
     }
 
-    // Prepare battle data for API.
-    // The server derives `winner_id` from participants[].is_winner /
-    // claimed_territory so we don't need to send it. `null` means "draw".
+    // Prepare battle data for API. Winners and the claimer travel as participants[].is_winner /
+    // claimed_territory; nobody flagged means a draw.
     const battleData: BattleLogParams = {
-      scenario: scenarioName,
-      winner_id: isDraw ? null : (claimerForPayload ?? activeWinners[0] ?? null),
+      scenario: usesScenarioTables ? scenarioNameToSave : scenarioName,
+      ...(usesScenarioTables
+        ? {
+            deployment_id: scenarioParts.deployment_id || null,
+            objective_id: scenarioParts.objective_id || null,
+            crew_selection_id: scenarioParts.crew_selection_id || null,
+            ...customPartNames(scenarioParts),
+          }
+        : {}),
       note: notes || null,
       participants: participants,
       claimed_territories: selectedTerritory
@@ -729,7 +825,6 @@ const CampaignBattleLogModal = ({
 
     // Close modal immediately for instant UX
     onClose();
-    resetForm();
 
     // Create or update battle based on mode using mutations
     if (isEditMode && battleToEdit) {
@@ -741,34 +836,15 @@ const CampaignBattleLogModal = ({
     return true;
   };
 
-  const resetForm = () => {
-    setSelectedScenario('');
-    setCustomScenario('');
-    setGangsInBattle([
-      { id: 1, gangId: "", role: 'none' },
-      { id: 2, gangId: "", role: 'none' },
-    ]);
-    resetWinnerSelection();
-    setNotes('');
-    setSelectedTerritory('');
-    setCycle('');
-    const now = new Date();
-    const tzOffsetMs = now.getTimezoneOffset() * 60000;
-    setBattleDate(new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 10));
-  };
-
-  const handleClose = () => {
-    resetForm();
-    onClose();
-  };
-
   // Check if form is valid using useMemo to avoid unnecessary recalculations
   const formValid = useMemo(() => {
     // A challenge may not have rolled its scenario yet.
-    const scenarioValid = showResultFields ? selectedScenario !== '' : true;
+    const scenarioValid = usesScenarioTables
+      ? !missingScenarioPart
+      : !showResultFields || selectedScenario !== '';
 
     // Check if custom scenario has text (when custom is selected)
-    const customScenarioValid = selectedScenario !== 'custom' ||
+    const customScenarioValid = usesScenarioTables || selectedScenario !== 'custom' ||
       (selectedScenario === 'custom' && customScenario.trim() !== '');
 
     // Check if at least one gang is selected
@@ -793,7 +869,9 @@ const CampaignBattleLogModal = ({
     // Check if cycle is valid (either empty or a positive number)
     const cycleValid = !cycle || (!isNaN(parseInt(cycle, 10)) && parseInt(cycle, 10) > 0);
 
-    return scenarioValid && customScenarioValid && anyGangSelected && rolesValid && winnerValid && claimerValid && cycleValid;
+    const challengeGangsValid = !isNewChallenge || selectedGangs.length === 2;
+
+    return scenarioValid && customScenarioValid && anyGangSelected && rolesValid && winnerValid && claimerValid && cycleValid && challengeGangsValid;
   }, [
     selectedScenario,
     customScenario,
@@ -804,16 +882,20 @@ const CampaignBattleLogModal = ({
     claimedByGangId,
     cycle,
     showResultFields,
+    usesScenarioTables,
+    missingScenarioPart,
+    isNewChallenge,
+    selectedGangs,
   ]);
-
-  if (!isOpen) return null;
 
   return (
     <Modal
       title={
-        isUnplayedChallenge
-          ? (battlePlayed ? "File Battle Report" : "Challenge")
-          : (isEditMode ? "Edit Battle Report" : "Add Battle Report")
+        isNewChallenge
+          ? "Add Challenge"
+          : isUnplayedChallenge
+            ? (battlePlayed ? "File Battle Log" : "Challenge")
+            : (isEditMode ? "Edit Battle Log" : "Add Battle Log")
       }
       helper="Fields marked with * are required."
       content={
@@ -835,6 +917,23 @@ const CampaignBattleLogModal = ({
                 Tick this once the battle has been fought to record the result and
                 file the report. Leave it unticked to save the challenge.
               </p>
+            </div>
+          )}
+
+          {isNewChallenge && (
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">
+                Status
+              </label>
+              <Combobox
+                value={newChallengeStatus}
+                onValueChange={(value) => setNewChallengeStatus(value as BattleStatus)}
+                disabled={isLoadingBattleData}
+                options={challengeAnswerStatuses.map((status) => ({
+                  value: status,
+                  label: battleStatusLabels[status],
+                }))}
+              />
             </div>
           )}
 
@@ -899,6 +998,40 @@ const CampaignBattleLogModal = ({
             />
           </div>
 
+          {usesScenarioTables ? (
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="scenario-named"
+                  checked={scenarioNamed}
+                  onCheckedChange={(checked) => setScenarioNamed(checked === true)}
+                  disabled={isLoadingBattleData}
+                />
+                <Label htmlFor="scenario-named" className="text-sm font-medium">
+                  Scenario name
+                </Label>
+              </div>
+              {scenarioNamed && (
+                <input
+                  type="text"
+                  className="mt-2 w-full px-3 py-2 rounded-md border border-border bg-muted"
+                  placeholder="Enter scenario name"
+                  value={namedScenario}
+                  onChange={(e) => setNamedScenario(e.target.value)}
+                  disabled={isLoadingBattleData}
+                />
+              )}
+            </div>
+            <ScenarioPartsPicker
+              scenarioTables={scenarioTables}
+              parts={scenarioParts}
+              onChange={(change) => setScenarioParts((current) => ({ ...current, ...change }))}
+              required={showResultFields && !scenarioNameToSave}
+              disabled={isLoadingBattleData}
+            />
+          </div>
+          ) : (
           <div>
             <label className="block text-sm font-medium text-muted-foreground mb-1">
               Scenario{showResultFields ? ' *' : ''}
@@ -953,6 +1086,7 @@ const CampaignBattleLogModal = ({
               </div>
             )}
           </div>
+          )}
 
           <div className="space-y-4">
             <label className="block text-sm font-medium text-muted-foreground">
@@ -1037,6 +1171,33 @@ const CampaignBattleLogModal = ({
                       </Label>
                     </div>
                   </div>
+
+                  {usesScenarioTables && gangEntry.gangId && (
+                    <SideJobPicker
+                      key={gangEntry.gangId}
+                      className="ml-2"
+                      id={gangEntry.id}
+                      scenarioTables={scenarioTables}
+                      gangTypeId={availableGangs.find((gang) => gang.id === gangEntry.gangId)?.gang_type_id}
+                      value={gangEntry.sideJobId}
+                      onChange={(sideJobId) => updateGangEntry(gangEntry.id, {
+                        sideJobId,
+                        sideJobName: '',
+                        ...(sideJobId ? {} : { sideJobCompleted: false }),
+                      })}
+                      customName={gangEntry.sideJobName}
+                      onCustomNameChange={(sideJobName) => updateGangEntry(gangEntry.id, {
+                        sideJobId: '',
+                        sideJobName,
+                        ...(sideJobName.trim() ? {} : { sideJobCompleted: false }),
+                      })}
+                      completed={gangEntry.sideJobCompleted}
+                      onCompletedChange={showResultFields
+                        ? (sideJobCompleted) => updateGangEntry(gangEntry.id, { sideJobCompleted })
+                        : undefined}
+                      disabled={isLoadingBattleData}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -1132,7 +1293,7 @@ const CampaignBattleLogModal = ({
           </div>
           )}
 
-          {(hasAnyWinnerSelected || isUnplayedChallenge) && availableTerritories.length > 0 && (
+          {(hasAnyWinnerSelected || isUnplayedChallenge || isNewChallenge) && availableTerritories.length > 0 && (
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
                 {!showResultFields
@@ -1157,7 +1318,8 @@ const CampaignBattleLogModal = ({
                     .map((territory) => {
                       const displayName = territory.name ?? territory.territory_name ?? "";
                       const controlledBy = territory.controlled_by ? getGangName(territory.controlled_by) : null;
-                      const statusLabel = controlledBy ? ` (Held by ${controlledBy})` : " (Unclaimed)";
+                      const holder = controlledBy ? `Held by ${controlledBy}` : "Unclaimed";
+                      const statusLabel = stakedTerritoryIds.has(territory.id) ? ` (${holder}, staked)` : ` (${holder})`;
 
                       return {
                         value: territory.id,
@@ -1223,12 +1385,14 @@ const CampaignBattleLogModal = ({
           </div>
         </div>
       }
-      onClose={handleClose}
+      onClose={onClose}
       onConfirm={handleSaveBattle}
       confirmText={
-        isUnplayedChallenge
-          ? (battlePlayed ? "File Battle Report" : "Save Challenge")
-          : (isEditMode ? "Update" : "Add Battle Report")
+        isNewChallenge
+          ? "Add Challenge"
+          : isUnplayedChallenge
+            ? (battlePlayed ? "File Battle Log" : "Save Challenge")
+            : (isEditMode ? "Update" : "Add Battle Log")
       }
       confirmDisabled={isLoadingBattleData || !formValid || isReportOverLimit}
     />

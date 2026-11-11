@@ -1,26 +1,29 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/utils/supabase/client"
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal"
 import Link from 'next/link'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { 
   addGangToCampaign, 
   removeMemberFromCampaign, 
-  removeGangFromCampaign, 
-  updateMemberRole 
+  removeGangFromCampaign
 } from "@/app/actions/campaigns/[id]/campaign-members"
 import { updateGangAllegiance } from "@/app/actions/campaigns/[id]/campaign-allegiances"
+import type { RoleChangeTarget } from "@/components/campaigns/[id]/campaign-role-modal"
+import type { CampaignRole } from "@/types/campaign"
 import { LuTrash2, LuPencil } from 'react-icons/lu'
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md"
 import { HiUser } from "react-icons/hi2";
-import { gangEditionSlug, sameEditionForDisplay } from '@/types/edition';
+import { compactGangTypeLabel, detailGangTypeLabel } from "@/utils/gang-type-label";
+import type { PickerGang } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+const CampaignRoleModal = dynamic(() => import("@/components/campaigns/[id]/campaign-role-modal"), { ssr: false });
+
 
 interface GangResource {
   resource_id: string;
@@ -33,7 +36,7 @@ interface Member {
   id?: string;
   user_id: string;
   username: string;
-  role: MemberRole;
+  role: CampaignRole;
   invited_at: string;
   joined_at: string | null;
   invited_by: string;
@@ -50,6 +53,7 @@ interface Member {
     id: string;              // gang's actual UUID
     name: string;
     gang_type: string;
+    parent_gang_type_name?: string | null;
     gang_colour: string;
     rating?: number;
     wealth?: number;
@@ -65,30 +69,7 @@ interface Member {
   index?: number;
 }
 
-interface Gang {
-  id: string;
-  name: string;
-  gang_type: string;
-  gang_colour: string | null;
-  rating?: number;
-  wealth?: number;
-  reputation?: number;
-  isInCampaign?: boolean;
-  edition_slug?: string | null;
-}
-
-type GangWithCampaignCheck = {
-  id: string;
-  name: string;
-  gang_type: string;      // Database column name
-  gang_colour: string | null;  // Database column name
-  rating?: number;
-  wealth?: number;
-  reputation?: number;
-  campaign_gangs?: Array<{ gang_id: string }>;
-  gang_types?: { editions?: { slug: string } | null } | null;
-  custom_gang_types?: { editions?: { slug: string } | null } | null;
-}
+const NO_GANGS: PickerGang[] = [];
 
 interface GangToRemove {
   memberId: string;
@@ -120,7 +101,7 @@ interface MembersTableProps {
   initialAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
 }
 
-const formatRole = (role: MemberRole | undefined) => {
+const formatRole = (role: CampaignRole | undefined) => {
   switch (role) {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
@@ -148,13 +129,11 @@ export default function MembersTable({
   const [currentUserId, setCurrentUserId] = useState<string | null>(userId || null)
   const [showGangModal, setShowGangModal] = useState(false)
   const [selectedMember, setSelectedMember] = useState<Member | null>(null)
-  const [userGangs, setUserGangs] = useState<Gang[]>([])
-  const [selectedGang, setSelectedGang] = useState<Gang | null>(null)
+  const [selectedGang, setSelectedGang] = useState<PickerGang | null>(null)
   const [selectedAllegiance, setSelectedAllegiance] = useState<{ id: string; is_custom: boolean } | null>(null)
   const [showRemoveGangModal, setShowRemoveGangModal] = useState(false)
   const [gangToRemove, setGangToRemove] = useState<GangToRemove | null>(null)
-  const [showRoleModal, setShowRoleModal] = useState(false)
-  const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null)
+  const [roleChange, setRoleChange] = useState<RoleChangeTarget | null>(null)
   const [memberToRemove, setMemberToRemove] = useState<Member | null>(null)
   const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false)
   
@@ -165,8 +144,6 @@ export default function MembersTable({
   // Allegiance state
   const [editingAllegiance, setEditingAllegiance] = useState<{ gangId: string; memberIndex: number } | null>(null)
   
-  const supabase = createClient()
-
   // Fetch allegiances using TanStack Query
   // Shares the same query key as campaign-allegiances-actions to see optimistic updates
   const { data: availableAllegiances = initialAllegiances } = useQuery({
@@ -188,12 +165,6 @@ export default function MembersTable({
     setPrevUserId(userId);
     setCurrentUserId(userId || null);
   }
-
-  useEffect(() => {
-    if (selectedMember) {
-      // Selected member tracking for modals
-    }
-  }, [selectedMember]);
 
   const sortedMembers = useMemo(() => {
     // Group members by user_id first
@@ -230,8 +201,8 @@ export default function MembersTable({
           bValue = b.gangs[0]?.name || '';
           break;
         case 'type':
-          aValue = a.gangs[0]?.gang_type || '';
-          bValue = b.gangs[0]?.gang_type || '';
+          aValue = compactGangTypeLabel(a.gangs[0]?.gang_type, a.gangs[0]?.parent_gang_type_name);
+          bValue = compactGangTypeLabel(b.gangs[0]?.gang_type, b.gangs[0]?.parent_gang_type_name);
           break;
         case 'player':
           aValue = a.profile.username || '';
@@ -297,64 +268,29 @@ export default function MembersTable({
     }
   };
 
-  const fetchUserGangs = async (userId: string) => {
-    try {
-      // Single optimized query with LEFT JOIN to check campaign membership
-      const { data: gangs, error } = await supabase
-        .from('gangs')
-        .select(`
-          id,
-          name,
-          gang_type,
-          gang_colour,
-          rating,
-          wealth,
-          reputation,
-          campaign_gangs(gang_id),
-          gang_types!gang_type_id (
-            editions:edition_id (slug)
-          ),
-          custom_gang_types!custom_gang_type_id (
-            editions:edition_id (slug)
-          )
-        `)
-        .eq('user_id', userId)
-        .returns<GangWithCampaignCheck[]>();
+  // The selected member's gangs of this campaign's edition, loaded each time the Add Gang modal opens
+  const queryClient = useQueryClient();
+  const { data: userGangs = NO_GANGS, isLoading: isLoadingUserGangs, error: userGangsError } = useQuery({
+    queryKey: ['campaign-member-gangs', campaignId, selectedMember?.user_id],
+    queryFn: async (): Promise<PickerGang[]> => {
+      const response = await fetch(`/api/campaigns/${campaignId}/member-gangs?userId=${selectedMember!.user_id}`);
+      if (!response.ok) throw new Error('Failed to load gangs');
+      return response.json();
+    },
+    enabled: showGangModal && !!selectedMember,
+  });
 
-      if (error) throw error;
+  useEffect(() => {
+    if (userGangsError) toast.error('Failed to load gangs');
+  }, [userGangsError]);
 
-      // Transform data to include isInCampaign flag and map database column names to clean field names
-      const gangsWithAvailability = (gangs ?? [])
-        .map(gang => {
-          // If campaign_gangs array exists and has entries, the gang is in a campaign
-          const isInCampaign = Array.isArray(gang.campaign_gangs) && gang.campaign_gangs.length > 0;
-          const edition_slug = gangEditionSlug(gang);
+  // Dropped on close, so the next open never shows stale "Already in a campaign" flags
+  useEffect(() => {
+    if (!showGangModal) queryClient.removeQueries({ queryKey: ['campaign-member-gangs', campaignId] });
+  }, [showGangModal, queryClient, campaignId]);
 
-          // Remove the campaign_gangs join data and map database column names
-          const { campaign_gangs, gang_type, gang_colour, gang_types, custom_gang_types, ...gangData } = gang;
-
-          return {
-            ...gangData,
-            gang_type,
-            gang_colour,
-            edition_slug,
-            isInCampaign
-          };
-        })
-        // Only gangs whose gang type edition matches this campaign's campaign type edition
-        .filter(gang => sameEditionForDisplay(gang.edition_slug, campaignEditionSlug));
-
-      setUserGangs(gangsWithAvailability);
-    } catch (error) {
-      console.error('Error fetching gangs:', error);
-      toast.error("Failed to load gangs");
-    }
-  };
-
-  const handleGangClick = async (member: Member) => {
+  const handleGangClick = (member: Member) => {
     setSelectedMember(member);
-    
-    await fetchUserGangs(member.user_id);
     setShowGangModal(true);
   };
 
@@ -364,7 +300,7 @@ export default function MembersTable({
       gangId: string; 
       userId: string; 
       campaignMemberId?: string; 
-      gangData: Gang;
+      gangData: PickerGang;
       allegianceId?: string | null;
       isCustomAllegiance?: boolean;
     }) => {
@@ -396,8 +332,9 @@ export default function MembersTable({
       const optimisticGang = {
         campaign_gang_id: crypto.randomUUID(), // Use crypto.randomUUID() for better uniqueness
         id: variables.gangId,
-        name: gangData.name,
-        gang_type: gangData.gang_type,
+        name: gangData.name ?? '',
+        gang_type: gangData.gang_type ?? '',
+        parent_gang_type_name: gangData.parent_gang_type_name ?? null,
         gang_colour: gangData.gang_colour || '#000000',
         status: isOwnGang ? 'ACCEPTED' : 'PENDING',
         rating: gangData.rating || 0,
@@ -488,35 +425,6 @@ export default function MembersTable({
     });
     
     return true;
-  };
-
-  const handleRoleChange = async () => {
-    if (!roleChange) return false;
-    // Only campaign owners and arbitrators can change roles
-    if (!isCampaignOwner && !isCampaignAdmin) {
-      toast.error("You don't have permission to change roles");
-      return false;
-    }
-    try {
-      const result = await updateMemberRole({
-        campaignId,
-        userId: roleChange.memberId,
-        newRole: roleChange.newRole,
-        previousRole: roleChange.currentRole
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onMemberUpdate({ roleChange: { userId: roleChange.memberId, newRole: roleChange.newRole } });
-      toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
-      return true;
-    } catch (error) {
-      console.error('Error updating role:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to update role");
-      return false;
-    }
   };
 
   const handleRemoveMember = async () => {
@@ -637,7 +545,7 @@ export default function MembersTable({
         Choose a gang for <span className="font-bold">{selectedMember?.profile.username}</span>:
       </p>
       <div className="space-y-2">
-        {[...userGangs].sort((a, b) => a.name.localeCompare(b.name)).map(gang => (
+        {[...userGangs].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')).map(gang => (
           <button
             key={gang.id}
             onClick={() => !gang.isInCampaign && setSelectedGang(gang)}
@@ -646,25 +554,24 @@ export default function MembersTable({
               gang.isInCampaign
                 ? 'bg-muted cursor-not-allowed'
                 : selectedGang?.id === gang.id
-                  ? 'border-gray-400 bg-muted'
+                  ? 'border-gray-400 ring-1 ring-gray-400 bg-muted'
                   : 'hover:border-gray-400'
             }`}
           >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className={`font-medium ${gang.isInCampaign ? 'text-muted-foreground' : ''}`}>{gang.name}</p>
-                <p className="text-sm text-muted-foreground">{gang.gang_type || "-"}</p>
-              </div>
-              <div className="w-20 flex-none text-right">
+            <div className="flex items-baseline justify-between gap-3">
+              <p className={`font-medium ${gang.isInCampaign ? 'text-muted-foreground' : ''}`}>{gang.name}</p>
+              <p className="shrink-0 text-xs text-muted-foreground">Rating: {gang.rating || "-"}</p>
+            </div>
+            <div className="flex items-baseline justify-between gap-3">
+              <p className="text-xs text-muted-foreground">{detailGangTypeLabel(gang.gang_type, gang.parent_gang_type_name) || "-"}</p>
               {gang.isInCampaign && (
-                <p className="text-xs text-muted-foreground italic font-light">Already in a campaign</p>
+                <p className="shrink-0 text-xs text-muted-foreground italic font-light text-right">Already in a campaign</p>
               )}
-              </div>
             </div>
           </button>
         ))}
       </div>
-      {userGangs.length === 0 && (
+      {!isLoadingUserGangs && !userGangsError && userGangs.length === 0 && (
         <p className="text-sm text-muted-foreground text-center">
           No gangs available for this player that match this campaign&apos;s edition.
         </p>
@@ -691,17 +598,7 @@ export default function MembersTable({
         </div>
       )}
     </div>
-  ), [userGangs, selectedGang, availableAllegiances, selectedAllegiance, selectedMember]);
-
-  const roleModalContent = useMemo(() => (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Are you sure you want to change <span className="font-bold">{roleChange?.username}</span>&apos;s role from {' '}
-        <span className="font-bold">{roleChange?.currentRole}</span> to {' '}
-        <span className="font-bold">{roleChange?.newRole}</span>?
-      </p>
-    </div>
-  ), [roleChange]);
+  ), [userGangs, isLoadingUserGangs, userGangsError, selectedGang, availableAllegiances, selectedAllegiance, selectedMember]);
 
   const removeMemberModalContent = useMemo(() => {
     const isRemovingSelf = memberToRemove?.user_id === currentUserId;
@@ -1042,7 +939,7 @@ export default function MembersTable({
                 {/* Gang Type column */}
                 <td className="px-2 py-2">
                   <span className="text-muted-foreground">
-                    {member.gangs[0]?.gang_type || "-"}
+                    {compactGangTypeLabel(member.gangs[0]?.gang_type, member.gangs[0]?.parent_gang_type_name) || "-"}
                   </span>
                 </td>
                 {/* Player column */}
@@ -1054,10 +951,8 @@ export default function MembersTable({
                           setRoleChange({
                             memberId: member.user_id,
                             username: member.profile.username,
-                            currentRole: member.role || 'MEMBER',
-                            newRole: member.role === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                            currentRole: member.role || 'MEMBER'
                           });
-                          setShowRoleModal(true);
                         }}
                         className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted hover:text-muted-foreground transition-colors group"
                       >
@@ -1236,17 +1131,13 @@ export default function MembersTable({
         />
       )}
 
-      {showRoleModal && (
-        <Modal
-          title="Change Player Role"
-          content={roleModalContent}
-          onClose={() => {
-            setShowRoleModal(false);
-            setRoleChange(null);
-          }}
-          onConfirm={handleRoleChange}
-          confirmText="Change Role"
-          confirmDisabled={false}
+      {roleChange && (
+        <CampaignRoleModal
+          campaignId={campaignId}
+          target={roleChange}
+          canTransferOwnership={isCampaignOwner}
+          onClose={() => setRoleChange(null)}
+          onRoleChange={(userId, newRole) => onMemberUpdate({ roleChange: { userId, newRole } })}
         />
       )}
 

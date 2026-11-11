@@ -1,7 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
 import { getUserCustomCollections } from '@/app/lib/customise/custom-collections'
+import { getUserIdFromClaims } from '@/utils/auth'
 import { editionSlugFromJoin, gangEditionSlug, withEditionSlug } from '@/types/edition'
+import { joinedParentGangTypeName } from '@/utils/gang-type-label'
 import type { UserCampaign } from '@/types/campaign'
 
 export async function GET(
@@ -16,7 +18,13 @@ export async function GET(
     }
 
     const supabase = await createClient()
-    
+
+    // The collections below are read over the direct connection, which doesn't
+    // check who is asking, so only signed-in users may call this route.
+    if (!await getUserIdFromClaims(supabase)) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     // Fetch user profile data
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -41,7 +49,7 @@ export async function GET(
         reputation,
         rating,
         created_at,
-        gang_types!gang_type_id ( editions:edition_id ( slug ) ),
+        gang_types!gang_type_id ( parent_gang_type_name, editions:edition_id ( slug ) ),
         custom_gang_type:custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
       `)
       .eq('user_id', userId)
@@ -164,7 +172,7 @@ export async function GET(
     // Fetch the user's collections (with resolved item names)
     let customCollections: Awaited<ReturnType<typeof getUserCustomCollections>> = []
     try {
-      customCollections = await getUserCustomCollections(userId, supabase)
+      customCollections = await getUserCustomCollections(userId)
     } catch (collectionsError) {
       console.error('Error fetching custom collections:', collectionsError)
     }
@@ -325,6 +333,7 @@ export async function GET(
       // out of the row so the public shape stays flat.
       gangs: (gangs || []).map(({ gang_types, custom_gang_type, ...gang }: any) => ({
         ...gang,
+        parent_gang_type_name: joinedParentGangTypeName(gang_types),
         edition_slug: gangEditionSlug({ gang_types, custom_gang_type }),
       })),
       campaigns: dedupedCampaigns,

@@ -42,17 +42,16 @@ interface FighterType {
 }
 
 interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   edition_id?: string | null;
 }
 
 interface AdminGangLineageModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
-export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageModalProps) {
+export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
   
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -228,7 +227,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
 
     // Only blank a selection when the target is found with a confirmed different edition
     const conflicts = (gangTypeId: string) => {
-      const gangType = gangTypes.find(gt => gt.gang_type_id === gangTypeId);
+      const gangType = gangTypes.find(gt => gt.id === gangTypeId);
       return !!gangType?.edition_id && gangType.edition_id !== newEditionId;
     };
 
@@ -313,16 +312,32 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         throw new Error(errorData.error || 'Failed to update gang lineage');
       }
 
+      const result = await response.json() as { id?: string; type?: LineageType };
+      const nextType: LineageType =
+        result.type === 'legacy' || result.type === 'affiliation'
+          ? result.type
+          : (lineageType as LineageType);
+      const nextId = result.id ?? selectedGangLineage.id;
+
       toast.success("Gang lineage updated successfully");
 
-      // Refresh the lineages list
-      queryClient.invalidateQueries({ queryKey: ['admin-lineages'] });
-      
-      // Close the modal after successful update
-      if (onSubmit) {
-        onSubmit();
+      // Type-change PATCH inserts a new row and deletes the old one. Keep the
+      // filter and selection on that new row so a follow-up Update hits the
+      // right table. setPrevSelectedType skips the "filter changed" form reset.
+      if (nextType !== selectedType) {
+        setPrevSelectedType(nextType);
+        setSelectedType(nextType);
       }
-      onClose();
+      setSelectedGangLineageId(nextId);
+      setSelectedGangLineage(prev =>
+        prev ? { ...prev, id: nextId, type: nextType, name: gangLineageName } : prev
+      );
+      setLineageType(nextType);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-lineages'] }),
+        queryClient.invalidateQueries({ queryKey: ['admin-lineage-details'] }),
+      ]);
     } catch (error) {
       console.error('Error updating gang lineage:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update gang lineage');
@@ -452,7 +467,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
         >
           <option value="">Select a gang type</option>
           {filteredGangTypes.map((gangType) => (
-            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+            <option key={gangType.id} value={gangType.id}>
               {gangType.gang_type}
             </option>
           ))}
@@ -498,7 +513,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
               >
                 <option value="">Select gang type</option>
                 {filteredGangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}
@@ -692,7 +707,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                     >
                       <option value="">Select a gang type</option>
                       {filteredGangTypes.map((gangType) => (
-                        <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                        <option key={gangType.id} value={gangType.id}>
                           {gangType.gang_type}
                         </option>
                       ))}
@@ -744,7 +759,7 @@ export function AdminGangLineageModal({ onClose, onSubmit }: AdminGangLineageMod
                         >
                           <option value="">Select gang type</option>
                           {filteredGangTypes.map((gangType) => (
-                            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                            <option key={gangType.id} value={gangType.id}>
                               {gangType.gang_type}
                             </option>
                           ))}

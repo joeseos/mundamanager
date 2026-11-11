@@ -7,8 +7,8 @@ import { WeaponList } from "@/components/fighter/fighter-equipment-list";
 import { VehicleEquipmentList } from "@/components/fighter/vehicle-equipment-list";
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
-import ItemModal from "@/components/equipment/equipment";
 import { Equipment, FighterLoadout } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";
@@ -17,10 +17,8 @@ import { InjuriesList } from "@/components/fighter/fighter-injury-list";
 import { FighterNotes } from "@/components/fighter/fighter-notes-list";
 import { VehicleEquipment } from '@/types/fighter';
 import { VEHICLE_EQUIPMENT_CATEGORIES } from '@/utils/vehicleEquipmentCategories';
-import { EditFighterModal } from "@/components/fighter/edit-fighter/fighter-edit-modal";
 import { Vehicle } from '@/types/fighter';
 import { VehicleDamagesList } from "@/components/fighter/vehicle-lasting-damages";
-import { FighterXpModal } from "@/components/fighter/fighter-xp-modal";
 import { UserPermissions } from '@/types/user-permissions';
 import { FighterActions } from "@/components/fighter/fighter-actions";
 import { Combobox } from "@/components/ui/combobox";
@@ -33,8 +31,20 @@ import { GiHandcuffs } from "react-icons/gi";
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
 import { hasCumulativeXp, hasSpyrerPowerBoosts } from '@/types/edition';
-import { nextTierStartFor, openAdvancementsFor } from '@/utils/advancementRanks';
+import { openAdvancementsFor, xpTowardNextTier } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
+
+// Loads its code on first open, not with the page. ssr: false also gives it
+// its own Suspense boundary, so the page keeps updating while the code loads.
+const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false });
+const EditFighterModal = dynamic(
+  () => import('@/components/fighter/edit-fighter/fighter-edit-modal').then((mod) => mod.EditFighterModal),
+  { ssr: false }
+);
+const FighterXpModal = dynamic(
+  () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
+  { ssr: false }
+);
 
 interface FighterPageProps {
   initialFighterData: any;
@@ -575,7 +585,7 @@ export default function FighterPage({
 
   if (uiState.isLoading) return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-6">
           Loading...
         </div>
@@ -585,7 +595,7 @@ export default function FighterPage({
 
   if (uiState.error || !fighterData.fighter || !fighterData.gang) return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-6">
           Error: {uiState.error || 'Data not found'}
         </div>
@@ -640,8 +650,7 @@ export default function FighterPage({
       const xpSuffix = (() => {
         if (f.xp === undefined || f.xp === null) return '';
         if (isCumulativeXp) {
-          const nextTierStart = nextTierStartFor(editionSlug, currentXp);
-          return ` (${currentXp}/${nextTierStart ?? '–'} XP)`;
+          return ` (${xpTowardNextTier(editionSlug, currentXp)} XP)`;
         }
         return ` (${currentXp} XP)`;
       })();
@@ -682,7 +691,7 @@ export default function FighterPage({
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="container mx-auto max-w-4xl w-full space-y-4">
+      <div className="w-full space-y-4">
         <div className="bg-card shadow-md rounded-lg p-4">
           <div className="mb-4">
             <Combobox
@@ -939,6 +948,7 @@ export default function FighterPage({
             venatorRanksIncomplete={fighterData.gang?.venator_ranks_incomplete}
             gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id || ''}
             customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id || ''}
+            owningGangTypeId={fighterData.gang?.gang_type_id || ''}
             fighterSpecialRules={fighterData.fighter?.special_rules || []}
             fighterTypeName={fighterData.fighter?.fighter_type?.fighter_type || ''}
             fighterTypeId={fighterData.fighter?.fighter_type?.fighter_type_id || ''}
@@ -954,6 +964,8 @@ export default function FighterPage({
                       fighter_subtypes: patch.fighter_subtypes ?? prev.fighter.fighter_subtypes,
                       special_rules: patch.special_rules ?? prev.fighter.special_rules,
                       promoted_from_prospect: patch.promoted_from_prospect ?? prev.fighter.promoted_from_prospect,
+                      xp: patch.xp ?? prev.fighter.xp,
+                      starting_xp: patch.starting_xp !== undefined ? patch.starting_xp : prev.fighter.starting_xp,
                       fighter_type:
                         patch.fighter_type !== undefined && patch.fighter_type_id !== undefined
                           ? {
@@ -1013,11 +1025,6 @@ export default function FighterPage({
                   } : null
                 };
               });
-            }}
-            onCharacteristicUpdate={(characteristicName, changeAmount) => {
-              // Characteristics are now updated through effect modifiers
-              // The stats calculation will handle the display automatically
-              // No direct characteristic updates needed
             }}
           />
 
@@ -1406,7 +1413,6 @@ export default function FighterPage({
 
           {uiState.modals.addXp && fighterData.fighter && (
             <FighterXpModal
-              isOpen={uiState.modals.addXp}
               fighterId={fighterId}
               currentXp={fighterData.fighter.xp ?? 0}
               currentTotalXp={fighterData.fighter.total_xp ?? 0}
@@ -1424,7 +1430,6 @@ export default function FighterPage({
           {uiState.modals.editFighter && fighterData.fighter && (
             <EditFighterModal
               fighter={convertToFighterProps({ ...fighterData.fighter, edition_slug: editionSlug })}
-              isOpen={uiState.modals.editFighter}
               initialValues={{
                 name: fighterData.fighter.fighter_name,
                 label: fighterData.fighter.label || '',
@@ -1435,6 +1440,7 @@ export default function FighterPage({
               gangId={fighterData.gang?.id || ''}
               gangTypeId={fighterData.fighter?.fighter_type?.gang_type_id}
               customGangTypeId={fighterData.fighter?.fighter_type?.custom_gang_type_id}
+              owningGangTypeId={fighterData.gang?.gang_type_id}
               is_spyrer={fighterData.fighter.is_spyrer}
               onClose={() => handleModalToggle('editFighter', false)}
               onEditMutate={(optimistic) => {
@@ -1510,7 +1516,6 @@ export default function FighterPage({
               fighterTypeId={fighterData.fighter.fighter_type.fighter_type_id}
               fighterCredits={fighterData.fighter.credits}
               vehicleId={vehicle?.id}
-              vehicleType={vehicle?.vehicle_type}
               vehicleTypeId={vehicle?.vehicle_type_id}
               isVehicleEquipment={Boolean(vehicle)}
               allowedCategories={vehicle ? VEHICLE_EQUIPMENT_CATEGORIES : undefined}

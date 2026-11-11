@@ -7,6 +7,7 @@ import { updateNotificationPreference } from '@/app/actions/user';
 import {
   notificationEmailConfig,
   emailEligibleTypes,
+  isMessageNotificationType,
   MASTER_PREF_KEY,
   type NotificationType,
 } from '@/utils/notifications';
@@ -71,6 +72,28 @@ export default function NotificationPreferences({
     );
   };
 
+  const eligible = emailEligibleTypes();
+  const eventTypes = eligible.filter((type) => !isMessageNotificationType(type));
+  const messageTypes = eligible.filter((type) => isMessageNotificationType(type));
+
+  const renderCategory = (type: NotificationType) => (
+    <div key={type} className="flex items-center justify-between gap-4">
+      <label
+        htmlFor={`notif-pref-${type}`}
+        className="text-sm text-foreground"
+      >
+        {notificationEmailConfig[type].label}
+      </label>
+      <Switch
+        id={`notif-pref-${type}`}
+        checked={master && categories[type]}
+        onCheckedChange={(value) => onCategoryChange(type, value)}
+        disabled={!master || pending === type}
+        aria-label={`Toggle emails for ${notificationEmailConfig[type].label}`}
+      />
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
@@ -90,23 +113,12 @@ export default function NotificationPreferences({
       </div>
 
       <div className="space-y-3 border-t pt-3">
-        {emailEligibleTypes().map((type) => (
-          <div key={type} className="flex items-center justify-between gap-4">
-            <label
-              htmlFor={`notif-pref-${type}`}
-              className="text-sm text-foreground"
-            >
-              {notificationEmailConfig[type].label}
-            </label>
-            <Switch
-              id={`notif-pref-${type}`}
-              checked={master && categories[type]}
-              onCheckedChange={(value) => onCategoryChange(type, value)}
-              disabled={!master || pending === type}
-              aria-label={`Toggle emails for ${notificationEmailConfig[type].label}`}
-            />
+        {eventTypes.map(renderCategory)}
+        {messageTypes.length > 0 && (
+          <div className="space-y-3 border-t pt-3">
+            {messageTypes.map(renderCategory)}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

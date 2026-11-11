@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { LuPlus, LuTrash2 } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import { Equipment } from '@/types/equipment';
+import { EquipmentSelectionDataModel } from '@/types/fighter-type';
 import { Button } from "@/components/ui/button";
 
 interface EquipmentWithId extends Equipment {
@@ -596,27 +597,7 @@ export function AdminFighterEquipmentSelection({
   );
 } 
 
-// --- Conversion helpers for new data model ---
-
-// New backend data model type - updated to support grouped selections
-export interface EquipmentSelectionDataModel {
-  optional: {
-    weapons: EquipmentOption[][];
-    wargear: EquipmentOption[][];
-  };
-  optional_single: {
-    weapons: EquipmentOption[][];
-    wargear: EquipmentOption[][];
-  };
-  single: {
-    weapons: EquipmentOption[][];
-    wargear: EquipmentOption[][];
-  };
-  multiple: {
-    weapons: EquipmentOption[][];
-    wargear: EquipmentOption[][];
-  };
-}
+// --- Conversion helpers for the stored data model ---
 
 // Convert GUI state to new backend data model
 export function guiToDataModel(gui: EquipmentSelection): EquipmentSelectionDataModel {
@@ -677,7 +658,7 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
             // For optional types, we need to handle defaults with replacements
             const defaults = group.filter(opt => opt.is_default);
             // Read replacement_mode from any default item (they all share the same mode)
-            const replacement_mode = (defaults.find((opt: any) => opt.replacement_mode) as any)?.replacement_mode as 'flexible' | 'strict' | undefined;
+            const replacement_mode = defaults.find(opt => opt.replacement_mode)?.replacement_mode;
 
             gui[id] = {
               id,
@@ -687,7 +668,7 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
                 id: opt.id,
                 cost: opt.cost || 0,
                 quantity: opt.quantity || 1,
-                replacements: opt.replacements || []
+                replacements: (opt.replacements || []) as EquipmentReplacement[]
               })),
               options: [], // Keep empty for optional type since replacements are in default
               ...(replacement_mode ? { replacement_mode } : {})
@@ -698,7 +679,7 @@ export function dataModelToGui(data: EquipmentSelectionDataModel): EquipmentSele
               id,
               name: name.charAt(0).toUpperCase() + name.slice(1),
               select_type: type,
-              options: group,
+              options: group as EquipmentOption[],
             };
           }
         }

@@ -104,7 +104,7 @@ function SkillSetOptions({ skillTypes, excludeIds, editionSlug }: {
 }
 
 interface GangType {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   is_custom?: boolean;
 }
@@ -430,10 +430,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     {
       key: 'fighter_subtypes',
-      label: 'Subtype',
+      label: 'Subtypes',
       align: 'left',
       width: '20%',
-      cellClassName: 'text-sm text-muted-foreground'
+      cellClassName: 'text-sm text-muted-foreground',
+      // String(array) joins with "," and no space. Match the view modal.
+      render: (value: string[] | null | undefined) =>
+        formatFighterSubtypeDisplay(value, editionSlug),
     },
     {
       key: 'gang_type',
@@ -522,7 +525,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     return (
       <>
         {availableToAll.map((type) => (
-          <option key={type.gang_type_id} value={type.gang_type_id}>
+          <option key={type.id} value={type.id}>
             {type.gang_type}
           </option>
         ))}
@@ -531,7 +534,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
             {customTypes
               .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
               .map((type) => (
-                <option key={type.gang_type_id} value={type.gang_type_id}>
+                <option key={type.id} value={type.id}>
                   {type.gang_type}
                 </option>
               ))}
@@ -540,7 +543,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         {systemTypes
           .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
           .map((type) => (
-            <option key={type.gang_type_id} value={type.gang_type_id}>
+            <option key={type.id} value={type.id}>
               {type.gang_type}
             </option>
           ))}
@@ -721,7 +724,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     // The selected equipment IDs will be set below, and the equipment list will be loaded via API
 
     // Pre-populate the form with existing data
-    setFighterType(fighter.fighter_type);
+    setFighterType(fighter.fighter_type ?? '');
     setCost(fighter.cost?.toString() || '');
     setSelectedGangType(fighter.custom_gang_type_id || fighter.gang_type_id || '');
 
@@ -891,7 +894,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
         const result = await createCustomFighter(newFighter);
         
         if (result.success) {
-          toast.success("Success", { description: `${copyModalData.fighter_type} has been copied to your custom fighters.` });
+          toast.success("Success", { description: `${copyModalData.fighter_type || 'Unnamed'} has been copied to your custom fighters.` });
           setCopyModalData(null);
           return true;
         } else {
@@ -935,7 +938,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       return false;
     }
 
-    const selectedGang = gangTypes.find(g => g.gang_type_id === selectedGangType);
+    const selectedGang = gangTypes.find(g => g.id === selectedGangType);
     const isCustomGangType = selectedGang?.is_custom === true;
 
     const requestData = {

@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     // Build query - include gang origin data
     let query = supabase
       .from('gang_types')
-      .select('gang_type_id, gang_type, alignment, image_url, default_image_urls, affiliation, gang_origin_category_id, parent_gang_type_id, editions:edition_id (slug)')
+      .select('id, gang_type, alignment, affiliation, gang_origin_category_id, parent_gang_type_id, editions:edition_id (slug)')
       .order('gang_type');
 
     // Only filter out hidden types if user is not admin
@@ -125,7 +125,7 @@ export async function GET(request: Request) {
     // Fetch user's own custom gang types
     const { data: ownCustomGangTypes } = await supabase
       .from('custom_gang_types')
-      .select('id, gang_type, alignment, default_image_urls, editions:edition_id (slug)')
+      .select('id, gang_type, alignment, editions:edition_id (slug)')
       .eq('user_id', userId)
       .order('gang_type');
 
@@ -152,7 +152,7 @@ export async function GET(request: Request) {
       if (gangTypeIds.length > 0) {
         const { data: shared } = await supabase
           .from('custom_gang_types')
-          .select('id, gang_type, alignment, default_image_urls, editions:edition_id (slug)')
+          .select('id, gang_type, alignment, editions:edition_id (slug)')
           .in('id', gangTypeIds);
 
         sharedCustomGangTypes = shared || [];
@@ -168,11 +168,9 @@ export async function GET(request: Request) {
     });
 
     const customGangTypesEnriched = allCustomGangTypes.map((cgt) => ({
-      gang_type_id: cgt.id,
+      id: cgt.id,
       gang_type: cgt.gang_type,
       alignment: cgt.alignment,
-      image_url: null,
-      default_image_urls: cgt.default_image_urls,
       affiliation: false,
       gang_origin_category_id: null,
       parent_gang_type_id: null,

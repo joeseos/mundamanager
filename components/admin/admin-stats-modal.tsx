@@ -7,10 +7,10 @@ import type { ActivityStats, EditionCounts } from '@/types/stats';
 
 interface Stats {
   userCount: number;
-  gangCount: EditionCounts | null;
-  campaignCount: EditionCounts | null;
-  gangActivity: ActivityStats | null;
-  campaignActivity: ActivityStats | null;
+  gangCount: EditionCounts;
+  campaignCount: EditionCounts;
+  gangActivity: ActivityStats;
+  campaignActivity: ActivityStats;
 }
 
 interface AdminStatsModalProps {
@@ -18,23 +18,16 @@ interface AdminStatsModalProps {
   onSubmit?: () => void;
 }
 
-function formatStatValue(value: number | null | undefined): string {
-  return value !== null && value !== undefined ? value.toLocaleString() : 'N/A';
-}
-
-function EditionBreakdown({ counts }: { counts: EditionCounts | null | undefined }) {
-  const byEdition = counts?.byEdition;
-  if (
-    byEdition == null ||
-    (byEdition[EDITION_N23] == null && byEdition[EDITION_N26] == null)
-  ) {
+function EditionBreakdown({ counts }: { counts: EditionCounts }) {
+  const { byEdition } = counts;
+  if (!byEdition) {
     return null;
   }
 
   return (
     <div className="mt-1 space-y-0.5 text-right text-xs text-muted-foreground">
-      <p>{formatStatValue(byEdition[EDITION_N23])} (N23)</p>
-      <p>{formatStatValue(byEdition[EDITION_N26])} (N26)</p>
+      <p>{byEdition[EDITION_N23].toLocaleString()} (N23)</p>
+      <p>{byEdition[EDITION_N26].toLocaleString()} (N26)</p>
     </div>
   );
 }
@@ -44,13 +37,13 @@ function ActivitySection({
   activity,
 }: {
   title: string;
-  activity: ActivityStats | null;
+  activity: ActivityStats;
 }) {
   const periods = [
-    { label: 'Last 2 weeks', value: activity?.last2Weeks },
-    { label: 'Last 1 month', value: activity?.last1Month },
-    { label: 'Last 3 months', value: activity?.last3Months },
-    { label: 'Last 6 months', value: activity?.last6Months },
+    { label: 'Last 2 weeks', value: activity.last2Weeks },
+    { label: 'Last 1 month', value: activity.last1Month },
+    { label: 'Last 3 months', value: activity.last3Months },
+    { label: 'Last 6 months', value: activity.last6Months },
   ] as const;
 
   return (
@@ -60,7 +53,7 @@ function ActivitySection({
         {periods.map(({ label, value }) => (
           <div key={label} className="p-2 bg-muted/50 rounded-lg border">
             <p className="text-center text-xs text-muted-foreground mb-2">{label}</p>
-            <p className="text-center text-lg md:text-xl font-bold">{formatStatValue(value?.total)}</p>
+            <p className="text-center text-lg md:text-xl font-bold">{value.total.toLocaleString()}</p>
             <EditionBreakdown counts={value} />
           </div>
         ))}
@@ -118,14 +111,14 @@ export function AdminStatsModal({ onClose, onSubmit }: AdminStatsModalProps) {
                   <div className="p-2 bg-muted/50 rounded-lg border">
                     <p className="text-center text-sm text-muted-foreground mb-2">Gangs</p>
                     <p className="text-center text-lg md:text-xl font-bold">
-                      {formatStatValue(stats.gangCount?.total)}
+                      {stats.gangCount.total.toLocaleString()}
                     </p>
                     <EditionBreakdown counts={stats.gangCount} />
                   </div>
                   <div className="p-2 bg-muted/50 rounded-lg border">
                     <p className="text-center text-sm text-muted-foreground mb-2">Campaigns</p>
                     <p className="text-center text-lg md:text-xl font-bold">
-                      {formatStatValue(stats.campaignCount?.total)}
+                      {stats.campaignCount.total.toLocaleString()}
                     </p>
                     <EditionBreakdown counts={stats.campaignCount} />
                   </div>

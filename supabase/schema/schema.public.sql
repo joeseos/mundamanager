@@ -3,8 +3,8 @@
 --
 
 
--- Dumped from database version 17.6
--- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg24.04+2)
+-- Dumped from database version 17.11
+-- Dumped by pg_dump version 17.11 (Ubuntu 17.11-1.pgdg26.04+2)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -225,14 +225,14 @@ BEGIN
             SELECT COALESCE(gt.edition_id, cgt.edition_id)
             INTO v_fighter_edition_id
             FROM gangs g
-            LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+            LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
             LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
             WHERE g.id = v_gang_id;
 
             SELECT gt.gang_type
             INTO v_target_name
             FROM gang_types gt
-            WHERE gt.gang_type_id = in_hatred_target_id
+            WHERE gt.id = in_hatred_target_id
               AND gt.edition_id IS NOT DISTINCT FROM v_fighter_edition_id;
 
             IF v_target_name IS NULL THEN
@@ -334,49 +334,35 @@ BEGIN
     IF effect_type_record.type_specific_data->>'skill_id' IS NOT NULL THEN
         skill_id_val := (effect_type_record.type_specific_data->>'skill_id')::UUID;
 
-        -- Add the skill to fighter_skills if it doesn't already exist
+        -- Always a new row, as grantSkillsForEffects does: reusing a skill the
+        -- fighter already has would let removing the injury delete it.
         INSERT INTO fighter_skills (
             fighter_id,
             skill_id,
-            user_id,
-            fighter_effect_skill_id
+            user_id
         )
-        SELECT
+        VALUES (
             in_fighter_id,
             skill_id_val,
-            v_fighter_owner_id,
-            NULL  -- Initially NULL, will update after creating relation
-        WHERE
-            NOT EXISTS (
-                SELECT 1 FROM fighter_skills
-                WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val
-            )
+            v_fighter_owner_id
+        )
         RETURNING id INTO new_fighter_skill_id;
 
-        -- If the skill already exists, get its ID
-        IF new_fighter_skill_id IS NULL THEN
-            SELECT id INTO new_fighter_skill_id
-            FROM fighter_skills
-            WHERE fighter_id = in_fighter_id AND skill_id = skill_id_val;
-        END IF;
-
         -- Create the relation in fighter_effect_skills
-        IF new_fighter_skill_id IS NOT NULL THEN
-            INSERT INTO fighter_effect_skills (
-                fighter_effect_id,
-                fighter_skill_id
-            )
-            VALUES (
-                new_effect_id,
-                new_fighter_skill_id
-            )
-            RETURNING id INTO new_fighter_effect_skill_id;
+        INSERT INTO fighter_effect_skills (
+            fighter_effect_id,
+            fighter_skill_id
+        )
+        VALUES (
+            new_effect_id,
+            new_fighter_skill_id
+        )
+        RETURNING id INTO new_fighter_effect_skill_id;
 
-            -- Update the fighter_skills record with the relation ID
-            UPDATE fighter_skills
-            SET fighter_effect_skill_id = new_fighter_effect_skill_id
-            WHERE id = new_fighter_skill_id;
-        END IF;
+        -- Update the fighter_skills record with the relation ID
+        UPDATE fighter_skills
+        SET fighter_effect_skill_id = new_fighter_effect_skill_id
+        WHERE id = new_fighter_skill_id;
     END IF;
 
     -- Return the newly created effect
@@ -872,9 +858,9 @@ BEGIN
   FROM public.custom_weapon_profiles wp WHERE wp.custom_equipment_id = ANY(v_eq);
 
   INSERT INTO public.custom_gang_types (id, created_at, user_id, gang_type, alignment, trading_post_type_id,
-                                        default_image_urls, description, edition_id)
+                                        description, edition_id)
   SELECT (v_map_gt ->> gt.id::text)::uuid, now(), v_user, gt.gang_type, gt.alignment, gt.trading_post_type_id,
-         gt.default_image_urls, gt.description, gt.edition_id
+         gt.description, gt.edition_id
   FROM public.custom_gang_types gt WHERE gt.id = ANY(v_gt);
 
   INSERT INTO public.custom_fighter_types (id, created_at, user_id, fighter_type, gang_type, cost, movement,
@@ -961,6 +947,271 @@ BEGIN
   INSERT INTO public.custom_collections (id, created_at, user_id, name, description, items, edition_id)
   VALUES (v_new_collection, now(), v_user, COALESCE(p_name, v_name), v_description, v_new_items, v_edition);
   RETURN v_new_collection;
+END;
+$$;
+
+
+--
+-- Name: forum_threads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_threads (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    number bigint NOT NULL,
+    category_id uuid NOT NULL,
+    title text NOT NULL,
+    author_id uuid,
+    is_pinned boolean DEFAULT false NOT NULL,
+    is_locked boolean DEFAULT false NOT NULL,
+    post_count integer DEFAULT 0 NOT NULL,
+    last_post_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_post_author_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    updated_by uuid,
+    article_published_at timestamp with time zone,
+    CONSTRAINT forum_threads_title_length CHECK (((char_length(btrim(title)) >= 1) AND (char_length(btrim(title)) <= 150)))
+);
+
+
+--
+-- Name: COLUMN forum_threads.number; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_threads.number IS 'Short public id for URLs: /forum/<category slug>/<number>-<title slug>.';
+
+
+--
+-- Name: COLUMN forum_threads.post_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_threads.post_count IS 'Posts in the thread, the opening post included. Replies = post_count - 1.';
+
+
+--
+-- Name: COLUMN forum_threads.article_published_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_threads.article_published_at IS 'When a moderator published the thread as an article; NULL when it is not one. Articles are listed newest first by it.';
+
+
+--
+-- Name: create_forum_thread(uuid, text, text, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_forum_thread(p_category_id uuid, p_title text, p_content text, p_tag_ids uuid[] DEFAULT '{}'::uuid[]) RETURNS public.forum_threads
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  thread forum_threads%ROWTYPE;
+BEGIN
+  INSERT INTO forum_threads (category_id, title, author_id)
+  VALUES (p_category_id, p_title, auth.uid())
+  RETURNING * INTO thread;
+
+  INSERT INTO forum_posts (thread_id, author_id, content)
+  VALUES (thread.id, auth.uid(), p_content);
+
+  PERFORM set_forum_thread_tags(thread.id, p_tag_ids);
+
+  RETURN thread;
+END;
+$$;
+
+
+--
+-- Name: create_notification_send(uuid, text, uuid, text, integer, text, uuid[], timestamp with time zone); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.create_notification_send(p_sender_id uuid, p_type text, p_campaign_id uuid, p_text text, p_expires_in_days integer, p_audience text, p_receiver_ids uuid[], p_logged_in_since timestamp with time zone DEFAULT NULL::timestamp with time zone) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  v_receiver_ids uuid[];
+  v_sample uuid[];
+  v_expires_at timestamptz;
+  v_send_id uuid;
+  v_link text;
+  v_today_start timestamptz;
+BEGIN
+  IF p_expires_in_days IS NULL OR p_expires_in_days < 1 OR p_expires_in_days > 365 THEN
+    RAISE EXCEPTION 'expires_in_days must be between 1 and 365';
+  END IF;
+
+  IF p_text IS NULL OR btrim(p_text) = '' THEN
+    RAISE EXCEPTION 'message text is required';
+  END IF;
+
+  -- Same visible-text cap as NOTIFICATION_BROADCAST_MAX_LENGTH in utils/notifications.ts.
+  IF char_length(regexp_replace(p_text, '<[^>]*>', '', 'g')) > 1000 THEN
+    RAISE EXCEPTION 'message must be at most 1000 characters';
+  END IF;
+
+  IF p_audience NOT IN ('all', 'selected') THEN
+    RAISE EXCEPTION 'audience must be all or selected';
+  END IF;
+
+  IF p_type NOT IN ('mm_announcement', 'mm_staff_message', 'campaign_message') THEN
+    RAISE EXCEPTION 'unsupported notification type';
+  END IF;
+
+  IF p_type = 'campaign_message' THEN
+    IF p_campaign_id IS NULL THEN
+      RAISE EXCEPTION 'campaign_id is required';
+    END IF;
+  ELSIF p_campaign_id IS NOT NULL THEN
+    RAISE EXCEPTION 'campaign_id must be null';
+  END IF;
+
+  v_link := CASE
+    WHEN p_type = 'campaign_message' THEN '/campaigns/' || p_campaign_id::text
+  END;
+
+  IF p_logged_in_since IS NOT NULL
+     AND (p_type = 'campaign_message' OR p_audience = 'selected') THEN
+    RAISE EXCEPTION 'logged_in_since only applies to all-user sends';
+  END IF;
+
+  IF p_audience = 'all' AND p_type = 'campaign_message' THEN
+    SELECT COALESCE(array_agg(DISTINCT cm.user_id), '{}'::uuid[])
+    INTO v_receiver_ids
+    FROM public.campaign_members cm
+    WHERE cm.campaign_id = p_campaign_id
+      AND cm.user_id IS NOT NULL;
+  ELSIF p_audience = 'all' THEN
+    -- Null keeps every profile. Otherwise keep a login or a session refresh at or
+    -- after the cutoff. refreshed_at has no time zone and is stored as UTC.
+    SELECT COALESCE(array_agg(p.id), '{}'::uuid[])
+    INTO v_receiver_ids
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p_logged_in_since IS NULL
+       OR u.last_sign_in_at >= p_logged_in_since
+       OR EXISTS (
+         SELECT 1
+         FROM auth.sessions s
+         WHERE s.user_id = u.id
+           AND (s.refreshed_at AT TIME ZONE 'UTC') >= p_logged_in_since
+       );
+  ELSE
+    SELECT COALESCE(array_agg(DISTINCT receiver.receiver_id), '{}'::uuid[])
+    INTO v_receiver_ids
+    FROM unnest(COALESCE(p_receiver_ids, '{}')) AS receiver(receiver_id)
+    WHERE receiver.receiver_id IS NOT NULL;
+  END IF;
+
+  IF v_receiver_ids IS NULL OR cardinality(v_receiver_ids) = 0 THEN
+    RAISE EXCEPTION 'no recipients';
+  END IF;
+
+  IF p_type = 'campaign_message' AND p_audience = 'selected' THEN
+    IF EXISTS (
+      SELECT 1
+      FROM unnest(v_receiver_ids) AS receiver(receiver_id)
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM public.campaign_members cm
+        WHERE cm.campaign_id = p_campaign_id
+          AND cm.user_id = receiver.receiver_id
+      )
+    ) THEN
+      RAISE EXCEPTION 'recipients must be campaign members';
+    END IF;
+  ELSIF p_type <> 'campaign_message' AND p_audience = 'selected' THEN
+    IF EXISTS (
+      SELECT 1
+      FROM unnest(v_receiver_ids) AS receiver(receiver_id)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM public.profiles p WHERE p.id = receiver.receiver_id
+      )
+    ) THEN
+      RAISE EXCEPTION 'recipients must be existing users';
+    END IF;
+  END IF;
+
+  IF p_type = 'campaign_message' THEN
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_campaign_id::text, 0));
+    v_today_start := (timezone('utc', now()))::date::timestamp AT TIME ZONE 'utc';
+    IF (
+      SELECT count(*)
+      FROM public.notification_sends
+      WHERE campaign_id = p_campaign_id
+        AND type = 'campaign_message'
+        AND created_at >= v_today_start
+    ) >= 5 THEN
+      RAISE EXCEPTION 'campaign_message_daily_cap';
+    END IF;
+
+    -- Same sender cap as CAMPAIGN_MESSAGE_SENDER_DAILY_CAP in utils/notifications.ts.
+    -- App admins are not exempt: this counts every campaign_message they send.
+    PERFORM pg_advisory_xact_lock(hashtextextended(p_sender_id::text, 1));
+    IF (
+      SELECT count(*)
+      FROM public.notification_sends
+      WHERE sender_id = p_sender_id
+        AND type = 'campaign_message'
+        AND created_at >= v_today_start
+    ) >= 10 THEN
+      RAISE EXCEPTION 'campaign_message_sender_daily_cap';
+    END IF;
+  END IF;
+
+  SELECT COALESCE(array_agg(sample_id ORDER BY sample_id), '{}'::uuid[])
+  INTO v_sample
+  FROM (
+    SELECT receiver.receiver_id AS sample_id
+    FROM unnest(v_receiver_ids) AS receiver(receiver_id)
+    ORDER BY receiver.receiver_id
+    LIMIT 3
+  ) sample;
+
+  v_expires_at := now() + make_interval(days => p_expires_in_days);
+
+  INSERT INTO public.notification_sends (
+    sender_id,
+    type,
+    campaign_id,
+    text,
+    recipient_count,
+    sample_receiver_ids,
+    logged_in_since
+  ) VALUES (
+    p_sender_id,
+    p_type,
+    p_campaign_id,
+    p_text,
+    cardinality(v_receiver_ids),
+    v_sample,
+    p_logged_in_since
+  )
+  RETURNING id INTO v_send_id;
+
+  INSERT INTO public.notifications (
+    text,
+    type,
+    is_html,
+    sender_id,
+    receiver_id,
+    dismissed,
+    link,
+    expires_at,
+    send_id
+  )
+  SELECT
+    p_text,
+    p_type,
+    true,
+    p_sender_id,
+    receiver.receiver_id,
+    false,
+    v_link,
+    v_expires_at,
+    v_send_id
+  FROM unnest(v_receiver_ids) AS receiver(receiver_id);
+
+  RETURN jsonb_build_object('id', v_send_id, 'count', cardinality(v_receiver_ids));
 END;
 $$;
 
@@ -1110,13 +1361,271 @@ CREATE FUNCTION public.enqueue_notification_email() RETURNS trigger
     SET search_path TO 'public'
     AS $$
 BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge') THEN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge', 'campaign_message', 'mm_staff_message', 'mm_announcement') THEN
       INSERT INTO email_deliveries (notification_id, user_id)
       VALUES (NEW.id, NEW.receiver_id)
       ON CONFLICT (notification_id) DO NOTHING;
    END IF;
 
    RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_article_submissions_before_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_article_submissions_before_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF EXISTS (SELECT 1 FROM forum_threads t WHERE t.id = NEW.thread_id AND t.article_published_at IS NOT NULL) THEN
+      RAISE EXCEPTION 'This thread is already an article' USING ERRCODE = 'MM002';
+    END IF;
+    NEW.status := 'submitted';
+    NEW.review_note := NULL;
+    NEW.submitted_at := now();
+    NEW.reviewed_at := NULL;
+    NEW.reviewed_by := NULL;
+    RETURN NEW;
+  END IF;
+
+  IF OLD.status = 'submitted' AND NEW.status <> 'submitted' AND private.is_forum_moderator() THEN
+    NEW.reviewed_at := now();
+    NEW.reviewed_by := auth.uid();
+  ELSIF OLD.status = 'changes_requested' AND NEW.status = 'submitted'
+    AND NEW.review_note IS NOT DISTINCT FROM OLD.review_note
+    AND EXISTS (SELECT 1 FROM forum_threads t WHERE t.id = NEW.thread_id AND t.author_id = auth.uid()) THEN
+    NEW.submitted_at := now();
+  ELSE
+    RAISE EXCEPTION 'Only the author can resubmit, and only moderators can answer a submission'
+      USING ERRCODE = 'MM002';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_post_likes_after_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_post_likes_after_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  UPDATE forum_posts p
+  SET like_count = p.like_count + CASE WHEN TG_OP = 'INSERT' THEN 1 ELSE -1 END
+  WHERE p.id = CASE WHEN TG_OP = 'INSERT' THEN NEW.post_id ELSE OLD.post_id END;
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: forum_posts_before_insert(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_posts_before_insert() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+DECLARE
+  is_moderator constant boolean := private.is_forum_moderator();
+  thread forum_threads%ROWTYPE;
+BEGIN
+  IF NOT is_moderator THEN
+    -- One post at a time per user, so parallel inserts can't all pass the check below
+    PERFORM pg_advisory_xact_lock(hashtextextended('forum_post:' || NEW.author_id::text, 0));
+    IF EXISTS (
+      SELECT 1 FROM forum_posts p
+      WHERE p.author_id = NEW.author_id
+      AND p.created_at > now() - interval '15 seconds'
+    ) THEN
+      RAISE EXCEPTION 'Please wait a few seconds before posting again'
+        USING ERRCODE = 'MM002';
+    END IF;
+  END IF;
+
+  -- Locks the thread row, so concurrent replies get consecutive numbers
+  SELECT * INTO thread FROM forum_threads t WHERE t.id = NEW.thread_id FOR UPDATE;
+  IF thread.is_locked AND NOT is_moderator THEN
+    RAISE EXCEPTION 'This thread is locked'
+      USING ERRCODE = 'MM002';
+  END IF;
+
+  NEW.post_number := thread.post_count + 1;
+  NEW.like_count := 0;
+  NEW.created_at := now();
+  NEW.updated_at := NULL;
+  NEW.deleted_at := NULL;
+  NEW.deleted_by := NULL;
+
+  UPDATE forum_threads t
+  SET post_count = t.post_count + 1,
+      last_post_at = NEW.created_at,
+      last_post_author_id = NEW.author_id
+  WHERE t.id = NEW.thread_id;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_posts_before_update(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_posts_before_update() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+BEGIN
+  IF OLD.deleted_at IS NOT NULL THEN
+    IF NEW.content IS DISTINCT FROM OLD.content OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at THEN
+      RAISE EXCEPTION 'This post has been removed'
+        USING ERRCODE = 'MM002';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NEW.deleted_at IS NOT NULL THEN
+    INSERT INTO forum_post_revisions (post_id, thread_id, post_number, author_id, content, kind, created_by)
+    VALUES (OLD.id, OLD.thread_id, OLD.post_number, OLD.author_id, OLD.content, 'delete', auth.uid());
+    NEW.deleted_at := now();
+    NEW.deleted_by := auth.uid();
+    NEW.content := '';
+  ELSIF NEW.content IS DISTINCT FROM OLD.content THEN
+    -- FOR SHARE waits for a lock being set at the same moment
+    IF NOT private.is_forum_moderator()
+      AND (SELECT t.is_locked FROM forum_threads t WHERE t.id = OLD.thread_id FOR SHARE) THEN
+      RAISE EXCEPTION 'This thread is locked'
+        USING ERRCODE = 'MM002';
+    END IF;
+    INSERT INTO forum_post_revisions (post_id, thread_id, post_number, author_id, content, kind, created_by)
+    VALUES (OLD.id, OLD.thread_id, OLD.post_number, OLD.author_id, OLD.content, 'edit', auth.uid());
+    NEW.updated_at := now();
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: forum_threads_after_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_threads_after_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF TG_OP = 'DELETE' OR (TG_OP = 'UPDATE' AND NEW.category_id IS DISTINCT FROM OLD.category_id) THEN
+    UPDATE forum_categories c
+    SET thread_count = c.thread_count - 1
+    WHERE c.id = OLD.category_id;
+  END IF;
+
+  IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.category_id IS DISTINCT FROM OLD.category_id) THEN
+    UPDATE forum_categories c
+    SET thread_count = c.thread_count + 1
+    WHERE c.id = NEW.category_id;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: forum_threads_before_delete(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_threads_before_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  INSERT INTO forum_post_revisions (post_id, thread_id, thread_title, post_number, author_id, content, kind, created_by)
+  SELECT p.id, OLD.id, OLD.title, p.post_number, p.author_id, p.content, 'delete', auth.uid()
+  FROM forum_posts p
+  WHERE p.thread_id = OLD.id
+  AND p.deleted_at IS NULL;
+  RETURN OLD;
+END;
+$$;
+
+
+--
+-- Name: forum_threads_before_write(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.forum_threads_before_write() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'private'
+    AS $$
+DECLARE
+  is_moderator constant boolean := private.is_forum_moderator();
+  new_account_thread_limit constant integer := 3;
+  account_created timestamp with time zone;
+  recent_threads integer;
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW.post_count := 0;
+    NEW.last_post_at := now();
+    NEW.last_post_author_id := NEW.author_id;
+    NEW.created_at := now();
+    NEW.updated_at := NULL;
+    NEW.updated_by := NULL;
+    NEW.article_published_at := NULL;
+    IF NOT is_moderator THEN
+      NEW.is_pinned := false;
+      NEW.is_locked := false;
+
+      SELECT p.created_at INTO account_created FROM profiles p WHERE p.id = NEW.author_id;
+      IF account_created IS NULL OR account_created > now() - interval '1 day' THEN
+        SELECT count(*) INTO recent_threads
+        FROM forum_threads t
+        WHERE t.author_id = NEW.author_id
+        AND t.created_at > now() - interval '1 day';
+        IF recent_threads >= new_account_thread_limit THEN
+          RAISE EXCEPTION 'New accounts can start % threads a day', new_account_thread_limit
+            USING ERRCODE = 'MM002';
+        END IF;
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF NOT is_moderator AND (
+    NEW.is_pinned IS DISTINCT FROM OLD.is_pinned
+    OR NEW.is_locked IS DISTINCT FROM OLD.is_locked
+    OR NEW.category_id IS DISTINCT FROM OLD.category_id
+    OR NEW.article_published_at IS DISTINCT FROM OLD.article_published_at
+  ) THEN
+    RAISE EXCEPTION 'Only moderators can pin, lock, move or publish threads'
+      USING ERRCODE = 'MM002';
+  END IF;
+  IF NOT is_moderator AND OLD.is_locked AND NEW.title IS DISTINCT FROM OLD.title THEN
+    RAISE EXCEPTION 'This thread is locked'
+      USING ERRCODE = 'MM002';
+  END IF;
+  -- Publishing stamps the time here, so the client only says whether it's an article
+  IF NEW.article_published_at IS NOT NULL THEN
+    NEW.article_published_at := coalesce(OLD.article_published_at, now());
+  END IF;
+  -- Publishing ends the author's suggestion
+  IF OLD.article_published_at IS NULL AND NEW.article_published_at IS NOT NULL THEN
+    DELETE FROM forum_article_submissions WHERE thread_id = NEW.id;
+  END IF;
+  NEW.updated_at := now();
+  NEW.updated_by := auth.uid();
+  RETURN NEW;
 END;
 $$;
 
@@ -1134,7 +1643,7 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM public.gang_types
-      WHERE gang_type_id = NEW.parent_gang_type_id
+      WHERE id = NEW.parent_gang_type_id
         AND parent_gang_type_id IS NOT NULL
     ) THEN
       RAISE EXCEPTION 'parent_gang_type_id must reference a root gang type';
@@ -1143,10 +1652,54 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM public.gang_types
-      WHERE parent_gang_type_id = NEW.gang_type_id
+      WHERE parent_gang_type_id = NEW.id
     ) THEN
       RAISE EXCEPTION 'cannot set parent_gang_type_id on a gang type that is already a parent of other gang lists';
     END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+
+--
+-- Name: gang_types_propagate_parent_gang_type_name(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gang_types_propagate_parent_gang_type_name() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF OLD.gang_type IS DISTINCT FROM NEW.gang_type THEN
+    UPDATE public.gang_types
+    SET parent_gang_type_name = NEW.gang_type
+    WHERE parent_gang_type_id = NEW.id
+      AND parent_gang_type_name IS DISTINCT FROM NEW.gang_type;
+  END IF;
+
+  RETURN NULL;
+END;
+$$;
+
+
+--
+-- Name: gang_types_set_parent_gang_type_name(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.gang_types_set_parent_gang_type_name() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF NEW.parent_gang_type_id IS NULL THEN
+    NEW.parent_gang_type_name := NULL;
+  ELSE
+    SELECT parent.gang_type
+    INTO NEW.parent_gang_type_name
+    FROM public.gang_types AS parent
+    WHERE parent.id = NEW.parent_gang_type_id;
   END IF;
 
   RETURN NEW;
@@ -1172,16 +1725,20 @@ DECLARE
     v_origin_skill_type_id uuid;
     v_edition_id uuid;
     v_cumulative_xp boolean; -- Edition earns Advancements by rank instead of buying them
+    v_is_vehicle boolean;
+    v_is_walker boolean;
 BEGIN
     -- Get fighter subtypes, gang origin ID, gang ID, fighter type IDs, the gang's
     -- edition, and verify fighter exists
     SELECT f.fighter_subtypes, g.gang_origin_id, f.gang_id, f.fighter_type_id, f.custom_fighter_type_id,
-           COALESCE(gt.edition_id, cgt.edition_id)
+           COALESCE(gt.edition_id, cgt.edition_id),
+           f.is_vehicle,
+           f.is_vehicle AND f.fighter_subtypes ? 'Walker'
     INTO v_fighter_subtypes, v_gang_origin_id, v_gang_id, v_fighter_type_id, v_custom_fighter_type_id,
-         v_edition_id
+         v_edition_id, v_is_vehicle, v_is_walker
     FROM fighters f
     JOIN gangs g ON g.id = f.gang_id
-    LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+    LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
     LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
     WHERE f.id = get_available_skills.fighter_id;
 
@@ -1222,7 +1779,8 @@ BEGIN
                 WHERE fs.fighter_id = get_available_skills.fighter_id
                 AND fs.skill_id = s.id
             ) AS available,
-            COALESCE(skill_effect.skill_cost, 0) AS skill_cost
+            COALESCE(skill_effect.skill_cost, 0) AS skill_cost,
+            s.usable_by
         FROM skills s
         JOIN skill_types st ON st.id = s.skill_type_id
         LEFT JOIN fighter_type_skill_access ftsa ON ftsa.skill_type_id = s.skill_type_id
@@ -1271,7 +1829,8 @@ BEGIN
                 WHERE fs.fighter_id = get_available_skills.fighter_id
                 AND fs.custom_skill_id = cs.id
             ) AS available,
-            0 AS skill_cost
+            0 AS skill_cost,
+            NULL::text[] AS usable_by
         FROM custom_skills cs
         LEFT JOIN skill_types st ON st.id = cs.skill_type_id
         LEFT JOIN custom_skill_types cst ON cst.id = cs.custom_skill_type_id
@@ -1292,7 +1851,7 @@ BEGIN
                 OR (v_custom_fighter_type_id IS NULL AND ftsa.fighter_type_id = v_fighter_type_id)
             )
         LEFT JOIN fighter_skill_access_override sao ON sao.fighter_id = get_available_skills.fighter_id
-            AND (sao.skill_type_id = cs.skill_type_id OR sao.skill_type_id = cs.custom_skill_type_id)
+            AND (sao.skill_type_id = cs.skill_type_id OR sao.custom_skill_type_id = cs.custom_skill_type_id)
         WHERE (cs.user_id = auth.uid() OR shared.custom_skill_id IS NOT NULL)
         AND COALESCE(
             sao.access_level,
@@ -1323,6 +1882,13 @@ BEGIN
                     'skill_type_name', a.skill_type_name,
                     'effective_access_level', a.effective_access_level,
                     'available', a.available,
+                    'usable_by', to_jsonb(a.usable_by),
+                    'usable', (
+                        a.usable_by IS NULL
+                        OR (NOT v_is_vehicle AND 'fighter' = ANY (a.usable_by))
+                        OR (v_is_vehicle AND 'vehicle' = ANY (a.usable_by))
+                        OR (v_is_walker AND 'walker' = ANY (a.usable_by))
+                    ),
                     'cost', a.skill_cost,
                     'available_acquisition_types', CASE
                         -- Special costs for Legendary Names
@@ -1395,10 +1961,10 @@ $$;
 
 
 --
--- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[]); Type: FUNCTION; Schema: public; Owner: -
+-- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[]) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean, min_count integer, max_count integer)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[], include_legacy boolean DEFAULT true) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean, min_count integer, max_count integer)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -1415,12 +1981,13 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
-            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing.
+            -- A fighter with no subtypes of its own ('[]', never NULL) uses its type's.
+            COALESCE(NULLIF(f.fighter_subtypes, '[]'::jsonb), ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
-        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
         LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
         LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
@@ -1431,7 +1998,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
             LIMIT 1
         ) cg ON true
         LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
-        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
+        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id AND $11
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
     ),
 
@@ -1441,7 +2008,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     gang_tp AS (
         SELECT gt.trading_post_type_id
         FROM gang_types gt
-        WHERE gt.gang_type_id = $1
+        WHERE gt.id = $1
           AND (
               $9 IS NULL
               OR gt.trading_post_type_id = ANY($9)
@@ -1602,6 +2169,65 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
           AND $10 IS NOT NULL AND array_length($10, 1) > 0
           AND ctpe.custom_trading_post_id = ANY($10)
         GROUP BY ctpe.equipment_id
+    ),
+
+    -- =======================================================================
+    -- 7. FIGHTER TYPE EQUIPMENT ROWS THAT CAN MATCH THIS REQUEST
+    --    The main query's join condition, evaluated once. Joined per
+    --    equipment row instead, it fetched every fighter type's rows for each
+    --    item, which is the whole table on every call.
+    -- =======================================================================
+    fte_match AS MATERIALIZED (
+        SELECT fte.id, fte.equipment_id, fte.fighter_type_id, fte.vehicle_type_id
+        FROM fighter_type_equipment fte
+        CROSS JOIN gang_data gd
+        WHERE (fte.fighter_type_id = $3
+               OR fte.vehicle_type_id = $3
+               OR (gd.legacy_ft_id IS NOT NULL
+                   AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
+                   AND $4 = true)
+               OR (gd.affiliation_ft_id IS NOT NULL
+                   AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
+               -- A subtype rule spanning every gang names no fighter of its own.
+               -- fighter_subtype must be set, or an all-NULL row matches everything.
+               OR (fte.fighter_type_id IS NULL
+                   AND fte.vehicle_type_id IS NULL
+                   AND fte.custom_fighter_type_id IS NULL
+                   AND fte.fighter_subtype IS NOT NULL))
+          AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
+          AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
+          AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
+          AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+          -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
+          AND NOT fte.excluded
+    ),
+
+    -- =======================================================================
+    -- 8. CUSTOM EQUIPMENT THE CALLER CAN SEE
+    --    The same three sources the custom branch filters on, gathered through
+    --    their indexes so the branch no longer reads every user's custom
+    --    equipment.
+    -- =======================================================================
+    custom_candidates AS MATERIALIZED (
+        SELECT ce.id
+        FROM custom_equipment ce
+        WHERE ce.user_id = auth.uid()
+
+        UNION
+
+        SELECT cs.custom_equipment_id
+        FROM custom_shared cs
+        JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
+        WHERE cg.gang_id = $8
+          AND cs.custom_equipment_id IS NOT NULL
+
+        UNION
+
+        SELECT ctpe.custom_equipment_id
+        FROM custom_trading_post_equipment ctpe
+        WHERE ctpe.custom_equipment_id IS NOT NULL
+          AND $10 IS NOT NULL AND array_length($10, 1) > 0
+          AND ctpe.custom_trading_post_id = ANY($10)
     )
 
     -- =======================================================================
@@ -1764,28 +2390,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         AND ea_origin.gang_origin_id IS NOT NULL
         AND ea_origin.gang_origin_id = gd.gang_origin_id
 
-    -- Fighter type equipment
-    LEFT JOIN fighter_type_equipment fte
-        ON e.id = fte.equipment_id
-        AND (fte.fighter_type_id = $3
-             OR fte.vehicle_type_id = $3
-             OR (gd.legacy_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
-                 AND $4 = true)
-             OR (gd.affiliation_ft_id IS NOT NULL
-                 AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
-             -- A subtype rule spanning every gang names no fighter of its own.
-             -- fighter_subtype must be set, or an all-NULL row matches everything.
-             OR (fte.fighter_type_id IS NULL
-                 AND fte.vehicle_type_id IS NULL
-                 AND fte.custom_fighter_type_id IS NULL
-                 AND fte.fighter_subtype IS NOT NULL))
-        AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
-        AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
-        AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
-        AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
-        -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
-        AND NOT fte.excluded
+    -- Fighter type equipment (rows already filtered in fte_match)
+    LEFT JOIN fte_match fte ON fte.equipment_id = e.id
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
@@ -1974,7 +2580,8 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
         COALESCE(custom_tp.banned, false) AS banned,
         NULL::integer AS min_count,
         NULL::integer AS max_count
-    FROM custom_equipment ce
+    FROM custom_candidates cc
+    JOIN custom_equipment ce ON ce.id = cc.id
     CROSS JOIN gang_data gd
     LEFT JOIN (
         SELECT cs.custom_equipment_id
@@ -2124,7 +2731,7 @@ BEGIN
   INTO v_edition_id
   FROM fighters f
   JOIN gangs g ON g.id = f.gang_id
-  LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+  LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
   LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
   WHERE f.id = get_fighter_available_advancements.fighter_id;
 
@@ -3240,7 +3847,7 @@ $$;
 -- Name: get_gang_details(uuid); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_type_image_url text, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_subtypes json, edition_slug text)
+CREATE FUNCTION public.get_gang_details(p_gang_id uuid) RETURNS TABLE(id uuid, name text, gang_type text, gang_type_id uuid, gang_colour text, credits numeric, reputation numeric, rating numeric, alignment public.alignment, positioning jsonb, note text, stash json, created_at timestamp with time zone, last_updated timestamp with time zone, fighters json, campaigns json, vehicles json, alliance_id uuid, alliance_name text, alliance_type text, gang_subtypes json, edition_slug text)
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $$
@@ -3251,10 +3858,29 @@ BEGIN
        FROM fighters f
        WHERE f.gang_id = p_gang_id
    ),
+   -- Two indexed lookups joined by UNION, not one OR: with an OR the planner
+   -- cannot estimate the vehicle count, so it walks whole vehicle_id indexes on
+   -- fighter_equipment and fighter_effects, and sequentially scans
+   -- fighter_effect_modifiers for the vehicles' effects.
    vehicle_ids AS (
        SELECT v.id AS v_id
        FROM vehicles v
-       WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
+       WHERE v.gang_id = p_gang_id
+       UNION
+       SELECT v.id
+       FROM vehicles v
+       WHERE v.fighter_id IN (SELECT f_id FROM fighter_ids)
+   ),
+   -- Every fighter_equipment row of the gang's fighters and vehicles. An OR of
+   -- fighter_id and vehicle_id forces a sequential scan of the whole table.
+   gang_equipment_ids AS (
+       SELECT fe.id AS fe_id
+       FROM fighter_equipment fe
+       WHERE fe.fighter_id IN (SELECT f_id FROM fighter_ids)
+       UNION
+       SELECT fe.id
+       FROM fighter_equipment fe
+       WHERE fe.vehicle_id IN (SELECT v_id FROM vehicle_ids)
    ),
    gang_fighters AS (
        SELECT
@@ -3536,11 +4162,7 @@ BEGIN
                       fe.id AS fe_id, fe.is_master_crafted
        FROM weapon_profiles wp
        JOIN fighter_equipment fe ON fe.equipment_id = wp.equipment_id
-       WHERE (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
-          OR fe.vehicle_id IN (
-             SELECT v.id FROM vehicles v 
-             WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-          ))
+       WHERE fe.id IN (SELECT fe_id FROM gang_equipment_ids)
        AND fe.equipment_id IS NOT NULL
    ),
    weapon_profiles_grouped AS (
@@ -3595,11 +4217,7 @@ BEGIN
        FROM fighter_equipment fe
        JOIN custom_weapon_profiles cwp ON (cwp.custom_equipment_id = fe.custom_equipment_id OR cwp.weapon_group_id = fe.custom_equipment_id)
        WHERE fe.custom_equipment_id IS NOT NULL
-       AND (fe.fighter_id IN (SELECT f_id FROM fighter_ids)
-          OR fe.vehicle_id IN (
-             SELECT v.id FROM vehicles v 
-             WHERE v.gang_id = p_gang_id OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-          ))
+       AND fe.id IN (SELECT fe_id FROM gang_equipment_ids)
        GROUP BY fe.id, fe.custom_equipment_id
    ),
    fighter_equipment_details AS (
@@ -3637,12 +4255,7 @@ BEGIN
            COALESCE(SUM(ve.purchase_cost), 0)::numeric as total_equipment_cost
        FROM fighter_equipment ve
        WHERE ve.vehicle_id IS NOT NULL
-       AND ve.vehicle_id IN (
-           SELECT v.id 
-           FROM vehicles v 
-           WHERE v.gang_id = p_gang_id 
-              OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-       )
+       AND ve.vehicle_id IN (SELECT v_id FROM vehicle_ids)
        GROUP BY ve.vehicle_id
    ),
    vehicle_equipment_details AS (
@@ -3671,12 +4284,7 @@ BEGIN
        LEFT JOIN equipment e ON e.id = ve.equipment_id
        LEFT JOIN custom_equipment ce ON ce.id = ve.custom_equipment_id
        WHERE ve.vehicle_id IS NOT NULL
-       AND ve.vehicle_id IN (
-           SELECT v.id 
-           FROM vehicles v 
-           WHERE v.gang_id = p_gang_id 
-              OR v.fighter_id IN (SELECT f_id FROM fighter_ids)
-       )
+       AND ve.vehicle_id IN (SELECT v_id FROM vehicle_ids)
        AND (ve.equipment_id IS NOT NULL OR ve.custom_equipment_id IS NOT NULL)
        GROUP BY ve.vehicle_id
    ),
@@ -3713,7 +4321,7 @@ BEGIN
        LEFT JOIN vehicle_equipment_details vep ON vep.vehicle_id = v.id
        LEFT JOIN vehicle_effects ve ON ve.vehicle_id = v.id
        LEFT JOIN vehicle_effects_credits vec2 ON vec2.vehicle_id = v.id
-       WHERE (v.fighter_id IN (SELECT f_id FROM fighter_ids) OR v.gang_id = p_gang_id)
+       WHERE v.id IN (SELECT v_id FROM vehicle_ids)
    ),
    gang_owned_vehicles AS (
        SELECT 
@@ -4021,7 +4629,6 @@ BEGIN
        g.name,
        g.gang_type,
        g.gang_type_id,
-       gt.image_url as gang_type_image_url,
        g.gang_colour,
        g.credits,
        g.reputation,
@@ -4041,7 +4648,7 @@ BEGIN
        (SELECT subtype_info FROM gang_subtype_info) as gang_subtypes,
        ed.slug AS edition_slug
    FROM gangs g
-   LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+   LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
    LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
    LEFT JOIN editions ed ON ed.id = COALESCE(gt.edition_id, cgt.edition_id)
    LEFT JOIN alliances a ON a.id = g.alliance_id
@@ -4335,6 +4942,24 @@ $$;
 
 
 --
+-- Name: prevent_campaign_owner_delete(); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.prevent_campaign_owner_delete() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM campaign_members WHERE user_id = OLD.id AND role = 'OWNER') THEN
+    RAISE EXCEPTION 'User % is the Owner of a campaign', OLD.id
+      USING HINT = 'Hand the campaign over to an Arbitrator or delete it first.';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+
+--
 -- Name: replace_fighter_skill_access_overrides(uuid, uuid[], jsonb); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -4432,6 +5057,52 @@ COMMENT ON FUNCTION public.replace_gang_skill_set_ranks(p_gang_id uuid, p_ranks 
 
 
 --
+-- Name: set_forum_thread_tags(uuid, uuid[]); Type: FUNCTION; Schema: public; Owner: -
+--
+
+CREATE FUNCTION public.set_forum_thread_tags(p_thread_id uuid, p_tag_ids uuid[]) RETURNS public.forum_threads
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+DECLARE
+  max_tags constant integer := 3;
+  thread forum_threads%ROWTYPE;
+BEGIN
+  -- FOR UPDATE waits for a lock being set at the same moment
+  SELECT * INTO thread FROM forum_threads t WHERE t.id = p_thread_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'This thread no longer exists'
+      USING ERRCODE = 'MM002';
+  END IF;
+  IF NOT private.is_forum_moderator() THEN
+    IF thread.author_id IS DISTINCT FROM auth.uid() THEN
+      RAISE EXCEPTION 'Only the thread''s author and moderators can change its tags'
+        USING ERRCODE = 'MM002';
+    END IF;
+    IF thread.is_locked THEN
+      RAISE EXCEPTION 'This thread is locked'
+        USING ERRCODE = 'MM002';
+    END IF;
+  END IF;
+  IF cardinality(p_tag_ids) > max_tags THEN
+    RAISE EXCEPTION 'A thread can have at most % tags', max_tags
+      USING ERRCODE = 'MM002';
+  END IF;
+
+  DELETE FROM forum_thread_tags tt
+  WHERE tt.thread_id = p_thread_id
+  AND tt.tag_id <> ALL (coalesce(p_tag_ids, '{}'));
+
+  INSERT INTO forum_thread_tags (thread_id, tag_id)
+  SELECT p_thread_id, tag.id FROM forum_tags tag WHERE tag.id = ANY (p_tag_ids)
+  ON CONFLICT DO NOTHING;
+
+  RETURN thread;
+END;
+$$;
+
+
+--
 -- Name: alliances; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4443,8 +5114,16 @@ CREATE TABLE public.alliances (
     strong_alliance uuid,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     alliance_crew_name text,
-    edition_id uuid
+    edition_id uuid,
+    tithe_cost numeric
 );
+
+
+--
+-- Name: COLUMN alliances.tithe_cost; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.alliances.tithe_cost IS 'N26 Tithe Price: credits a gang pays from its Stash to form or break this alliance, and adds to its rating while allied. Prefills the editable tithe in the gang edit modal; updateGang moves rating by it on an alliance change. NULL is no tithe.';
 
 
 --
@@ -4489,10 +5168,28 @@ CREATE TABLE public.battle_session_participants (
     is_winner boolean DEFAULT false NOT NULL,
     claimed_territory boolean DEFAULT false NOT NULL,
     resource_changes jsonb DEFAULT '[]'::jsonb NOT NULL,
+    side_job_id uuid,
+    side_job_completed boolean DEFAULT false NOT NULL,
+    side_job_name text,
+    CONSTRAINT battle_session_participants_one_side_job_check CHECK (((side_job_id IS NULL) OR (side_job_name IS NULL))),
     CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
 
 ALTER TABLE ONLY public.battle_session_participants REPLICA IDENTITY FULL;
+
+
+--
+-- Name: COLUMN battle_session_participants.side_job_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_session_participants.side_job_id IS 'N26 Side Job this gang rolled: a scenario_table_entries row of the core side_job table or of its house''s. Copied into campaign_battles.participants on completion.';
+
+
+--
+-- Name: COLUMN battle_session_participants.side_job_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_session_participants.side_job_name IS 'N26 custom Side Job this gang named by hand instead of rolling one. NULL while side_job_id is set. Copied into campaign_battles.participants on completion.';
 
 
 --
@@ -4503,7 +5200,7 @@ CREATE TABLE public.battle_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_by uuid NOT NULL,
+    created_by uuid,
     campaign_id uuid,
     scenario text,
     status text DEFAULT '''pre_battle''::text'::text NOT NULL,
@@ -4512,6 +5209,15 @@ CREATE TABLE public.battle_sessions (
     round integer DEFAULT 1 NOT NULL,
     claimed_territory text,
     edition_id uuid,
+    deployment_id uuid,
+    objective_id uuid,
+    crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    CONSTRAINT battle_sessions_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT battle_sessions_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT battle_sessions_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
@@ -4523,6 +5229,48 @@ ALTER TABLE ONLY public.battle_sessions REPLICA IDENTITY FULL;
 --
 
 COMMENT ON COLUMN public.battle_sessions.edition_id IS 'Ruleset the session is played under. Derived server-side at creation from the campaign type, or from the creating gang for skirmish sessions. Nullable: a null edition resolves to NO_CAPABILITIES in the app rather than silently serving another edition''s rules.';
+
+
+--
+-- Name: COLUMN battle_sessions.deployment_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.deployment_id IS 'N26 Deployment for this session. Copied to campaign_battles.deployment_id on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.objective_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.objective_id IS 'N26 Objective for this session. Copied to campaign_battles.objective_id on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.crew_selection_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.crew_selection_id IS 'N26 Crew selection for this session. Its scenario_crew_selection_rules fill in the crew picker.';
+
+
+--
+-- Name: COLUMN battle_sessions.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN battle_sessions.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.battle_sessions.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set. Copied into campaign_battles on completion.';
 
 
 --
@@ -4552,10 +5300,7 @@ COMMENT ON TABLE public.campaign_allegiances IS 'Custom allegiances created by a
 CREATE TABLE public.campaign_battles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    attacker_id uuid,
-    defender_id uuid,
     scenario_id uuid,
-    winner_id uuid,
     note text,
     campaign_id uuid,
     participants jsonb,
@@ -4567,29 +5312,25 @@ CREATE TABLE public.campaign_battles (
     status text DEFAULT 'played'::text NOT NULL,
     challenger_gang_id uuid,
     challenged_gang_id uuid,
+    deployment_id uuid,
+    objective_id uuid,
+    crew_selection_id uuid,
+    crew_selection_name text,
+    deployment_name text,
+    objective_name text,
+    challenge_order integer,
+    CONSTRAINT campaign_battles_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT campaign_battles_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT campaign_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
     CONSTRAINT campaign_battles_status_check CHECK ((status = ANY (ARRAY['challenge_pending'::text, 'challenge_issued'::text, 'challenge_accepted'::text, 'challenge_declined'::text, 'played'::text])))
 );
 
 
 --
--- Name: COLUMN campaign_battles.attacker_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN campaign_battles.participants; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.campaign_battles.attacker_id IS 'gang_id';
-
-
---
--- Name: COLUMN campaign_battles.defender_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.defender_id IS 'gang_id';
-
-
---
--- Name: COLUMN campaign_battles.winner_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.campaign_battles.winner_id IS 'gang_id';
+COMMENT ON COLUMN public.campaign_battles.participants IS 'One object per gang: gang_id and role (attacker, defender or none: a scenario role), with optional is_winner and claimed_territory, and on n26 optional side_job_id (a scenario_table_entries row of a side_job table) or side_job_name (a custom Side Job), and side_job_completed.';
 
 
 --
@@ -4597,6 +5338,48 @@ COMMENT ON COLUMN public.campaign_battles.winner_id IS 'gang_id';
 --
 
 COMMENT ON COLUMN public.campaign_battles.status IS 'Lifecycle of the battle log. Challenges start at challenge_issued and become played once the report is filed. Battles logged directly are born played.';
+
+
+--
+-- Name: COLUMN campaign_battles.deployment_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.deployment_id IS 'N26 Deployment rolled for this battle: a scenario_table_entries row of a deployment table.';
+
+
+--
+-- Name: COLUMN campaign_battles.objective_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.objective_id IS 'N26 Objective rolled for this battle: a scenario_table_entries row of an objective table.';
+
+
+--
+-- Name: COLUMN campaign_battles.crew_selection_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.crew_selection_id IS 'N26 Crew selection rolled for this battle: a scenario_table_entries row of a crew_selection table.';
+
+
+--
+-- Name: COLUMN campaign_battles.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set.';
+
+
+--
+-- Name: COLUMN campaign_battles.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_battles.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set.';
 
 
 --
@@ -4728,6 +5511,57 @@ COMMENT ON TABLE public.campaign_members IS 'members of a campaign';
 
 
 --
+-- Name: campaign_portraits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_portraits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    storage_path text NOT NULL,
+    credit jsonb NOT NULL,
+    style text NOT NULL,
+    campaign_type_id uuid NOT NULL,
+    CONSTRAINT campaign_portraits_credit_check CHECK (((jsonb_typeof(credit) = 'object'::text) AND (btrim(COALESCE((credit ->> 'name'::text), ''::text)) <> ''::text))),
+    CONSTRAINT campaign_portraits_storage_path_check CHECK (((storage_path <> ''::text) AND (storage_path !~ '^/'::text))),
+    CONSTRAINT campaign_portraits_style_check CHECK ((style = ANY (ARRAY['colour'::text, 'black & white'::text, 'ai-assisted'::text])))
+);
+
+
+--
+-- Name: TABLE campaign_portraits; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.campaign_portraits IS 'Catalogue of shared campaign portraits in the campaign-type-images bucket. One file belongs to one campaign type.';
+
+
+--
+-- Name: COLUMN campaign_portraits.storage_path; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.storage_path IS 'Object path inside the campaign-type-images bucket, such as admin/law_and_misrule.webp.';
+
+
+--
+-- Name: COLUMN campaign_portraits.credit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.credit IS 'Artist credit: name, url, and optional suffix. Shown with the portrait.';
+
+
+--
+-- Name: COLUMN campaign_portraits.style; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.style IS 'Portrait treatment used as a gallery filter: colour, black & white, or ai-assisted.';
+
+
+--
+-- Name: COLUMN campaign_portraits.campaign_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_portraits.campaign_type_id IS 'Campaign type this portrait belongs to. Renaming the type does not detach the portrait. A type with portraits cannot be deleted until its portraits, and their files, are removed through admin.';
+
+
+--
 -- Name: campaign_resources; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -4766,7 +5600,8 @@ CREATE TABLE public.campaign_territories (
     description text,
     map_object_id uuid,
     map_hex_coords jsonb,
-    show_name_on_map boolean DEFAULT true
+    show_name_on_map boolean DEFAULT true,
+    credits numeric
 );
 
 
@@ -4835,8 +5670,16 @@ CREATE TABLE public.campaign_types (
     description text,
     image_url text,
     trading_posts jsonb,
-    edition_id uuid
+    edition_id uuid,
+    phases jsonb
 );
+
+
+--
+-- Name: COLUMN campaign_types.phases; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_types.phases IS 'Ordered phase names suggested to arbitrators of this campaign type. Null when the type has none.';
 
 
 --
@@ -4860,7 +5703,13 @@ CREATE TABLE public.campaigns (
     created_by uuid DEFAULT auth.uid(),
     custom_trading_posts jsonb,
     allow_join_requests boolean DEFAULT false NOT NULL,
-    current_cycle integer
+    current_cycle integer,
+    current_phase text,
+    campaign_portrait_id uuid,
+    discord_dice_rolls boolean DEFAULT false NOT NULL,
+    discord_dice_roll_channel_id text,
+    CONSTRAINT campaigns_current_cycle_positive CHECK (((current_cycle IS NULL) OR (current_cycle >= 1))),
+    CONSTRAINT campaigns_current_phase_length CHECK (((current_phase IS NULL) OR ((char_length(current_phase) >= 1) AND (char_length(current_phase) <= 50))))
 );
 
 
@@ -4869,6 +5718,20 @@ CREATE TABLE public.campaigns (
 --
 
 COMMENT ON COLUMN public.campaigns.status IS 'Campaign status: Active or Closed. Defaults to Active for new campaigns.';
+
+
+--
+-- Name: COLUMN campaigns.current_phase; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaigns.current_phase IS 'Free-text name of the phase the campaign is in. Null when the campaign does not track phases.';
+
+
+--
+-- Name: COLUMN campaigns.campaign_portrait_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaigns.campaign_portrait_id IS 'Selected shared portrait from campaign_portraits. Null for a custom upload, the campaign type image, or no catalogue image.';
 
 
 --
@@ -5074,7 +5937,6 @@ CREATE TABLE public.custom_gang_types (
     gang_type text NOT NULL,
     alignment public.alignment,
     trading_post_type_id uuid,
-    default_image_urls jsonb DEFAULT '[{"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_gang_cropped_web.webp"}, {"url": "https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/unknown_cropped_web_foy9m7.avif", "credit": {"url": "https://www.ashenquarter.com/", "name": "Djidiouf", "suffix": "(AI-assisted)"}}]'::jsonb,
     description text,
     edition_id uuid NOT NULL
 );
@@ -5662,7 +6524,7 @@ CREATE TABLE public.fighter_loadouts (
     fighter_id uuid NOT NULL,
     loadout_name text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
-    user_id uuid NOT NULL,
+    user_id uuid,
     updated_at timestamp with time zone
 );
 
@@ -5702,11 +6564,13 @@ CREATE TABLE public.fighter_ooa_records (
 CREATE TABLE public.fighter_skill_access_override (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     fighter_id uuid NOT NULL,
-    skill_type_id uuid NOT NULL,
+    skill_type_id uuid,
     access_level text NOT NULL,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     user_id uuid,
+    custom_skill_type_id uuid,
+    CONSTRAINT chk_fsao_skill_type_xor CHECK ((((skill_type_id IS NOT NULL) AND (custom_skill_type_id IS NULL)) OR ((skill_type_id IS NULL) AND (custom_skill_type_id IS NOT NULL)))),
     CONSTRAINT fighter_skill_access_override_access_level_check CHECK ((access_level = ANY (ARRAY['primary'::text, 'secondary'::text, 'allowed'::text, 'denied'::text])))
 );
 
@@ -6109,6 +6973,254 @@ COMMENT ON COLUMN public.fighters.promoted_from_prospect IS 'True when the N26 P
 
 
 --
+-- Name: forum_article_submissions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_article_submissions (
+    thread_id uuid NOT NULL,
+    status text DEFAULT 'submitted'::text NOT NULL,
+    review_note text,
+    submitted_at timestamp with time zone DEFAULT now() NOT NULL,
+    reviewed_at timestamp with time zone,
+    reviewed_by uuid,
+    CONSTRAINT forum_article_submissions_review_note_length CHECK ((char_length(review_note) <= 2000)),
+    CONSTRAINT forum_article_submissions_status_check CHECK ((status = ANY (ARRAY['submitted'::text, 'changes_requested'::text, 'declined'::text])))
+);
+
+
+--
+-- Name: TABLE forum_article_submissions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_article_submissions IS 'Threads their authors suggested as articles, until a moderator publishes them. Author and moderators only.';
+
+
+--
+-- Name: COLUMN forum_article_submissions.review_note; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_article_submissions.review_note IS 'What the moderator told the author: the changes asked for, or why it was declined.';
+
+
+--
+-- Name: forum_categories; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_categories (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    slug text NOT NULL,
+    name text NOT NULL,
+    description text,
+    "position" integer DEFAULT 0 NOT NULL,
+    moderators_only boolean DEFAULT false NOT NULL,
+    thread_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    image_url text,
+    CONSTRAINT forum_categories_image_url_https CHECK (((image_url IS NULL) OR (image_url ~ '^https://[^[:space:]]+$'::text))),
+    CONSTRAINT forum_categories_slug_format CHECK ((slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+);
+
+
+--
+-- Name: COLUMN forum_categories."position"; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_categories."position" IS 'Order on the forum index, lowest first.';
+
+
+--
+-- Name: COLUMN forum_categories.moderators_only; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_categories.moderators_only IS 'Only moderators can start threads here (e.g. Announcements). Anyone can still reply.';
+
+
+--
+-- Name: COLUMN forum_categories.image_url; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_categories.image_url IS 'Public https URL of the image shown beside this category. Null hides the image.';
+
+
+--
+-- Name: forum_post_likes; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_post_likes (
+    post_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+--
+-- Name: forum_post_revisions; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_post_revisions (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    post_id uuid,
+    content text NOT NULL,
+    kind text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid,
+    thread_id uuid,
+    thread_title text,
+    post_number integer,
+    author_id uuid,
+    CONSTRAINT forum_post_revisions_kind_check CHECK ((kind = ANY (ARRAY['edit'::text, 'delete'::text])))
+);
+
+
+--
+-- Name: TABLE forum_post_revisions; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_post_revisions IS 'The content a post had before each edit (kind edit) or before it was removed (kind delete). Moderators only.';
+
+
+--
+-- Name: COLUMN forum_post_revisions.post_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_post_revisions.post_id IS 'NULL once the post is deleted with its thread; the other columns still say where it was and who wrote it.';
+
+
+--
+-- Name: COLUMN forum_post_revisions.thread_title; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_post_revisions.thread_title IS 'Set on the revisions kept when a thread is deleted.';
+
+
+--
+-- Name: forum_posts; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_posts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    thread_id uuid NOT NULL,
+    post_number integer NOT NULL,
+    author_id uuid,
+    content text NOT NULL,
+    like_count integer DEFAULT 0 NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    deleted_by uuid,
+    CONSTRAINT forum_posts_content_length CHECK ((char_length(content) <= 50000))
+);
+
+
+--
+-- Name: COLUMN forum_posts.author_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_posts.author_id IS 'NULL once the account is deleted; shown as "Unknown User".';
+
+
+--
+-- Name: COLUMN forum_posts.content; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_posts.content IS 'Rich-text HTML (TipTap output). Sanitized when pages read it. Emptied when the post is removed; the text is kept in forum_post_revisions.';
+
+
+--
+-- Name: COLUMN forum_posts.updated_at; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.forum_posts.updated_at IS 'Set when the content is edited; shown as "edited".';
+
+
+--
+-- Name: forum_reports; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_reports (
+    post_id uuid NOT NULL,
+    reporter_id uuid NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    reason text NOT NULL,
+    CONSTRAINT forum_reports_reason_length CHECK (((char_length(btrim(reason)) >= 1) AND (char_length(btrim(reason)) <= 500)))
+);
+
+
+--
+-- Name: TABLE forum_reports; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_reports IS 'Posts members reported to the moderators, one row per member and post, until a moderator dismisses them.';
+
+
+--
+-- Name: forum_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_tags (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name text NOT NULL,
+    CONSTRAINT forum_tags_name_length CHECK (((char_length(btrim(name)) >= 1) AND (char_length(btrim(name)) <= 40)))
+);
+
+
+--
+-- Name: TABLE forum_tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_tags IS 'Tags for forum threads, edited in the database. Renaming one renames it on every thread.';
+
+
+--
+-- Name: forum_thread_reads; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_thread_reads (
+    user_id uuid NOT NULL,
+    thread_id uuid NOT NULL,
+    last_read_at timestamp with time zone NOT NULL
+);
+
+
+--
+-- Name: TABLE forum_thread_reads; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_thread_reads IS 'The time of the last post each user has read in each forum thread. A thread with a later post is unread.';
+
+
+--
+-- Name: forum_thread_tags; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_thread_tags (
+    thread_id uuid NOT NULL,
+    tag_id uuid NOT NULL
+);
+
+
+--
+-- Name: TABLE forum_thread_tags; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.forum_thread_tags IS 'The tags on each forum thread, at most 3.';
+
+
+--
+-- Name: forum_threads_number_seq; Type: SEQUENCE; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_threads ALTER COLUMN number ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.forum_threads_number_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
 -- Name: friends; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6178,6 +7290,104 @@ CREATE TABLE public.gang_origins (
     gang_origin_category_id uuid,
     edition_id uuid
 );
+
+
+--
+-- Name: gang_portraits; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_portraits (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    storage_path text NOT NULL,
+    credit jsonb NOT NULL,
+    group_label text NOT NULL,
+    style text NOT NULL,
+    label text,
+    CONSTRAINT gang_portraits_credit_check CHECK (((jsonb_typeof(credit) = 'object'::text) AND (btrim(COALESCE((credit ->> 'name'::text), ''::text)) <> ''::text))),
+    CONSTRAINT gang_portraits_group_label_check CHECK ((btrim(group_label) <> ''::text)),
+    CONSTRAINT gang_portraits_label_check CHECK (((label IS NULL) OR (btrim(label) <> ''::text))),
+    CONSTRAINT gang_portraits_storage_path_check CHECK (((storage_path <> ''::text) AND (storage_path !~ '^/'::text))),
+    CONSTRAINT gang_portraits_style_check CHECK ((style = ANY (ARRAY['colour'::text, 'black & white'::text, 'ai-assisted'::text])))
+);
+
+
+--
+-- Name: TABLE gang_portraits; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.gang_portraits IS 'Catalogue of shared gang portraits in the gang-type-images bucket. One file belongs to one gallery section.';
+
+
+--
+-- Name: COLUMN gang_portraits.storage_path; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.storage_path IS 'Object path inside the gang-type-images bucket, such as djidiouf/house_cawdor.webp.';
+
+
+--
+-- Name: COLUMN gang_portraits.credit; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.credit IS 'Artist credit: name, url, and optional suffix. Shown with the portrait.';
+
+
+--
+-- Name: COLUMN gang_portraits.group_label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.group_label IS 'Gallery section title, such as House Cawdor. Not a foreign key to gang_types.';
+
+
+--
+-- Name: COLUMN gang_portraits.style; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.style IS 'Portrait treatment used as a gallery filter: colour, black & white, or ai-assisted.';
+
+
+--
+-- Name: COLUMN gang_portraits.label; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_portraits.label IS 'Extra name within a section, such as Faith or Pride 1. Null on the main portrait.';
+
+
+--
+-- Name: gang_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.gang_rules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    fighter_effect_type_id uuid NOT NULL,
+    gang_type_id uuid NOT NULL,
+    gang_origin_id uuid,
+    gang_subtype_id uuid,
+    excluded boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: TABLE gang_rules; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.gang_rules IS 'Which gangs a gang-rules fighter effect type applies to. The rule applies when at least one of its non-excluded rows matches the gang and none of its excluded rows does.';
+
+
+--
+-- Name: COLUMN gang_rules.gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_rules.gang_type_id IS 'Required: a gang rule is a gang type''s rule, e.g. Van Saar, even when a subtype such as Malstrain Corrupted cancels it. Its fighters are the ones the rule applies to.';
+
+
+--
+-- Name: COLUMN gang_rules.excluded; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gang_rules.excluded IS 'true denies the rule to gangs matching this row''s scope, e.g. a subtype that cancels a house rule. A deny wins over any grant of the same rule.';
 
 
 --
@@ -6255,50 +7465,34 @@ CREATE TABLE public.gang_tactics_cards (
 --
 
 CREATE TABLE public.gang_types (
-    id bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     gang_type text,
-    image_url text,
-    gang_type_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
     alignment public.alignment,
     is_hidden boolean DEFAULT false,
     trading_post_type_id uuid,
     affiliation boolean DEFAULT false,
     gang_origin_category_id uuid,
-    default_image_urls jsonb,
     edition_id uuid,
     parent_gang_type_id uuid,
-    CONSTRAINT gang_types_parent_not_self_check CHECK ((parent_gang_type_id IS DISTINCT FROM gang_type_id)),
+    parent_gang_type_name text,
+    CONSTRAINT gang_types_parent_not_self_check CHECK ((parent_gang_type_id IS DISTINCT FROM id)),
     CONSTRAINT gang_types_parent_requires_edition_check CHECK (((parent_gang_type_id IS NULL) OR (edition_id IS NOT NULL)))
 );
-
-
---
--- Name: COLUMN gang_types.default_image_urls; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.gang_types.default_image_urls IS 'List of default image URLs';
 
 
 --
 -- Name: COLUMN gang_types.parent_gang_type_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s gang_type_id here; House Escher itself stores null. Each row keeps its own fighter types.';
+COMMENT ON COLUMN public.gang_types.parent_gang_type_id IS 'House this gang list belongs to. House Escher: Wyld Hunt stores House Escher''s id here; House Escher itself stores null. Each row keeps its own fighter types.';
 
 
 --
--- Name: gang_types_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+-- Name: COLUMN gang_types.parent_gang_type_name; Type: COMMENT; Schema: public; Owner: -
 --
 
-ALTER TABLE public.gang_types ALTER COLUMN id ADD GENERATED BY DEFAULT AS IDENTITY (
-    SEQUENCE NAME public.gang_types_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
+COMMENT ON COLUMN public.gang_types.parent_gang_type_name IS 'House name copied from the parent gang type. Null on root types. Owned by gang_types_set_parent_gang_type_name and gang_types_propagate_parent_gang_type_name; do not write it from the app.';
 
 
 --
@@ -6328,13 +7522,13 @@ CREATE TABLE public.gangs (
     gang_origin_id uuid,
     wealth numeric,
     hidden boolean DEFAULT false,
-    default_gang_image numeric,
     is_favourite boolean DEFAULT false NOT NULL,
     favourite_order integer,
     custom_gang_type_id uuid,
     note_private text,
     note_private_updated_at timestamp with time zone,
     trade_points numeric DEFAULT 0 NOT NULL,
+    gang_portrait_id uuid,
     CONSTRAINT chk_gang_type_exclusive CHECK ((num_nonnulls(gang_type_id, custom_gang_type_id) = 1))
 );
 
@@ -6347,17 +7541,50 @@ COMMENT ON COLUMN public.gangs.gang_subtypes IS 'JSONB array of gang_subtype_typ
 
 
 --
--- Name: COLUMN gangs.default_gang_image; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.gangs.default_gang_image IS 'Default Gang Image the user selected';
-
-
---
 -- Name: COLUMN gangs.trade_points; Type: COMMENT; Schema: public; Owner: -
 --
 
 COMMENT ON COLUMN public.gangs.trade_points IS 'N26 Trade Points resource. Only surfaced/edited for gangs whose gang type uses edition n26.';
+
+
+--
+-- Name: COLUMN gangs.gang_portrait_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.gangs.gang_portrait_id IS 'Selected shared portrait from gang_portraits. Null for a custom upload, the silhouette, or no catalogue image.';
+
+
+--
+-- Name: notification_sends; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.notification_sends (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    sender_id uuid,
+    type text NOT NULL,
+    campaign_id uuid,
+    text text NOT NULL,
+    recipient_count integer NOT NULL,
+    sample_receiver_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    logged_in_since timestamp with time zone,
+    CONSTRAINT notification_sends_recipient_count_check CHECK ((recipient_count >= 0)),
+    CONSTRAINT notification_sends_type_check CHECK ((type = ANY (ARRAY['mm_announcement'::text, 'mm_staff_message'::text, 'campaign_message'::text])))
+);
+
+
+--
+-- Name: TABLE notification_sends; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.notification_sends IS 'One composed notification send. Sent history reads this table, not the per-recipient notification rows.';
+
+
+--
+-- Name: COLUMN notification_sends.logged_in_since; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notification_sends.logged_in_since IS 'Login cutoff for an admin all-user send. Null means every profile, including people who never logged in.';
 
 
 --
@@ -6374,10 +7601,19 @@ CREATE TABLE public.notifications (
     link text,
     expires_at timestamp with time zone DEFAULT (now() + '30 days'::interval) NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'invite'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text])))
+    is_html boolean DEFAULT false NOT NULL,
+    send_id uuid,
+    CONSTRAINT notifications_type_check CHECK (((type)::text = ANY (ARRAY['info'::text, 'warning'::text, 'error'::text, 'campaign_invite'::text, 'friend_request'::text, 'battle_invite'::text, 'gang_invite'::text, 'campaign_join_request'::text, 'campaign_challenge'::text, 'user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text, 'forum_reply'::text, 'forum_mention'::text, 'forum_article'::text])))
 );
 
 ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
+
+
+--
+-- Name: COLUMN notifications.is_html; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.notifications.is_html IS 'True when text is sanitized TipTap HTML. False is plain text, with optional **bold**.';
 
 
 --
@@ -6395,9 +7631,120 @@ CREATE TABLE public.profiles (
     patreon_tier_id text,
     patreon_discord_role_ids text[],
     created_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+    avatar_url text,
     CONSTRAINT username_format CHECK ((username ~ '^[a-zA-Z0-9_-]+$'::text)),
     CONSTRAINT username_length CHECK (((char_length(username) >= 3) AND (char_length(username) <= 20)))
 );
+
+
+--
+-- Name: scenario_crew_selection_rules; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scenario_crew_selection_rules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    scenario_table_entry_id uuid NOT NULL,
+    role text,
+    chosen_count text DEFAULT '0'::text NOT NULL,
+    random_count text DEFAULT '0'::text NOT NULL,
+    reinforcement_count smallint,
+    reinforcements_per_round text,
+    reinforcements_from_round smallint,
+    CONSTRAINT scenario_crew_selection_rules_dice_format_check CHECK (((chosen_count ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'::text) AND (random_count ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'::text) AND ((reinforcements_per_round IS NULL) OR (reinforcements_per_round ~ '^([0-9]+|[0-9]*D[0-9]+(\+[0-9]+)?)$'::text)))),
+    CONSTRAINT scenario_crew_selection_rules_reinforcements_check CHECK ((((reinforcement_count IS NULL) = (reinforcements_per_round IS NULL)) AND ((reinforcement_count IS NULL) = (reinforcements_from_round IS NULL)))),
+    CONSTRAINT scenario_crew_selection_rules_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text])))
+);
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.role; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.role IS 'Scenario role this row applies to (attacker or defender, as in battle_session_participants.role). NULL applies to both gangs.';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.chosen_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.chosen_count IS 'Fighters the player picks: the X of Custom (X), or of Hybrid (X+Y).';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.random_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.random_count IS 'Fighters drawn at random after the picks: the X of Random (X), or the Y of Hybrid (X+Y).';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.reinforcement_count; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcement_count IS 'The X of the Reinforcements (X) rule. NULL when the rule is not in play.';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.reinforcements_per_round; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcements_per_round IS 'Reinforcements arriving each round, in dice notation (''D3'').';
+
+
+--
+-- Name: COLUMN scenario_crew_selection_rules.reinforcements_from_round; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_crew_selection_rules.reinforcements_from_round IS 'First round reinforcements arrive in.';
+
+
+--
+-- Name: scenario_table_entries; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scenario_table_entries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid NOT NULL,
+    scenario_table_id uuid NOT NULL,
+    name text NOT NULL,
+    d6_min smallint NOT NULL,
+    d6_max smallint NOT NULL,
+    CONSTRAINT scenario_table_entries_d6_order_check CHECK ((d6_min <= d6_max))
+);
+
+
+--
+-- Name: scenario_tables; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.scenario_tables (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    edition_id uuid NOT NULL,
+    gang_type_id uuid,
+    table_type text NOT NULL,
+    name text NOT NULL,
+    CONSTRAINT scenario_tables_table_type_check CHECK ((table_type = ANY (ARRAY['deployment'::text, 'objective'::text, 'side_job'::text, 'crew_selection'::text])))
+);
+
+
+--
+-- Name: COLUMN scenario_tables.gang_type_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_tables.gang_type_id IS 'Gang type this table belongs to. NULL is the edition''s core table for its table_type, offered to every gang. A value also covers that type''s alternate lists via gang_types.parent_gang_type_id.';
+
+
+--
+-- Name: COLUMN scenario_tables.table_type; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.scenario_tables.table_type IS 'Which of the four scenario generation tables this is: deployment, objective, side_job or crew_selection.';
 
 
 --
@@ -6457,7 +7804,9 @@ CREATE TABLE public.skills (
     name text,
     skill_type_id uuid,
     gang_origin_id uuid,
-    grants_equipment jsonb
+    grants_equipment jsonb,
+    usable_by text[],
+    CONSTRAINT skills_usable_by_check CHECK (((usable_by IS NULL) OR ((cardinality(usable_by) > 0) AND (usable_by <@ ARRAY['fighter'::text, 'walker'::text, 'vehicle'::text]))))
 );
 
 
@@ -6466,6 +7815,13 @@ CREATE TABLE public.skills (
 --
 
 COMMENT ON COLUMN public.skills.grants_equipment IS 'Equipment a fighter receives with this skill, e.g. {"selection_type": "fixed", "options": [{"equipment_id": "...", "additional_cost": 0}]}. Same shape as equipment.grants_equipment; only fixed grants are used. Null = grants nothing.';
+
+
+--
+-- Name: COLUMN skills.usable_by; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.skills.usable_by IS 'N26 roster kinds that may use this skill. Null = no restriction. Allowed values: fighter, walker, vehicle. Book tags map to {fighter}, {fighter,walker}, {fighter,vehicle}.';
 
 
 --
@@ -6518,7 +7874,8 @@ CREATE TABLE public.territories (
     territory_name text NOT NULL,
     updated_at timestamp with time zone,
     playing_card text,
-    edition_id uuid
+    edition_id uuid,
+    credits numeric
 );
 
 
@@ -6831,6 +8188,22 @@ ALTER TABLE ONLY public.campaign_gangs
 
 ALTER TABLE ONLY public.campaign_members
     ADD CONSTRAINT campaign_members_pkey1 PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_portraits campaign_portraits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_portraits campaign_portraits_storage_path_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_storage_path_key UNIQUE (storage_path);
 
 
 --
@@ -7210,6 +8583,14 @@ ALTER TABLE ONLY public.fighter_ooa_records
 
 
 --
+-- Name: fighter_skill_access_override fighter_skill_access_override_custom_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_skill_access_override
+    ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_key UNIQUE (fighter_id, custom_skill_type_id);
+
+
+--
 -- Name: fighter_skill_access_override fighter_skill_access_override_fighter_id_skill_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7322,6 +8703,118 @@ ALTER TABLE ONLY public.fighters
 
 
 --
+-- Name: forum_article_submissions forum_article_submissions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_article_submissions
+    ADD CONSTRAINT forum_article_submissions_pkey PRIMARY KEY (thread_id);
+
+
+--
+-- Name: forum_categories forum_categories_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_categories
+    ADD CONSTRAINT forum_categories_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_categories forum_categories_slug_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_categories
+    ADD CONSTRAINT forum_categories_slug_key UNIQUE (slug);
+
+
+--
+-- Name: forum_post_likes forum_post_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_likes
+    ADD CONSTRAINT forum_post_likes_pkey PRIMARY KEY (post_id, user_id);
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_posts forum_posts_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_posts forum_posts_thread_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_thread_number_key UNIQUE (thread_id, post_number);
+
+
+--
+-- Name: forum_reports forum_reports_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_pkey PRIMARY KEY (post_id, reporter_id);
+
+
+--
+-- Name: forum_tags forum_tags_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_tags
+    ADD CONSTRAINT forum_tags_name_key UNIQUE (name);
+
+
+--
+-- Name: forum_tags forum_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_tags
+    ADD CONSTRAINT forum_tags_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_pkey PRIMARY KEY (user_id, thread_id);
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_pkey PRIMARY KEY (thread_id, tag_id);
+
+
+--
+-- Name: forum_threads forum_threads_number_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_number_key UNIQUE (number);
+
+
+--
+-- Name: forum_threads forum_threads_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: friends friends_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -7367,6 +8860,30 @@ ALTER TABLE ONLY public.gang_origin_categories
 
 ALTER TABLE ONLY public.gang_origins
     ADD CONSTRAINT gang_origins_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: gang_portraits gang_portraits_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_portraits
+    ADD CONSTRAINT gang_portraits_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: gang_portraits gang_portraits_storage_path_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_portraits
+    ADD CONSTRAINT gang_portraits_storage_path_key UNIQUE (storage_path);
+
+
+--
+-- Name: gang_rules gang_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_pkey PRIMARY KEY (id);
 
 
 --
@@ -7418,19 +8935,11 @@ ALTER TABLE ONLY public.gang_tactics_cards
 
 
 --
--- Name: gang_types gang_types_gang_type_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+-- Name: gang_types gang_types_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_gang_type_id_edition_id_key UNIQUE (gang_type_id, edition_id);
-
-
---
--- Name: gang_types gang_types_gang_type_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_gang_type_id_key UNIQUE (gang_type_id);
+    ADD CONSTRAINT gang_types_id_edition_id_key UNIQUE (id, edition_id);
 
 
 --
@@ -7438,7 +8947,7 @@ ALTER TABLE ONLY public.gang_types
 --
 
 ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_pkey PRIMARY KEY (id, gang_type_id);
+    ADD CONSTRAINT gang_types_pkey PRIMARY KEY (id);
 
 
 --
@@ -7447,6 +8956,14 @@ ALTER TABLE ONLY public.gang_types
 
 ALTER TABLE ONLY public.gangs
     ADD CONSTRAINT gangs_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notification_sends notification_sends_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_sends
+    ADD CONSTRAINT notification_sends_pkey PRIMARY KEY (id);
 
 
 --
@@ -7479,6 +8996,78 @@ ALTER TABLE ONLY public.profiles
 
 ALTER TABLE ONLY public.profiles
     ADD CONSTRAINT profiles_username_key UNIQUE (username);
+
+
+--
+-- Name: scenario_crew_selection_rules scenario_crew_selection_rules_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_crew_selection_rules
+    ADD CONSTRAINT scenario_crew_selection_rules_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: scenario_crew_selection_rules scenario_crew_selection_rules_scenario_table_entry_id_role_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_crew_selection_rules
+    ADD CONSTRAINT scenario_crew_selection_rules_scenario_table_entry_id_role_key UNIQUE NULLS NOT DISTINCT (scenario_table_entry_id, role);
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_scenario_table_id_d6_min_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_scenario_table_id_d6_min_key UNIQUE (scenario_table_id, d6_min);
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_scenario_table_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_scenario_table_id_name_key UNIQUE (scenario_table_id, name);
+
+
+--
+-- Name: scenario_tables scenario_tables_edition_id_name_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_edition_id_name_key UNIQUE (edition_id, name);
+
+
+--
+-- Name: scenario_tables scenario_tables_edition_type_gang_type_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_edition_type_gang_type_key UNIQUE NULLS NOT DISTINCT (edition_id, table_type, gang_type_id);
+
+
+--
+-- Name: scenario_tables scenario_tables_id_edition_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_id_edition_id_key UNIQUE (id, edition_id);
+
+
+--
+-- Name: scenario_tables scenario_tables_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_pkey PRIMARY KEY (id);
 
 
 --
@@ -7705,6 +9294,13 @@ CREATE INDEX battle_session_participants_session_idx ON public.battle_session_pa
 
 
 --
+-- Name: battle_session_participants_side_job_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_session_participants_side_job_id_idx ON public.battle_session_participants USING btree (side_job_id) WHERE (side_job_id IS NOT NULL);
+
+
+--
 -- Name: battle_session_participants_user_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7733,10 +9329,31 @@ CREATE INDEX battle_sessions_created_by_idx ON public.battle_sessions USING btre
 
 
 --
+-- Name: battle_sessions_crew_selection_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_crew_selection_id_idx ON public.battle_sessions USING btree (crew_selection_id) WHERE (crew_selection_id IS NOT NULL);
+
+
+--
+-- Name: battle_sessions_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_deployment_id_idx ON public.battle_sessions USING btree (deployment_id) WHERE (deployment_id IS NOT NULL);
+
+
+--
 -- Name: battle_sessions_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX battle_sessions_edition_id_idx ON public.battle_sessions USING btree (edition_id);
+
+
+--
+-- Name: battle_sessions_objective_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX battle_sessions_objective_id_idx ON public.battle_sessions USING btree (objective_id) WHERE (objective_id IS NOT NULL);
 
 
 --
@@ -7765,13 +9382,6 @@ CREATE INDEX battle_sessions_updated_at_idx ON public.battle_sessions USING btre
 --
 
 CREATE INDEX battle_sessions_winner_gang_id_idx ON public.battle_sessions USING btree (winner_gang_id);
-
-
---
--- Name: campaign_battles_attacker_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX campaign_battles_attacker_id_idx ON public.campaign_battles USING btree (attacker_id);
 
 
 --
@@ -7810,6 +9420,13 @@ CREATE INDEX campaign_battles_challenger_gang_id_idx ON public.campaign_battles 
 
 
 --
+-- Name: campaign_battles_crew_selection_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_crew_selection_id_idx ON public.campaign_battles USING btree (crew_selection_id) WHERE (crew_selection_id IS NOT NULL);
+
+
+--
 -- Name: campaign_battles_cycle_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7817,17 +9434,24 @@ CREATE INDEX campaign_battles_cycle_idx ON public.campaign_battles USING btree (
 
 
 --
--- Name: campaign_battles_defender_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: campaign_battles_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX campaign_battles_defender_id_idx ON public.campaign_battles USING btree (defender_id);
+CREATE INDEX campaign_battles_deployment_id_idx ON public.campaign_battles USING btree (deployment_id) WHERE (deployment_id IS NOT NULL);
 
 
 --
--- Name: campaign_battles_winner_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: campaign_battles_objective_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX campaign_battles_winner_id_idx ON public.campaign_battles USING btree (winner_id);
+CREATE INDEX campaign_battles_objective_id_idx ON public.campaign_battles USING btree (objective_id) WHERE (objective_id IS NOT NULL);
+
+
+--
+-- Name: campaign_battles_scenario_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_battles_scenario_id_idx ON public.campaign_battles USING btree (scenario_id);
 
 
 --
@@ -7873,6 +9497,27 @@ CREATE INDEX campaign_members_is_favourite_idx ON public.campaign_members USING 
 
 
 --
+-- Name: campaign_portraits_campaign_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_portraits_campaign_type_id_idx ON public.campaign_portraits USING btree (campaign_type_id);
+
+
+--
+-- Name: campaign_portraits_style_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_portraits_style_idx ON public.campaign_portraits USING btree (style);
+
+
+--
+-- Name: campaign_territories_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_territories_gang_id_idx ON public.campaign_territories USING btree (gang_id);
+
+
+--
 -- Name: campaign_territories_territory_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -7891,6 +9536,13 @@ CREATE INDEX campaign_territories_territory_name_idx ON public.campaign_territor
 --
 
 CREATE INDEX campaign_types_edition_id_idx ON public.campaign_types USING btree (edition_id);
+
+
+--
+-- Name: campaigns_campaign_portrait_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaigns_campaign_portrait_id_idx ON public.campaigns USING btree (campaign_portrait_id) WHERE (campaign_portrait_id IS NOT NULL);
 
 
 --
@@ -7971,6 +9623,13 @@ CREATE INDEX custom_equipment_user_id_idx ON public.custom_equipment USING btree
 
 
 --
+-- Name: custom_fighter_types_custom_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_fighter_types_custom_gang_type_id_idx ON public.custom_fighter_types USING btree (custom_gang_type_id);
+
+
+--
 -- Name: custom_fighter_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8031,6 +9690,13 @@ CREATE INDEX custom_shared_edition_id_idx ON public.custom_shared USING btree (e
 --
 
 CREATE INDEX custom_skill_types_edition_id_idx ON public.custom_skill_types USING btree (edition_id);
+
+
+--
+-- Name: custom_skill_types_user_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX custom_skill_types_user_id_idx ON public.custom_skill_types USING btree (user_id);
 
 
 --
@@ -8230,6 +9896,13 @@ CREATE INDEX fighter_effect_types_fighter_effect_category_id_idx ON public.fight
 
 
 --
+-- Name: fighter_effects_fighter_effect_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_effects_fighter_effect_type_id_idx ON public.fighter_effects USING btree (fighter_effect_type_id);
+
+
+--
 -- Name: fighter_effects_fighter_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8262,13 +9935,6 @@ CREATE INDEX fighter_equipment_equipment_id_idx ON public.fighter_equipment USIN
 --
 
 CREATE INDEX fighter_equipment_fighter_skill_id_idx ON public.fighter_equipment USING btree (fighter_skill_id) WHERE (fighter_skill_id IS NOT NULL);
-
-
---
--- Name: fighter_equipment_is_editable_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX fighter_equipment_is_editable_idx ON public.fighter_equipment USING btree (is_editable);
 
 
 --
@@ -8311,6 +9977,13 @@ CREATE INDEX fighter_gang_legacy_edition_id_idx ON public.fighter_gang_legacy US
 --
 
 CREATE INDEX fighter_injuries_fighter_id_idx ON public.fighter_injuries USING btree (fighter_id);
+
+
+--
+-- Name: fighter_ooa_records_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_ooa_records_campaign_id_idx ON public.fighter_ooa_records USING btree (campaign_id) WHERE (campaign_id IS NOT NULL);
 
 
 --
@@ -8468,6 +10141,13 @@ CREATE INDEX fighter_type_equipment_gang_subtype_id_idx ON public.fighter_type_e
 
 
 --
+-- Name: fighter_type_skill_access_custom_skill_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_skill_access_custom_skill_type_id_idx ON public.fighter_type_skill_access USING btree (custom_skill_type_id);
+
+
+--
 -- Name: fighter_types_cool_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8566,17 +10246,10 @@ CREATE INDEX fighters_captured_by_gang_id_idx ON public.fighters USING btree (ca
 
 
 --
--- Name: fighters_created_at_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: fighters_custom_fighter_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighters_created_at_idx ON public.fighters USING btree (created_at);
-
-
---
--- Name: fighters_fighter_name_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX fighters_fighter_name_idx ON public.fighters USING btree (fighter_name);
+CREATE INDEX fighters_custom_fighter_type_id_idx ON public.fighters USING btree (custom_fighter_type_id) WHERE (custom_fighter_type_id IS NOT NULL);
 
 
 --
@@ -8615,10 +10288,87 @@ CREATE INDEX fighters_fighter_variant_idx ON public.fighters USING btree (fighte
 
 
 --
--- Name: fighters_updated_at_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: forum_article_submissions_queue_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighters_updated_at_idx ON public.fighters USING btree (updated_at);
+CREATE INDEX forum_article_submissions_queue_idx ON public.forum_article_submissions USING btree (submitted_at) WHERE (status = 'submitted'::text);
+
+
+--
+-- Name: forum_article_submissions_reviewed_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_article_submissions_reviewed_by_idx ON public.forum_article_submissions USING btree (reviewed_by);
+
+
+--
+-- Name: forum_post_likes_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_likes_user_idx ON public.forum_post_likes USING btree (user_id);
+
+
+--
+-- Name: forum_post_revisions_author_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_revisions_author_id_idx ON public.forum_post_revisions USING btree (author_id);
+
+
+--
+-- Name: forum_post_revisions_post_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_revisions_post_idx ON public.forum_post_revisions USING btree (post_id, created_at);
+
+
+--
+-- Name: forum_post_revisions_thread_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_post_revisions_thread_id_idx ON public.forum_post_revisions USING btree (thread_id);
+
+
+--
+-- Name: forum_posts_author_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_posts_author_created_idx ON public.forum_posts USING btree (author_id, created_at DESC);
+
+
+--
+-- Name: forum_reports_reporter_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_reports_reporter_idx ON public.forum_reports USING btree (reporter_id);
+
+
+--
+-- Name: forum_thread_reads_thread_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_thread_reads_thread_idx ON public.forum_thread_reads USING btree (thread_id);
+
+
+--
+-- Name: forum_threads_article_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_threads_article_idx ON public.forum_threads USING btree (article_published_at DESC) WHERE (article_published_at IS NOT NULL);
+
+
+--
+-- Name: forum_threads_author_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_threads_author_created_idx ON public.forum_threads USING btree (author_id, created_at DESC);
+
+
+--
+-- Name: forum_threads_category_list_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_threads_category_list_idx ON public.forum_threads USING btree (category_id, is_pinned DESC, last_post_at DESC);
 
 
 --
@@ -8640,6 +10390,20 @@ CREATE INDEX gang_origins_edition_id_idx ON public.gang_origins USING btree (edi
 --
 
 CREATE INDEX gang_origins_gang_origin_category_id_idx ON public.gang_origins USING btree (gang_origin_category_id);
+
+
+--
+-- Name: gang_portraits_style_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gang_portraits_style_idx ON public.gang_portraits USING btree (style);
+
+
+--
+-- Name: gang_rules_scope_uidx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX gang_rules_scope_uidx ON public.gang_rules USING btree (fighter_effect_type_id, gang_type_id, gang_origin_id, gang_subtype_id) NULLS NOT DISTINCT;
 
 
 --
@@ -8699,10 +10463,24 @@ CREATE INDEX gangs_created_at_idx ON public.gangs USING btree (created_at);
 
 
 --
+-- Name: gangs_credits_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_credits_idx ON public.gangs USING btree (credits);
+
+
+--
 -- Name: gangs_custom_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX gangs_custom_gang_type_id_idx ON public.gangs USING btree (custom_gang_type_id);
+
+
+--
+-- Name: gangs_gang_portrait_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_gang_portrait_id_idx ON public.gangs USING btree (gang_portrait_id) WHERE (gang_portrait_id IS NOT NULL);
 
 
 --
@@ -8713,6 +10491,20 @@ CREATE INDEX gangs_gang_type_id_idx ON public.gangs USING btree (gang_type_id);
 
 
 --
+-- Name: gangs_gang_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_gang_type_idx ON public.gangs USING btree (gang_type);
+
+
+--
+-- Name: gangs_hidden_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_hidden_idx ON public.gangs USING btree (hidden);
+
+
+--
 -- Name: gangs_is_favourite_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -8720,10 +10512,24 @@ CREATE INDEX gangs_is_favourite_idx ON public.gangs USING btree (is_favourite);
 
 
 --
+-- Name: gangs_last_updated_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_last_updated_idx ON public.gangs USING btree (last_updated);
+
+
+--
 -- Name: gangs_name_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX gangs_name_idx ON public.gangs USING btree (name);
+
+
+--
+-- Name: gangs_reputation_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX gangs_reputation_idx ON public.gangs USING btree (reputation);
 
 
 --
@@ -9098,13 +10904,6 @@ CREATE INDEX idx_fighters_gang_id_full ON public.fighters USING btree (gang_id);
 
 
 --
--- Name: idx_fighters_gang_status_composite; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX idx_fighters_gang_status_composite ON public.fighters USING btree (gang_id, killed, retired, enslaved) WHERE ((killed = false) AND (retired = false) AND (enslaved = false));
-
-
---
 -- Name: idx_fighters_user_id; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9116,6 +10915,13 @@ CREATE INDEX idx_fighters_user_id ON public.fighters USING btree (user_id);
 --
 
 CREATE INDEX idx_friends_addressee ON public.friends USING btree (addressee_id);
+
+
+--
+-- Name: idx_fsao_custom_skill_type_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX idx_fsao_custom_skill_type_id ON public.fighter_skill_access_override USING btree (custom_skill_type_id);
 
 
 --
@@ -9217,6 +11023,34 @@ CREATE INDEX idx_vehicles_gang_id ON public.vehicles USING btree (gang_id);
 
 
 --
+-- Name: notification_sends_campaign_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notification_sends_campaign_created_idx ON public.notification_sends USING btree (campaign_id, created_at DESC) WHERE (type = 'campaign_message'::text);
+
+
+--
+-- Name: notification_sends_type_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notification_sends_type_created_idx ON public.notification_sends USING btree (type, created_at DESC);
+
+
+--
+-- Name: notifications_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_created_at_idx ON public.notifications USING btree (created_at);
+
+
+--
+-- Name: notifications_expires_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_expires_at_idx ON public.notifications USING btree (expires_at);
+
+
+--
 -- Name: notifications_receiver_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9224,10 +11058,24 @@ CREATE INDEX notifications_receiver_id_idx ON public.notifications USING btree (
 
 
 --
+-- Name: notifications_send_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX notifications_send_id_idx ON public.notifications USING btree (send_id) WHERE (send_id IS NOT NULL);
+
+
+--
 -- Name: notifications_type_idx; Type: INDEX; Schema: public; Owner: -
 --
 
 CREATE INDEX notifications_type_idx ON public.notifications USING btree (type);
+
+
+--
+-- Name: scenario_tables_gang_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenario_tables_gang_type_id_idx ON public.scenario_tables USING btree (gang_type_id);
 
 
 --
@@ -9242,6 +11090,13 @@ CREATE INDEX scenarios_edition_id_idx ON public.scenarios USING btree (edition_i
 --
 
 CREATE INDEX scenarios_scenario_name_idx ON public.scenarios USING btree (scenario_name);
+
+
+--
+-- Name: scenarios_scenario_number_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX scenarios_scenario_number_idx ON public.scenarios USING btree (scenario_number);
 
 
 --
@@ -9308,6 +11163,13 @@ CREATE INDEX territories_edition_id_idx ON public.territories USING btree (editi
 
 
 --
+-- Name: territories_territory_name_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX territories_territory_name_idx ON public.territories USING btree (territory_name);
+
+
+--
 -- Name: trading_post_equipment_equipment_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9319,6 +11181,13 @@ CREATE INDEX trading_post_equipment_equipment_id_idx ON public.trading_post_equi
 --
 
 CREATE INDEX trading_post_types_edition_id_idx ON public.trading_post_types USING btree (edition_id);
+
+
+--
+-- Name: user_notification_preferences_notification_type_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX user_notification_preferences_notification_type_idx ON public.user_notification_preferences USING btree (notification_type);
 
 
 --
@@ -9397,10 +11266,73 @@ CREATE TRIGGER enforce_gang_fighter_limit BEFORE INSERT OR UPDATE OF gang_id ON 
 
 
 --
+-- Name: forum_article_submissions forum_article_submissions_before_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_article_submissions_before_write BEFORE INSERT OR UPDATE ON public.forum_article_submissions FOR EACH ROW EXECUTE FUNCTION public.forum_article_submissions_before_write();
+
+
+--
+-- Name: forum_post_likes forum_post_likes_after_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_post_likes_after_write AFTER INSERT OR DELETE ON public.forum_post_likes FOR EACH ROW EXECUTE FUNCTION public.forum_post_likes_after_write();
+
+
+--
+-- Name: forum_posts forum_posts_before_insert; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_posts_before_insert BEFORE INSERT ON public.forum_posts FOR EACH ROW EXECUTE FUNCTION public.forum_posts_before_insert();
+
+
+--
+-- Name: forum_posts forum_posts_before_update; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_posts_before_update BEFORE UPDATE OF content, deleted_at ON public.forum_posts FOR EACH ROW EXECUTE FUNCTION public.forum_posts_before_update();
+
+
+--
+-- Name: forum_threads forum_threads_after_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_threads_after_write AFTER INSERT OR DELETE OR UPDATE OF category_id ON public.forum_threads FOR EACH ROW EXECUTE FUNCTION public.forum_threads_after_write();
+
+
+--
+-- Name: forum_threads forum_threads_before_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_threads_before_delete BEFORE DELETE ON public.forum_threads FOR EACH ROW EXECUTE FUNCTION public.forum_threads_before_delete();
+
+
+--
+-- Name: forum_threads forum_threads_before_write; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER forum_threads_before_write BEFORE INSERT OR UPDATE OF category_id, title, is_pinned, is_locked, article_published_at ON public.forum_threads FOR EACH ROW EXECUTE FUNCTION public.forum_threads_before_write();
+
+
+--
 -- Name: gang_types gang_types_parent_must_be_root; Type: TRIGGER; Schema: public; Owner: -
 --
 
 CREATE TRIGGER gang_types_parent_must_be_root BEFORE INSERT OR UPDATE OF parent_gang_type_id ON public.gang_types FOR EACH ROW EXECUTE FUNCTION public.gang_types_parent_must_be_root();
+
+
+--
+-- Name: gang_types gang_types_propagate_parent_gang_type_name; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER gang_types_propagate_parent_gang_type_name AFTER UPDATE OF gang_type ON public.gang_types FOR EACH ROW EXECUTE FUNCTION public.gang_types_propagate_parent_gang_type_name();
+
+
+--
+-- Name: gang_types gang_types_set_parent_gang_type_name; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER gang_types_set_parent_gang_type_name BEFORE INSERT OR UPDATE ON public.gang_types FOR EACH ROW EXECUTE FUNCTION public.gang_types_set_parent_gang_type_name();
 
 
 --
@@ -9415,6 +11347,13 @@ CREATE TRIGGER on_campaign_join_request AFTER INSERT ON public.campaign_join_req
 --
 
 CREATE TRIGGER on_gang_invite AFTER INSERT ON public.campaign_gangs FOR EACH ROW EXECUTE FUNCTION public.notify_gang_invite();
+
+
+--
+-- Name: profiles prevent_campaign_owner_delete; Type: TRIGGER; Schema: public; Owner: -
+--
+
+CREATE TRIGGER prevent_campaign_owner_delete BEFORE DELETE ON public.profiles FOR EACH ROW EXECUTE FUNCTION public.prevent_campaign_owner_delete();
 
 
 --
@@ -9501,11 +11440,19 @@ ALTER TABLE ONLY public.battle_session_participants
 
 
 --
+-- Name: battle_session_participants battle_session_participants_side_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_session_participants
+    ADD CONSTRAINT battle_session_participants_side_job_id_fkey FOREIGN KEY (side_job_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: battle_session_participants battle_session_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.battle_session_participants
-    ADD CONSTRAINT battle_session_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+    ADD CONSTRAINT battle_session_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -9529,7 +11476,23 @@ ALTER TABLE ONLY public.battle_sessions
 --
 
 ALTER TABLE ONLY public.battle_sessions
-    ADD CONSTRAINT battle_sessions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+    ADD CONSTRAINT battle_sessions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: battle_sessions battle_sessions_crew_selection_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_crew_selection_id_fkey FOREIGN KEY (crew_selection_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: battle_sessions battle_sessions_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9538,6 +11501,14 @@ ALTER TABLE ONLY public.battle_sessions
 
 ALTER TABLE ONLY public.battle_sessions
     ADD CONSTRAINT battle_sessions_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: battle_sessions battle_sessions_objective_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.battle_sessions
+    ADD CONSTRAINT battle_sessions_objective_id_fkey FOREIGN KEY (objective_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9554,14 +11525,6 @@ ALTER TABLE ONLY public.battle_sessions
 
 ALTER TABLE ONLY public.campaign_allegiances
     ADD CONSTRAINT campaign_allegiances_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
-
-
---
--- Name: campaign_battles campaign_battles_attacker_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_attacker_id_fkey FOREIGN KEY (attacker_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -9597,11 +11560,27 @@ ALTER TABLE ONLY public.campaign_battles
 
 
 --
--- Name: campaign_battles campaign_battles_defender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: campaign_battles campaign_battles_crew_selection_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_defender_id_fkey FOREIGN KEY (defender_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+    ADD CONSTRAINT campaign_battles_crew_selection_id_fkey FOREIGN KEY (crew_selection_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: campaign_battles campaign_battles_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: campaign_battles campaign_battles_objective_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_battles
+    ADD CONSTRAINT campaign_battles_objective_id_fkey FOREIGN KEY (objective_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
 
 
 --
@@ -9610,14 +11589,6 @@ ALTER TABLE ONLY public.campaign_battles
 
 ALTER TABLE ONLY public.campaign_battles
     ADD CONSTRAINT campaign_battles_territory_id_fkey FOREIGN KEY (territory_id) REFERENCES public.territories(id) ON DELETE SET NULL;
-
-
---
--- Name: campaign_battles campaign_battles_winner_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.campaign_battles
-    ADD CONSTRAINT campaign_battles_winner_id_fkey FOREIGN KEY (winner_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -9757,6 +11728,14 @@ ALTER TABLE ONLY public.campaign_members
 
 
 --
+-- Name: campaign_portraits campaign_portraits_campaign_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_portraits
+    ADD CONSTRAINT campaign_portraits_campaign_type_id_fkey FOREIGN KEY (campaign_type_id) REFERENCES public.campaign_types(id) ON DELETE RESTRICT;
+
+
+--
 -- Name: campaign_resources campaign_resources_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9829,6 +11808,14 @@ ALTER TABLE ONLY public.campaign_types
 
 
 --
+-- Name: campaigns campaigns_campaign_portrait_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaigns
+    ADD CONSTRAINT campaigns_campaign_portrait_id_fkey FOREIGN KEY (campaign_portrait_id) REFERENCES public.campaign_portraits(id) ON DELETE SET NULL;
+
+
+--
 -- Name: campaigns campaigns_campaign_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9841,7 +11828,7 @@ ALTER TABLE ONLY public.campaigns
 --
 
 ALTER TABLE ONLY public.campaigns
-    ADD CONSTRAINT campaigns_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+    ADD CONSTRAINT campaigns_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -9889,7 +11876,7 @@ ALTER TABLE ONLY public.count_limits
 --
 
 ALTER TABLE ONLY public.count_limits
-    ADD CONSTRAINT count_limits_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT count_limits_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -9978,6 +11965,14 @@ ALTER TABLE ONLY public.custom_fighter_types
 
 ALTER TABLE ONLY public.custom_fighter_types
     ADD CONSTRAINT custom_fighter_types_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: custom_fighter_types custom_fighter_types_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_fighter_types
+    ADD CONSTRAINT custom_fighter_types_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
 --
@@ -10106,6 +12101,14 @@ ALTER TABLE ONLY public.custom_skills
 
 ALTER TABLE ONLY public.custom_skills
     ADD CONSTRAINT custom_skills_skill_type_id_fkey FOREIGN KEY (skill_type_id) REFERENCES public.skill_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: custom_skills custom_skills_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.custom_skills
+    ADD CONSTRAINT custom_skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
 
 
 --
@@ -10525,6 +12528,14 @@ ALTER TABLE ONLY public.fighter_equipment
 
 
 --
+-- Name: fighter_equipment fighter_equipment_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_equipment
+    ADD CONSTRAINT fighter_equipment_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
 -- Name: fighter_equipment fighter_equipment_granted_by_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10609,7 +12620,7 @@ ALTER TABLE ONLY public.fighter_loadouts
 --
 
 ALTER TABLE ONLY public.fighter_loadouts
-    ADD CONSTRAINT fighter_loadouts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+    ADD CONSTRAINT fighter_loadouts_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -10657,7 +12668,15 @@ ALTER TABLE ONLY public.fighter_ooa_records
 --
 
 ALTER TABLE ONLY public.fighter_ooa_records
-    ADD CONSTRAINT fighter_ooa_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_ooa_records_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: fighter_skill_access_override fighter_skill_access_override_custom_skill_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_skill_access_override
+    ADD CONSTRAINT fighter_skill_access_override_custom_skill_type_id_fkey FOREIGN KEY (custom_skill_type_id) REFERENCES public.custom_skill_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10681,7 +12700,7 @@ ALTER TABLE ONLY public.fighter_skill_access_override
 --
 
 ALTER TABLE ONLY public.fighter_skill_access_override
-    ADD CONSTRAINT fighter_skill_access_override_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id);
+    ADD CONSTRAINT fighter_skill_access_override_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --
@@ -10761,7 +12780,7 @@ ALTER TABLE ONLY public.fighter_type_availability
 --
 
 ALTER TABLE ONLY public.fighter_type_availability
-    ADD CONSTRAINT fighter_type_availability_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_type_availability_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10809,7 +12828,7 @@ ALTER TABLE ONLY public.fighter_type_equipment
 --
 
 ALTER TABLE ONLY public.fighter_type_equipment
-    ADD CONSTRAINT fighter_type_equipment_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_type_equipment_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10833,7 +12852,7 @@ ALTER TABLE ONLY public.fighter_type_gang_cost
 --
 
 ALTER TABLE ONLY public.fighter_type_gang_cost
-    ADD CONSTRAINT fighter_type_gang_cost_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_type_gang_cost_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -10913,7 +12932,7 @@ ALTER TABLE ONLY public.fighter_types
 --
 
 ALTER TABLE ONLY public.fighter_types
-    ADD CONSTRAINT fighter_types_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE;
+    ADD CONSTRAINT fighter_types_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE;
 
 
 --
@@ -10921,7 +12940,7 @@ ALTER TABLE ONLY public.fighter_types
 --
 
 ALTER TABLE ONLY public.fighter_types
-    ADD CONSTRAINT fighter_types_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_types_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -11013,6 +13032,166 @@ ALTER TABLE ONLY public.fighters
 
 
 --
+-- Name: forum_article_submissions forum_article_submissions_reviewed_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_article_submissions
+    ADD CONSTRAINT forum_article_submissions_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_article_submissions forum_article_submissions_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_article_submissions
+    ADD CONSTRAINT forum_article_submissions_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_post_likes forum_post_likes_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_likes
+    ADD CONSTRAINT forum_post_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_post_likes forum_post_likes_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_likes
+    ADD CONSTRAINT forum_post_likes_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_post_revisions forum_post_revisions_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_post_revisions
+    ADD CONSTRAINT forum_post_revisions_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_posts forum_posts_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_posts forum_posts_deleted_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_posts forum_posts_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_reports forum_reports_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_reports forum_reports_reporter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_reports
+    ADD CONSTRAINT forum_reports_reporter_id_fkey FOREIGN KEY (reporter_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_reads forum_thread_reads_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_reads
+    ADD CONSTRAINT forum_thread_reads_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_tag_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_tag_id_fkey FOREIGN KEY (tag_id) REFERENCES public.forum_tags(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_thread_tags forum_thread_tags_thread_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_thread_tags
+    ADD CONSTRAINT forum_thread_tags_thread_id_fkey FOREIGN KEY (thread_id) REFERENCES public.forum_threads(id) ON DELETE CASCADE;
+
+
+--
+-- Name: forum_threads forum_threads_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_author_id_fkey FOREIGN KEY (author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_threads forum_threads_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.forum_categories(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: forum_threads forum_threads_last_post_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_last_post_author_id_fkey FOREIGN KEY (last_post_author_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_threads forum_threads_updated_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: friends friends_addressee_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11066,6 +13245,38 @@ ALTER TABLE ONLY public.gang_origins
 
 ALTER TABLE ONLY public.gang_origins
     ADD CONSTRAINT gang_origins_gang_origin_category_id_fkey FOREIGN KEY (gang_origin_category_id) REFERENCES public.gang_origin_categories(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_rules gang_rules_fighter_effect_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_fighter_effect_type_id_fkey FOREIGN KEY (fighter_effect_type_id) REFERENCES public.fighter_effect_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_rules gang_rules_gang_origin_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_gang_origin_id_fkey FOREIGN KEY (gang_origin_id) REFERENCES public.gang_origins(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_rules gang_rules_gang_subtype_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_gang_subtype_id_fkey FOREIGN KEY (gang_subtype_id) REFERENCES public.gang_subtype_types(id) ON DELETE CASCADE;
+
+
+--
+-- Name: gang_rules gang_rules_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gang_rules
+    ADD CONSTRAINT gang_rules_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -11153,7 +13364,7 @@ ALTER TABLE ONLY public.gang_types
 --
 
 ALTER TABLE ONLY public.gang_types
-    ADD CONSTRAINT gang_types_parent_gang_type_edition_fkey FOREIGN KEY (parent_gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+    ADD CONSTRAINT gang_types_parent_gang_type_edition_fkey FOREIGN KEY (parent_gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
 --
@@ -11197,11 +13408,19 @@ ALTER TABLE ONLY public.gangs
 
 
 --
+-- Name: gangs gangs_gang_portrait_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.gangs
+    ADD CONSTRAINT gangs_gang_portrait_id_fkey FOREIGN KEY (gang_portrait_id) REFERENCES public.gang_portraits(id) ON DELETE SET NULL;
+
+
+--
 -- Name: gangs gangs_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.gangs
-    ADD CONSTRAINT gangs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT gangs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -11213,6 +13432,22 @@ ALTER TABLE ONLY public.gangs
 
 
 --
+-- Name: notification_sends notification_sends_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_sends
+    ADD CONSTRAINT notification_sends_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: notification_sends notification_sends_sender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notification_sends
+    ADD CONSTRAINT notification_sends_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: notifications notifications_receiver_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -11221,11 +13456,19 @@ ALTER TABLE ONLY public.notifications
 
 
 --
+-- Name: notifications notifications_send_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.notifications
+    ADD CONSTRAINT notifications_send_id_fkey FOREIGN KEY (send_id) REFERENCES public.notification_sends(id) ON DELETE SET NULL;
+
+
+--
 -- Name: notifications notifications_sender_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.notifications
-    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+    ADD CONSTRAINT notifications_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
 
 
 --
@@ -11234,6 +13477,62 @@ ALTER TABLE ONLY public.notifications
 
 ALTER TABLE ONLY public.profiles
     ADD CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: scenario_crew_selection_rules scenario_crew_selection_rules_scenario_table_entry_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_crew_selection_rules
+    ADD CONSTRAINT scenario_crew_selection_rules_scenario_table_entry_id_fkey FOREIGN KEY (scenario_table_entry_id) REFERENCES public.scenario_table_entries(id) ON DELETE CASCADE;
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_scenario_table_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_scenario_table_id_fkey FOREIGN KEY (scenario_table_id) REFERENCES public.scenario_tables(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: scenario_table_entries scenario_table_entries_table_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_table_entries
+    ADD CONSTRAINT scenario_table_entries_table_edition_fkey FOREIGN KEY (scenario_table_id, edition_id) REFERENCES public.scenario_tables(id, edition_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: scenario_tables scenario_tables_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: scenario_tables scenario_tables_gang_type_edition_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE;
+
+
+--
+-- Name: scenario_tables scenario_tables_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.scenario_tables
+    ADD CONSTRAINT scenario_tables_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -11305,7 +13604,7 @@ ALTER TABLE ONLY public.tactics_cards_packs
 --
 
 ALTER TABLE ONLY public.tactics_cards_packs
-    ADD CONSTRAINT tactics_cards_packs_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(gang_type_id, edition_id) ON UPDATE CASCADE;
+    ADD CONSTRAINT tactics_cards_packs_gang_type_edition_fkey FOREIGN KEY (gang_type_id, edition_id) REFERENCES public.gang_types(id, edition_id) ON UPDATE CASCADE;
 
 
 --
@@ -11313,7 +13612,7 @@ ALTER TABLE ONLY public.tactics_cards_packs
 --
 
 ALTER TABLE ONLY public.tactics_cards_packs
-    ADD CONSTRAINT tactics_cards_packs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(gang_type_id) ON DELETE CASCADE;
+    ADD CONSTRAINT tactics_cards_packs_gang_type_id_fkey FOREIGN KEY (gang_type_id) REFERENCES public.gang_types(id) ON DELETE CASCADE;
 
 
 --
@@ -11431,9 +13730,9 @@ CREATE POLICY "Admins, arbs or creator can delete battle sessions" ON public.bat
 -- Name: battle_session_fighters Admins, arbs or own participant can delete fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs or own participant can delete fighters" ON public.battle_session_fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+CREATE POLICY "Admins, arbs or own participant can delete fighters" ON public.battle_session_fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
    FROM public.battle_session_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
@@ -11442,9 +13741,9 @@ CREATE POLICY "Admins, arbs or own participant can delete fighters" ON public.ba
 -- Name: battle_session_fighters Admins, arbs or own participant can insert fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs or own participant can insert fighters" ON public.battle_session_fighters FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+CREATE POLICY "Admins, arbs or own participant can insert fighters" ON public.battle_session_fighters FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
    FROM public.battle_session_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
@@ -11453,13 +13752,13 @@ CREATE POLICY "Admins, arbs or own participant can insert fighters" ON public.ba
 -- Name: battle_session_fighters Admins, arbs or own participant can update fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs or own participant can update fighters" ON public.battle_session_fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+CREATE POLICY "Admins, arbs or own participant can update fighters" ON public.battle_session_fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
    FROM public.battle_session_participants bsp
-  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (participant_id IN ( SELECT bsp.id
+  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
    FROM public.battle_session_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
@@ -11479,37 +13778,29 @@ CREATE POLICY "Admins, arbs, creator or participants can update battle session" 
 -- Name: battle_session_participants Admins, arbs, session creator or self can delete participants; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs, session creator or self can delete participants" ON public.battle_session_participants FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+CREATE POLICY "Admins, arbs, session creator or self can delete participants" ON public.battle_session_participants FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
-   FROM public.battle_sessions bs
-  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid))));
+  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
 
 
 --
 -- Name: battle_session_participants Admins, arbs, session creator or self can insert participants; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs, session creator or self can insert participants" ON public.battle_session_participants FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+CREATE POLICY "Admins, arbs, session creator or self can insert participants" ON public.battle_session_participants FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
-   FROM public.battle_sessions bs
-  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid))));
+  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
 
 
 --
 -- Name: battle_session_participants Admins, arbs, session creator or self can update participants; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs, session creator or self can update participants" ON public.battle_session_participants FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
+CREATE POLICY "Admins, arbs, session creator or self can update participants" ON public.battle_session_participants FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
+  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid)))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
-  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid)))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (battle_session_id IN ( SELECT bs.id
-   FROM public.battle_sessions bs
-  WHERE ( SELECT private.is_arb(bs.campaign_id) AS is_arb))) OR (battle_session_id IN ( SELECT bs.id
-   FROM public.battle_sessions bs
-  WHERE (bs.created_by = ( SELECT auth.uid() AS uid)))) OR (user_id = ( SELECT auth.uid() AS uid))));
+  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
 
 
 --
@@ -11643,6 +13934,13 @@ CREATE POLICY "Allow authenticated users to view campaign gangs" ON public.campa
 --
 
 CREATE POLICY "Allow authenticated users to view campaign members" ON public.campaign_members FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: campaign_portraits Allow authenticated users to view campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view campaign portraits" ON public.campaign_portraits FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -11954,6 +14252,13 @@ CREATE POLICY "Allow authenticated users to view fighters" ON public.fighters FO
 
 
 --
+-- Name: gang_portraits Allow authenticated users to view gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang portraits" ON public.gang_portraits FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: gang_skill_set_ranks Allow authenticated users to view gang skill set ranks; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -11989,6 +14294,13 @@ CREATE POLICY "Allow authenticated users to view gang_origins" ON public.gang_or
 
 
 --
+-- Name: gang_rules Allow authenticated users to view gang_rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view gang_rules" ON public.gang_rules FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: gang_stash Allow authenticated users to view gang_stash; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12021,6 +14333,27 @@ CREATE POLICY "Allow authenticated users to view gangs" ON public.gangs FOR SELE
 --
 
 CREATE POLICY "Allow authenticated users to view loadout equipment" ON public.fighter_loadout_equipment FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: scenario_crew_selection_rules Allow authenticated users to view scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view scenario crew selection rules" ON public.scenario_crew_selection_rules FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: scenario_table_entries Allow authenticated users to view scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view scenario table entries" ON public.scenario_table_entries FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: scenario_tables Allow authenticated users to view scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view scenario tables" ON public.scenario_tables FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -12151,6 +14484,47 @@ CREATE POLICY "Anyone can view campaign type resources" ON public.campaign_type_
 --
 
 CREATE POLICY "Authenticated users can create battle sessions" ON public.battle_sessions FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR private.is_arb(campaign_id) OR (created_by = auth.uid())));
+
+
+--
+-- Name: forum_article_submissions Authors and moderators can update submissions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors and moderators can update submissions" ON public.forum_article_submissions FOR UPDATE TO authenticated USING ((( SELECT private.is_forum_moderator() AS is_forum_moderator) OR (EXISTS ( SELECT 1
+   FROM public.forum_threads t
+  WHERE ((t.id = forum_article_submissions.thread_id) AND (t.author_id = ( SELECT auth.uid() AS uid)))))));
+
+
+--
+-- Name: forum_threads Authors and moderators can update threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors and moderators can update threads" ON public.forum_threads FOR UPDATE TO authenticated USING (((author_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_forum_moderator() AS is_forum_moderator))) WITH CHECK (((author_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_forum_moderator() AS is_forum_moderator)));
+
+
+--
+-- Name: forum_article_submissions Authors and moderators can view submissions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors and moderators can view submissions" ON public.forum_article_submissions FOR SELECT TO authenticated USING ((( SELECT private.is_forum_moderator() AS is_forum_moderator) OR (EXISTS ( SELECT 1
+   FROM public.forum_threads t
+  WHERE ((t.id = forum_article_submissions.thread_id) AND (t.author_id = ( SELECT auth.uid() AS uid)))))));
+
+
+--
+-- Name: forum_posts Authors can edit their posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors can edit their posts" ON public.forum_posts FOR UPDATE TO authenticated USING ((author_id = ( SELECT auth.uid() AS uid))) WITH CHECK (((author_id = ( SELECT auth.uid() AS uid)) AND (deleted_at IS NULL)));
+
+
+--
+-- Name: forum_article_submissions Authors can submit their threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Authors can submit their threads" ON public.forum_article_submissions FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
+   FROM public.forum_threads t
+  WHERE ((t.id = forum_article_submissions.thread_id) AND (t.author_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
@@ -12296,40 +14670,108 @@ CREATE POLICY "Editions are viewable by everyone" ON public.editions FOR SELECT 
 
 
 --
+-- Name: fighter_exotic_beasts Fighter owner, admin or arb can create exotic beasts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Fighter owner, admin or arb can create exotic beasts" ON public.fighter_exotic_beasts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: fighter_exotic_beasts Fighter owner, admin or arb can delete exotic beasts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Fighter owner, admin or arb can delete exotic beasts" ON public.fighter_exotic_beasts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: fighter_exotic_beasts Fighter owner, admin or arb can update exotic beasts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Fighter owner, admin or arb can update exotic beasts" ON public.fighter_exotic_beasts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighters f
+     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
+  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+
+
+--
+-- Name: forum_categories Forum categories are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum categories are viewable by everyone" ON public.forum_categories FOR SELECT USING (true);
+
+
+--
+-- Name: forum_posts Forum posts are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum posts are viewable by everyone" ON public.forum_posts FOR SELECT USING (true);
+
+
+--
+-- Name: forum_tags Forum tags are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum tags are viewable by everyone" ON public.forum_tags FOR SELECT USING (true);
+
+
+--
+-- Name: forum_thread_tags Forum thread tags are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum thread tags are viewable by everyone" ON public.forum_thread_tags FOR SELECT USING (true);
+
+
+--
+-- Name: forum_threads Forum threads are viewable by everyone; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Forum threads are viewable by everyone" ON public.forum_threads FOR SELECT USING (true);
+
+
+--
 -- Name: fighter_ooa_records Gang owner, admin or arb can delete fighter ooa records; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Gang owner, admin or arb can delete fighter ooa records" ON public.fighter_ooa_records FOR DELETE TO authenticated USING ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+CREATE POLICY "Gang owner, admin or arb can delete fighter ooa records" ON public.fighter_ooa_records FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (causing_gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(causing_gang_id)));
 
 
 --
 -- Name: fighter_ooa_records Gang owner, admin or arb can insert fighter ooa records; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Gang owner, admin or arb can insert fighter ooa records" ON public.fighter_ooa_records FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+CREATE POLICY "Gang owner, admin or arb can insert fighter ooa records" ON public.fighter_ooa_records FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (causing_gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(causing_gang_id)));
 
 
 --
 -- Name: fighter_ooa_records Gang owner, admin or arb can update fighter ooa records; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Gang owner, admin or arb can update fighter ooa records" ON public.fighter_ooa_records FOR UPDATE TO authenticated USING ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+CREATE POLICY "Gang owner, admin or arb can update fighter ooa records" ON public.fighter_ooa_records FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (causing_gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))))) WITH CHECK ((private.is_admin() OR (causing_gang_id IN ( SELECT g.id
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(causing_gang_id))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (causing_gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = auth.uid()))) OR (causing_gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(causing_gang_id)));
 
 
 --
@@ -12383,9 +14825,49 @@ CREATE POLICY "Gang owners and campaign managers can update campaign gang reso" 
 
 CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON public.fighters FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
+
+
+--
+-- Name: forum_threads Moderators can delete threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can delete threads" ON public.forum_threads FOR DELETE TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_reports Moderators can dismiss reports; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can dismiss reports" ON public.forum_reports FOR DELETE TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_posts Moderators can edit and remove posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can edit and remove posts" ON public.forum_posts FOR UPDATE TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator)) WITH CHECK (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_post_revisions Moderators can view post revisions; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can view post revisions" ON public.forum_post_revisions FOR SELECT TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: forum_reports Moderators can view reports; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Moderators can view reports" ON public.forum_reports FOR SELECT TO authenticated USING (( SELECT private.is_forum_moderator() AS is_forum_moderator));
+
+
+--
+-- Name: campaign_portraits Only admin can create campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create campaign portraits" ON public.campaign_portraits FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12466,10 +14948,38 @@ CREATE POLICY "Only admin can create fighter_type_gang_cost entries" ON public.f
 
 
 --
+-- Name: gang_portraits Only admin can create gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create gang portraits" ON public.gang_portraits FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: gang_types Only admin can create gang_types entries; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Only admin can create gang_types entries" ON public.gang_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_crew_selection_rules Only admin can create scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create scenario crew selection rules" ON public.scenario_crew_selection_rules FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_table_entries Only admin can create scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create scenario table entries" ON public.scenario_table_entries FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_tables Only admin can create scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can create scenario tables" ON public.scenario_tables FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12526,6 +15036,13 @@ CREATE POLICY "Only admin can create trading_post_equipment entries" ON public.t
 --
 
 CREATE POLICY "Only admin can create trading_post_types entries" ON public.trading_post_types FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_portraits Only admin can delete campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete campaign portraits" ON public.campaign_portraits FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12613,6 +15130,13 @@ CREATE POLICY "Only admin can delete fighter_type_gang_cost" ON public.fighter_t
 
 
 --
+-- Name: gang_portraits Only admin can delete gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete gang portraits" ON public.gang_portraits FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: gang_origin_categories Only admin can delete gang_origin_categories; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12631,6 +15155,27 @@ CREATE POLICY "Only admin can delete gang_origins" ON public.gang_origins FOR DE
 --
 
 CREATE POLICY "Only admin can delete gang_types" ON public.gang_types FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_crew_selection_rules Only admin can delete scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete scenario crew selection rules" ON public.scenario_crew_selection_rules FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_table_entries Only admin can delete scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete scenario table entries" ON public.scenario_table_entries FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_tables Only admin can delete scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can delete scenario tables" ON public.scenario_tables FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12708,6 +15253,13 @@ CREATE POLICY "Only admin can insert gang_origin_categories" ON public.gang_orig
 --
 
 CREATE POLICY "Only admin can insert gang_origins" ON public.gang_origins FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_portraits Only admin can update campaign portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update campaign portraits" ON public.campaign_portraits FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -12795,6 +15347,13 @@ CREATE POLICY "Only admin can update fighter_type_gang_cost" ON public.fighter_t
 
 
 --
+-- Name: gang_portraits Only admin can update gang portraits; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update gang portraits" ON public.gang_portraits FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: gang_origin_categories Only admin can update gang_origin_categories; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -12813,6 +15372,27 @@ CREATE POLICY "Only admin can update gang_origins" ON public.gang_origins FOR UP
 --
 
 CREATE POLICY "Only admin can update gang_types" ON public.gang_types FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_crew_selection_rules Only admin can update scenario crew selection rules; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update scenario crew selection rules" ON public.scenario_crew_selection_rules FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_table_entries Only admin can update scenario table entries; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update scenario table entries" ON public.scenario_table_entries FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: scenario_tables Only admin can update scenario tables; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Only admin can update scenario tables" ON public.scenario_tables FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -13221,41 +15801,26 @@ CREATE POLICY "Only custom weapon profile owner or admin can update" ON public.c
 -- Name: fighter_effects Only fighter effect owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only fighter effect owner or admin can delete" ON public.fighter_effects FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
-   FROM (public.vehicles v
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
+CREATE POLICY "Only fighter effect owner or admin can delete" ON public.fighter_effects FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_effects.fighter_id) AND private.is_gang_arb(f.gang_id))))) OR ((vehicle_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM public.vehicles v
+  WHERE ((v.id = fighter_effects.vehicle_id) AND private.is_gang_arb(v.gang_id)))))));
 
 
 --
 -- Name: fighter_effects Only fighter effect owner or admin can update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only fighter effect owner or admin can update" ON public.fighter_effects FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
-   FROM (public.vehicles v
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))) OR ((vehicle_id IS NOT NULL) AND (vehicle_id IN ( SELECT v.id
-   FROM (public.vehicles v
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))));
-
-
---
--- Name: fighter_exotic_beasts Only fighter owner or admin can delete exotic beasts; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only fighter owner or admin can delete exotic beasts" ON public.fighter_exotic_beasts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+CREATE POLICY "Only fighter effect owner or admin can update" ON public.fighter_effects FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (EXISTS ( SELECT 1
    FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
+  WHERE ((f.id = fighter_effects.fighter_id) AND private.is_gang_arb(f.gang_id))))) OR ((vehicle_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM public.vehicles v
+  WHERE ((v.id = fighter_effects.vehicle_id) AND private.is_gang_arb(v.gang_id))))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR ((fighter_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_effects.fighter_id) AND private.is_gang_arb(f.gang_id))))) OR ((vehicle_id IS NOT NULL) AND (EXISTS ( SELECT 1
+   FROM public.vehicles v
+  WHERE ((v.id = fighter_effects.vehicle_id) AND private.is_gang_arb(v.gang_id)))))));
 
 
 --
@@ -13263,17 +15828,6 @@ CREATE POLICY "Only fighter owner or admin can delete exotic beasts" ON public.f
 --
 
 CREATE POLICY "Only fighter owner or admin can delete injuries" ON public.fighter_injuries FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_id IN ( SELECT f.id
-   FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
-
-
---
--- Name: fighter_exotic_beasts Only fighter owner or admin can update exotic beasts; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only fighter owner or admin can update exotic beasts" ON public.fighter_exotic_beasts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
-   FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
    FROM public.fighters f
   WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
 
@@ -13293,43 +15847,34 @@ CREATE POLICY "Only fighter owner or admin can update injuries" ON public.fighte
 -- Name: fighters Only fighter owner, admin, or arbitrator can delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only fighter owner, admin, or arbitrator can delete" ON public.fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Only fighter owner, admin, or arbitrator can delete" ON public.fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR private.is_gang_arb(gang_id)));
 
 
 --
 -- Name: fighters Only fighter owner, admin, or arbitrator can update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only fighter owner, admin, or arbitrator can update" ON public.fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Only fighter owner, admin, or arbitrator can update" ON public.fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR private.is_gang_arb(gang_id))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR private.is_gang_arb(gang_id)));
 
 
 --
 -- Name: fighter_skills Only fighter skill owner or admin can delete; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only fighter skill owner or admin can delete" ON public.fighter_skills FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Only fighter skill owner or admin can delete" ON public.fighter_skills FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skills.fighter_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
 -- Name: fighter_skills Only fighter skill owner or admin can update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only fighter skill owner or admin can update" ON public.fighter_skills FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Only fighter skill owner or admin can update" ON public.fighter_skills FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skills.fighter_id) AND private.is_gang_arb(f.gang_id)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skills.fighter_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
@@ -13361,11 +15906,7 @@ CREATE POLICY "Only gang owner or admin can update stash items" ON public.gang_s
 -- Name: gangs Only gang owner, admin, or arbitrator can update; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Only gang owner, admin, or arbitrator can update" ON public.gangs FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Only gang owner, admin, or arbitrator can update" ON public.gangs FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR private.is_gang_arb(id))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR private.is_gang_arb(id)));
 
 
 --
@@ -13382,9 +15923,10 @@ CREATE POLICY "Only gang owners or admins can delete logs" ON public.gang_logs F
 --
 
 CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_access_override FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skill_access_override.fighter_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
@@ -13392,12 +15934,14 @@ CREATE POLICY "Only override owner or admin can delete" ON public.fighter_skill_
 --
 
 CREATE POLICY "Only override owner or admin can update" ON public.fighter_skill_access_override FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skill_access_override.fighter_id) AND private.is_gang_arb(f.gang_id)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
+   FROM public.fighters f
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skill_access_override.fighter_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
@@ -13434,9 +15978,7 @@ CREATE POLICY "User guides are viewable by everyone" ON public.user_guides FOR S
 
 CREATE POLICY "Users can create equipment for their gang" ON public.fighter_equipment FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13452,28 +15994,26 @@ CREATE POLICY "Users can create friendship requests" ON public.friends FOR INSER
 
 CREATE POLICY "Users can create loadout equipment for their fighters" ON public.fighter_loadout_equipment FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
    FROM public.fighter_loadouts fl
-  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
-   FROM ((public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((fl.id = fighter_loadout_equipment.loadout_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
 -- Name: fighter_loadouts Users can create loadouts for their gang fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create loadouts for their gang fighters" ON public.fighter_loadouts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Users can create loadouts for their gang fighters" ON public.fighter_loadouts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_loadouts.fighter_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
 -- Name: notifications Users can create notifications; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK ((sender_id = ( SELECT auth.uid() AS uid)));
+CREATE POLICY "Users can create notifications" ON public.notifications FOR INSERT TO authenticated WITH CHECK (((sender_id = ( SELECT auth.uid() AS uid)) AND (is_html = false) AND (((type)::text <> ALL (ARRAY['user_message'::text, 'campaign_message'::text, 'mm_staff_message'::text, 'mm_announcement'::text])) OR (((type)::text = ANY (ARRAY['mm_staff_message'::text, 'mm_announcement'::text])) AND ( SELECT private.is_admin() AS is_admin)))));
 
 
 --
@@ -13482,10 +16022,9 @@ CREATE POLICY "Users can create notifications" ON public.notifications FOR INSER
 
 CREATE POLICY "Users can create skill access overrides for their own fighters" ON public.fighter_skill_access_override FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ((fighter_id IS NOT NULL) AND ((fighter_id IN ( SELECT f.id
    FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skill_access_override.fighter_id) AND private.is_gang_arb(f.gang_id))))))));
 
 
 --
@@ -13494,9 +16033,7 @@ CREATE POLICY "Users can create skill access overrides for their own fighters" O
 
 CREATE POLICY "Users can create skill set ranks for their gang" ON public.gang_skill_set_ranks FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13505,10 +16042,9 @@ CREATE POLICY "Users can create skill set ranks for their gang" ON public.gang_s
 
 CREATE POLICY "Users can create skills for their own fighters" ON public.fighter_skills FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ((fighter_id IS NOT NULL) AND ((fighter_id IN ( SELECT f.id
    FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
+  WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_skills.fighter_id) AND private.is_gang_arb(f.gang_id))))))));
 
 
 --
@@ -13517,9 +16053,7 @@ CREATE POLICY "Users can create skills for their own fighters" ON public.fighter
 
 CREATE POLICY "Users can create tactic cards for their gang" ON public.gang_tactics_cards FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13535,9 +16069,7 @@ CREATE POLICY "Users can create their own notification preferences" ON public.us
 
 CREATE POLICY "Users can delete equipment from their gang" ON public.fighter_equipment FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13546,21 +16078,19 @@ CREATE POLICY "Users can delete equipment from their gang" ON public.fighter_equ
 
 CREATE POLICY "Users can delete loadout equipment for their fighters" ON public.fighter_loadout_equipment FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
    FROM public.fighter_loadouts fl
-  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
-   FROM ((public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((fl.id = fighter_loadout_equipment.loadout_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
 -- Name: fighter_loadouts Users can delete loadouts for their gang fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.fighter_loadouts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.fighter_loadouts FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_loadouts.fighter_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
@@ -13569,9 +16099,7 @@ CREATE POLICY "Users can delete loadouts for their gang fighters" ON public.figh
 
 CREATE POLICY "Users can delete skill set ranks from their gang" ON public.gang_skill_set_ranks FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13580,9 +16108,7 @@ CREATE POLICY "Users can delete skill set ranks from their gang" ON public.gang_
 
 CREATE POLICY "Users can delete tactic cards from their gang" ON public.gang_tactics_cards FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13626,6 +16152,22 @@ CREATE POLICY "Users can insert their own profile" ON public.profiles FOR INSERT
 
 
 --
+-- Name: forum_post_likes Users can like posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can like posts" ON public.forum_post_likes FOR INSERT TO authenticated WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.forum_posts p
+  WHERE ((p.id = forum_post_likes.post_id) AND (p.deleted_at IS NULL) AND (p.author_id IS DISTINCT FROM ( SELECT auth.uid() AS uid)))))));
+
+
+--
+-- Name: forum_thread_reads Users can mark threads read; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can mark threads read" ON public.forum_thread_reads FOR INSERT TO authenticated WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
 -- Name: fighter_injuries Users can only create fighter_injuries for their own fighters; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -13657,25 +16199,14 @@ CREATE POLICY "Users can only create their own campaigns" ON public.campaigns FO
 CREATE POLICY "Users can only create their own fighter effects" ON public.fighter_effects FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ((fighter_id IS NOT NULL) AND ((fighter_id IN ( SELECT f.id
    FROM (public.fighters f
      JOIN public.gangs g ON ((f.gang_id = g.id)))
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) OR ((vehicle_id IS NOT NULL) AND ((vehicle_id IN ( SELECT v.id
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_effects.fighter_id) AND private.is_gang_arb(f.gang_id)))))) OR ((vehicle_id IS NOT NULL) AND ((vehicle_id IN ( SELECT v.id
    FROM (public.vehicles v
      JOIN public.gangs g ON ((v.gang_id = g.id)))
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (vehicle_id IN ( SELECT v.id
-   FROM (public.vehicles v
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))))));
-
-
---
--- Name: fighter_exotic_beasts Users can only create their own fighter exotic beasts; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Users can only create their own fighter exotic beasts" ON public.fighter_exotic_beasts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
-   FROM public.fighters f
-  WHERE (f.user_id = ( SELECT auth.uid() AS uid))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM public.vehicles v
+  WHERE ((v.id = fighter_effects.vehicle_id) AND private.is_gang_arb(v.gang_id))))))));
 
 
 --
@@ -13683,6 +16214,29 @@ CREATE POLICY "Users can only create their own fighter exotic beasts" ON public.
 --
 
 CREATE POLICY "Users can only create their own gangs" ON public.gangs FOR INSERT TO authenticated WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: forum_posts Users can post; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can post" ON public.forum_posts FOR INSERT TO authenticated WITH CHECK ((author_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: forum_post_likes Users can remove their likes; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can remove their likes" ON public.forum_post_likes FOR DELETE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
+
+
+--
+-- Name: forum_reports Users can report posts; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can report posts" ON public.forum_reports FOR INSERT TO authenticated WITH CHECK (((reporter_id = ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1
+   FROM public.forum_posts p
+  WHERE ((p.id = forum_reports.post_id) AND (p.deleted_at IS NULL) AND (p.author_id IS DISTINCT FROM ( SELECT auth.uid() AS uid)))))));
 
 
 --
@@ -13697,18 +16251,23 @@ CREATE POLICY "Users can request to join campaigns that allow it" ON public.camp
 
 
 --
+-- Name: forum_threads Users can start threads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can start threads" ON public.forum_threads FOR INSERT TO authenticated WITH CHECK (((author_id = ( SELECT auth.uid() AS uid)) AND (( SELECT private.is_forum_moderator() AS is_forum_moderator) OR (NOT (EXISTS ( SELECT 1
+   FROM public.forum_categories c
+  WHERE ((c.id = forum_threads.category_id) AND c.moderators_only)))))));
+
+
+--
 -- Name: fighter_equipment Users can update equipment in their gang; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Users can update equipment in their gang" ON public.fighter_equipment FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13717,30 +16276,26 @@ CREATE POLICY "Users can update equipment in their gang" ON public.fighter_equip
 
 CREATE POLICY "Users can update loadout equipment for their fighters" ON public.fighter_loadout_equipment FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
    FROM public.fighter_loadouts fl
-  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
-   FROM ((public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
+  WHERE ((fl.id = fighter_loadout_equipment.loadout_id) AND private.is_gang_arb(f.gang_id)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (loadout_id IN ( SELECT fl.id
    FROM public.fighter_loadouts fl
-  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (loadout_id IN ( SELECT fl.id
-   FROM ((public.fighter_loadouts fl
+  WHERE (fl.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_loadouts fl
      JOIN public.fighters f ON ((f.id = fl.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((fl.id = fighter_loadout_equipment.loadout_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
 -- Name: fighter_loadouts Users can update loadouts for their gang fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update loadouts for their gang fighters" ON public.fighter_loadouts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (fighter_id IN ( SELECT f.id
-   FROM (public.fighters f
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+CREATE POLICY "Users can update loadouts for their gang fighters" ON public.fighter_loadouts FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_loadouts.fighter_id) AND private.is_gang_arb(f.gang_id)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (user_id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1
+   FROM public.fighters f
+  WHERE ((f.id = fighter_loadouts.fighter_id) AND private.is_gang_arb(f.gang_id))))));
 
 
 --
@@ -13756,13 +16311,9 @@ CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE TO au
 
 CREATE POLICY "Users can update tactic cards in their gang" ON public.gang_tactics_cards FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13783,7 +16334,14 @@ CREATE POLICY "Users can update their own notification preferences" ON public.us
 -- Name: notifications Users can update their own notifications; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE TO authenticated USING ((( SELECT auth.uid() AS uid) = receiver_id));
+CREATE POLICY "Users can update their own notifications" ON public.notifications FOR UPDATE TO authenticated USING ((( SELECT auth.uid() AS uid) = receiver_id)) WITH CHECK ((( SELECT auth.uid() AS uid) = receiver_id));
+
+
+--
+-- Name: forum_thread_reads Users can update their reads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can update their reads" ON public.forum_thread_reads FOR UPDATE TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid))) WITH CHECK ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -13792,9 +16350,7 @@ CREATE POLICY "Users can update their own notifications" ON public.notifications
 
 CREATE POLICY "Users can view logs for their gangs or campaigns they moderate" ON public.gang_logs FOR SELECT TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -13802,6 +16358,13 @@ CREATE POLICY "Users can view logs for their gangs or campaigns they moderate" O
 --
 
 CREATE POLICY "Users can view their own friendships" ON public.friends FOR SELECT TO authenticated USING (((( SELECT auth.uid() AS uid) = requester_id) OR (( SELECT auth.uid() AS uid) = addressee_id)));
+
+
+--
+-- Name: forum_post_likes Users can view their own likes; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view their own likes" ON public.forum_post_likes FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -13816,6 +16379,13 @@ CREATE POLICY "Users can view their own notification preferences" ON public.user
 --
 
 CREATE POLICY "Users can view their own notifications" ON public.notifications FOR SELECT TO authenticated USING ((( SELECT auth.uid() AS uid) = receiver_id));
+
+
+--
+-- Name: forum_thread_reads Users can view their own reads; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Users can view their own reads" ON public.forum_thread_reads FOR SELECT TO authenticated USING ((user_id = ( SELECT auth.uid() AS uid)));
 
 
 --
@@ -13931,6 +16501,12 @@ ALTER TABLE public.campaign_maps ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.campaign_members ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_portraits; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_portraits ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_resources; Type: ROW SECURITY; Schema: public; Owner: -
@@ -14235,61 +16811,53 @@ ALTER TABLE public.fighter_effect_modifiers ENABLE ROW LEVEL SECURITY;
 -- Name: fighter_effect_modifiers fighter_effect_modifiers_delete_policy; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY fighter_effect_modifiers_delete_policy ON public.fighter_effect_modifiers FOR DELETE USING ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
+CREATE POLICY fighter_effect_modifiers_delete_policy ON public.fighter_effect_modifiers FOR DELETE USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_effect_id IN ( SELECT fe.id
    FROM public.fighter_effects fe
-  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(f.gang_id)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(v.gang_id))))));
 
 
 --
 -- Name: fighter_effect_modifiers fighter_effect_modifiers_insert_policy; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY fighter_effect_modifiers_insert_policy ON public.fighter_effect_modifiers FOR INSERT WITH CHECK ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
+CREATE POLICY fighter_effect_modifiers_insert_policy ON public.fighter_effect_modifiers FOR INSERT WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_effect_id IN ( SELECT fe.id
    FROM public.fighter_effects fe
-  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(f.gang_id)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(v.gang_id))))));
 
 
 --
 -- Name: fighter_effect_modifiers fighter_effect_modifiers_update_policy; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY fighter_effect_modifiers_update_policy ON public.fighter_effect_modifiers FOR UPDATE USING ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
+CREATE POLICY fighter_effect_modifiers_update_policy ON public.fighter_effect_modifiers FOR UPDATE USING ((( SELECT private.is_admin() AS is_admin) OR (fighter_effect_id IN ( SELECT fe.id
    FROM public.fighter_effects fe
-  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(f.gang_id)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))))) WITH CHECK ((private.is_admin() OR (fighter_effect_id IN ( SELECT fe.id
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(v.gang_id)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_effect_id IN ( SELECT fe.id
    FROM public.fighter_effects fe
-  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE (fe.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.fighters f ON ((f.id = fe.fighter_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((fe.fighter_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id)))) OR (fighter_effect_id IN ( SELECT fe.id
-   FROM ((public.fighter_effects fe
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(f.gang_id)))) OR (EXISTS ( SELECT 1
+   FROM (public.fighter_effects fe
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
-     JOIN public.campaign_gangs cg ON ((cg.gang_id = v.gang_id)))
-  WHERE ((fe.vehicle_id IS NOT NULL) AND (cg.status = 'ACCEPTED'::text) AND private.is_arb(cg.campaign_id))))));
+  WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(v.gang_id))))));
 
 
 --
@@ -14614,6 +17182,87 @@ CREATE POLICY fighter_types_admin_update_policy ON public.fighter_types FOR UPDA
 ALTER TABLE public.fighters ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: forum_article_submissions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_article_submissions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_categories; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_categories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_categories forum_categories_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_categories_admin_delete_policy ON public.forum_categories FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_categories forum_categories_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_categories_admin_insert_policy ON public.forum_categories FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_categories forum_categories_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_categories_admin_update_policy ON public.forum_categories FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_post_likes; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_post_likes ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_post_revisions; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_post_revisions ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_posts; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_posts ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_reports; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_reports ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_thread_reads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_thread_reads ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_thread_tags; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_thread_tags ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_threads; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_threads ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: friends; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -14663,6 +17312,39 @@ ALTER TABLE public.gang_origin_categories ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.gang_origins ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_portraits; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_portraits ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_rules; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.gang_rules ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: gang_rules gang_rules_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_rules_admin_delete_policy ON public.gang_rules FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_rules gang_rules_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_rules_admin_insert_policy ON public.gang_rules FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: gang_rules gang_rules_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY gang_rules_admin_update_policy ON public.gang_rules FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
 
 --
 -- Name: gang_skill_set_ranks; Type: ROW SECURITY; Schema: public; Owner: -
@@ -14722,6 +17404,12 @@ ALTER TABLE public.gang_types ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gangs ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: notification_sends; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.notification_sends ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: notifications; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -14732,6 +17420,24 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: scenario_crew_selection_rules; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.scenario_crew_selection_rules ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: scenario_table_entries; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.scenario_table_entries ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: scenario_tables; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.scenario_tables ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: scenarios; Type: ROW SECURITY; Schema: public; Owner: -
@@ -14859,9 +17565,7 @@ ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY vehicles_user_delete_policy ON public.vehicles FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -14870,9 +17574,7 @@ CREATE POLICY vehicles_user_delete_policy ON public.vehicles FOR DELETE TO authe
 
 CREATE POLICY vehicles_user_insert_policy ON public.vehicles FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --
@@ -14881,13 +17583,9 @@ CREATE POLICY vehicles_user_insert_policy ON public.vehicles FOR INSERT TO authe
 
 CREATE POLICY vehicles_user_update_policy ON public.vehicles FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
-  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR (gang_id IN ( SELECT cg.gang_id
-   FROM public.campaign_gangs cg
-  WHERE ((cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
 
 
 --

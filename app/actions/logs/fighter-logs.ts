@@ -10,9 +10,9 @@ export interface FighterLogParams {
   fighter_id: string;
   fighter_name: string;
   action_type: 'fighter_added' | 'fighter_removed' | 'fighter_killed' | 'fighter_resurrected' | 'fighter_retired' | 'fighter_unretired' | 'fighter_enslaved' |
-              'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_kill_count_changed' | 'fighter_cost_adjusted' |
+              'fighter_xp_changed' | 'fighter_total_xp_changed' | 'fighter_starting_xp_changed' | 'fighter_OOA_changed' | 'fighter_kills_changed' | 'fighter_kill_count_changed' | 'fighter_cost_adjusted' |
               'fighter_rescued' | 'fighter_starved' | 'fighter_fed' | 'fighter_captured' | 'fighter_released' | 'fighter_copied' |
-              'rig_glitches_cleared_downtime';
+              'fighter_promoted' | 'rig_glitches_cleared_downtime';
   user_id?: string;
   old_value?: number | string;
   new_value?: number | string;
@@ -27,6 +27,11 @@ export interface FighterLogParams {
   /** OOA/kills values for combined XP+OOA log line */
   old_ooa?: number;
   new_ooa?: number;
+  /** XP values for the summary line of a Starting XP change, which moves XP with it */
+  old_xp?: number;
+  new_xp?: number;
+  /** What a promotion changed (e.g. "Subtypes: Ganger → Champion"), for the summary line */
+  promotion_changes?: string[];
   /** Gang's edition, for descriptions whose wording the edition renames. */
   edition_slug?: string | null;
   oldCredits?: number;
@@ -118,6 +123,16 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
       case 'fighter_total_xp_changed':
         description = `Fighter "${params.fighter_name}" total XP changed from ${params.old_value || 0} to ${params.new_value || 0}`;
         break;
+      case 'fighter_starting_xp_changed': {
+        const oldStartingXp = params.old_value ?? 'N/A';
+        const newStartingXp = params.new_value ?? 'N/A';
+        const summaryParts: string[] = [`Starting XP: ${oldStartingXp} → ${newStartingXp}`];
+        if (params.old_xp !== undefined && params.new_xp !== undefined && params.old_xp !== params.new_xp) {
+          summaryParts.push(`XP: ${params.old_xp} → ${params.new_xp}`);
+        }
+        description = `Fighter "${params.fighter_name}" Starting XP has been set to ${newStartingXp}\n${summaryParts.join(' | ')}`;
+        break;
+      }
       case 'fighter_kills_changed':
       case 'fighter_OOA_changed': {
         const oldOoa = params.old_value ?? 0;
@@ -145,6 +160,12 @@ export async function logFighterAction(params: FighterLogParams): Promise<GangLo
         break;
       case 'fighter_released':
         description = `Fighter "${params.fighter_name}" was released from captivity.${financialChanges}`;
+        break;
+      case 'fighter_promoted':
+        description = `Fighter "${params.fighter_name}" promoted`;
+        if (params.promotion_changes?.length) {
+          description += `\n${params.promotion_changes.join(' | ')}`;
+        }
         break;
       case 'rig_glitches_cleared_downtime':
         description = `Fighter "${params.fighter_name}" cleared ${params.old_value} rig glitch${Number(params.old_value) !== 1 ? 'es' : ''} via ${downtimePhaseName(params.edition_slug)}.${financialChanges}`;

@@ -14,7 +14,8 @@ import {
   setSessionWinners,
   completeBattleSession,
 } from '@/app/actions/battle-sessions';
-import type { BattleSessionFull } from '@/types/battle-session';
+import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
+import { hasCrewRating } from '@/types/edition';
 import { splitInjuryCounts } from '@/components/battle-session/participant-card';
 import type { GangFighter } from '@/types/gang';
 import {
@@ -56,10 +57,14 @@ export default function CompleteBattleModal({
   const initialIsDraw =
     initialWinnerIds.length === 0 && session.winner_gang_id === null;
 
-  const [selectedTerritory, setSelectedTerritory] = useState('');
-  const [cycle, setCycle] = useState('');
-  const [notes, setNotes] = useState('');
+  // A challenge's staked territory, cycle and note carry over to its report.
+  const [selectedTerritory, setSelectedTerritory] = useState(
+    session.linked_battle?.campaign_territory_id ?? ''
+  );
+  const [cycle, setCycle] = useState(session.linked_battle?.cycle?.toString() ?? '');
+  const [notes, setNotes] = useState(session.linked_battle?.note ?? '');
   const isReportOverLimit = notes.length > reportCharLimit;
+  const crewRated = hasCrewRating(session.edition_slug);
   const [submitting, setSubmitting] = useState(false);
 
   const gangNameMap = useMemo(
@@ -156,6 +161,7 @@ export default function CompleteBattleModal({
     }
 
     toast.success('Battle completed');
+    if (completeResult.participation_xp_error) toast.error(completeResult.participation_xp_error);
     onBroadcast?.();
     return true;
   };
@@ -177,14 +183,13 @@ export default function CompleteBattleModal({
       title="Complete Battle"
       onClose={onClose}
       onConfirm={handleConfirm}
-      confirmText="Complete Battle"
       confirmDisabled={!hasAnyWinnerSelected || submitting || isReportOverLimit}
     >
       <div className="space-y-4">
-        {session.scenario && (
+        {sessionScenarioLabel(session) && (
           <div>
             <p className="text-sm font-medium text-muted-foreground">Scenario</p>
-            <p className="font-medium">{session.scenario}</p>
+            <p className="font-medium">{sessionScenarioLabel(session)}</p>
           </div>
         )}
 
@@ -193,7 +198,7 @@ export default function CompleteBattleModal({
           <div className="space-y-3">
             {session.participants.map((p) => {
               const gfList = gangFightersMap[p.gang_id] || [];
-              const crewRating = (p.fighters ?? []).reduce((sum, f) => {
+              const rating = !crewRated ? (p.gang?.rating ?? 0) : (p.fighters ?? []).reduce((sum, f) => {
                 const match =
                   gfList.find(
                     (gf) =>
@@ -203,8 +208,12 @@ export default function CompleteBattleModal({
                 return sum + (match ? (match.loadout_cost ?? match.credits) : (f.fighter?.credits ?? 0));
               }, 0);
 
-              const totalXp = (p.fighters ?? []).reduce(
-                (sum, f) => sum + (f.session_record?.xp_earned ?? 0),
+              const fighters = p.fighters ?? [];
+              // Only confirmed participation XP is added at completion.
+              const participationConfirmed = fighters.every((f) => f.session_record?.participation_xp_confirmed);
+              const totalXp = fighters.reduce(
+                (sum, f) => sum + (f.session_record?.xp_earned ?? 0)
+                  + (f.session_record?.participation_xp_confirmed ? (f.session_record.participation_xp ?? 0) : 0),
                 0
               );
               const { totalInjuries, totalGlitches } = splitInjuryCounts(p.fighters ?? [], gfList);
@@ -230,9 +239,12 @@ export default function CompleteBattleModal({
                   </div>
                   <div className="flex flex-wrap gap-x-3 text-sm text-neutral-500">
                     <span>{p.profile?.username}</span>
-                    <span>Rating: {crewRating}</span>
+                    <span>Rating: {rating}</span>
                     <span>{(p.fighters ?? []).length} fighters</span>
                     {totalXp > 0 && <span>+{totalXp} XP</span>}
+                    {!participationConfirmed && (
+                      <span className="text-amber-600 dark:text-amber-400">Participation XP not confirmed</span>
+                    )}
                     {totalInjuries > 0 && (
                       <span className="text-red-500">{totalInjuries} {totalInjuries === 1 ? 'Lasting Injury' : 'Lasting Injuries'}</span>
                     )}

@@ -6,7 +6,7 @@
  */
 
 export type GangTypeWithParent = {
-  gang_type_id: string;
+  id: string;
   gang_type: string;
   parent_gang_type_id?: string | null;
 };
@@ -16,12 +16,12 @@ export function hasParentGangType(type: GangTypeWithParent): boolean {
   return type.parent_gang_type_id != null;
 }
 
-/** Variants whose parent_gang_type_id is this root's gang_type_id. */
+/** Variants whose parent_gang_type_id is this root's id. */
 export function gangVariantsFor<T extends GangTypeWithParent>(
   parent: T,
   types: T[]
 ): T[] {
   return types
-    .filter((type) => type.parent_gang_type_id === parent.gang_type_id)
+    .filter((type) => type.parent_gang_type_id === parent.id)
     .sort((a, b) => a.gang_type.localeCompare(b.gang_type));
 }

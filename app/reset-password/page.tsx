@@ -5,8 +5,9 @@ import { SubmitButton } from "@/components/submit-button";
 import { ValidatedEmailField } from "@/components/ui/validated-email-field";
 import Link from "next/link";
 import { forgotPasswordAction } from "@/app/actions/auth";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import TurnstileWidget, { type TurnstileHandle } from "@/components/turnstile-widget";
 
 export default function ResetPassword() {
   return (
@@ -21,7 +22,8 @@ function ResetPasswordContent() {
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [emailSent, setEmailSent] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+  const turnstileRef = useRef<TurnstileHandle>(null);
+
   // Get search params safely
   const error = searchParams.get('error');
   const success = searchParams.get('success');
@@ -49,10 +51,13 @@ function ResetPasswordContent() {
         setEmailSent(true);
       } else if (response.error) {
         setFeedbackMessage(response.error);
+        // This attempt may have consumed the token, so a retry needs a fresh one.
+        turnstileRef.current?.reset();
       }
     } catch (error) {
       console.error('Error during password reset:', error);
       setFeedbackMessage('An unexpected error occurred. Please try again.');
+      turnstileRef.current?.reset();
     } finally {
       setIsSubmitting(false);
     }
@@ -70,7 +75,10 @@ function ResetPasswordContent() {
               </p>
               <div className="flex flex-col gap-4">
                 <ValidatedEmailField id="email" />
-                <SubmitButton 
+                <div className="mt-2 flex justify-center">
+                  <TurnstileWidget ref={turnstileRef} />
+                </div>
+                <SubmitButton
                   pendingText="Sending..." 
                   className="mt-2"
                   disabled={isSubmitting}

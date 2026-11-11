@@ -4,15 +4,14 @@ import { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Button } from '@/components/ui/button';
+import { CounterButton } from '@/components/ui/counter';
 import { IoSkull } from 'react-icons/io5';
 import { MdChair } from 'react-icons/md';
 import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
 import { TbMeatOff } from 'react-icons/tb';
 import { FaMedkit } from 'react-icons/fa';
-import { LuMinus, LuPlus } from 'react-icons/lu';
 import { countsTowardRating } from '@/utils/fighter-status';
-import { rollInRange } from '@/utils/dice';
+import { shuffle } from '@/utils/dice';
 import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
@@ -37,6 +36,11 @@ interface GangFighterOption {
 
 function isBeast(f: GangFighterOption) {
   return f.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') || false;
+}
+
+/** Beasts follow their owner and Support fighters are taken freely: neither counts toward the Choose/Random limit. */
+function countsTowardLimit(f: GangFighterOption) {
+  return !isBeast(f) && !f.fighter_subtypes?.some((c) => c.toLowerCase() === 'support');
 }
 
 function formatFighterDetails(f: GangFighterOption, editionSlug?: string | null): string {
@@ -111,6 +115,8 @@ interface CrewSelectionModalProps {
   gangFighters: GangFighterOption[];
   selectedFighters: Map<string, string | undefined>;
   editionSlug?: string | null;
+  /** Mid-battle: the current crew stays locked and only remaining fighters can be added. */
+  reinforcements?: boolean;
   loading: boolean;
   onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => Promise<boolean> | void;
   onClose: () => void;
@@ -121,10 +127,16 @@ export default function CrewSelectionModal({
   gangFighters,
   selectedFighters,
   editionSlug,
+  reinforcements = false,
   loading,
   onConfirm,
   onClose,
 }: CrewSelectionModalProps) {
+  // The crew when the modal opened; only fighters outside it can be added.
+  const [lockedIds] = useState(
+    () => new Set(reinforcements ? Array.from(selectedFighters.keys()) : [])
+  );
+
   const [selected, setSelected] = useState<Map<string, string | undefined>>(
     () => {
       const initial = new Map(selectedFighters);
@@ -164,15 +176,15 @@ export default function CrewSelectionModal({
   const getBeastsForOwner = (ownerId: string) =>
     gangFighters.filter((f) => isBeast(f) && f.owner_id === ownerId);
 
-  const availableNonBeasts = useMemo(() => {
+  const limitedFighters = useMemo(() => {
     const seen = new Set<string>();
     return gangFighters.filter((f) => {
-      if (!countsTowardRating(f) || f.recovery || isBeast(f)) return false;
+      if (!countsTowardRating(f) || f.recovery || !countsTowardLimit(f) || lockedIds.has(f.id)) return false;
       if (seen.has(f.id)) return false;
       seen.add(f.id);
       return true;
     });
-  }, [gangFighters]);
+  }, [gangFighters, lockedIds]);
 
   const totalTarget = pickCount + randomCount;
   const inQuotaMode = totalTarget > 0;
@@ -180,12 +192,12 @@ export default function CrewSelectionModal({
   const manuallySelectedCount = useMemo(() => {
     let count = 0;
     selected.forEach((_, fighterId) => {
-      if (randomlySelected.has(fighterId)) return;
+      if (randomlySelected.has(fighterId) || lockedIds.has(fighterId)) return;
       const f = gangFighters.find((gf) => gf.id === fighterId);
-      if (f && !isBeast(f)) count++;
+      if (f && countsTowardLimit(f)) count++;
     });
     return count;
-  }, [selected, randomlySelected, gangFighters]);
+  }, [selected, randomlySelected, gangFighters, lockedIds]);
 
   const handleReset = () => {
     setRandomlySelected((prevRandom) => {
@@ -206,45 +218,43 @@ export default function CrewSelectionModal({
   };
 
   const handlePickChange = (value: number) => {
-    const clamped = Math.max(0, Math.min(value, availableNonBeasts.length));
+    const clamped = Math.max(0, Math.min(value, limitedFighters.length));
     setPickCount(clamped);
-    if (randomCount > availableNonBeasts.length - clamped) {
-      const newRandom = Math.max(0, availableNonBeasts.length - clamped);
+    if (randomCount > limitedFighters.length - clamped) {
+      const newRandom = Math.max(0, limitedFighters.length - clamped);
       setRandomCount(newRandom);
       if (newRandom < randomCount) handleReset();
     }
   };
 
   const handleRandomChange = (value: number) => {
-    const max = availableNonBeasts.length - pickCount;
+    const max = limitedFighters.length - pickCount;
     const clamped = Math.max(0, Math.min(value, max));
     setRandomCount(clamped);
     handleReset();
   };
+
+  const lockedSelection = () =>
+    new Map(Array.from(selected).filter(([id]) => lockedIds.has(id)));
 
   const handleRoll = async () => {
     setRolling(true);
     try {
       const manualOnly = new Map<string, string | undefined>();
       selected.forEach((loadoutId, id) => {
-        if (randomlySelected.has(id)) return;
+        if (randomlySelected.has(id) || lockedIds.has(id)) return;
         const f = gangFighters.find((gf) => gf.id === id);
         if (f && isBeast(f)) return;
         manualOnly.set(id, loadoutId);
       });
 
-      const pool = availableNonBeasts.filter((f) => !manualOnly.has(f.id));
-      const shuffled = [...pool];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = rollInRange(0, i);
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      const picked = shuffled.slice(0, Math.min(randomCount, shuffled.length));
+      const pool = limitedFighters.filter((f) => !manualOnly.has(f.id));
+      const picked = shuffle(pool).slice(0, randomCount);
 
       const newRandomIds = new Set(picked.map((f) => f.id));
       setRandomlySelected(newRandomIds);
 
-      const next = new Map<string, string | undefined>();
+      const next = lockedSelection();
       const addWithBeasts = (id: string, loadoutId: string | undefined) => {
         next.set(id, loadoutId);
         for (const beast of getBeastsForOwner(id)) {
@@ -263,7 +273,7 @@ export default function CrewSelectionModal({
       logCrewRollMutation.mutate({
         gang_id: gangId,
         action_type: 'crew_roll',
-        description: `Random crew selection: ${picked.length} fighter(s) rolled — ${pickedNames}`,
+        description: `Random ${reinforcements ? 'reinforcements' : 'crew selection'}: ${picked.length} fighter(s) rolled — ${pickedNames}`,
       });
     } finally {
       setRolling(false);
@@ -271,7 +281,7 @@ export default function CrewSelectionModal({
   };
 
   const isDisabled = (f: GangFighterOption) =>
-    isBeast(f) || !isAvailable(f);
+    isBeast(f) || !isAvailable(f) || lockedIds.has(f.id);
 
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
@@ -303,9 +313,9 @@ export default function CrewSelectionModal({
 
   const toggleAll = () => {
     if (allSelected) {
-      setSelected(new Map());
+      setSelected(lockedSelection());
     } else {
-      const next = new Map<string, string | undefined>();
+      const next = lockedSelection();
       for (const f of activeFighters) {
         if (!next.has(f.id)) {
           next.set(f.id, f.loadout_id);
@@ -320,19 +330,22 @@ export default function CrewSelectionModal({
     const toRemove: string[] = [];
     const toUpdate: FighterEntry[] = [];
 
+    // Reinforcements only ever add: the crew already in the battle is never changed or removed.
     Array.from(selected.entries()).forEach(([fighterId, loadoutId]) => {
       if (!selectedFighters.has(fighterId)) {
         toAdd.push({ fighter_id: fighterId, loadout_id: loadoutId });
-      } else if (selectedFighters.get(fighterId) !== loadoutId) {
+      } else if (!reinforcements && selectedFighters.get(fighterId) !== loadoutId) {
         toUpdate.push({ fighter_id: fighterId, loadout_id: loadoutId });
       }
     });
 
-    Array.from(selectedFighters.keys()).forEach((id) => {
-      if (!selected.has(id)) {
-        toRemove.push(id);
-      }
-    });
+    if (!reinforcements) {
+      Array.from(selectedFighters.keys()).forEach((id) => {
+        if (!selected.has(id)) {
+          toRemove.push(id);
+        }
+      });
+    }
 
     const result = await onConfirm(toAdd, toRemove, toUpdate);
     return result;
@@ -344,7 +357,7 @@ export default function CrewSelectionModal({
 
   return (
     <Modal
-      title="Select Crew"
+      title={reinforcements ? 'Reinforcements' : 'Select Crew'}
       onClose={onClose}
       onConfirm={handleConfirm}
       confirmText="Confirm"
@@ -372,23 +385,15 @@ export default function CrewSelectionModal({
             <div className="flex flex-col gap-2 sm:w-full sm:flex-row sm:items-center sm:justify-between sm:gap-8">
               <div className="flex items-center gap-1">
                 <span className="inline-block w-14 text-sm text-muted-foreground">Choose</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)}>
-                  <LuMinus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="decrement" className="h-8 w-8" onClick={() => handlePickChange(pickCount - 1)} />
                 <span className="w-6 text-center text-sm font-medium">{pickCount}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handlePickChange(pickCount + 1)}>
-                  <LuPlus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="increment" className="h-8 w-8" onClick={() => handlePickChange(pickCount + 1)} />
               </div>
               <div className="flex items-center gap-1">
                 <span className="inline-block w-14 text-sm text-muted-foreground">Random</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)}>
-                  <LuMinus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="decrement" className="h-8 w-8" onClick={() => handleRandomChange(randomCount - 1)} />
                 <span className="w-6 text-center text-sm font-medium">{randomCount}</span>
-                <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)}>
-                  <LuPlus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="increment" className="h-8 w-8" onClick={() => handleRandomChange(randomCount + 1)} />
                 <button
                   className="ml-auto sm:ml-6 px-4 py-2 bg-neutral-900 text-white rounded-sm hover:bg-gray-800 disabled:opacity-50"
                   onClick={handleRoll}

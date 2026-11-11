@@ -1,24 +1,25 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
+import { formatLocalDate } from '@/utils/local-date';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { createClient } from "@/utils/supabase/client";
-import { Battle } from '@/types/campaign';
+import type { GangBattleLog } from '@/app/lib/campaigns/[id]/get-campaign-data';
+import type { BattleParticipant } from '@/types/campaign';
 import { getWinnerIds } from '@/utils/battle-winners';
 import Modal from "@/components/ui/modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { GiAncientRuins } from "react-icons/gi";
 import { HiUser } from "react-icons/hi2";
 import { IoHome } from "react-icons/io5";
-import { LuSwords } from "react-icons/lu";
-import { MdFactory, MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
+import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { GiHandcuffs } from "react-icons/gi";
+import type { CampaignRole } from "@/types/campaign";
 
 function getSubtypeRank(subtypes: string[] | null | undefined, editionSlug?: string | null) {
   const rank = getFighterSubtypeSortRank(subtypes, editionSlug);
@@ -41,6 +42,8 @@ interface Territory {
   description?: string | null;
   ruined?: boolean;
   default_gang_territory?: boolean;
+  /** Credits the territory gives; null when unset */
+  credits?: number | null;
   created_at?: string;
 }
 
@@ -51,11 +54,6 @@ interface Campaign {
   [key: string]: any;
 }
 
-interface BattleLog extends Battle {
-  campaign_id?: string;
-  campaign_name?: string;
-}
-
 // Props interface with campaigns data
 interface GangTerritoriesProps {
   gangId: string;
@@ -63,9 +61,8 @@ interface GangTerritoriesProps {
   editionSlug?: string | null;
 }
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
-const formatRoleIcon = (role: MemberRole | string | undefined) => {
+const formatRoleIcon = (role: CampaignRole | string | undefined) => {
   switch (role) {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
@@ -78,7 +75,7 @@ const formatRoleIcon = (role: MemberRole | string | undefined) => {
   }
 };
 
-const getRoleTitle = (role: MemberRole | string | undefined): string => {
+const getRoleTitle = (role: CampaignRole | string | undefined): string => {
   switch (role) {
     case 'OWNER':
       return 'Owner';
@@ -94,13 +91,11 @@ const getRoleTitle = (role: MemberRole | string | undefined): string => {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
 export default function GangTerritories({ gangId, campaigns = [], editionSlug = null }: GangTerritoriesProps) {
-  const [battleLogs, setBattleLogs] = useState<BattleLog[]>([]);
-  const [isLoadingBattles, setIsLoadingBattles] = useState(false);
-  const [selectedBattleReport, setSelectedBattleReport] = useState<BattleLog | null>(null);
+  const [selectedBattleReport, setSelectedBattleReport] = useState<GangBattleLog | null>(null);
 
   // Process and combine territories from all campaigns
   const territories = useMemo(() => {
@@ -121,195 +116,18 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
     return allTerritories;
   }, [campaigns]);
 
-  // Fetch battle logs for the gang from all campaigns
-  useEffect(() => {
-    const fetchBattleLogs = async () => {
-      if (campaigns.length === 0) {
-        setBattleLogs([]);
-        return;
-      }
+  // Played battles of this gang in all its campaigns, newest first
+  const { data: battleLogs = [], isLoading: isLoadingBattles } = useQuery({
+    queryKey: ['gang-battle-logs', gangId],
+    queryFn: async () => {
+      const response = await fetch(`/api/gangs/${gangId}/battle-logs`);
+      if (!response.ok) throw new Error('Failed to fetch battle logs');
+      return response.json() as Promise<GangBattleLog[]>;
+    },
+    // Refetch on each tab open, like before, so a battle logged on the campaign page shows straight away
+    staleTime: 0,
+  });
 
-      setIsLoadingBattles(true);
-      try {
-        const supabase = createClient();
-        const campaignIds = campaigns.map(c => c.campaign_id);
-        
-        // Fetch all battles from campaigns the gang is in
-        const { data: battles, error } = await supabase
-          .from('campaign_battles')
-          .select(`
-            id,
-            created_at,
-            updated_at,
-            scenario,
-            winner_id,
-            note,
-            participants,
-            campaign_territory_id,
-            campaign_id
-          `)
-          .in('campaign_id', campaignIds)
-          // Challenges live in this table too; only played battles are results.
-          .eq('status', 'played')
-          .order('created_at', { ascending: false })
-          .limit(100);
-
-        if (error) throw error;
-
-        // Filter battles where the gang is involved. Multi-winner battles may
-        // flag this gang via participants[*].is_winner even when the legacy
-        // winner_id points to a different (claimer) gang, so we check both
-        // sides via the helper.
-        const gangBattles = (battles || []).filter(battle => {
-          if (getWinnerIds(battle as any).includes(gangId)) return true;
-
-          if (battle.participants) {
-            try {
-              const participants = typeof battle.participants === 'string'
-                ? JSON.parse(battle.participants)
-                : battle.participants;
-
-              if (Array.isArray(participants)) {
-                return participants.some((p: any) => p.gang_id === gangId);
-              }
-            } catch (e) {
-              // Ignore parse errors
-            }
-          }
-
-          return false;
-        });
-
-        // Extract all gang IDs from participants and every flagged winner
-        // (covers both multi-winner battles and legacy winner_id-only rows).
-        const allGangIds = new Set<string>();
-        gangBattles.forEach(battle => {
-          getWinnerIds(battle as any).forEach((id) => allGangIds.add(id));
-
-          if (battle.participants) {
-            try {
-              const participants = typeof battle.participants === 'string'
-                ? JSON.parse(battle.participants)
-                : battle.participants;
-
-              if (Array.isArray(participants)) {
-                participants.forEach((p: any) => {
-                  if (p.gang_id) allGangIds.add(p.gang_id);
-                });
-              }
-            } catch (e) {
-              // Ignore parse errors
-            }
-          }
-        });
-        
-        const gangIds = Array.from(allGangIds);
-
-        let gangsData: { id: string; name: string; gang_type: string; gang_colour: string }[] = [];
-        if (gangIds.length > 0) {
-          const { data: gangs } = await supabase
-            .from('gangs')
-            .select('id, name, gang_type, gang_colour')
-            .in('id', gangIds);
-
-          gangsData = gangs || [];
-        }
-
-        const gangMap = new Map(gangsData.map(gang => [gang.id, gang]));
-        const gangColourMap = new Map(gangsData.map(gang => [gang.id, gang.gang_colour || '#000000']));
-
-        // Fetch territory names by campaign_territory_id
-        const campaignTerritoryIds = gangBattles
-          .map(b => b.campaign_territory_id)
-          .filter(Boolean);
-
-        const territoriesMap = new Map<string, string>(); // campaign_territory_id → name
-        if (campaignTerritoryIds.length > 0) {
-          const { data: territories } = await supabase
-            .from('campaign_territories')
-            .select('id, territory_name')
-            .in('id', campaignTerritoryIds);
-
-          territories?.forEach(t => territoriesMap.set(t.id, t.territory_name));
-        }
-
-        // Transform battles with additional data
-        const enrichedBattles: BattleLog[] = gangBattles.map(battle => {
-          const campaign = campaigns.find(c => c.campaign_id === battle.campaign_id);
-          
-          // Process participants to include names
-          let participantsWithNames = battle.participants;
-          if (battle.participants) {
-            try {
-              const participants = typeof battle.participants === 'string' 
-                ? JSON.parse(battle.participants) 
-                : battle.participants;
-              
-              if (Array.isArray(participants)) {
-                participantsWithNames = participants.map((p: any) => ({
-                  ...p,
-                  gang_name: p.gang_id ? (gangMap.get(p.gang_id)?.name || 'Unknown') : undefined,
-                  gang_colour: p.gang_id ? (gangColourMap.get(p.gang_id) || '#000000') : undefined
-                }));
-              }
-            } catch (e) {
-              // Keep original if parse fails
-            }
-          }
-          
-          // Derive attacker/defender from participants
-          let attackerId: string | undefined;
-          let defenderId: string | undefined;
-          if (Array.isArray(participantsWithNames)) {
-            attackerId = participantsWithNames.find((p: any) => p.role === 'attacker')?.gang_id;
-            defenderId = participantsWithNames.find((p: any) => p.role === 'defender')?.gang_id;
-          }
-
-          const winnerIds = getWinnerIds(battle as any);
-          const winnersEnriched = winnerIds.map((id) => ({
-            id,
-            name: gangMap.get(id)?.name || 'Unknown',
-            gang_colour: gangColourMap.get(id) || '#000000',
-          }));
-
-          return {
-            ...battle,
-            campaign_id: battle.campaign_id,
-            campaign_name: campaign?.campaign_name || 'Unknown Campaign',
-            territory_name: battle.campaign_territory_id ? territoriesMap.get(battle.campaign_territory_id) : undefined,
-            participants: participantsWithNames,
-            attacker: attackerId ? {
-              id: attackerId,
-              name: gangMap.get(attackerId)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(attackerId) || '#000000'
-            } : undefined,
-            defender: defenderId ? {
-              id: defenderId,
-              name: gangMap.get(defenderId)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(defenderId) || '#000000'
-            } : undefined,
-            winner: battle.winner_id ? {
-              id: battle.winner_id,
-              name: gangMap.get(battle.winner_id)?.name || 'Unknown',
-              gang_colour: gangColourMap.get(battle.winner_id) || '#000000'
-            } : undefined,
-            winners: winnersEnriched,
-          };
-        });
-
-        setBattleLogs(enrichedBattles);
-      } catch (error) {
-        console.error('Error fetching battle logs:', error);
-        setBattleLogs([]);
-      } finally {
-        setIsLoadingBattles(false);
-      }
-    };
-
-    fetchBattleLogs();
-  }, [gangId, campaigns]);
-
-  // Fetch fighter stats (OOA caused, deaths suffered) via API with TanStack Query
   // Fetch captives held by this gang
   const { data: captivesData } = useQuery({
     queryKey: ['gang-captives', gangId],
@@ -331,6 +149,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
 
   const captives = captivesData?.captives ?? [];
 
+  // Fetch fighter stats (OOA caused, deaths suffered)
   const { data: fighterStats } = useQuery({
     queryKey: ['gang-fighter-stats', gangId],
     queryFn: async () => {
@@ -433,9 +252,8 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                 {/* Territories Table */}
                 {campaign.territories && campaign.territories.length > 0 ? (
                   <div className="mt-8">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center justify-between">
+                    <h3 className="text-xl md:text-2xl font-bold mb-4 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <MdFactory className="h-5 w-5" />
                         Territories
                       </div>
                       {campaign.territories.length > 0 && (
@@ -449,11 +267,12 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                       <thead>
                         <tr className="bg-muted border-b">
                           <th className="px-2 py-2 font-medium text-center w-11 min-w-[2.75rem]">Ref.</th>
-                          <th className="px-4 py-2 font-medium text-left">Territory</th>
-                          <th className="px-4 py-2 font-medium text-left">
+                          <th className="w-1/3 px-4 py-2 font-medium text-left">Territory</th>
+                          <th className="w-1/4 px-4 py-2 font-medium text-left">
                             <span className="hidden sm:inline">Description</span>
                             <span className="sm:hidden">Desc.</span>
                           </th>
+                          <th className="px-4 py-2 font-medium text-right">Credits</th>
                           <th className="px-4 py-2 font-medium text-right">Status</th>
                         </tr>
                       </thead>
@@ -480,6 +299,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                                   </span>
                                 )}
                               </td>
+                              <td className="px-4 py-2 text-right">{territory.credits ?? ''}</td>
                               <td className="px-4 py-2 text-right">
                                 <div className="flex items-center justify-end gap-2">
                                   {territory.ruined && (
@@ -537,9 +357,8 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
         
         return (
           <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4 flex items-center justify-between flex-wrap">
+            <h3 className="text-xl md:text-2xl font-bold mb-4 flex items-center justify-between flex-wrap">
               <div className="flex items-center gap-2">
-                <LuSwords className="h-5 w-5" />
                 Battle Logs
               </div>
               {totalBattles > 0 && (
@@ -604,77 +423,11 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
                       result = 'Defeat';
                     }
 
-                    // Get all participating gangs with roles - mirror campaign-battle-logs-list logic:
-                    // When participants array exists with gang data, use ONLY participants for roles.
-                    // Only fall back to attacker/defender when participants don't provide the data.
-                    type GangWithRole = { id: string; name: string; gang_colour: string; role?: 'attacker' | 'defender' };
-                    let participatingGangs: GangWithRole[] = [];
-
-                    let participants: any[] = [];
-                    if (battle.participants) {
-                      try {
-                        participants = typeof battle.participants === 'string'
-                          ? JSON.parse(battle.participants)
-                          : Array.isArray(battle.participants) ? battle.participants : [];
-                      } catch (e) {
-                        participants = [];
-                      }
-                    }
-
-                    const hasParticipantGangs = participants.some((p: any) => p && p.gang_id);
-
-                    if (hasParticipantGangs) {
-                      // Use participants as source of truth - role only from participant.role
-                      participatingGangs = participants
-                        .filter((p: any) => p.gang_id)
-                        .map((p: any) => ({
-                          id: p.gang_id,
-                          name: p.gang_name || 'Unknown',
-                          gang_colour: p.gang_colour || '#000000',
-                          role: p.role === 'attacker' || p.role === 'defender' ? p.role : undefined
-                        }));
-                      // Deduplicate by gang_id, keeping first occurrence
-                      const seen = new Set<string>();
-                      participatingGangs = participatingGangs.filter(g => {
-                        if (seen.has(g.id)) return false;
-                        seen.add(g.id);
-                        return true;
-                      });
-                      // Fill in names/colours from attacker/defender when participant lacks them
-                      if (battle.attacker?.id && battle.attacker?.name) {
-                        const g = participatingGangs.find(x => x.id === battle.attacker!.id);
-                        if (g && g.name === 'Unknown') g.name = battle.attacker.name;
-                        if (g && !g.gang_colour) g.gang_colour = battle.attacker.gang_colour || '#000000';
-                      }
-                      if (battle.defender?.id && battle.defender?.name) {
-                        const g = participatingGangs.find(x => x.id === battle.defender!.id);
-                        if (g && g.name === 'Unknown') g.name = battle.defender.name;
-                        if (g && !g.gang_colour) g.gang_colour = battle.defender.gang_colour || '#000000';
-                      }
-                    } else {
-                      // Fallback: no participants with gang data - use attacker/defender structure
-                      if (battle.attacker && battle.attacker.id) {
-                        participatingGangs.push({
-                          id: battle.attacker.id,
-                          name: battle.attacker.name,
-                          gang_colour: battle.attacker.gang_colour || '#000000',
-                          role: 'attacker'
-                        });
-                      }
-                      if (battle.defender && battle.defender.id) {
-                        participatingGangs.push({
-                          id: battle.defender.id,
-                          name: battle.defender.name,
-                          gang_colour: battle.defender.gang_colour || '#000000',
-                          role: 'defender'
-                        });
-                      }
-                    }
-
-                    // Filter out the user's own gang and sort: attacker first, then defender
-                    const roleOrder = (r: 'attacker' | 'defender' | undefined) => r === 'attacker' ? 0 : r === 'defender' ? 1 : 99;
-                    const opponentGangs = participatingGangs
-                      .filter(gang => gang.id !== gangId)
+                    // Opponents, each gang once: attacker first, then defender, then by name
+                    const roleOrder = (r: BattleParticipant['role']) => r === 'attacker' ? 0 : r === 'defender' ? 1 : 99;
+                    const opponentGangs = battle.participants
+                      .filter((p, index, all) => p.gang_id && p.gang_id !== gangId && all.findIndex((q) => q.gang_id === p.gang_id) === index)
+                      .map((p) => ({ id: p.gang_id, name: p.gang_name, gang_colour: p.gang_colour, role: p.role }))
                       .sort((a, b) => {
                         const roleA = roleOrder(a.role);
                         const roleB = roleOrder(b.role);
@@ -753,8 +506,7 @@ export default function GangTerritories({ gangId, campaigns = [], editionSlug = 
       {/* Captured Fighters */}
       {campaigns.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <GiHandcuffs className="h-5 w-5 text-red-500" />
+          <h3 className="text-xl md:text-2xl font-bold mb-4">
             Captured Fighters
           </h3>
           {captives.length === 0 ? (

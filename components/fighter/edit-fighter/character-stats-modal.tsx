@@ -4,10 +4,8 @@ import {
   hasSaveCharacteristic,
   initiativeAndMentalCharacteristicSuffix,
 } from '@/types/edition';
-import { Button } from "@/components/ui/button";
+import { CounterButton } from "@/components/ui/counter";
 import Modal from "@/components/ui/modal";
-import { LuPlus } from "react-icons/lu";
-import { LuMinus } from "react-icons/lu";
 
 type StatKey = "M" | "WS" | "BS" | "S" | "T" | "W" | "I" | "A" | "Sv" | "Ld" | "Cl" | "Wil" | "Int";
 
@@ -212,14 +210,7 @@ export function CharacterStatsModal({
                 <span className="text-xs text-muted-foreground">{stat.name}</span>
               </div>
               <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10 rounded-md"
-                  onClick={() => handleDecrease(stat.key)}
-                >
-                  <LuMinus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="decrement" onClick={() => handleDecrease(stat.key)} />
                 <div className="flex flex-col items-center">
                   {/* Display TOTAL value as the large, primary value */}
                   <span className="text-sm md:text-xl font-bold">
@@ -230,14 +221,7 @@ export function CharacterStatsModal({
                     Base: {getBaseDisplay(stat.key)}
                   </span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10 rounded-md"
-                  onClick={() => handleIncrease(stat.key)}
-                >
-                  <LuPlus className="h-4 w-4" />
-                </Button>
+                <CounterButton direction="increment" onClick={() => handleIncrease(stat.key)} />
               </div>
             </div>
           );

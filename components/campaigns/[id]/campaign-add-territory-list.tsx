@@ -153,8 +153,8 @@ export default function TerritoryList({
       return false;
     })
     .sort((a, b) => {
-      const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
-      const typeB = campaignTypes.find(ct => ct.id === b.campaign_type_id)?.campaign_type_name.toLowerCase() || '';
+      const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name?.toLowerCase() || '';
+      const typeB = campaignTypes.find(ct => ct.id === b.campaign_type_id)?.campaign_type_name?.toLowerCase() || '';
 
       const rankA = campaignRank[typeA] ?? Infinity;
       const rankB = campaignRank[typeB] ?? Infinity;
@@ -194,12 +194,12 @@ export default function TerritoryList({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {[...campaignTypes]
               .filter(type =>
-                type.campaign_type_name.toLowerCase() !== 'custom' &&
+                type.campaign_type_name?.toLowerCase() !== 'custom' &&
                 sameEditionForDisplay(type.edition_slug, editionSlug)
               )
               .sort((a, b) => {
-                const rankA = campaignRank[a.campaign_type_name.toLowerCase()] ?? Infinity;
-                const rankB = campaignRank[b.campaign_type_name.toLowerCase()] ?? Infinity;
+                const rankA = campaignRank[(a.campaign_type_name ?? '').toLowerCase()] ?? Infinity;
+                const rankB = campaignRank[(b.campaign_type_name ?? '').toLowerCase()] ?? Infinity;
                 return rankA - rankB;
               })
               .map((type) => (

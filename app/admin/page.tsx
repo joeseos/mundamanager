@@ -1,6 +1,6 @@
 'use client';
 
-import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse } from "react-icons/lu";
+import { LuUsers, LuSword, LuCar, LuBookOpen, LuBookOpenText, LuScrollText, LuBookUser, LuHeartCrack, LuSearch, LuBell, LuHandshake, LuHouse, LuShieldCheck } from "react-icons/lu";
 import { LuChartColumn } from "react-icons/lu";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { TbCards } from "react-icons/tb";
@@ -25,6 +25,7 @@ import { AdminCampaignManagementModal } from "@/components/admin/admin-campaign-
 import { AdminSupportToolsModal } from "@/components/admin/admin-support-tools";
 import { AdminNotificationsModal } from "@/components/admin/admin-notifications-modal";
 import { AdminUserGuidesModal } from "@/components/admin/admin-user-guides-modal";
+import { AdminUserRolesModal } from "@/components/admin/admin-user-roles-modal";
 
 export default function AdminPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,6 +47,7 @@ export default function AdminPage() {
   const [showSupportTools, setShowSupportTools] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserGuides, setShowUserGuides] = useState(false);
+  const [showUserRoles, setShowUserRoles] = useState(false);
 
   const coreSections = [
     {
@@ -154,6 +156,13 @@ export default function AdminPage() {
     icon: LuSearch
   };
 
+  const userRolesSection = {
+    title: "User Roles",
+    description: "Manage admin and moderator roles",
+    action: () => setShowUserRoles(true),
+    icon: LuShieldCheck
+  };
+
   const notificationsSection = {
     title: "Notifications",
     description: "Send a message to one or more users",
@@ -171,7 +180,7 @@ export default function AdminPage() {
   return (
     <>      
       <main className="flex min-h-screen flex-col items-center">
-        <div className="container mx-auto max-w-4xl w-full space-y-4">
+        <div className="w-full space-y-4">
           <div className="bg-card shadow-md rounded-lg p-4">
             <h1 className="text-xl md:text-2xl font-bold mb-4">Admin Dashboard</h1>
             
@@ -198,7 +207,7 @@ export default function AdminPage() {
             <hr className="my-6 border-t border-border" />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[supportToolsSection, notificationsSection, userGuidesSection, statsSection].map((section) => (
+              {[supportToolsSection, userRolesSection, notificationsSection, userGuidesSection, statsSection].map((section) => (
                 <button
                   key={section.title}
                   onClick={section.action}
@@ -236,27 +245,18 @@ export default function AdminPage() {
         {showEditSkill && (
           <AdminEditSkillModal
             onClose={() => setShowEditSkill(false)}
-            onSubmit={() => setShowEditSkill(false)}
           />
         )}
 
         {showGangLineages && (
           <AdminGangLineageModal
             onClose={() => setShowGangLineages(false)}
-            onSubmit={() => setShowGangLineages(false)}
           />
         )}
 
         {showEditFighterType && (
           <AdminEditFighterTypeModal
-            onClose={() => {
-              setShowEditFighterType(false);
-              console.log('Closing edit fighter type modal');
-            }}
-            onSubmit={() => {
-              setShowEditFighterType(false);
-              console.log('Submitting edit fighter type modal');
-            }}
+            onClose={() => setShowEditFighterType(false)}
           />
         )}
 
@@ -270,7 +270,6 @@ export default function AdminPage() {
         {showEditEquipment && (
           <AdminEditEquipmentModal
             onClose={() => setShowEditEquipment(false)}
-            onSubmit={() => setShowEditEquipment(false)}
           />
         )}
 
@@ -284,7 +283,6 @@ export default function AdminPage() {
         {showEditVehicle && (
           <AdminEditVehicleTypeModal
             onClose={() => setShowEditVehicle(false)}
-            onSubmit={() => setShowEditVehicle(false)}
           />
         )}
 
@@ -298,14 +296,12 @@ export default function AdminPage() {
         {showScenarios && (
           <AdminScenariosModal
             onClose={() => setShowScenarios(false)}
-            onSubmit={() => setShowScenarios(false)}
           />
         )}
 
         {showInjuriesGlitches && (
           <AdminInjuriesGlitchesModal
             onClose={() => setShowInjuriesGlitches(false)}
-            onSubmit={() => setShowInjuriesGlitches(false)}
           />
         )}
 
@@ -330,7 +326,6 @@ export default function AdminPage() {
         {showCampaignManagement && (
           <AdminCampaignManagementModal
             onClose={() => setShowCampaignManagement(false)}
-            onSubmit={() => setShowCampaignManagement(false)}
           />
         )}
 
@@ -350,6 +345,12 @@ export default function AdminPage() {
         {showUserGuides && (
           <AdminUserGuidesModal
             onClose={() => setShowUserGuides(false)}
+          />
+        )}
+
+        {showUserRoles && (
+          <AdminUserRolesModal
+            onClose={() => setShowUserRoles(false)}
           />
         )}
       </main>

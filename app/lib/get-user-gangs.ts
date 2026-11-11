@@ -1,29 +1,35 @@
 import { TAGS } from '@/utils/cache-tags';
 import { unstable_cache } from 'next/cache';
+import { eq, inArray } from 'drizzle-orm';
 
-import { DefaultImageEntry, normaliseDefaultImageUrls } from '@/types/gang';
+import { getAppDb } from '@/utils/db/client';
+import { gangs, gangSubtypeTypes } from '@/utils/db/schema';
+import { gangPortraitPublicUrl } from '@/types/gang';
 import { gangEditionSlug } from '@/types/edition';
+import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 
 export type Gang = {
   id: string;
-  name: string;
-  gang_type: string;
-  gang_type_id: string;
+  name: string | null;
+  gang_type: string | null;
+  gang_type_id: string | null;
+  gang_colour: string | null;
   image_url: string;
-  gang_type_image_url: string;
-  default_gang_image?: number | null;
-  gang_type_default_image_urls?: DefaultImageEntry[];
-  credits: number;
-  reputation: number;
+  gang_portrait_url?: string | null;
+  credits: number | null;
+  reputation: number | null;
   rating: number;
+  wealth: number | null;
   created_at: string;
-  last_updated: string;
-  gang_subtypes: Array<{id: string, subtype: string}>;
-  campaigns: Array<{campaign_id: string, campaign_name: string}>;
+  last_updated: string | null;
+  gang_subtypes: Array<{id: string, subtype: string | null}>;
+  campaigns: Array<{campaign_id: string | null, campaign_name: string}>;
   is_favourite: boolean;
   favourite_order: number | null;
   /** Derived from official or custom gang type; null treated as n23 by home filters. */
   edition_slug: string | null;
+  /** House of an alternate gang list. Null for root and custom gangs. */
+  parent_gang_type_name?: string | null;
 };
 
 /**
@@ -31,14 +37,14 @@ export type Gang = {
  * per-gang tags (dynamic tags must be known before the cached call).
  * Busted via user-{id} whenever the list shape changes (create/delete/copy).
  */
-const getUserGangIdsCached = async (userId: string, supabase: any): Promise<string[]> => {
+const getUserGangIdsCached = async (userId: string): Promise<string[]> => {
   return unstable_cache(
     async () => {
-      const { data } = await supabase
-        .from('gangs')
-        .select('id')
-        .eq('user_id', userId);
-      return (data || []).map((g: { id: string }) => g.id);
+      const rows = await getAppDb()
+        .select({ id: gangs.id })
+        .from(gangs)
+        .where(eq(gangs.user_id, userId));
+      return rows.map((gang) => gang.id);
     },
     [`user-gang-ids-v4-${userId}`],
     {
@@ -48,131 +54,92 @@ const getUserGangIdsCached = async (userId: string, supabase: any): Promise<stri
   )();
 };
 
-export const getUserGangs = async (userId: string, supabase: any): Promise<Gang[]> => {
-  const gangIdsForTags = await getUserGangIdsCached(userId, supabase);
+export const getUserGangs = async (userId: string): Promise<Gang[]> => {
+  const gangIdsForTags = await getUserGangIdsCached(userId);
 
   return unstable_cache(
     async () => {
-      try {
-        const { data, error: gangsError } = await supabase
-          .from('gangs')
-          .select(`
-            id,
-            name,
-            gang_type,
-            gang_type_id,
-            custom_gang_type_id,
-            image_url,
-            default_gang_image,
-            credits,
-            reputation,
-            rating,
-            created_at,
-            last_updated,
-            gang_subtypes,
-            is_favourite,
-            favourite_order,
-            gang_types!gang_type_id(
-              image_url,
-              default_image_urls,
-              editions:edition_id (slug)
-            ),
-            custom_gang_types!custom_gang_type_id(
-              default_image_urls,
-              editions:edition_id (slug)
-            )
-          `)
-          .eq('user_id', userId)
-          .order('created_at', { ascending: false });
+      const db = getAppDb();
+      const rows = await db.query.gangs.findMany({
+        columns: {
+          id: true,
+          name: true,
+          gang_type: true,
+          gang_type_id: true,
+          gang_colour: true,
+          image_url: true,
+          credits: true,
+          reputation: true,
+          rating: true,
+          wealth: true,
+          gang_subtypes: true,
+          is_favourite: true,
+          favourite_order: true,
+        },
+        extras: (gang, { sql }) => ({
+          created_at: sql<string>`to_json(${gang.created_at})`.as('created_at'),
+          last_updated: sql<string | null>`to_json(${gang.last_updated})`.as('last_updated'),
+        }),
+        where: (gang, { eq }) => eq(gang.user_id, userId),
+        orderBy: (gang, { desc }) => desc(gang.created_at),
+        with: {
+          gang_portrait: { columns: { storage_path: true } },
+          gang_types: {
+            columns: { parent_gang_type_name: true },
+            with: { editions: { columns: { slug: true } } },
+          },
+          custom_gang_type: { columns: {}, with: { editions: { columns: { slug: true } } } },
+          campaign_gangs: {
+            columns: { campaign_id: true },
+            with: { campaign: { columns: { campaign_name: true } } },
+          },
+        },
+      });
 
-        if (gangsError) {
-          console.error('Error fetching gangs:', gangsError);
-          throw gangsError;
-        }
+      const subtypeIds = [...new Set(rows.flatMap((gang) => gang.gang_subtypes ?? []))];
+      const subtypes = subtypeIds.length > 0
+        ? await db
+            .select({ id: gangSubtypeTypes.id, subtype: gangSubtypeTypes.subtype })
+            .from(gangSubtypeTypes)
+            .where(inArray(gangSubtypeTypes.id, subtypeIds))
+        : [];
+      const subtypeById = new Map(subtypes.map((subtype) => [subtype.id, subtype]));
 
-        if (!data || data.length === 0) {
-          return [];
-        }
-
-        // Batch the per-gang lookups (previously one subtypes query and one
-        // campaigns query PER GANG) into two .in() queries.
-        const gangIds = data.map((g: any) => g.id);
-        const allSubtypeIds = Array.from(new Set(
-          data.flatMap((g: any) => (Array.isArray(g.gang_subtypes) ? g.gang_subtypes : []))
-        ));
-
-        const [subtypesRes, campaignGangsRes] = await Promise.all([
-          allSubtypeIds.length > 0
-            ? supabase
-                .from('gang_subtype_types')
-                .select('id, subtype')
-                .in('id', allSubtypeIds)
-            : Promise.resolve({ data: [] }),
-          supabase
-            .from('campaign_gangs')
-            .select(`
-              gang_id,
-              campaign_id,
-              campaigns!campaign_id(campaign_name)
-            `)
-            .in('gang_id', gangIds)
-        ]);
-
-        const subtypeById = new Map<string, { id: string; subtype: string }>();
-        (subtypesRes.data || []).forEach((row: { id: string; subtype: string }) => {
-          subtypeById.set(row.id, { id: row.id, subtype: row.subtype });
-        });
-
-        const campaignsByGang = new Map<string, Array<{ campaign_id: string; campaign_name: string }>>();
-        (campaignGangsRes.data || []).forEach((cg: any) => {
-          if (!campaignsByGang.has(cg.gang_id)) campaignsByGang.set(cg.gang_id, []);
-          campaignsByGang.get(cg.gang_id)!.push({
-            campaign_id: cg.campaign_id,
-            campaign_name: cg.campaigns?.campaign_name || 'Unknown Campaign'
-          });
-        });
-
-        return data.map((gang: any) => ({
-          id: gang.id,
-          name: gang.name,
-          gang_type: gang.gang_type,
-          gang_type_id: gang.gang_type_id,
-          image_url: gang.image_url || '',
-          gang_type_image_url: gang.gang_types?.image_url || '',
-          default_gang_image: gang.default_gang_image ?? null,
-          gang_type_default_image_urls: normaliseDefaultImageUrls(gang.gang_types?.default_image_urls ?? gang.custom_gang_types?.default_image_urls),
-          credits: gang.credits,
-          reputation: gang.reputation,
-          rating: gang.rating || 0,
-          created_at: gang.created_at,
-          last_updated: gang.last_updated,
-          gang_subtypes: (Array.isArray(gang.gang_subtypes) ? gang.gang_subtypes : [])
-            .map((id: string) => subtypeById.get(id))
-            .filter(Boolean) as Array<{ id: string; subtype: string }>,
-          campaigns: campaignsByGang.get(gang.id) || [],
-          is_favourite: gang.is_favourite ?? false,
-          favourite_order: gang.favourite_order ?? null,
-          edition_slug: gangEditionSlug(gang),
-        }));
-      } catch (error) {
-        console.error('Unexpected error in getUserGangs:', error);
-
-        if (process.env.NODE_ENV === 'production') {
-          // captureException(error)
-        }
-
-        // Rethrow: unstable_cache would persist a returned [] with no TTL.
-        throw error;
-      }
+      return rows.map((gang) => ({
+        id: gang.id,
+        name: gang.name,
+        gang_type: gang.gang_type,
+        gang_type_id: gang.gang_type_id,
+        gang_colour: gang.gang_colour,
+        image_url: gang.image_url || '',
+        gang_portrait_url: gangPortraitPublicUrl(gang.gang_portrait?.storage_path) ?? null,
+        credits: gang.credits,
+        reputation: gang.reputation,
+        rating: gang.rating || 0,
+        wealth: gang.wealth,
+        created_at: gang.created_at,
+        last_updated: gang.last_updated,
+        gang_subtypes: (gang.gang_subtypes ?? []).flatMap((id) => subtypeById.get(id) ?? []),
+        campaigns: gang.campaign_gangs.map(({ campaign_id, campaign }) => ({
+          campaign_id,
+          campaign_name: campaign?.campaign_name || 'Unknown Campaign'
+        })),
+        is_favourite: gang.is_favourite,
+        favourite_order: gang.favourite_order,
+        edition_slug: gangEditionSlug(gang),
+        parent_gang_type_name: joinedParentGangTypeName(gang.gang_types),
+      }));
     },
-    [`user-gangs-v5-${userId}`],
+    [`user-gangs-v10-${userId}`],
     {
       tags: [
         // List shape (create/delete/copy gang, favourites)
         TAGS.user(userId),
         // Catalog portraits/names joined from gang_types (admin gang-type writes)
         TAGS.globalGangTypes(),
-        // Card fields: rating/credits/name via the financials choke point
+        // Catalogue file paths joined from gang_portraits
+        TAGS.globalGangPortraits(),
+        // Card fields: rating/credits/wealth/name via the financials choke point, colour via gang settings
         ...gangIdsForTags.map(id => TAGS.gangOverview(id)),
         // Campaign names on cards: join/leave (previously never invalidated)
         ...gangIdsForTags.map(id => TAGS.gangCampaigns(id))

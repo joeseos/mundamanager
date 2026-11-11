@@ -8,9 +8,18 @@ import { useCoarsePointer } from '@/hooks/use-coarse-pointer';
 interface InfoTooltipProps {
   children: ReactNode;
   ariaLabel?: string;
+  icon?: ReactNode;
+  place?: 'top' | 'right' | 'bottom' | 'left';
+  wide?: boolean;
 }
 
-export function InfoTooltip({ children, ariaLabel = 'More information' }: InfoTooltipProps) {
+export function InfoTooltip({
+  children,
+  ariaLabel = 'More information',
+  icon = <ImInfo />,
+  place = 'top',
+  wide = false,
+}: InfoTooltipProps) {
   const tooltipId = useId();
   const isCoarsePointer = useCoarsePointer();
 
@@ -22,11 +31,11 @@ export function InfoTooltip({ children, ariaLabel = 'More information' }: InfoTo
         aria-label={ariaLabel}
         data-tooltip-id={tooltipId}
       >
-        <ImInfo />
+        {icon}
       </button>
       <Tooltip
         id={tooltipId}
-        place="top"
+        place={place}
         className="bg-neutral-900! text-white! text-xs! z-[2000]!"
         delayHide={isCoarsePointer ? 100 : undefined}
         clickable={isCoarsePointer}
@@ -34,7 +43,7 @@ export function InfoTooltip({ children, ariaLabel = 'More information' }: InfoTo
         positionStrategy={isCoarsePointer ? 'fixed' : 'absolute'}
         style={{
           padding: '8px',
-          maxWidth: 'min(18rem, 90vw)',
+          maxWidth: wide ? 'min(28rem, 90vw)' : 'min(18rem, 90vw)',
         }}
       >
         {children}

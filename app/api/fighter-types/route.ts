@@ -3,13 +3,14 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
 import { getUserIdFromClaims } from "@/utils/auth";
 import { withEditionSlug } from '@/types/edition';
+import { withVariantGroups } from '@/utils/variantFamily';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
 // Fetch the user's own custom fighters plus any shared with them through campaigns,
 // de-duplicated by id.
 async function getCombinedCustomFighters(supabase: SupabaseServerClient, userId: string) {
-  const customFighters = await getUserCustomFighterTypes(userId, supabase);
+  const customFighters = await getUserCustomFighterTypes(userId);
 
   // Fetch shared custom fighters from campaigns the user is a member of
   const { data: campaignMembers } = await supabase
@@ -99,70 +100,6 @@ function transformCustomFighter(cf: any) {
   };
 }
 
-const subtypeKey = (row: any) =>
-  ((row.fighter_subtypes ?? []) as string[]).map(s => s.toLowerCase().trim()).sort().join(',');
-
-const containsAllSubtypes = (subtypes: string[], base: string[]) => {
-  const have = new Set(subtypes.map(s => s.toLowerCase().trim()));
-  return base.every(name => have.has(name.toLowerCase().trim()));
-};
-
-// include_all_types returns every edition at once and is only narrowed to the gang's own
-// edition on the client, so the edition is part of the bucket: a family never spans two.
-const familyBucket = (row: any) => `${row.edition_slug ?? ''}::${row.fighter_type}`;
-
-/**
- * Tags each row with its variant family — same fighter_type, and one row's subtype set
- * containing the other's — named after the family's smallest (base) set. N26 variants can
- * add a subtype, "Master of Shadow (Leader)" next to "(Leader, Wyrd)", which an exact
- * subtype match lists as unrelated fighters. Disjoint sets stay apart, so N23's
- * "Gunner (Ganger)" and "Gunner (Specialist)" keep their own entries.
- */
-function withVariantGroups(rows: any[]) {
-  const byBucket = new Map<string, any[]>();
-  for (const row of rows) {
-    const group = byBucket.get(familyBucket(row));
-    if (group) group.push(row);
-    else byBucket.set(familyBucket(row), [row]);
-  }
-
-  const baseOfSet = new Map<string, { key: string; names: string[] }>();
-
-  for (const [bucket, group] of byBucket) {
-    const sets = new Map<string, string[]>();
-    for (const row of group) {
-      if (!sets.has(subtypeKey(row))) sets.set(subtypeKey(row), row.fighter_subtypes ?? []);
-    }
-
-    const bases: Array<{ key: string; names: string[] }> = [];
-    const smallestFirst = [...sets].sort(([keyA, a], [keyB, b]) =>
-      a.length - b.length || keyA.localeCompare(keyB)
-    );
-
-    for (const [key, names] of smallestFirst) {
-      const base = bases
-        .filter(candidate => containsAllSubtypes(names, candidate.names))
-        .sort((a, b) => b.names.length - a.names.length)[0];
-      if (!base) bases.push({ key, names });
-      baseOfSet.set(`${bucket}::${key}`, base ?? { key, names });
-    }
-  }
-
-  return rows.map(row => {
-    const base = baseOfSet.get(`${familyBucket(row)}::${subtypeKey(row)}`)!;
-    const inBase = new Set(base.names.map(name => name.toLowerCase().trim()));
-    const added = ((row.fighter_subtypes ?? []) as string[]).filter(
-      name => !inBase.has(name.toLowerCase().trim())
-    );
-    return {
-      ...row,
-      typeSubtypeKey: `${familyBucket(row)}::${base.key}`,
-      variantLabel:
-        row.fighter_variant || row.specialisation?.specialisation_name || added.join(', ') || 'Default',
-    };
-  });
-}
-
 // null means "no filter", which is what callers outside the gang add-modals want.
 function filterByIsVehicle(rows: any[], isVehicleParam: string | null) {
   if (isVehicleParam === null) return rows;
@@ -187,7 +124,7 @@ async function getGangEditionId(
     const { data } = await supabase
       .from('gang_types')
       .select('edition_id')
-      .eq('gang_type_id', gangTypeId)
+      .eq('id', gangTypeId)
       .maybeSingle();
     return data?.edition_id ?? null;
   }
@@ -215,15 +152,15 @@ async function getAvailableToAllFighterTypes(
 
   const { data: sharedGangType } = await supabase
     .from('gang_types')
-    .select('gang_type_id')
+    .select('id')
     .eq('gang_type', 'Available to All')
     .eq('edition_id', editionId)
     .maybeSingle();
 
-  if (!sharedGangType?.gang_type_id) return [];
+  if (!sharedGangType?.id) return [];
 
   const { data, error } = await supabase.rpc('get_fighter_types_with_cost', {
-    p_gang_type_id: sharedGangType.gang_type_id,
+    p_gang_type_id: sharedGangType.id,
     p_gang_affiliation_id: null,
     p_is_gang_addition: false
   });
@@ -311,7 +248,7 @@ export async function GET(request: Request) {
       // Filter out fighter types from hidden gang types
       const { data: hiddenGangTypes, error: hiddenError } = await supabase
         .from('gang_types')
-        .select('gang_type_id')
+        .select('id')
         .eq('is_hidden', true);
 
       if (hiddenError) {
@@ -320,7 +257,7 @@ export async function GET(request: Request) {
       }
 
       if (hiddenGangTypes && hiddenGangTypes.length > 0) {
-        const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.gang_type_id));
+        const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.id));
         // The 'Subtype: <name>' pools are themselves hidden gang types, so a granted fighter has
         // to survive this filter — a rule put it in the list, not the catalogue.
         // Only subtype-scoped grants set is_gang_subtype, so an origin- or gang-type-scoped grant
@@ -413,8 +350,9 @@ export async function GET(request: Request) {
       }
     }
 
-    // include_all_types already returns every gang type's fighters, shared ones included.
-    if (isVehicleParam === 'true' && !includeAllTypes) {
+    // Also needed for include_all_types: "Available to All" is a hidden gang type, so the
+    // hidden-gang-type filter above drops its vehicles.
+    if (isVehicleParam === 'true') {
       data = mergeById(data, await getAvailableToAllFighterTypes(supabase, gangTypeId, customGangTypeId));
     }
 

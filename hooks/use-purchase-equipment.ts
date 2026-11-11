@@ -8,7 +8,6 @@ import type { EquipmentTab } from '@/utils/equipment/resolve';
 
 // This is for the wrapper function to inject dependencies from the parent component.
 export interface PurchaseEquipmentContext {
-  session: { access_token: string } | null;
   gangId: string;
   fighterId?: string;
   vehicleId?: string;
@@ -83,7 +82,6 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
     tradePoints,
   }: PurchaseEquipmentInput) => {
     const {
-      session,
       gangId,
       fighterId,
       vehicleId,
@@ -97,8 +95,6 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
       equipmentListType,
       includeLegacy,
     } = deps;
-
-    if (!session) return;
 
     // Determine if this is a gang stash purchase
     const isGangStashPurchase = Boolean(isStashMode || (!fighterId && !vehicleId));

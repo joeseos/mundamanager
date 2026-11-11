@@ -17,7 +17,7 @@ import type { CustomSharedItemType } from '@/types/custom-shared';
 
 interface ShareToCampaignsModalProps {
   itemId: string;
-  itemName: string;
+  itemName: string | null;
   itemType: CustomSharedItemType;
   noun: string;               // e.g. "Custom fighter", "Collection" — used in toasts
   title: string;

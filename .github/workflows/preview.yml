@@ -41,6 +41,9 @@ jobs:
         run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build
         run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        # vercel pull leaves sensitive values out, and the forum pages read the database at build
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Deploy prebuilt to preview
         id: deploy
         env:

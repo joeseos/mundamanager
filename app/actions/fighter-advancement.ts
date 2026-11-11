@@ -7,17 +7,22 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
+  gangEditionSlug,
   hasChampionLeaderTypePromotion,
   hasCumulativeXp,
   hasGangerChampionKeepTypePromotion,
   hasProspectSpecialisationPromotion,
+  hasSharedAdvancementTable,
 } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_ID,
   N26_CHAMPION_PROMOTION_SKILL_NAME,
+  N26_OUTCAST_LEADER_PET_STARTING_XP,
+  N26_OUTCAST_LEADER_STARTING_XP,
   N26_PROSPECT_PROMOTION_CREDITS,
   buildN26ChampionLeaderDemotionSubtypes,
   buildN26ChampionLeaderPromotionSubtypes,
+  canPromoteToN26OutcastLeader,
   buildN26GangerChampionDemotionSubtypes,
   buildN26GangerChampionPromotionSubtypes,
   buildN26ProspectDemotionSubtypes,
@@ -37,14 +42,17 @@ import {
   logRolledSkillAdvancement
 } from './logs/gang-fighter-logs';
 import { logEquipmentAction } from './logs/equipment-logs';
+import { logFighterAction } from './logs/fighter-logs';
 import type { GangLogActionResult } from './logs/gang-logs';
 import { updateFighterDetails } from './edit-fighter';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import type { EquipmentGrants } from '@/types/equipment';
+import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
-// A fighter's edition comes from its gang's (custom) gang type.
+// A fighter's gang type, and its edition via the gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
   gangs!gang_id (
+    gang_type_id,
     gang_types!gang_type_id ( editions:edition_id ( slug ) ),
     custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
   )
@@ -62,15 +70,6 @@ const ROLL_LOGGER_FIGHTER_SELECT = `
   id, gang_id, fighter_name, fighter_subtypes,
   ${GANG_EDITION_EMBED}
 `;
-
-// Embeds come back as objects for these many-to-one FKs; the untyped client
-// infers arrays, hence the casts (same pattern as equipment.ts).
-function editionSlugOf(fighter: any): string | null {
-  const gang = fighter.gangs as any;
-  return gang?.gang_types?.editions?.slug
-    ?? gang?.custom_gang_types?.editions?.slug
-    ?? null;
-}
 
 /**
  * Whether the fighter may take another Advancement right now.
@@ -126,7 +125,9 @@ type AddSkillAdvancementInternalOptions = {
 
 export interface PromotionWithSkillAdvancementParams {
   fighter_id: string;
-  skill_id: string;
+  /** Omit both for a promotion without a skill Advancement (the Promote modal). */
+  skill_id?: string;
+  custom_skill_id?: string;
   xp_cost: number;
   credits_increase: number;
   promotion: {
@@ -156,6 +157,11 @@ export interface N26ChampionLeaderPromotionParams {
   special_rules?: string[];
 }
 
+export interface N26OutcastLeaderPromotionParams {
+  fighter_id: string;
+  special_rules?: string[];
+}
+
 export interface DeleteAdvancementParams {
   fighter_id: string;
   advancement_id: string;
@@ -165,9 +171,12 @@ export interface DeleteAdvancementParams {
 export interface AdvancementResult {
   success: boolean;
   error?: string;
+  /** Partial-success note (e.g. promoted, but a pet's Starting XP was not set) */
+  warning?: string;
   fighter?: {
     id: string;
     xp: number;
+    starting_xp?: number | null;
   };
   advancement?: {
     credits_increase: number;
@@ -226,7 +235,7 @@ export async function addCharacteristicAdvancement(
 
     // N26 earns Advancements by reaching a rank rather than buying them, so its
     // XP total only ever grows and there is nothing to afford.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
@@ -427,7 +436,7 @@ async function addSkillAdvancementInternal(
 
     // N26 earns Advancements by reaching a rank rather than buying them, so its
     // XP total only ever grows and there is nothing to afford.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     const blockedReason = advancementBlockedReason(fighter, spendsXp, params.xp_cost);
     if (blockedReason) {
@@ -707,9 +716,58 @@ async function addSkillAdvancementInternal(
   }
 }
 
+type KeepTypePromotionFighterSnapshot = {
+  id: string;
+  gang_id: string;
+  fighter_name: string;
+  gangs: unknown;
+  fighter_subtypes: string[] | null;
+  fighter_type: string | null;
+  fighter_type_id: string | null;
+  fighter_specialisation: string | null;
+  fighter_specialisation_id: string | null;
+  special_rules: string[] | null;
+};
+
+const KEEP_TYPE_PROMOTION_FIGHTER_SELECT = `
+  id, user_id, gang_id, fighter_name,
+  fighter_subtypes, fighter_type, fighter_type_id,
+  fighter_specialisation, fighter_specialisation_id, special_rules,
+  ${GANG_EDITION_EMBED}
+`;
+
+/** Logs a finished promotion with what it changed. */
+async function logFighterPromotion(
+  before: KeepTypePromotionFighterSnapshot,
+  after: { fighter_type: string | null; fighter_subtypes: string[]; fighter_specialisation?: string | null }
+): Promise<void> {
+  const editionSlug = gangEditionSlug(before.gangs);
+  const changes: string[] = [];
+  if (after.fighter_type !== before.fighter_type) {
+    changes.push(`Type: ${before.fighter_type ?? 'None'} → ${after.fighter_type ?? 'None'}`);
+  }
+  const subtypesBefore = formatFighterSubtypeDisplay(before.fighter_subtypes, editionSlug);
+  const subtypesAfter = formatFighterSubtypeDisplay(after.fighter_subtypes, editionSlug);
+  if (subtypesAfter !== subtypesBefore) {
+    changes.push(`Subtypes: ${subtypesBefore} → ${subtypesAfter}`);
+  }
+  if ((after.fighter_specialisation ?? null) !== (before.fighter_specialisation ?? null)) {
+    changes.push(`Specialisation: ${before.fighter_specialisation ?? 'None'} → ${after.fighter_specialisation ?? 'None'}`);
+  }
+
+  await logFighterAction({
+    gang_id: before.gang_id,
+    fighter_id: before.id,
+    fighter_name: before.fighter_name,
+    action_type: 'fighter_promoted',
+    promotion_changes: changes,
+  });
+}
+
 /**
- * Promotes a fighter and adds a skill advancement as one logical operation.
- * If the skill step fails after promotion succeeds, the fighter's subtype/type is reverted.
+ * Promotes a fighter to a new fighter type, optionally adding a skill advancement
+ * as one logical operation. If the skill step fails after promotion succeeds,
+ * the fighter's subtype/type is reverted.
  */
 export async function applyPromotionWithSkillAdvancement(
   params: PromotionWithSkillAdvancementParams
@@ -718,7 +776,7 @@ export async function applyPromotionWithSkillAdvancement(
     const supabase = await createClient();
     const { data: before, error: beforeError } = await supabase
       .from('fighters')
-      .select('fighter_subtypes, fighter_type, fighter_type_id, fighter_specialisation, fighter_specialisation_id, special_rules')
+      .select(KEEP_TYPE_PROMOTION_FIGHTER_SELECT)
       .eq('id', params.fighter_id)
       .single();
 
@@ -740,9 +798,15 @@ export async function applyPromotionWithSkillAdvancement(
       return { success: false, error: promotionResult.error || 'Failed to promote fighter' };
     }
 
+    if (!params.skill_id && !params.custom_skill_id) {
+      await logFighterPromotion(before, params.promotion);
+      return { success: true };
+    }
+
     const skillResult = await addSkillAdvancement({
       fighter_id: params.fighter_id,
       skill_id: params.skill_id,
+      custom_skill_id: params.custom_skill_id,
       xp_cost: params.xp_cost,
       credits_increase: params.credits_increase,
       is_advance: true
@@ -769,6 +833,8 @@ export async function applyPromotionWithSkillAdvancement(
       return { success: false, error: skillResult.error || 'Failed to add skill' };
     }
 
+    await logFighterPromotion(before, params.promotion);
+
     return skillResult;
   } catch (error) {
     console.error('Error applying promotion with skill advancement:', error);
@@ -778,22 +844,6 @@ export async function applyPromotionWithSkillAdvancement(
     };
   }
 }
-
-type KeepTypePromotionFighterSnapshot = {
-  fighter_subtypes: string[] | null;
-  fighter_type: string | null;
-  fighter_type_id: string | null;
-  fighter_specialisation: string | null;
-  fighter_specialisation_id: string | null;
-  special_rules: string[] | null;
-};
-
-const KEEP_TYPE_PROMOTION_FIGHTER_SELECT = `
-  id, user_id, gang_id,
-  fighter_subtypes, fighter_type, fighter_type_id,
-  fighter_specialisation, fighter_specialisation_id, special_rules,
-  ${GANG_EDITION_EMBED}
-`;
 
 /** Resolve a catalog skill by preferred id, falling back to unique name match. */
 async function resolveCatalogSkillId(
@@ -876,6 +926,8 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
   fighterType?: string | null;
   /** When set, overrides before.fighter_type_id. */
   fighterTypeId?: string | null;
+  /** Also sets Starting XP, which moves XP with it. Not reverted on a failed skill grant. */
+  startingXp?: number;
   /** Omit to update details only (e.g. Inspiring already present). */
   skillId?: string;
   creditsIncrease: number;
@@ -884,21 +936,28 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
     args.fighterType !== undefined ? args.fighterType : args.before.fighter_type;
   const nextFighterTypeId =
     args.fighterTypeId !== undefined ? args.fighterTypeId : args.before.fighter_type_id;
+  const nextSpecialisation =
+    args.fighterSpecialisation !== undefined
+      ? args.fighterSpecialisation
+      : (args.before.fighter_specialisation ?? null);
+  const promoted = {
+    fighter_type: nextFighterType,
+    fighter_subtypes: args.newSubtypes,
+    fighter_specialisation: nextSpecialisation,
+  };
 
   const promotionResult = await updateFighterDetails({
     fighter_id: args.fighterId,
     fighter_subtypes: args.newSubtypes,
     fighter_type: nextFighterType ?? undefined,
     fighter_type_id: nextFighterTypeId ?? undefined,
-    fighter_specialisation:
-      args.fighterSpecialisation !== undefined
-        ? args.fighterSpecialisation
-        : (args.before.fighter_specialisation ?? null),
+    fighter_specialisation: nextSpecialisation,
     fighter_specialisation_id:
       args.fighterSpecialisationId !== undefined
         ? args.fighterSpecialisationId
         : (args.before.fighter_specialisation_id ?? null),
     special_rules: args.specialRules,
+    starting_xp: args.startingXp,
   });
 
   if (!promotionResult.success) {
@@ -906,7 +965,8 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
   }
 
   if (!args.skillId) {
-    return { success: true };
+    await logFighterPromotion(args.before, promoted);
+    return { success: true, fighter: promotionResult.data?.fighter };
   }
 
   // Not an Advancement: is_advance false so it does not consume a rank slot.
@@ -940,6 +1000,8 @@ async function applyKeepTypePromotionWithSkillGrant(args: {
 
     return { success: false, error: skillResult.error || 'Failed to add skill' };
   }
+
+  await logFighterPromotion(args.before, promoted);
 
   return {
     success: true,
@@ -981,7 +1043,7 @@ export async function applyN26ProspectPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasProspectSpecialisationPromotion(editionSlug)) {
       return { success: false, error: 'Prospect specialisation promotion is not available for this edition' };
     }
@@ -1078,7 +1140,7 @@ export async function applyN26GangerChampionPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasGangerChampionKeepTypePromotion(editionSlug)) {
       return {
         success: false,
@@ -1163,7 +1225,7 @@ export async function applyN26ChampionLeaderPromotion(
       return { success: false, error: 'Fighter not found' };
     }
 
-    const editionSlug = editionSlugOf(before);
+    const editionSlug = gangEditionSlug(before.gangs);
     if (!hasChampionLeaderTypePromotion(editionSlug)) {
       return {
         success: false,
@@ -1247,6 +1309,104 @@ export async function applyN26ChampionLeaderPromotion(
   }
 }
 
+/**
+ * N26-only: make a Hired Gun in an Outcast gang its Outcast Leader, keeping its
+ * type, skills and equipment. Rebuilds subtypes as Champion→Leader does, sets
+ * Starting XP 61 and its wargear pets' Starting XP 13. No skill is granted.
+ * Rating unchanged.
+ *
+ * Meant for gang creation, when nothing has been earned yet. Promoted later,
+ * a fighter keeps its earned XP but may lose unspent Advancements, since the
+ * ranks above 61 are wider; that is accepted rather than compensated for.
+ */
+export async function applyN26OutcastLeaderPromotion(
+  params: N26OutcastLeaderPromotionParams
+): Promise<AdvancementResult> {
+  try {
+    const supabase = await createClient();
+    await getAuthenticatedUser(supabase);
+
+    const { data: before, error: beforeError } = await supabase
+      .from('fighters')
+      .select(`
+        ${KEEP_TYPE_PROMOTION_FIGHTER_SELECT},
+        fighter_types:fighter_type_id ( gang_type_id ),
+        custom_fighter_types:custom_fighter_type_id ( gang_type_id )
+      `)
+      .eq('id', params.fighter_id)
+      .single();
+
+    if (beforeError || !before) {
+      return { success: false, error: 'Fighter not found' };
+    }
+
+    const currentSubtypes: string[] = Array.isArray(before.fighter_subtypes)
+      ? before.fighter_subtypes
+      : [];
+    // To-one embeds arrive as objects; the inferred types widen them to arrays.
+    type GangTypeRef = { gang_type_id?: string | null } | null;
+    if (!canPromoteToN26OutcastLeader({
+      owningGangTypeId: (before.gangs as GangTypeRef)?.gang_type_id,
+      fighterTypeGangTypeId:
+        (before.fighter_types as GangTypeRef)?.gang_type_id ??
+        (before.custom_fighter_types as GangTypeRef)?.gang_type_id,
+      subtypes: currentSubtypes,
+    })) {
+      return {
+        success: false,
+        error: 'Outcast Leader promotion is only available to Hired Guns in an N26 Outcast gang',
+      };
+    }
+
+    // Always rebuild subtypes server-side — never trust client-supplied lists.
+    const newSubtypes = buildN26ChampionLeaderPromotionSubtypes(currentSubtypes);
+    const specialRules =
+      params.special_rules ??
+      (Array.isArray(before.special_rules) ? before.special_rules : []);
+
+    const promotionResult = await applyKeepTypePromotionWithSkillGrant({
+      fighterId: params.fighter_id,
+      before,
+      newSubtypes,
+      specialRules,
+      startingXp: N26_OUTCAST_LEADER_STARTING_XP,
+      creditsIncrease: 0,
+    });
+    if (!promotionResult.success) {
+      return promotionResult;
+    }
+
+    // A pet from the fighter's wargear is linked to it as owner.
+    const { data: petLinks, error: petLinksError } = await supabase
+      .from('fighter_exotic_beasts')
+      .select('fighter_pet_id')
+      .eq('fighter_owner_id', params.fighter_id);
+
+    let petFailed = Boolean(petLinksError);
+    for (const link of petLinks ?? []) {
+      if (!link.fighter_pet_id) continue;
+      const petResult = await updateFighterDetails({
+        fighter_id: link.fighter_pet_id,
+        starting_xp: N26_OUTCAST_LEADER_PET_STARTING_XP,
+      });
+      if (!petResult.success) petFailed = true;
+    }
+
+    return {
+      ...promotionResult,
+      warning: petFailed
+        ? `Promoted, but this fighter's pet, if any, could not be given Starting XP ${N26_OUTCAST_LEADER_PET_STARTING_XP}.`
+        : undefined,
+    };
+  } catch (error) {
+    console.error('Error applying N26 Outcast Leader promotion:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error occurred',
+    };
+  }
+}
+
 export async function deleteAdvancement(
   params: DeleteAdvancementParams
 ): Promise<AdvancementResult> {
@@ -1275,7 +1435,7 @@ export async function deleteAdvancement(
     // Note: Authorization is enforced by RLS policies on fighters table
 
     // Nothing was spent on an N26 Advancement, so deleting one refunds nothing.
-    const spendsXp = !hasCumulativeXp(editionSlugOf(fighter));
+    const spendsXp = !hasCumulativeXp(gangEditionSlug(fighter.gangs));
 
     let xpToRefund = 0;
     let ratingDelta = 0;
@@ -1334,7 +1494,7 @@ export async function deleteAdvancement(
       const currentSubtypesForGrant: string[] = Array.isArray(fighter.fighter_subtypes)
         ? fighter.fighter_subtypes
         : [];
-      const editionSlugForUndo = editionSlugOf(fighter);
+      const editionSlugForUndo = gangEditionSlug(fighter.gangs);
 
       // Load catalog subtypes once for N26 promotion undo checks.
       let catalogSubtypesForUndo: string[] = [];
@@ -2083,7 +2243,7 @@ const GANGER_ELIGIBLE_SUBTYPES = new Set(['Ganger', 'Exotic Beast']);
  * rescue an N26 fighter.
  */
 const routesRollsBySubtype = (fighter: any): boolean =>
-  !hasCumulativeXp(editionSlugOf(fighter));
+  !hasSharedAdvancementTable(gangEditionSlug(fighter.gangs));
 
 const isGangerEligible = (fighter: any): boolean =>
   !!fighter.fighter_subtypes?.some((subtype: string) => GANGER_ELIGIBLE_SUBTYPES.has(subtype));

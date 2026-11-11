@@ -21,6 +21,29 @@
   color: inherit;
 }
 
+/* Notification HTML only. A bare .prose a rule would recolour links in notes
+   once this stylesheet loads on the same page. */
+.notification-html a {
+  color: inherit;
+}
+
+/* Forum quotes: a compact box in smaller text, like most forums, with the
+   quoted post's headings no bigger than bold text. */
+.forum-post blockquote {
+  @apply my-3 rounded-md border border-l-4 bg-muted px-4 py-1 text-sm font-normal not-italic text-foreground;
+  quotes: none;
+}
+
+.forum-post blockquote :is(h1, h2, h3, h4, h5, h6) {
+  font-size: 1em;
+}
+
+.forum-post blockquote > *,
+.forum-post blockquote :is(li, li > p) {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
 /* TipTap Editor - Matching Prose Rendering */
 .ProseMirror {
   outline: none;

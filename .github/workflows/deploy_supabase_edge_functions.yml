@@ -9,7 +9,8 @@ name: Deploy Supabase Edge Functions
 # (mapped from supabase/edge-functions/<name>/**). A change to config.toml
 # redeploys all declared functions, since it can alter verify_jwt/entrypoint for
 # any of them. A manual dispatch (or a push with no usable base commit) also
-# redeploys all.
+# redeploys all. discord-campaign-bot bundles types/campaign.ts and
+# utils/discord.ts, so a change there redeploys it too.
 #
 # Requires repo secrets:
 #   SUPABASE_ACCESS_TOKEN  — a Supabase personal access token
@@ -21,6 +22,8 @@ on:
     paths:
       - 'supabase/edge-functions/**'
       - 'supabase/config.toml'
+      - 'types/campaign.ts'
+      - 'utils/discord.ts'
   workflow_dispatch:
 
 jobs:
@@ -71,6 +74,9 @@ jobs:
               targets="$declared"
             else
               targets=$(echo "$changed" | grep -oP '^supabase/edge-functions/\K[^/]+' | sort -u || true)
+              if echo "$changed" | grep -qxE 'types/campaign.ts|utils/discord.ts'; then
+                targets=$(printf '%s\ndiscord-campaign-bot\n' "$targets" | sort -u)
+              fi
             fi
           fi
 
@@ -85,6 +91,6 @@ jobs:
               continue
             fi
             echo "::group::Deploy $fn"
-            supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+            supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --yes
             echo "::endgroup::"
           done

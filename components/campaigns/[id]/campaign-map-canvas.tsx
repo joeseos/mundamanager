@@ -25,11 +25,13 @@ import {
   isMapRelativeMarker,
   escapeHtml,
 } from '@/utils/campaigns/map-markers';
+import { compactGangTypeLabel } from '@/utils/gang-type-label';
 
 interface Gang {
   id: string;
   name: string;
   gang_type: string;
+  parent_gang_type_name?: string | null;
   gang_colour: string;
   allegiance?: {
     id: string;
@@ -110,7 +112,7 @@ function buildTooltipContent(territory: Territory, allGangs: Gang[]): string {
 
   const gangName = owningGang?.name ?? 'Unallocated';
   const gangColour = owningGang?.gang_colour ?? '#6b7280';
-  const gangType = owningGang?.gang_type ?? 'Unknown';
+  const gangType = compactGangTypeLabel(owningGang?.gang_type, owningGang?.parent_gang_type_name) || 'Unknown';
   const gangAllegiance = enrichedGang?.allegiance?.name ?? owningGang?.allegiance?.name ?? 'None';
   const gangNameBadge = renderToStaticMarkup(
     <Badge
@@ -180,7 +182,7 @@ function computeObjectSignature(
     tdesc: territory?.description ?? null,
     tshow: territory?.show_name_on_map ?? true,
     tgid: territory?.gang_id ?? null,
-    og: owning ? { n: owning.name, c: owning.gang_colour, t: owning.gang_type } : null,
+    og: owning ? { n: owning.name, c: owning.gang_colour, t: compactGangTypeLabel(owning.gang_type, owning.parent_gang_type_name) } : null,
     all: enrichedAllegiance,
     c: colour,
   });

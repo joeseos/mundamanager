@@ -2,6 +2,7 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { normaliseParticipants, territoryClaimerFor } from "@/utils/battle-participants";
 import { withEditionSlug } from "@/types/edition";
+import { getScenarioTablesCached } from "@/app/lib/reference-data";
 
 export async function GET(
   request: Request
@@ -10,16 +11,20 @@ export async function GET(
   const campaignId = request.headers.get('X-Campaign-Id');
 
   try {
-    const { data: scenarioRows, error: scenariosError } = await supabase
-      .from('scenarios')
-      .select('id, scenario_name, scenario_number, editions:edition_id (slug)');
+    // N26 battles pick from the scenario tables instead of the scenario list.
+    const [{ data: scenarioRows, error: scenariosError }, scenarioTables] = await Promise.all([
+      supabase
+        .from('scenarios')
+        .select('id, scenario_name, scenario_number, editions:edition_id (slug)'),
+      getScenarioTablesCached(),
+    ]);
 
     if (scenariosError) throw scenariosError;
 
     const scenarios = (scenarioRows || []).map(withEditionSlug);
 
     if (!campaignId) {
-      return NextResponse.json({ scenarios });
+      return NextResponse.json({ scenarios, scenarioTables });
     }
 
     const { data: campaignGangs, error: gangsError } = await supabase
@@ -38,6 +43,7 @@ export async function GET(
 
     return NextResponse.json({
       scenarios,
+      scenarioTables,
       gangs
     });
 

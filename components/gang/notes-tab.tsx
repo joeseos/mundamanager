@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
+import { LazyRichTextEditor } from '../ui/lazy-rich-text-editor';
 import { toast } from 'sonner';
-import { RichTextEditor } from '../ui/rich-text-editor';
+import '../ui/rich-text-editor.css'; // Styles the read-only notes and the editor placeholder
 import { UserPermissions } from '@/types/user-permissions';
 import { isHtmlEffectivelyEmpty } from '@/utils/htmlCleanUp';
+import { updateGang } from '@/app/actions/update-gang';
 
 interface GangNotesProps {
   gangId: string;
@@ -105,74 +107,75 @@ function NoteEditor({
   };
 
   return (
-    <div className="bg-card rounded-lg shadow-md p-4 mb-6">
-      <div className="space-y-2">
-        <div className="flex justify-between items-start mb-2">
-          <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-2">
-              {isEditing ? (
-                <>
-                  <Button
-                    onClick={() => {
-                      setIsEditing(false);
-                      setError(null);
-                    }}
-                    variant="outline"
-                    disabled={isSaving}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleSave}
-                    disabled={getCharCount(content) > charLimit || isSaving}
-                  >
-                    {isSaving ? "Saving..." : "Save"}
-                  </Button>
-                </>
-              ) : (
-                <Button 
-                  onClick={() => setIsEditing(true)}
-                  disabled={!userPermissions?.canEdit || isRefreshing}
+    <div className="space-y-2">
+      <div className="flex justify-between items-start mb-2">
+        <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-2">
+            {isEditing ? (
+              <>
+                <Button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setError(null);
+                  }}
+                  variant="outline"
+                  disabled={isSaving}
                 >
-                  {isRefreshing ? "Updating..." : "Edit"}
+                  Cancel
                 </Button>
-              )}
-            </div>
+                <Button
+                  onClick={handleSave}
+                  disabled={getCharCount(content) > charLimit || isSaving}
+                >
+                  {isSaving ? "Saving..." : "Save"}
+                </Button>
+              </>
+            ) : (
+              <Button 
+                onClick={() => setIsEditing(true)}
+                disabled={!userPermissions?.canEdit || isRefreshing}
+              >
+                {isRefreshing ? "Updating..." : "Edit"}
+              </Button>
+            )}
           </div>
         </div>
-
-        {error && (
-          <p className="text-red-500 text-sm">{error}</p>
-        )}
-
-        {isEditing ? (
-          <div className="bg-white rounded-md">
-            <RichTextEditor
-              content={content}
-              onChange={onContentChange}
-              placeholder={placeholder}
-              className="min-h-[200px]"
-              charLimit={charLimit}
-              enableImages={false}
-            />
-          </div>
-        ) : isHtmlEffectivelyEmpty(content) ? (
-          <p className="text-muted-foreground italic text-center">
-            No {title.toLowerCase()} added.{description && ` ${description}`}
-          </p>
-        ) : (
-          <div
-            className="prose prose-sm max-w-none break-words"
-            dangerouslySetInnerHTML={{ __html: content }}
-          />
-        )}
-        {updatedAt && !isEditing && (
-          <p className="text-xs text-muted-foreground text-right mt-2">
-            {formatUpdatedAt(updatedAt)}
-          </p>
-        )}
       </div>
+
+      {error && (
+        <p className="text-red-500 text-sm">{error}</p>
+      )}
+
+      {isEditing ? (
+        <div className="bg-white rounded-md">
+          {/* Until the editor's code arrives, show the note in the editor's frame so nothing
+              moves. Below 769px the toolbar sits at the top of the screen, so no toolbar strip. */}
+          <LazyRichTextEditor
+            fallbackHtml={content}
+            content={content}
+            onChange={onContentChange}
+            placeholder={placeholder}
+            className="min-h-[200px]"
+            charLimit={charLimit}
+            enableImages={false}
+          />
+        </div>
+      ) : isHtmlEffectivelyEmpty(content) ? (
+        <p className="text-muted-foreground italic text-center">
+          No {title.toLowerCase()} added.{description && ` ${description}`}
+        </p>
+      ) : (
+        <div
+          className="prose prose-sm max-w-none break-words"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      )}
+      {updatedAt && !isEditing && (
+        <p className="text-xs text-muted-foreground text-right mt-2">
+          {formatUpdatedAt(updatedAt)}
+        </p>
+      )}
     </div>
   );
 }
@@ -215,72 +218,42 @@ export function GangNotes({
     setNotePrivateUpdatedAt(initialNotePrivateUpdatedAt);
   }
 
-  const handleNoteSave = async () => {
-    const cleanNote = isHtmlEffectivelyEmpty(note) ? '' : note;
-    
-    const response = await fetch(`/api/gangs/${gangId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ note: cleanNote }),
-    });
+  // Saves one note field, stored as '' when the editor holds no text
+  const saveNote = async (
+    field: 'note' | 'note_backstory' | 'note_private',
+    content: string,
+    errorMessage: string
+  ) => {
+    const cleanContent = isHtmlEffectivelyEmpty(content) ? '' : content;
+    const result = await updateGang({ gang_id: gangId, [field]: cleanContent });
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update notes');
+    if (!result.success) {
+      throw new Error(result.error || errorMessage);
     }
 
-    onNoteUpdate?.(note);
+    return { cleanContent, updatedAt: result.data?.note_private_updated_at };
+  };
+
+  const handleNoteSave = async () => {
+    const { cleanContent } = await saveNote('note', note, 'Failed to update notes');
+    onNoteUpdate?.(cleanContent);
   };
 
   const handleNoteBackstorySave = async () => {
-    const cleanNoteBackstory = isHtmlEffectivelyEmpty(noteBackstory) ? '' : noteBackstory;
-    
-    const response = await fetch(`/api/gangs/${gangId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ note_backstory: cleanNoteBackstory }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update backstory notes');
-    }
-
-    onNoteBackstoryUpdate?.(noteBackstory);
+    const { cleanContent } = await saveNote('note_backstory', noteBackstory, 'Failed to update backstory notes');
+    onNoteBackstoryUpdate?.(cleanContent);
   };
 
   const handleNotePrivateSave = async () => {
-    const cleanNotePrivate = isHtmlEffectivelyEmpty(notePrivate) ? '' : notePrivate;
-
-    const response = await fetch(`/api/gangs/${gangId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ note_private: cleanNotePrivate }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to update private notes');
+    const { cleanContent, updatedAt } = await saveNote('note_private', notePrivate, 'Failed to update private notes');
+    if (updatedAt) {
+      setNotePrivateUpdatedAt(updatedAt);
     }
-
-    if (data.note_private_updated_at) {
-      setNotePrivateUpdatedAt(data.note_private_updated_at);
-    }
-
-    onNotePrivateUpdate?.(notePrivate, data.note_private_updated_at);
+    onNotePrivateUpdate?.(cleanContent, updatedAt);
   };
 
   return (
-    <div className="container max-w-5xl w-full space-y-4 mx-auto">
+    <div className="container max-w-5xl w-full mx-auto bg-card rounded-lg shadow-md p-4 space-y-8">
       <NoteEditor
         title="Gang Notes"
         description="They'll appear on the Gang card when printed."

@@ -1,3 +1,7 @@
+-- DEPLOY ORDER: apply migration 20261004120000_rename_gang_types_gang_type_id_to_id.sql
+-- BEFORE this file deploys. This function reads gang_types.id, which is an unused
+-- bigint until that migration drops it and renames gang_type_id to id.
+
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid, text, uuid, boolean, boolean);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid);
@@ -17,7 +21,10 @@ CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
     only_equipment_id uuid DEFAULT NULL,      -- $7
     gang_id uuid DEFAULT NULL,               -- $8
     campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $9
-    campaign_custom_trading_post_ids uuid[] DEFAULT NULL -- $10
+    campaign_custom_trading_post_ids uuid[] DEFAULT NULL, -- $10
+    -- Whether fighter_id's Gang Legacy fighter type adds to the list. fighter_id is
+    -- also passed without it, so subtype rules see the fighter's own subtypes.
+    include_legacy boolean DEFAULT true       -- $11
 )
 RETURNS TABLE (
     id uuid,
@@ -64,12 +71,13 @@ AS $$
             cg.campaign_type_allegiance_id,
             fgl.fighter_type_id AS legacy_ft_id,
             ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty for gang and vehicle calls, so a subtype rule matches nothing
-            COALESCE(f.fighter_subtypes, ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- Empty for gang and vehicle calls, so a subtype rule matches nothing.
+            -- A fighter with no subtypes of its own ('[]', never NULL) uses its type's.
+            COALESCE(NULLIF(f.fighter_subtypes, '[]'::jsonb), ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
-        LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+        LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
         LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
         LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
         LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
@@ -80,7 +88,7 @@ AS $$
             LIMIT 1
         ) cg ON true
         LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
-        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id
+        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id AND $11
         LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
     ),
 
@@ -90,7 +98,7 @@ AS $$
     gang_tp AS (
         SELECT gt.trading_post_type_id
         FROM gang_types gt
-        WHERE gt.gang_type_id = $1
+        WHERE gt.id = $1
           AND (
               $9 IS NULL
               OR gt.trading_post_type_id = ANY($9)
@@ -737,7 +745,7 @@ AS $$
         )
 $$;
 
-REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) FROM anon;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[]) TO service_role;
+REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) FROM anon;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) TO service_role;

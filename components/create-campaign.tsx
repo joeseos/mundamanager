@@ -1,37 +1,48 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { createCampaign } from "@/app/actions/create-campaign"
 import { toast } from 'sonner';
-import { useRouter, useSearchParams } from 'next/navigation'
 import { SubmitButton } from "./submit-button"
 import { tradingPostRank } from "@/utils/tradingPostRank"
 import { getCampaignRank } from '@/utils/campaigns/campaignRank'
 import { InfoTooltip } from '@/components/ui/info-tooltip'
 import React from "react"
 import type { CampaignType } from '@/types/campaign'
+import type { TradingPostType } from '@/app/lib/reference-data'
 import { EditionToggle } from '@/components/home/edition-toggle'
 import { useHomeEdition } from '@/hooks/use-home-edition'
 import { sameEditionForDisplay } from '@/types/edition'
-
-interface TradingPostType {
-  id: string;
-  trading_post_name: string;
-  edition_slug?: string | null;
-}
+import { PortraitPicker } from '@/components/portrait-catalogue/portrait-picker'
+import { usePortraitCatalogue } from '@/hooks/use-portrait-catalogue'
+import { catalogueSlotForCampaignType } from '@/utils/campaign-portraits'
+import { campaignPortraitPublicUrl } from '@/utils/campaign-image'
+import { defaultPortraitForSlot } from '@/utils/portrait-catalogue'
+import { PiFlagBannerFoldBold } from 'react-icons/pi'
 
 interface CreateCampaignModalProps {
   onClose: () => void;
-  initialCampaignTypes: CampaignType[] | null;
-  initialTradingPostTypes: TradingPostType[] | null;
   userId?: string;
 }
 
+type CampaignTypesData = { campaignTypes: CampaignType[]; tradingPostTypes: TradingPostType[] };
+
+const NO_CAMPAIGN_TYPES: CampaignTypesData = { campaignTypes: [], tradingPostTypes: [] };
+
+async function fetchCampaignTypes(): Promise<CampaignTypesData> {
+  const response = await fetch('/api/campaign-types');
+  if (!response.ok) {
+    throw new Error('Failed to fetch campaign types');
+  }
+  return response.json();
+}
+
 // Button component that opens the modal
-export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostTypes, userId }: { initialCampaignTypes: CampaignType[] | null; initialTradingPostTypes: TradingPostType[] | null; userId?: string }) {
+export function CreateCampaignButton({ userId }: { userId?: string }) {
   const [showModal, setShowModal] = useState(false);
 
   const handleClose = () => {
@@ -50,8 +61,6 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
       {showModal && (
         <CreateCampaignModal
           onClose={handleClose}
-          initialCampaignTypes={initialCampaignTypes}
-          initialTradingPostTypes={initialTradingPostTypes}
           userId={userId}
         />
       )}
@@ -60,18 +69,22 @@ export function CreateCampaignButton({ initialCampaignTypes, initialTradingPostT
 }
 
 // Modal component
-export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTradingPostTypes, userId }: CreateCampaignModalProps) {
+export function CreateCampaignModal({ onClose, userId }: CreateCampaignModalProps) {
   
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const { editionSlug, setEditionSlug } = useHomeEdition();
   const [campaignName, setCampaignName] = useState("")
   const [campaignType, setCampaignType] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [campaignTypes, setCampaignTypes] = useState<CampaignType[]>(initialCampaignTypes || [])
-  const [tradingPostTypes, setTradingPostTypes] = useState<TradingPostType[]>(initialTradingPostTypes || [])
+  // isPending also covers a fetch paused while offline; isLoadingError ignores
+  // a failed background refetch while the earlier types are still shown
+  const { data: types = NO_CAMPAIGN_TYPES, isPending: isLoadingTypes, isLoadingError: typesFailed } = useQuery({
+    queryKey: ['campaign-types'],
+    queryFn: fetchCampaignTypes,
+  })
+  const { campaignTypes, tradingPostTypes } = types
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([])
+  const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('campaign');
 
   const editionCampaignTypes = useMemo(
     () => campaignTypes.filter(type => sameEditionForDisplay(type.edition_slug, editionSlug)),
@@ -86,6 +99,31 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const campaignRank = getCampaignRank(editionSlug);
 
   const isFormValid = campaignName.trim() !== "" && campaignType !== ""
+
+  const selectedCampaignType = useMemo(
+    () => campaignTypes.find(type => type.id === campaignType) ?? null,
+    [campaignTypes, campaignType]
+  );
+  const catalogueSlot = useMemo(
+    () => catalogueSlotForCampaignType(
+      selectedCampaignType?.id,
+      selectedCampaignType?.campaign_type_name
+    ),
+    [selectedCampaignType]
+  );
+  const defaultPortraitId = useMemo(
+    () => defaultPortraitForSlot(portraits, catalogueSlot)?.id ?? null,
+    [portraits, catalogueSlot]
+  );
+
+  const [selectedPortraitId, setSelectedPortraitId] = useState<string | null>(null);
+  const [pinnedCampaignTypeId, setPinnedCampaignTypeId] = useState(campaignType);
+  if (campaignType !== pinnedCampaignTypeId) {
+    setPinnedCampaignTypeId(campaignType);
+    setSelectedPortraitId(defaultPortraitId);
+  } else if (selectedPortraitId === null && defaultPortraitId) {
+    setSelectedPortraitId(defaultPortraitId);
+  }
 
   // Clear campaign type / trading posts that no longer belong to the active edition
   const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
@@ -152,6 +190,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
         name: campaignName.trimEnd(),
         campaignTypeId: campaignType,
         trading_posts: selectedTradingPosts,
+        campaignPortraitId: selectedPortraitId,
       })
 
       if (!result.success) {
@@ -163,17 +202,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       // Reset form and close modal first for better UX
       setCampaignName("")
       setCampaignType("")
+      setSelectedPortraitId(null)
       setSelectedTradingPosts([])
       onClose()
       
-      // Check if we're currently on the campaigns tab, if not redirect to it
-      const currentTab = searchParams.get('tab');
-      if (currentTab !== 'campaigns') {
-        router.push('/?tab=campaigns');
-      } else {
-        // Trigger router refresh to update server state
-        router.refresh();
-      }
+      // createCampaign revalidates the campaign list, so only the tab needs switching
+      window.dispatchEvent(new CustomEvent('homeTabSwitch', { detail: 'campaigns' }));
 
       toast.success("Success!", { description: `${campaignName} has been created successfully.` });
     } catch (err) {
@@ -188,6 +222,12 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === 'Enter') {
       const activeElement = document.activeElement;
+
+      const target = event.target as HTMLElement | null;
+      // Gallery buttons are portaled outside this modal. Enter must activate them, not create the campaign.
+      if (target?.closest('button, [data-portrait-picker]')) {
+        return;
+      }
 
       if ((activeElement?.tagName === 'INPUT' || activeElement?.tagName === 'TEXTAREA')
           && (!campaignName.trim() || !campaignType || isLoading)) {
@@ -215,7 +255,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
       onMouseDown={handleOverlayClick}
       onKeyDown={handleKeyDown}
     >
-      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md" onClick={e => e.stopPropagation()}>
+      <div className="bg-card shadow-md rounded-lg p-4 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Create a New Campaign</h2>
@@ -243,13 +283,14 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               id="campaign-type"
               value={campaignType}
               onChange={(e) => setCampaignType(e.target.value)}
+              disabled={isLoadingTypes}
               className="w-full px-3 py-2 rounded-md border border-border focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
             >
               <option value="">Select campaign type</option>
               {editionCampaignTypes
                 .sort((a, b) => {
-                  const typeA = a.campaign_type_name.toLowerCase();
-                  const typeB = b.campaign_type_name.toLowerCase();
+                  const typeA = (a.campaign_type_name ?? '').toLowerCase();
+                  const typeB = (b.campaign_type_name ?? '').toLowerCase();
 
                   const rankA = campaignRank[typeA] ?? Infinity;
                   const rankB = campaignRank[typeB] ?? Infinity;
@@ -258,7 +299,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
                     return rankA - rankB;
                   }
 
-                  return a.campaign_type_name.localeCompare(b.campaign_type_name);
+                  return (a.campaign_type_name ?? '').localeCompare(b.campaign_type_name ?? '');
                 })
                 .map((type) => (
                   <option key={type.id} value={type.id}>
@@ -285,14 +326,14 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {editionTradingPostTypes
                   .sort((a, b) => {
-                    const rankA = tradingPostRank[a.trading_post_name.toLowerCase()] ?? Infinity;
-                    const rankB = tradingPostRank[b.trading_post_name.toLowerCase()] ?? Infinity;
+                    const rankA = tradingPostRank[(a.trading_post_name ?? '').toLowerCase()] ?? Infinity;
+                    const rankB = tradingPostRank[(b.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                     return rankA - rankB;
                   })
                   .map((type, index, arr) => {
-                    const currentRank = tradingPostRank[type.trading_post_name.toLowerCase()] ?? Infinity;
+                    const currentRank = tradingPostRank[(type.trading_post_name ?? '').toLowerCase()] ?? Infinity;
                     const prevRank = index > 0 
-                      ? (tradingPostRank[arr[index - 1].trading_post_name.toLowerCase()] ?? Infinity)
+                      ? (tradingPostRank[(arr[index - 1].trading_post_name ?? '').toLowerCase()] ?? Infinity)
                       : null;
                     
                     // Add divider between rank <= 2 and rank >= 11
@@ -321,6 +362,26 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
             </div>
           )}
 
+          {campaignType && (
+            <>
+              <PortraitPicker
+                portraits={portraits}
+                catalogueSlot={catalogueSlot}
+                selectedPortraitId={selectedPortraitId}
+                subjectName={selectedCampaignType?.campaign_type_name ?? ''}
+                onSelect={setSelectedPortraitId}
+                imageUrl={campaignPortraitPublicUrl}
+                fallbackImageUrl={selectedPortraitId ? null : selectedCampaignType?.image_url}
+                emptyFallback={<PiFlagBannerFoldBold className="size-1/2" />}
+                galleryTitle="Campaign Portraits"
+                galleryHelper="Choose a portrait for this campaign."
+                catalogueLoadFailed={Boolean(catalogueSlot) && portraitsStatus === 'error'}
+                onRetryCatalogue={retryPortraits}
+              />
+              <p className="text-xs text-center text-muted-foreground">You&apos;ll be able to upload a custom image once your campaign is created.</p>
+            </>
+          )}
+
           <div>
             <label htmlFor="campaign-name" className="block text-sm font-medium text-muted-foreground mb-1">
               Campaign Name *
@@ -334,7 +395,7 @@ export function CreateCampaignModal({ onClose, initialCampaignTypes, initialTrad
             />
           </div>
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {(error || typesFailed) && <p className="text-red-500 text-sm">{error ?? 'Failed to load campaign types. Please try again.'}</p>}
           <SubmitButton 
             onClick={handleCreateCampaign} 
             className="w-full" 

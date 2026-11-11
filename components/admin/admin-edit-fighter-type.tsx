@@ -35,7 +35,6 @@ interface EquipmentWithId extends Equipment {
 
 interface AdminEditFighterTypeModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
 interface FighterSubtype {
@@ -81,7 +80,7 @@ interface FighterTypeCombo {
 
 /**
  * Renders a fighter type's subtypes as the single string that identifies it in
- * the "Select Fighter Type to Edit" dropdown. Combos are packed into a
+ * the "Select Fighter Type" dropdown. Combos are packed into a
  * `type|subtype|gang_type_id` string, and "|" never appears in a subtype name, so
  * joining on ", " keeps the combo parseable while distinguishing fighter types
  * that share a first subtype but differ later in the list.
@@ -110,7 +109,7 @@ interface GangAffiliation {
 const availabilityKey = (rule: FighterTypeGrant) =>
   `${rule.fighter_type_id ?? ''}|${rule.fighter_subtype ?? ''}|${gangScopeKey(rule)}`;
 
-export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighterTypeModalProps) {
+export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModalProps) {
   const queryClient = useQueryClient();
   // Update state to track fighter type+subtype combinations
   const [selectedFighterTypeCombo, setSelectedFighterTypeCombo] = useState<string>('');
@@ -214,8 +213,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
   // Add a ref to track if equipment categories have been loaded
   const hasLoadedEquipmentCategoriesRef = useRef(false);
   
-  // Add a flag ref to prevent duplicate fetches
-  const isFetchingFighterTypeDetailsRef = useRef(false);
+  // Bumped on every type/variant selection so an in-flight details fetch cannot
+  // apply after the admin has already moved on.
+  const fighterTypeDetailsFetchGenRef = useRef(0);
 
 
   // Add a ref to track if a category was manually removed
@@ -260,11 +260,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       return;
     }
 
-    const wasLoading = isLoading;
-    if (!wasLoading) {
-      setIsLoading(true);
-    }
-
     try {
       const response = await fetch('/api/admin/equipment');
       if (!response.ok) {
@@ -287,10 +282,6 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       console.error('Error fetching equipment data:', error);
       toast.error('Failed to load equipment data. Please try again.');
       throw error;
-    } finally {
-      if (!wasLoading) {
-        setIsLoading(false);
-      }
     }
   };
 
@@ -510,7 +501,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         fromAnotherEdition(gangOriginList, rule.gang_origin_id)
         || fromAnotherEdition(gangSubtypeList, rule.gang_subtype_id)
         || fromAnotherEdition(
-          gangTypes.map(type => ({ id: type.gang_type_id, edition_id: type.edition_id })),
+          gangTypes.map(type => ({ id: type.id, edition_id: type.edition_id })),
           rule.gang_type_id
         );
       setAvailability(prev => prev?.filter(rule => !fromAnotherEditionScope(rule)) ?? null);
@@ -518,7 +509,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     }
 
     if (newEditionId && gangTypeFilter) {
-      const gangType = gangTypes.find(type => type.gang_type_id === gangTypeFilter);
+      const gangType = gangTypes.find(type => type.id === gangTypeFilter);
       if (gangType && gangType.edition_id !== newEditionId) {
         setGangTypeFilter('');
         setSelectedFighterTypeId('');
@@ -676,25 +667,23 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     staleTime: 5 * 60 * 1000,
   });
 
-  const fetchFighterTypeDetails = async (fighterId: string) => {
+  const fetchFighterTypeDetails = async (fighterId: string, generation: number) => {
     if (!fighterId) return;
-    
-    // Prevent duplicate fetches
-    if (isFetchingFighterTypeDetailsRef.current) {
-      return;
-    }
-    
-    isFetchingFighterTypeDetailsRef.current = true;
+    if (fighterTypeDetailsFetchGenRef.current !== generation) return;
 
     try {
       console.log('Fetching fighter type details for ID:', fighterId);
       const response = await fetch(`/api/admin/fighter-types?id=${fighterId}`);
+
+      if (fighterTypeDetailsFetchGenRef.current !== generation) return;
       
       if (!response.ok) {
         throw new Error(`Failed to fetch fighter type details: ${response.status}`);
       }
 
       let data = await response.json();
+      if (fighterTypeDetailsFetchGenRef.current !== generation) return;
+
       console.log('Received fighter type data:', data);
 
       if (!data) {
@@ -756,13 +745,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       // Set equipment selection
       if (data.equipment_selection) {
-        // Add logging to debug equipment selection loading
-        console.log('Loaded equipment_selection from API:', data.equipment_selection);
-        
-        // Use the dataModelToGui function to properly convert the new format
-        const convertedEquipmentSelection = dataModelToGui(data.equipment_selection);
-        console.log('Converted equipment selection:', convertedEquipmentSelection);
-        setEquipmentSelection(convertedEquipmentSelection);
+        setEquipmentSelection(dataModelToGui(data.equipment_selection));
       } else {
         // Reset to empty object if no equipment selection
         setEquipmentSelection({});
@@ -777,11 +760,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
       return data;
     } catch (error) {
+      if (fighterTypeDetailsFetchGenRef.current !== generation) return null;
       console.error('Detailed error in fetchFighterTypeDetails:', error);
       toast.error("Error", { description: error instanceof Error ? error.message : "Failed to fetch fighter type details" });
       return null;
-    } finally {
-      isFetchingFighterTypeDetailsRef.current = false;
     }
   };
 
@@ -804,8 +786,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
     if (variantNameInputRef.current) {
       variantNameInputRef.current.value = '';
     }
+
+    // Bump only on terminal branches. Auto-select of Default delegates to
+    // handleSpecialisationChange, which bumps once and owns the in-flight fetch.
+    const invalidateInFlightDetails = () => {
+      fighterTypeDetailsFetchGenRef.current += 1;
+      setIsLoading(false);
+    };
     
-    if (!comboString) return;
+    if (!comboString) {
+      invalidateInFlightDetails();
+      return;
+    }
     
     try {
       // Parse the combo string to get type, subtype, and gang_type_id
@@ -814,6 +806,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       // An empty subtype is valid for N26 (`Type||gangTypeId`). A missing segment is not.
       if (!fighterType || fighterSubtype == null || !gangTypeId) {
         console.error('Invalid fighter type combo string:', comboString);
+        invalidateInFlightDetails();
         return;
       }
       
@@ -851,32 +844,41 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setFighterType(fighter.fighter_type);
         setSelectedFighterSubtypes(fighter.fighter_subtypes ?? []);
       }
+
+      // Pass the list in: setState hasn't flushed, so the handler's state is still empty.
+      const defaultOption = specialisationOptions.find(o => o.specialisation_name === 'Default');
+      if (defaultOption) {
+        void handleSpecialisationChange(defaultOption.id, specialisationOptions);
+      } else {
+        invalidateInFlightDetails();
+      }
     } catch (error) {
       console.error('Error processing fighter type combo:', error);
+      invalidateInFlightDetails();
     }
   };
   
-  const handleSpecialisationChange = async (specialisationId: string) => {
+  const handleSpecialisationChange = async (
+    specialisationId: string,
+    options: FighterSpecialisation[] = availableSpecialisations
+  ) => {
     console.log('handleSpecialisationChange called with specialisationId:', specialisationId);
     
     // Update selected specialisation ID
     setSelectedSpecialisationId(specialisationId);
-    
+
     if (!specialisationId) {
+      fighterTypeDetailsFetchGenRef.current += 1;
       // Clear specialisation name when no selection
       setVariantName('');
       if (variantNameInputRef.current) {
         variantNameInputRef.current.value = '';
       }
-      return;
-    }
-    
-    // If we're already loading, don't start another request
-    if (isLoading || isFetchingFighterTypeDetailsRef.current) {
-      console.log('Already loading or fetching data, skipping request');
+      setIsLoading(false);
       return;
     }
 
+    const generation = ++fighterTypeDetailsFetchGenRef.current;
     setIsLoading(true);
     
     try {
@@ -884,9 +886,10 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
       if (!hasLoadedEquipmentCategoriesRef.current) {
         console.log('Equipment data not yet loaded, loading now...');
         await fetchEquipmentByCategory();
+        if (fighterTypeDetailsFetchGenRef.current !== generation) return;
       }
       
-      const selectedOption = availableSpecialisations.find(st => st.id === specialisationId);
+      const selectedOption = options.find(st => st.id === specialisationId);
 
       if (selectedOption) {
         setSelectedFighterTypeId(selectedOption.fighterId);
@@ -894,15 +897,18 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         setVariantName(name);
         if (variantNameInputRef.current) variantNameInputRef.current.value = name;
 
-        await fetchFighterTypeDetails(selectedOption.fighterId);
+        await fetchFighterTypeDetails(selectedOption.fighterId, generation);
       } else {
         toast.error('Could not find fighter data for the selected variant');
       }
     } catch (error) {
+      if (fighterTypeDetailsFetchGenRef.current !== generation) return;
       console.error('Error in handleSpecialisationChange:', error);
       toast.error('Failed to load fighter variant details');
     } finally {
-      setIsLoading(false);
+      if (fighterTypeDetailsFetchGenRef.current === generation) {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -1094,21 +1100,13 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         skill_access: skillAccess
       };
 
-      console.log('Sending update data:', updateData);
-      console.log('Equipment selection in update data:', updateData.equipment_selection);
-      // Check if equipment selection is being properly included
-      const jsonData = JSON.stringify(updateData);
-      console.log('JSON data includes equipment_selection:', 
-        jsonData.includes('equipment_selection') && 
-        jsonData.includes(Object.keys(equipmentSelection)[0] || '')
-      );
 
       const response = await fetch(`/api/admin/fighter-types?id=${fighterIdToUpdate}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: jsonData,
+        body: JSON.stringify(updateData),
       });
 
       if (!response.ok) {
@@ -1142,16 +1140,9 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-lineages'] }),
       ]);
-
-      if (onSubmit) {
-        onSubmit();
-      }
-      onClose();
-      return true;
     } catch (error) {
       console.error('Error updating fighter type:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to update fighter type');
-      return false;
     } finally {
       setIsLoading(false);
     }
@@ -1285,7 +1276,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
         >
           <option value="">Select a gang type</option>
           {filteredGangTypes.map((gangType) => (
-            <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+            <option key={gangType.id} value={gangType.id}>
               {gangType.gang_type}
             </option>
           ))}
@@ -1359,8 +1350,11 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               <select
                 value={gangTypeFilter}
                 onChange={(e) => {
+                  fighterTypeDetailsFetchGenRef.current += 1;
+                  setIsLoading(false);
                   setGangTypeFilter(e.target.value);
                   // Reset downstream selections when gang type changes
+                  setSelectedFighterTypeCombo('');
                   setSelectedFighterTypeId('');
                   setSelectedSpecialisationId('');
                   setAvailability(null);
@@ -1371,7 +1365,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
               >
                 <option value="">All Gang Types</option>
                 {filteredGangTypes.map((type) => (
-                  <option key={type.gang_type_id} value={type.gang_type_id}>
+                  <option key={type.id} value={type.id}>
                     {type.gang_type}
                   </option>
                 ))}
@@ -1382,7 +1376,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Select Fighter Type to Edit
+                  Select Fighter Type
                 </label>
                 <select
                   value={selectedFighterTypeCombo}
@@ -1406,7 +1400,7 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
 
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Select Fighter Variant to Edit
+                  Select Fighter Variant (Default selected automatically)
                 </label>
                 <select
                   value={selectedSpecialisationId}
@@ -2330,8 +2324,8 @@ export function AdminEditFighterTypeModal({ onClose, onSubmit }: AdminEditFighte
                 {gangTypeCosts.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {gangTypeCosts.map((gangCost, index) => {
-                      const gangType = filteredGangTypes.find(g => g.gang_type_id === gangCost.gang_type_id)
-                        ?? gangTypes.find(g => g.gang_type_id === gangCost.gang_type_id);
+                      const gangType = filteredGangTypes.find(g => g.id === gangCost.gang_type_id)
+                        ?? gangTypes.find(g => g.id === gangCost.gang_type_id);
                       const affiliation = gangCost.gang_affiliation_id
                         ? filteredGangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)
                           ?? gangAffiliations.find(a => a.id === gangCost.gang_affiliation_id)

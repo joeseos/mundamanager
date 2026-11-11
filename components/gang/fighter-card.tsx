@@ -1,13 +1,13 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, memo, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { StatsTable, StatsType } from '../ui/fighter-card-stats-table';
+import { StatsTable, StatsType, formatCharacteristic } from '../ui/fighter-card-stats-table';
 import WeaponTable from './fighter-card-weapon-table';
 import { Equipment } from '@/types/equipment';
 import { FighterProps, FighterEffect, Vehicle, VehicleEquipment, FighterSkills } from '@/types/fighter';
 import { hasSaveCharacteristic } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { calculateAdjustedStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
-import { countAdvancementsTaken, openAdvancementsFor } from '@/utils/advancementRanks';
+import { calculateAdjustedStats, calculateVehicleStats, applySpecialRulesModifiers } from '@/utils/effect-modifiers';
+import { countAdvancementsTaken, openAdvancementsFor, tracksXp } from '@/utils/advancementRanks';
 import { hasN26ProspectPromotionOccurred } from '@/utils/keepTypePromotionN26';
 import { injuryAggregationLabel } from '@/utils/injuryTarget';
 import { TbMeatOff } from "react-icons/tb";
@@ -19,6 +19,7 @@ import { Weapon } from '@/types/equipment';
 import { FighterCardActionMenu } from './fighter-card-action-menu';
 import { FancyPrintTopBarArt } from './fancy-print-top-bar-art';
 import { useViewportWidth } from '@/hooks/use-viewport-width';
+import { dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
 
@@ -78,59 +79,9 @@ interface FighterCardProps extends Omit<FighterProps, 'fighter_name' | 'fighter_
   image_url?: string;
   isDragging?: boolean;
   active_loadout_name?: string;  // Name of the active loadout
-  dragListeners?: any;  // Drag listeners from dnd-kit for icon-only dragging
-  dragAttributes?: any;  // Drag attributes from dnd-kit for icon-only dragging
+  dragHandle?: (element: Element | null) => void;  // dnd-kit drag handle; set only when the card can be dragged
   disableHoverEffects?: boolean;  // Used by constrained modal previews; omit to keep normal gang-page hover scale/shadow.
 }
-
-const calculateVehicleStats = (
-  baseStats: Vehicle | undefined,
-) => {
-  if (!baseStats) return null;
-
-  const stats = {
-    movement: baseStats.movement ?? 0,
-    front: baseStats.front ?? 0,
-    side: baseStats.side ?? 0,
-    rear: baseStats.rear ?? 0,
-    hull_points: baseStats.hull_points ?? 0,
-    handling: baseStats.handling ?? 0,
-    save: baseStats.save ?? 0,
-    body_slots: baseStats.body_slots ?? 0,
-    drive_slots: baseStats.drive_slots ?? 0,
-    engine_slots: baseStats.engine_slots ?? 0,
-  };
-  
-  // Apply modifiers from vehicle effects (lasting damages, vehicle upgrades, and user adjustments)
-  if (baseStats.effects) {
-    const effectCategories = ["lasting damages", "vehicle upgrades", "user"];
-    effectCategories.forEach(categoryName => {
-      if (baseStats.effects && baseStats.effects[categoryName]) {
-        baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
-      if (effect.fighter_effect_modifiers && Array.isArray(effect.fighter_effect_modifiers)) {
-        effect.fighter_effect_modifiers.forEach(modifier => {
-          // Convert stat_name to lowercase to match our stats object keys
-          const statName = modifier.stat_name.toLowerCase();
-          
-          // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
-          if (statName === 'body_slots' || statName === 'drive_slots' || statName === 'engine_slots') {
-            return;
-          }
-          
-          // Only apply if the stat exists in our stats object
-          if (statName in stats) {
-            // Apply the numeric modifier to the appropriate stat
-            stats[statName as keyof typeof stats] += modifier.numeric_value;
-              }
-            });
-          }
-        });
-      }
-    });
-  }
-
-  return stats;
-};
 
 const FighterCard = memo(function FighterCard({
   id,
@@ -185,8 +136,7 @@ const FighterCard = memo(function FighterCard({
   image_url,
   isDragging = false,
   active_loadout_name,
-  dragListeners,
-  dragAttributes,
+  dragHandle,
   disableHoverEffects = false,
   is_spyrer = false,
   is_vehicle = false,
@@ -419,10 +369,7 @@ const FighterCard = memo(function FighterCard({
 
   // Update stats calculation to use modifiedStats
   const stats = useMemo((): StatsType => {
-    // A model whose type cannot gain XP has no recruitment value, and the
-    // roster reads N/A for it. The number takes over the moment the model
-    // actually holds XP, so a group house-ruling XP onto it still sees it.
-    const xpDisplay = starting_xp == null && !xp ? 'N/A' : xp;
+    const xpDisplay = tracksXp(starting_xp, xp) ? xp : 'N/A';
 
     if (isCrew) {
       return {
@@ -433,29 +380,29 @@ const FighterCard = memo(function FighterCard({
         'HP': vehicleStats ? vehicleStats.hull_points : '*',
         'Hnd': vehicleStats ? `${vehicleStats.handling}+` : '*',
         'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-        'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-        'Ld': `${adjustedStats.leadership}+`,
-        'Cl': `${adjustedStats.cool}+`,
-        'Wil': `${adjustedStats.willpower}+`,
-        'Int': `${adjustedStats.intelligence}+`,
+        'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+        'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+        'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+        'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+        'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
         'XP': xpDisplay
       };
     }
     
     return {
-      'M': `${adjustedStats.movement}"`,
-      'WS': `${adjustedStats.weapon_skill}+`,
-      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-      'S': adjustedStats.strength,
-      'T': adjustedStats.toughness,
-      'W': adjustedStats.wounds,
-      'I': `${adjustedStats.initiative}+`,
-      'A': adjustedStats.attacks,
-      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-' }),
-      'Ld': `${adjustedStats.leadership}+`,
-      'Cl': `${adjustedStats.cool}+`,
-      'Wil': `${adjustedStats.willpower}+`,
-      'Int': `${adjustedStats.intelligence}+`,
+      'M': formatCharacteristic(adjustedStats.movement, '"'),
+      'WS': formatCharacteristic(adjustedStats.weapon_skill, '+'),
+      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+      'S': formatCharacteristic(adjustedStats.strength),
+      'T': formatCharacteristic(adjustedStats.toughness),
+      'W': formatCharacteristic(adjustedStats.wounds),
+      'I': formatCharacteristic(adjustedStats.initiative, '+'),
+      'A': formatCharacteristic(adjustedStats.attacks),
+      ...(hasSaveCharacteristic(edition_slug) && { 'Sv': formatCharacteristic(adjustedStats.save, '+') }),
+      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+      'Int': formatCharacteristic(adjustedStats.intelligence, '+'),
       'XP': xpDisplay
     };
   }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);
@@ -543,7 +490,7 @@ const FighterCard = memo(function FighterCard({
   const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
-        ${dragListeners && dragAttributes ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
+        ${dragHandle ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
 
   const subtypeLabel = formatFighterSubtypeDisplay(fighter_subtypes, edition_slug);
   const typeLine = [
@@ -552,11 +499,12 @@ const FighterCard = memo(function FighterCard({
     fighter_specialisation?.fighter_specialisation,
   ].filter(Boolean).join(', ');
 
+  const dragSurface = dragSurfaceProps(dragHandle !== undefined);
+
   const cardBody = (
     <div
       id={fighterCardId}
-      {...(dragListeners || {})}
-      {...(dragAttributes || {})}
+      ref={dragHandle}
       className={cardClassName}
         style={{
           backgroundColor: '#faf9f7',
@@ -574,12 +522,9 @@ const FighterCard = memo(function FighterCard({
           // was never ours — there's no vibration code in the app — and it can't be reinstated:
           // since iOS 18.4 navigator.vibrate needs a recent *click* to be granted, and dragging
           // doesn't count. Losing it is the accepted trade for losing the magnifier.
-          ...(dragListeners ? {
-            WebkitUserSelect: 'none' as const,
-            userSelect: 'none' as const,
-            WebkitTouchCallout: 'none' as const,
-          } : {})
+          ...dragSurface.style,
         }}
+        onContextMenu={dragSurface.onContextMenu}
       >
       {isLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/10 rounded-lg">
@@ -936,7 +881,7 @@ const FighterCard = memo(function FighterCard({
     </div>
   );
 
-  const menuTrigger = !isDragging && !disableLink && dragListeners && dragAttributes ? (
+  const menuTrigger = !isDragging && !disableLink && dragHandle ? (
     <div
       className="absolute bottom-2 right-2 md:right-3 z-30 print:hidden cursor-pointer select-none"
       style={{ WebkitTouchCallout: 'none' }}

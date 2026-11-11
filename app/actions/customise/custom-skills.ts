@@ -22,9 +22,9 @@ async function deleteSkillTypeIfEmpty(supabase: any, userId: string, typeId: str
 }
 
 export async function createCustomSkill(data: {
-  skill_name: string;
-  skill_type_id?: string;
-  custom_skill_type_id?: string;
+  skill_name: string | null;
+  skill_type_id?: string | null;
+  custom_skill_type_id?: string | null;
   description?: string | null;
 }) {
   const description = normalizeCustomDescription(data.description);
@@ -39,7 +39,7 @@ export async function createCustomSkill(data: {
     .from('custom_skills')
     .insert({
       user_id: user.id,
-      skill_name: data.skill_name.trimEnd(),
+      skill_name: data.skill_name?.trimEnd() ?? null,
       skill_type_id: data.skill_type_id ?? null,
       custom_skill_type_id: data.custom_skill_type_id ?? null,
       description,

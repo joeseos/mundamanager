@@ -14,7 +14,6 @@ import { EditionSelect } from '@/components/edition-select';
 
 interface AdminEditVehicleTypeModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
 const numericInputClass = "mt-1 block w-full rounded-md border border-border px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
@@ -227,7 +226,7 @@ const GangOriginEquipmentModal: React.FC<GangOriginEquipmentModalProps> = ({
 };
 
 interface GangTypeEquipmentModalProps {
-  gangTypes: { gang_type_id: number; gang_type: string }[];
+  gangTypes: { id: string; gang_type: string }[];
   equipment: Array<{ id: string; equipment_name: string }>;
   gangTypeEquipment: Array<{
     id?: string;
@@ -278,7 +277,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
       return;
     }
 
-    const gangType = gangTypes.find((g) => g.gang_type_id.toString() === selectedGangType);
+    const gangType = gangTypes.find((g) => g.id === selectedGangType);
 
     if (!gangType) {
       toast.error("Error", { description: "Selected gang type not found" });
@@ -344,7 +343,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
             >
               <option value="">Select a gang type</option>
               {sortedGangTypes.map((gangType) => (
-                <option key={gangType.gang_type_id} value={gangType.gang_type_id.toString()}>
+                <option key={gangType.id} value={gangType.id}>
                   {gangType.gang_type}
                 </option>
               ))}
@@ -415,7 +414,7 @@ const GangTypeEquipmentModal: React.FC<GangTypeEquipmentModalProps> = ({
   );
 };
 
-export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicleTypeModalProps) {
+export function AdminEditVehicleTypeModal({ onClose }: AdminEditVehicleTypeModalProps) {
   const queryClient = useQueryClient();
   
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
@@ -427,7 +426,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
   const [showGangTypeModal, setShowGangTypeModal] = useState(false);
   const [hardpoints, setHardpoints] = useState<HardpointTemplate[]>([]);
 
-  const { data: gangTypes = [] } = useQuery<{ gang_type_id: number; gang_type: string }[]>({
+  const { data: gangTypes = [] } = useQuery<{ id: string; gang_type: string }[]>({
     queryKey: ['admin-vehicle-gang-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/vehicles');
@@ -632,12 +631,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
         queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
       ]);
 
-      resetVehicleForm();
-      if (onSubmit) {
-        onSubmit();
-      }
-      onClose();
-      return true;
+      return false;
     } catch (error) {
       console.error('Error updating vehicle type:', error);
       toast.error("Error", { description: "Failed to update vehicle type" });
@@ -721,7 +715,7 @@ export function AdminEditVehicleTypeModal({ onClose, onSubmit }: AdminEditVehicl
                 <option value="">Select a gang type</option>
                 <option value="0">Generic</option>
                 {gangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}

@@ -115,7 +115,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     if (newEditionId) {
       setGangAdjustedCosts(prev =>
         prev.filter(cost => {
-          const gt = gangTypeOptions.find(g => g.gang_type_id === cost.gang_type_id);
+          const gt = gangTypeOptions.find(g => g.id === cost.gang_type_id);
           return !gt || gt.edition_id === newEditionId;
         })
       );
@@ -148,7 +148,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     }));
   };
 
-  const { data: gangTypeOptions = [] } = useQuery<Array<{gang_type_id: string, gang_type: string, edition_id?: string | null}>>({
+  const { data: gangTypeOptions = [] } = useQuery<Array<{id: string, gang_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-gang-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-types');
@@ -470,7 +470,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <select
                             value={selectedGangType}
                             onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                              const selected = gangTypeOptions.find(g => g.id === e.target.value);
                               if (selected) {
                                 setSelectedGangType(e.target.value);
                               }
@@ -479,7 +479,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           >
                             <option key="default" value="">Select a Gang Type</option>
                             {filteredGangTypes.map((gang) => (
-                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                              <option key={gang.id} value={gang.id}>
                                 {gang.gang_type}
                               </option>
                             ))}
@@ -518,13 +518,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                               if (selectedGangType && adjustedCostValue) {
                                 const adjusted_cost = parseInt(adjustedCostValue);
                                 if (adjusted_cost >= 0) {
-                                  const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedGangType);
+                                  const selectedGang = gangTypeOptions.find(g => g.id === selectedGangType);
                                   if (selectedGang) {
                                     setGangAdjustedCosts(prev => [
                                       ...prev,
                                       {
                                         gang_type: selectedGang.gang_type,
-                                        gang_type_id: selectedGang.gang_type_id,
+                                        gang_type_id: selectedGang.id,
                                         adjusted_cost
                                       }
                                     ]);
@@ -606,7 +606,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <select
                             value={selectedAvailabilityGangType}
                             onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.gang_type_id === e.target.value);
+                              const selected = gangTypeOptions.find(g => g.id === e.target.value);
                               if (selected) {
                                 setSelectedAvailabilityGangType(e.target.value);
                               }
@@ -615,7 +615,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           >
                             <option key="default" value="">Select a Gang Type</option>
                             {filteredGangTypes.map((gang) => (
-                              <option key={gang.gang_type_id} value={gang.gang_type_id}>
+                              <option key={gang.id} value={gang.id}>
                                 {gang.gang_type}
                               </option>
                             ))}
@@ -662,13 +662,13 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                             onClick={() => {
                               const combined = combineAvailability(availValueLetter, availValueNumber);
                               if (selectedAvailabilityGangType && (combined || availExclusive)) {
-                                const selectedGang = gangTypeOptions.find(g => g.gang_type_id === selectedAvailabilityGangType);
+                                const selectedGang = gangTypeOptions.find(g => g.id === selectedAvailabilityGangType);
                                 if (selectedGang) {
                                   setEquipmentAvailabilities(prev => [
                                     ...prev,
                                     {
                                       gang_type: selectedGang.gang_type,
-                                      gang_type_id: selectedGang.gang_type_id,
+                                      gang_type_id: selectedGang.id,
                                       availability: combined,
                                       exclusive: availExclusive
                                     }

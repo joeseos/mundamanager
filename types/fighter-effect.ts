@@ -11,6 +11,14 @@
 export interface TraitModificationData {
   traits_to_add?: string[];
   traits_to_remove?: string[];
+  /** Adds each trait at its value, e.g. Concussive (6+), or improves it by one, (6+) to (5+), when the weapon already has it */
+  traits_to_improve?: string[];
+  /** Applies to all of the fighter's weapon profiles with any of these traits, e.g. Light. A bare name matches any value: Toxin matches Toxin (4+) */
+  requires_traits?: string[];
+  /** Skips weapon profiles with any of these traits, e.g. Shred */
+  excludes_traits?: string[];
+  /** Gang rules only: limits the rule to weapons in these equipment categories (ids), e.g. Las Weapons */
+  equipment_category_ids?: string[];
   special_rules_to_add?: string[];
   special_rules_to_remove?: string[];
   /** uuids into fighter_subtypes; ids not names, as subtype_name repeats across editions */

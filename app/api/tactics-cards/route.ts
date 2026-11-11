@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
       .select(`
-        gang_types!gang_type_id ( gang_type_id, parent_gang_type_id, editions:edition_id ( id ) ),
+        gang_types!gang_type_id ( id, parent_gang_type_id, editions:edition_id ( id ) ),
         custom_gang_types!custom_gang_type_id ( editions:edition_id ( id ) )
       `)
       .eq('id', gangId)
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
         tactics_cards!tactics_cards_tactics_cards_pack_id_fkey ( id, name, d66_min, d66_max )
       `)
       .eq('edition_id', editionId)
-      .or(tacticsCardsPackFilter(gangType?.gang_type_id, gangType?.parent_gang_type_id));
+      .or(tacticsCardsPackFilter(gangType?.id, gangType?.parent_gang_type_id));
 
     if (packsError) throw packsError;
 

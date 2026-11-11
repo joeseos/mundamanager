@@ -1,3 +1,5 @@
+import type { CampaignRole } from '@/types/campaign';
+
 export interface UserPermissions {
   isOwner: boolean;
   isAdmin: boolean;
@@ -20,11 +22,11 @@ export interface CampaignPermissions extends UserPermissions {
   canClaimTerritories: boolean;
   canAddBattleLogs: boolean;
   canEditBattleLogs: boolean;
-  campaignRole: 'OWNER' | 'ARBITRATOR' | 'MEMBER' | null;
+  campaignRole: CampaignRole | null;
 }
 
-export type UserRole = 'admin' | 'user';
-export type CampaignRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
+export const USER_ROLES = ['user', 'moderator', 'admin'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 export interface UserProfile {
   id: string;

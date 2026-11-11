@@ -23,6 +23,11 @@ export async function getClaims(supabase: SupabaseClient): Promise<ParsedClaims 
   };
 }
 
+/** Admins and moderators run the forum. Only decides what to show: RLS and the forum triggers enforce it. */
+export function isForumModeratorRole(role: string | null | undefined): boolean {
+  return role === 'admin' || role === 'moderator';
+}
+
 export async function getAuthenticatedUser(supabase: SupabaseClient): Promise<{ id: string; email?: string }> {
   const claims = await getClaims(supabase);
   if (!claims) throw new Error('User not authenticated');

@@ -1,21 +1,19 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useMutation } from '@tanstack/react-query';
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from 'sonner';
-import { createClient } from "@/utils/supabase/client";
 import { FighterProps, Vehicle } from '@/types/fighter';
 import { StashItem } from '@/types/gang';
-import { Session } from '@supabase/supabase-js';
 import { VehicleProps } from '@/types/vehicle';
 import { vehicleExclusiveCategories, vehicleCompatibleCategories } from '@/utils/vehicleEquipmentCategories';
 import { hasChemAlchemy } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import ChemAlchemyCreator from './chem-alchemy';
 import { createChemAlchemy } from '@/app/actions/chem-alchemy';
-import ItemModal from '@/components/equipment/equipment';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import Modal from '@/components/ui/modal';
 import { Equipment } from '@/types/equipment';
@@ -35,6 +33,11 @@ import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
+import { buildSkillsFromServerData } from '@/utils/fighter-builder';
+
+// Loads its code on first open, not with the page. ssr: false also gives it
+// its own Suspense boundary, so the page keeps updating while the code loads.
+const ItemModal = dynamic(() => import('@/components/equipment/equipment'), { ssr: false });
 
 interface GangInventoryProps {
   stash: StashItem[];
@@ -94,7 +97,6 @@ export default function GangInventory({
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [selectedFighter, setSelectedFighter] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
   const [stash, setStash] = useState<StashItem[]>(initialStash);
   const [fighters, setFighters] = useState<FighterProps[]>(initialFighters);
   const [showChemAlchemy, setShowChemAlchemy] = useState(false);
@@ -201,15 +203,6 @@ export default function GangInventory({
   const isVehicleCompatible = (item: StashItem) => 
     vehicleCompatibleCategories.includes(item.equipment_category || '');
 
-  useEffect(() => {
-    const getSession = async () => {
-      const supabase = createClient();
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, []);
-
   const getItemName = (item: StashItem): string => {
     const baseName = item.vehicle_name || item.equipment_name || 'Unknown Item';
     return baseName;
@@ -262,7 +255,7 @@ export default function GangInventory({
   };
 
   const handleMoveToFighter = async () => {
-    if (selectedItems.length === 0 || !selectedFighter || !session) return;
+    if (selectedItems.length === 0 || !selectedFighter) return;
 
     setIsLoading(true);
     let rollbackStash: StashItem[] | null = null;
@@ -568,6 +561,14 @@ export default function GangInventory({
                 : finalFighter.effects
             };
           }
+
+          // Subtypes and skills the gear granted, e.g. a Grav Cutter's Mounted and Hit & Run.
+          // A granted skill never hides one the fighter already has.
+          finalFighter = {
+            ...finalFighter,
+            fighter_subtypes: result.fighter_subtypes ?? finalFighter.fighter_subtypes,
+            skills: { ...buildSkillsFromServerData(result.granted_skills), ...finalFighter.skills }
+          };
 
           setFighters(prev => prev.map(f => f.id === targetId ? finalFighter : f));
           onFighterUpdate?.(finalFighter, true);

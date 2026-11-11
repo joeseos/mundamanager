@@ -31,6 +31,8 @@ interface TerritoryEditModalProps {
     description: string | null;
     /** Only included when the user may rename and the name actually changed */
     territory_name?: string;
+    /** Only included when the user may manage territories and the credits actually changed */
+    credits?: number | null;
   }) => void;
   territoryName: string;
   /** Catalog/template name; Reset restores this when the instance was renamed */
@@ -39,8 +41,9 @@ interface TerritoryEditModalProps {
   currentDefaultGangTerritory: boolean;
   currentPlayingCard?: string | null;
   currentDescription?: string | null;
-  /** Owners/arbitrators may rename; members see the name as read-only */
-  canRename?: boolean;
+  currentCredits?: number | null;
+  /** Owners/arbitrators may rename and set credits; members see both as read-only */
+  canManage?: boolean;
   groupedTerritories?: Array<{
     id: string;
     territory_name: string;
@@ -86,7 +89,8 @@ export default function TerritoryEditModal({
   currentDefaultGangTerritory,
   currentPlayingCard,
   currentDescription,
-  canRename = false,
+  currentCredits = null,
+  canManage = false,
   groupedTerritories = [],
   selectedTerritoryId,
   onSelectTerritory,
@@ -99,6 +103,7 @@ export default function TerritoryEditModal({
   const [selectedRef, setSelectedRef] = useState(initialPlayingCard.selectedRef);
   const [customPlayingCard, setCustomPlayingCard] = useState(initialPlayingCard.customPlayingCard);
   const [description, setDescription] = useState(currentDescription || '');
+  const [credits, setCredits] = useState(currentCredits?.toString() ?? '');
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
@@ -113,7 +118,7 @@ export default function TerritoryEditModal({
   }, [selectedRef, customPlayingCard]);
 
   const [prevResetKey, setPrevResetKey] = useState('');
-  const resetKey = `${isOpen}:${selectedTerritoryId ?? ''}:${territoryName}:${currentRuined}:${currentDefaultGangTerritory}:${currentPlayingCard}:${currentDescription}`;
+  const resetKey = `${isOpen}:${selectedTerritoryId ?? ''}:${territoryName}:${currentRuined}:${currentDefaultGangTerritory}:${currentPlayingCard}:${currentDescription}:${currentCredits}`;
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
     if (isOpen) {
@@ -124,21 +129,26 @@ export default function TerritoryEditModal({
       setSelectedRef(next.selectedRef);
       setCustomPlayingCard(next.customPlayingCard);
       setDescription(currentDescription || '');
+      setCredits(currentCredits?.toString() ?? '');
     }
   }
 
   const nameChanged =
-    canRename &&
+    canManage &&
     normaliseTerritoryName(name) !== normaliseTerritoryName(territoryName);
 
   const originalName = normaliseTerritoryName(originalTerritoryName);
   const canResetToOriginal =
-    canRename &&
+    canManage &&
     !!originalName &&
     normaliseTerritoryName(name) !== originalName;
 
+  const parsedCredits = credits.trim() === '' ? null : Number(credits);
+  const creditsChanged = canManage && parsedCredits !== currentCredits;
+
   const hasChanged =
     nameChanged ||
+    creditsChanged ||
     ruined !== currentRuined ||
     defaultGangTerritory !== currentDefaultGangTerritory ||
     normalisePlayingCard(effectivePlayingCard ?? undefined) !== normalisePlayingCard(currentPlayingCard) ||
@@ -149,8 +159,8 @@ export default function TerritoryEditModal({
       ? TERRITORY_PLAYING_CARD_CUSTOM
       : selectedRef || TERRITORY_PLAYING_CARD_NONE;
   const isDescriptionOverLimit = getCharCount(description) > TERRITORY_DESCRIPTION_CHAR_LIMIT;
-  const isNameMissing = canRename && !normaliseTerritoryName(name);
-  const helperName = canRename
+  const isNameMissing = canManage && !normaliseTerritoryName(name);
+  const helperName = canManage
     ? (normaliseTerritoryName(name) || territoryName)
     : territoryName;
 
@@ -165,6 +175,11 @@ export default function TerritoryEditModal({
       return false;
     }
 
+    if (parsedCredits !== null && !Number.isFinite(parsedCredits)) {
+      toast.error('Credits must be a number');
+      return false;
+    }
+
     const descriptionCharCount = getCharCount(description);
     if (descriptionCharCount > TERRITORY_DESCRIPTION_CHAR_LIMIT) {
       toast.error(`Description cannot exceed ${TERRITORY_DESCRIPTION_CHAR_LIMIT} characters`);
@@ -176,7 +191,8 @@ export default function TerritoryEditModal({
       default_gang_territory: defaultGangTerritory,
       playing_card: effectivePlayingCard,
       description: normaliseDescription(description),
-      ...(nameChanged ? { territory_name: normaliseTerritoryName(name) } : {})
+      ...(nameChanged ? { territory_name: normaliseTerritoryName(name) } : {}),
+      ...(creditsChanged ? { credits: parsedCredits } : {})
     });
     return true;
   };
@@ -205,7 +221,7 @@ export default function TerritoryEditModal({
         </div>
       )}
 
-      {canRename ? (
+      {canManage ? (
         <div>
           <label className="block text-sm font-medium text-muted-foreground mb-1">
             Name *
@@ -276,6 +292,23 @@ export default function TerritoryEditModal({
         )}
       </div>
       
+      <div>
+        <label className="block text-sm font-medium text-muted-foreground mb-1">
+          Credits
+        </label>
+        {canManage ? (
+          <Input
+            type="number"
+            className="w-full"
+            placeholder="e.g. 20"
+            value={credits}
+            onChange={(e) => setCredits(e.target.value)}
+          />
+        ) : (
+          <p className="text-sm text-foreground py-2">{currentCredits ?? '-'}</p>
+        )}
+      </div>
+
       <div className="flex items-center space-x-2">
         <Checkbox
           id="ruined-checkbox"

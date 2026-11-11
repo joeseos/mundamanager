@@ -16,6 +16,8 @@ type Props<T> = {
   /** Called when no table row matched (inline mode). Includes dice breakdown when the roll produced them. */
   onRoll?: (roll: number, dice: number[]) => void;
   inline?: boolean; // if true, show results inline instead of modal and call onRolled
+  /** Inline only: false hides the result line, for a roller beside a picker that already shows the result. */
+  showResult?: boolean;
   /** Return a total, or totals plus individual dice for breakdown in the UI. */
   rollFn: () => number | RollOutcome;
   resolveNameForRoll?: (roll: number) => string | undefined; // display-only fallback label
@@ -35,6 +37,7 @@ export default function DiceRoller<T>({
   onRolled,
   onRoll,
   inline = false,
+  showResult = true,
   rollFn,
   resolveNameForRoll,
   getResultLabel,
@@ -112,7 +115,7 @@ export default function DiceRoller<T>({
           {rolling ? 'Rolling...' : buttonText}
         </button>
 
-        {inline && (
+        {inline && showResult && (
           <div className="text-sm">
             {results.length > 0 ? (
               results.map((r, idx) => (

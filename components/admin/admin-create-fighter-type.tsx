@@ -251,7 +251,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     setSelectedFighterSubtypes(nextSubtypes);
 
     if (newEditionId && selectedGangType) {
-      const gangType = gangTypes.find(type => type.gang_type_id === selectedGangType);
+      const gangType = gangTypes.find(type => type.id === selectedGangType);
       if (gangType && gangType.edition_id !== newEditionId) {
         setSelectedGangType('');
       }
@@ -461,7 +461,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
               >
                 <option value="">Select gang type</option>
                 {filteredGangTypes.map((type) => (
-                  <option key={type.gang_type_id} value={type.gang_type_id}>
+                  <option key={type.id} value={type.id}>
                     {type.gang_type}
                   </option>
                 ))}

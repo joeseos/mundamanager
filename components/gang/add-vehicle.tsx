@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Input } from '../ui/input';
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
@@ -13,6 +13,7 @@ import { assignVehicleToFighter } from '@/app/actions/assign-vehicle-to-fighter'
 import { getAllowedLocomotionOptions } from '@/utils/vehicle-locomotion';
 import { UserPermissions } from '@/types/user-permissions';
 import { useCrewFighterOptions } from '@/utils/crew-fighter-combobox-options';
+import { useQuery } from '@tanstack/react-query';
 
 interface VehicleType {
   id: string;
@@ -35,6 +36,7 @@ interface AddVehicleProps {
   showModal: boolean;
   setShowModal: (show: boolean) => void;
   gangId: string;
+  gangTypeId?: string | null;
   initialCredits: number;
   onVehicleAdd: (newVehicle: VehicleProps) => void;
   onGangCreditsUpdate?: (newCredits: number) => void;
@@ -49,6 +51,7 @@ export default function AddVehicle({
   showModal,
   setShowModal,
   gangId,
+  gangTypeId,
   initialCredits,
   onVehicleAdd,
   onGangCreditsUpdate,
@@ -58,8 +61,17 @@ export default function AddVehicle({
   onFighterUpdate,
   userPermissions,
 }: AddVehicleProps) {
-  
-  const [vehicleTypes, setVehicleTypes] = useState<VehicleType[]>([]);
+  const { data: vehicleTypes = [] } = useQuery<VehicleType[]>({
+    queryKey: ['vehicle-types', gangTypeId ?? gangId],
+    queryFn: async () => {
+      const response = await fetch(`/api/gangs/${gangId}/vehicles`);
+      if (!response.ok) throw new Error('Failed to fetch vehicle types');
+      return response.json();
+    },
+    enabled: showModal,
+    staleTime: 10 * 60 * 1000,
+  });
+
   const [selectedVehicleTypeId, setSelectedVehicleTypeId] = useState('');
   const [vehicleError, setVehicleError] = useState<string | null>(null);
   const [vehicleCost, setVehicleCost] = useState('');
@@ -75,28 +87,6 @@ export default function AddVehicle({
     : [];
 
   const crewFighterOptions = useCrewFighterOptions(fighters, positioning);
-
-  // Fetch vehicle types when component mounts
-  useEffect(() => {
-    const fetchVehicleTypes = async () => {
-      if (vehicleTypes.length === 0) {
-        try {
-          const response = await fetch(`/api/gangs/${gangId}/vehicles`);
-          if (!response.ok) throw new Error('Failed to fetch vehicle types');
-          const data = await response.json();
-          setVehicleTypes(data);
-        } catch (error) {
-          console.error('Error fetching vehicle types:', error);
-          setVehicleError('Failed to load vehicle types');
-          setShowModal(false); // Close modal if fetch failed
-        }
-      }
-    };
-    
-    if (showModal) {
-      fetchVehicleTypes();
-    }
-  }, [showModal, gangId, vehicleTypes.length, setShowModal]);
 
   const handleCostChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newCost = e.target.value;

@@ -1,23 +1,25 @@
 "use client"
 
 import { Button } from "@/components/ui/button";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
-import { useState, useEffect, forwardRef, useImperativeHandle, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type ReactNode } from "react";
 import { toast } from 'sonner';
-import CampaignBattleLogModal from "@/components/campaigns/[id]/campaign-battle-log-modal";
 import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
-import { updateMemberRole } from "@/app/actions/campaigns/[id]/campaign-members";
+import { createBattleSession } from "@/app/actions/battle-sessions";
+import type { RoleChangeTarget } from "@/components/campaigns/[id]/campaign-role-modal"
+import type { CampaignRole } from "@/types/campaign";
 import Modal from "@/components/ui/modal";
 import Link from "next/link";
 import { MdLocalPolice, MdOutlineLocalPolice } from "react-icons/md";
 import { HiUser } from "react-icons/hi2";
-import { LuTrash2, LuSquarePen } from "react-icons/lu";
+import { LuTrash2, LuSquarePen, LuSwords } from "react-icons/lu";
 import { useMutation } from '@tanstack/react-query';
-import { Battle, BattleParticipant, CampaignGang, Territory, Member } from '@/types/campaign';
-import { battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
+import { formatLocalDate } from '@/utils/local-date';
+import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioLabel as scenarioLabelOf, battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
 import { getWinnerIds } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
@@ -25,11 +27,13 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 
+const CampaignBattleLogModal = dynamic(() => import("@/components/campaigns/[id]/campaign-battle-log-modal"), { ssr: false });
+const CampaignRoleModal = dynamic(() => import("@/components/campaigns/[id]/campaign-role-modal"), { ssr: false });
+
 interface CampaignBattleLogsTerritory extends Territory {
   default_gang_territory?: boolean;
 }
 
-type MemberRole = 'OWNER' | 'ARBITRATOR' | 'MEMBER';
 
 interface CampaignBattleLogsListProps {
   campaignId: string;
@@ -47,20 +51,19 @@ interface CampaignBattleLogsListProps {
   }) => void;
   members: Member[];
   territories?: CampaignBattleLogsTerritory[];
-  noContainer?: boolean;
   hideAddButton?: boolean;
+  canStartChallengeRound?: boolean;
   userId: string;
   isCampaignOwner?: boolean;
   isCampaignAdmin?: boolean;
   currentCycle?: number | null;
+  /** The campaign edition's scenario tables: N26 battles are made from them. */
+  scenarioTables?: ScenarioTableWithEntries[];
+  /** Shown between the battle logs and the standings. */
+  battleSessions?: ReactNode;
 }
 
-export interface CampaignBattleLogsListRef {
-  openAddModal: () => void;
-  openChallengeRoundModal: () => void;
-}
-
-const formatRole = (role: MemberRole | undefined) => {
+const formatRole = (role: CampaignRole | undefined) => {
   switch (role) {
     case 'OWNER':
       return <MdOutlineLocalPolice className="h-4 w-4" title="Owner" />;
@@ -76,10 +79,10 @@ const formatRole = (role: MemberRole | undefined) => {
 const formatDate = (dateString: string | null) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return formatLocalDate(date);
 };
 
-const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBattleLogsListProps>((props, ref) => {
+export default function CampaignBattleLogsList(props: CampaignBattleLogsListProps) {
   const {
     campaignId,
     editionSlug,
@@ -90,22 +93,23 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     onTerritoryUpdate,
     members,
     territories = [],
-    noContainer = false,
     hideAddButton = false,
+    canStartChallengeRound = false,
     userId,
     isCampaignOwner = false,
     isCampaignAdmin = false,
     currentCycle = null,
+    scenarioTables = [],
+    battleSessions,
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
+  const [addingChallenge, setAddingChallenge] = useState(false);
   const [showChallengeRoundModal, setShowChallengeRoundModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [availableGangs, setAvailableGangs] = useState<CampaignGang[]>([]);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [activeNote, setActiveNote] = useState<string | null>(null);
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [roleChange, setRoleChange] = useState<{ memberId: string; username: string; currentRole: MemberRole; newRole: MemberRole } | null>(null);
+  const [roleChange, setRoleChange] = useState<RoleChangeTarget | null>(null);
   
   const router = useRouter();
 
@@ -136,12 +140,23 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const itemsPerPage = 10;
 
   // Map of gang IDs to gang names for lookup
-  const [gangNameMap, setGangNameMap] = useState<Map<string, string>>(new Map());
-  const [gangColourMap, setGangColourMap] = useState<Map<string, string>>(new Map());
 
   // State for the selected battle (will be used for edit functionality)
   const [selectedBattle, setSelectedBattle] = useState<Battle | null>(null);
   const [battleToDelete, setBattleToDelete] = useState<Battle | null>(null);
+
+  // A battle is named by its scenario text when it has one (N23, or an N26 scenario name), else by its Deployment and Objective.
+  const scenarioLabel = useMemo(() => {
+    const entryNames = new Map(
+      scenarioTables.flatMap((table) => table.entries.map((entry) => [entry.id, entry.name] as const))
+    );
+    return (battle: Battle) =>
+      scenarioLabelOf(
+        battle.scenario,
+        battle.deployment_id ? entryNames.get(battle.deployment_id) : battle.deployment_name,
+        battle.objective_id ? entryNames.get(battle.objective_id) : battle.objective_name
+      ) || battle.scenario_name || '';
+  }, [scenarioTables]);
 
   // Extract unique values for filter options
   const filterOptions = useMemo(() => {
@@ -158,7 +173,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       }
 
       // Scenarios
-      const scenarioName = battle.scenario || battle.scenario_name;
+      const scenarioName = scenarioLabel(battle);
       if (scenarioName) {
         scenarios.add(scenarioName);
       }
@@ -198,7 +213,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       winningGangIds: Array.from(winningGangIds),
       hasDraws
     };
-  }, [battles]);
+  }, [battles, scenarioLabel]);
 
   const gangRatings = useMemo(() => {
     const map = new Map<string, number>();
@@ -218,8 +233,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
 
     if (filterScenario) {
       filtered = filtered.filter(battle => {
-        const scenarioName = battle.scenario || battle.scenario_name;
-        return scenarioName === filterScenario;
+        return scenarioLabel(battle) === filterScenario;
       });
     }
 
@@ -265,8 +279,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           bValue = b.cycle ?? -1;
           break;
         case 'scenario':
-          aValue = (a.scenario || a.scenario_name || '').toLowerCase();
-          bValue = (b.scenario || b.scenario_name || '').toLowerCase();
+          aValue = scenarioLabel(a).toLowerCase();
+          bValue = scenarioLabel(b).toLowerCase();
           break;
         case 'territory':
           aValue = (a.territory_name || '').toLowerCase();
@@ -303,26 +317,24 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           bValue = new Date(b.created_at).getTime();
       }
       
-      // Challenges outrank played battles regardless of the chosen sort:
-      // they are the outstanding work, the history sits below them.
-      const aPending = isPlayedBattle(a) ? 1 : 0;
-      const bPending = isPlayedBattle(b) ? 1 : 0;
-      if (aPending !== bPending) return aPending - bPending;
-
       const comparison =
         typeof aValue === 'string' && typeof bValue === 'string'
           ? aValue.localeCompare(bValue)
           : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
       if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
 
-      // Slots opened together tie on every column, so rank them by challenger rating.
-      if (aPending === 0 && bPending === 0) {
+      // Slots created together tie on every column, so list them in the round's
+      // challenge order. Rounds created before it was set fall back to challenger rating.
+      if (!isPlayedBattle(a) && !isPlayedBattle(b)) {
+        if (a.challenge_order != null && b.challenge_order != null) {
+          return a.challenge_order - b.challenge_order;
+        }
         return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
           - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
       }
       return 0;
     });
-  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings, scenarioLabel]);
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -355,19 +367,34 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   };
 
   // Reset pagination when filters or sort change
-  useEffect(() => {
+  const pageResetKey = JSON.stringify([filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  const [lastPageResetKey, setLastPageResetKey] = useState(pageResetKey);
+  if (pageResetKey !== lastPageResetKey) {
+    setLastPageResetKey(pageResetKey);
     setCurrentPage(1);
-  }, [filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection]);
+  }
 
-  // Calculate total pages - use filtered battles for pagination
-  const totalPages = Math.ceil(sortedAndFilteredBattles.length / itemsPerPage);
+  // Challenges are the outstanding work and get their own table above the played battles
+  const challenges = useMemo(
+    () => sortedAndFilteredBattles.filter(battle => !isPlayedBattle(battle)),
+    [sortedAndFilteredBattles]
+  );
+  const battleLogs = useMemo(
+    () => sortedAndFilteredBattles.filter(isPlayedBattle),
+    [sortedAndFilteredBattles]
+  );
+  const hasChallenges = battles.some(battle => !isPlayedBattle(battle));
+  const hasBattleLogs = battles.some(isPlayedBattle);
+
+  // Calculate total pages - only the battle logs are paginated
+  const totalPages = Math.ceil(battleLogs.length / itemsPerPage);
   
-  // Get current battles for pagination
-  const currentBattles = useMemo(() => {
+  // Get current battle logs for pagination
+  const currentBattleLogs = useMemo(() => {
     const indexOfLastItem = currentPage * itemsPerPage;
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    return sortedAndFilteredBattles.slice(indexOfFirstItem, indexOfLastItem);
-  }, [sortedAndFilteredBattles, currentPage, itemsPerPage]);
+    return battleLogs.slice(indexOfFirstItem, indexOfLastItem);
+  }, [battleLogs, currentPage, itemsPerPage]);
 
   // Check if any filters are active
   const hasActiveFilters = filterCycle || filterScenario || filterParticipatingGang || filterWinningGang || filterDraws;
@@ -398,7 +425,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
   const deleteBattleMutation = useMutation({
     mutationFn: async (battleId: string) => {
       const result = await deleteBattleLog(campaignId, battleId);
-      if (!result.success) throw new Error(result.error || 'Failed to delete battle report');
+      if (!result.success) throw new Error(result.error || 'Failed to delete battle log');
       return result;
     },
     onMutate: async (battleId) => {
@@ -417,7 +444,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       if (released?.campaign_territory_id && isPlayedBattle(released)) {
         onTerritoryUpdate({ action: 'remove', territoryId: released.campaign_territory_id });
       }
-      toast.success("Battle report deleted successfully");
+      toast.success("Battle log deleted successfully");
     },
     onError: (error, _battleId, context) => {
       console.error('Battle deletion failed:', error);
@@ -431,54 +458,59 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         });
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle report';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete battle log';
       toast.error(errorMessage);
     }
   });
 
-  // Expose the openAddModal function to parent components
-  useImperativeHandle(ref, () => ({
-    openAddModal: () => {
-      setSelectedBattle(null);
-      setShowBattleModal(true);
+  // Opens the challenge's battle session, starting it on first use.
+  const playChallengeMutation = useMutation({
+    mutationFn: (battleId: string) => createBattleSession({ campaign_battle_id: battleId }),
+    onSuccess: (result) => {
+      if (!result.success || !result.session_id) {
+        toast.error(result.error || 'Failed to start battle session');
+        return;
+      }
+      router.push(`/campaigns/${campaignId}/battle-session/${result.session_id}`);
     },
-    openChallengeRoundModal: () => setShowChallengeRoundModal(true)
-  }));
+    onError: () => toast.error('Failed to start battle session'),
+  });
 
   // Extract gangs from members
-  useEffect(() => {
-    if (members && members.length > 0) {
-      // Extract unique gangs from all members
-      const gangsMap = new Map<string, CampaignGang>();
-      const gangNamesMap = new Map<string, string>();
-      const gangColourMap = new Map<string, string>();
-      
-      members.forEach(member => {
-        if (member.gangs && member.gangs.length > 0) {
-          member.gangs.forEach(gang => {
-            // Create a unique key for each gang instance that includes member instance info
-            const gangKey = gang.id;
-            
-            if (!gangsMap.has(gangKey)) {
-              gangsMap.set(gangKey, {
-                id: gang.id,
-                name: gang.name,
-                gang_colour: gang.gang_colour,
-                campaign_member_id: member.id || gang.campaign_member_id,
-                user_id: member.user_id,
-                owner_username: member.profile?.username || member.username || 'Unknown'
-              });
-              gangNamesMap.set(gang.id, gang.name);
-              gangColourMap.set(gang.id, gang.gang_colour || '#000000');
-            }
-          });
-        }
-      });
-      
-      setAvailableGangs(Array.from(gangsMap.values()));
-      setGangNameMap(gangNamesMap);
-      setGangColourMap(gangColourMap);
-    }
+  const { availableGangs, gangNameMap, gangColourMap } = useMemo(() => {
+    // Extract unique gangs from all members
+    const gangsMap = new Map<string, CampaignGang>();
+    const gangNamesMap = new Map<string, string>();
+    const gangColourMap = new Map<string, string>();
+
+    members?.forEach(member => {
+      if (member.gangs && member.gangs.length > 0) {
+        member.gangs.forEach(gang => {
+          // Create a unique key for each gang instance that includes member instance info
+          const gangKey = gang.id;
+          
+          if (!gangsMap.has(gangKey)) {
+            gangsMap.set(gangKey, {
+              id: gang.id,
+              name: gang.name,
+              gang_type_id: gang.gang_type_id,
+              gang_colour: gang.gang_colour,
+              campaign_member_id: member.id || gang.campaign_member_id,
+              user_id: member.user_id,
+              owner_username: member.profile?.username || member.username || 'Unknown'
+            });
+            gangNamesMap.set(gang.id, gang.name);
+            gangColourMap.set(gang.id, gang.gang_colour || '#000000');
+          }
+        });
+      }
+    });
+
+    return {
+      availableGangs: Array.from(gangsMap.values()),
+      gangNameMap: gangNamesMap,
+      gangColourMap,
+    };
   }, [members]);
 
   // Get gang name by ID - prioritize battle data, fallback to member data
@@ -531,7 +563,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       gangColour: string;
       playerName: string;
       playerId: string;
-      playerRole: MemberRole | undefined;
+      playerRole: CampaignRole | undefined;
       allegianceName: string;
       battles: number;
       victories: number;
@@ -569,7 +601,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           gangColour: gang.gang_colour || '#000000',
           playerName: member.profile?.username || member.username || '',
           playerId: member.user_id,
-          playerRole: member.role as MemberRole | undefined,
+          playerRole: member.role as CampaignRole | undefined,
           allegianceName: gang.allegiance?.name || '',
           battles: battlesPlayed,
           victories,
@@ -607,15 +639,20 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     return rows;
   }, [members, battles, standingsSortField, standingsSortDirection, gangParticipatedIn]);
 
-  // Check if user can edit/delete this battle
-  // A challenge round is only opened for accepted gangs, so count those rather
-  // than availableGangs, which also carries pending ones.
-  const acceptedGangCount = useMemo(
-    () => members.reduce(
-      (total, member) =>
-        total + (member.gangs?.filter((g) => g.status === 'ACCEPTED').length ?? 0),
-      0
-    ),
+  // A challenge round is only created for accepted gangs, so list those rather
+  // than availableGangs, which also carries pending ones. Lowest rating first,
+  // the order the round is offered in until the arbitrator changes it.
+  const acceptedGangs = useMemo(
+    () => members
+      .flatMap((member) => (member.gangs ?? [])
+        .filter((g) => g.status === 'ACCEPTED')
+        .map((g) => ({
+          id: g.id,
+          name: g.name,
+          secondary: member.profile?.username || member.username,
+          detail: g.rating ?? 0,
+        })))
+      .sort((a, b) => a.detail - b.detail),
     [members]
   );
 
@@ -624,6 +661,7 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     return availableGangs.find(g => g.id === gangId)?.user_id === userId;
   }, [availableGangs, userId]);
 
+  // Check if user can edit/delete this battle
   const canUserEditBattle = useCallback((battle: Battle): boolean => {
     // Admins can edit any battle
     if (isAdmin) return true;
@@ -844,72 +882,219 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
     setBattleToDelete(null);
   };
 
-  // Handle role change confirmation
-  const handleRoleChange = async () => {
-    if (!roleChange) return false;
-    if (!isCampaignOwner && !isCampaignAdmin) {
-      toast.error("You don't have permission to change roles");
-      return false;
-    }
-    try {
-      const result = await updateMemberRole({
-        campaignId,
-        userId: roleChange.memberId,
-        newRole: roleChange.newRole,
-        previousRole: roleChange.currentRole
-      });
-
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-
-      onMemberRoleChange(roleChange.memberId, roleChange.newRole);
-      toast.success(`Updated ${roleChange.username}'s role to ${roleChange.newRole}`);
-      setShowRoleModal(false);
-      setRoleChange(null);
-      return true;
-    } catch (error) {
-      console.error('Error updating role:', error);
-      toast.error(error instanceof Error ? error.message : "Failed to update role");
-      return false;
-    }
-  };
-
-  // The content to render
-  const content = (
-    <>
-      {!noContainer && (
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-bold">Battles</h2>
-          {!hideAddButton && (
-            <Button
-              onClick={() => {
-                setSelectedBattle(null);
-                setShowBattleModal(true);
-              }}
-              className="bg-neutral-900 hover:bg-gray-800 text-white"
-              aria-label="Add battle report"
+  const renderBattlesTable = (rows: Battle[], isChallengeTable: boolean, emptyText: string) => (
+    <div className="rounded-md border overflow-x-auto">
+      <table className="w-full text-xs md:text-sm">
+        <thead>
+          <tr className="bg-muted border-b">
+            <th 
+              className="p-1 md:p-2 text-left font-medium min-w-[5rem] md:min-w-[6.2rem] cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('date')}
             >
-              Add
-            </Button>
-          )}
-        </div>
-      )}
-      {noContainer && !hideAddButton && (
-        <div className="flex justify-end mb-4">
-          <Button
-            onClick={() => {
-              setSelectedBattle(null);
-              setShowBattleModal(true);
-            }}
-            className="bg-neutral-900 hover:bg-gray-800 text-white"
-            aria-label="Add battle report"
-          >
-            Add
-          </Button>
-        </div>
-      )}
+              <div className="flex items-center gap-1">
+                Date
+                {sortField === 'date' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="p-1 md:p-2 text-left font-medium min-w-[1rem] cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('cycle')}
+            >
+              <div className="flex items-center gap-1">
+                Cycle
+                {sortField === 'cycle' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="p-1 md:p-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('scenario')}
+            >
+              <div className="flex items-center gap-1">
+                Scenario
+                {sortField === 'scenario' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th 
+              className="p-1 md:p-2 text-left font-medium cursor-pointer hover:bg-muted transition-colors select-none"
+              onClick={() => handleSort('territory')}
+            >
+              <div className="flex items-center gap-1">
+                Territory
+                {sortField === 'territory' && (
+                  <span className="text-muted-foreground">
+                    {sortDirection === 'asc' ? '↑' : '↓'}
+                  </span>
+                )}
+              </div>
+            </th>
+            <th className="px-7 py-2 text-left font-medium">Gangs</th>
+            {isChallengeTable
+              ? <th className="p-1 md:p-2 text-left font-medium">Status</th>
+              : <th className="px-2 py-2 text-left font-medium">Winner(s)</th>}
+            <th className="p-1 md:p-2 text-left font-medium">Report</th>
+            {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td colSpan={(isAdmin || availableGangs.length > 0) ? 8 : 7} className="text-muted-foreground italic text-center">
+                {emptyText}
+              </td>
+            </tr>
+          ) : (
+            rows.map((battle) => (
+              <tr key={battle.id} className="border-b">
+                <td className="p-1 md:p-2 align-top max-w-[5rem]">
+                  {formatDate(battle.created_at)}
+                </td>
 
+                <td className="p-1 md:p-2 align-top text-right">
+                  {battle.cycle || '-'}
+                </td>
+
+                <td className="p-1 md:p-2 align-top max-w-[8rem]">
+                  {scenarioLabel(battle) || '-'}
+                </td>
+
+                <td className="p-1 md:p-2 align-top">
+                  {battle.territory_name || '-'}
+                </td>
+
+                <td className="p-1 md:p-2 align-top">
+                  {getGangsWithRoles(battle)}
+                </td>
+
+                {isChallengeTable ? (
+                  <td className="p-1 md:p-2 align-top">
+                    <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
+                      {battleStatusLabels[battleStatusOf(battle)]}
+                    </span>
+                  </td>
+                ) : (
+                  <td className="p-1 md:p-2 align-top">
+                    {(() => {
+                      const winnerIds = getWinnerIds(battle);
+                      if (winnerIds.length === 0) {
+                        return <span className="ml-2 text-xs">Draw</span>;
+                      }
+                      // Resolve names from the enriched winners array first,
+                      // fall back to the legacy single-winner enrichment for
+                      // historical rows where only `winner` is populated.
+                      const lookupName = (id: string): string =>
+                        battle.winners?.find((w) => w.id === id)?.name
+                        ?? (battle.winner?.id === id ? battle.winner.name : null)
+                        ?? 'Unknown';
+                      return (
+                        <div className="flex flex-col items-start gap-1">
+                          {winnerIds.map((id) => (
+                            <span
+                              key={id}
+                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
+                              style={{ color: getGangColour(id) }}
+                            >
+                              <a
+                                href={`/gang/${id}`}
+                                className="hover:text-muted-foreground transition-colors"
+                                onClick={(e) => handleGangClick(e, id)}
+                              >
+                                {lookupName(id)}
+                              </a>
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </td>
+                )}
+
+                <td className="p-1 md:p-2 align-top">
+                  {battle.note && (
+                    <button
+                      onClick={() => {
+                        setActiveNote(battle.note || '');
+                        setShowNoteModal(true);
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="View note"
+                    >
+                      <BiSolidNotepad className="text-lg" />
+                    </button>
+                  )}
+                </td>
+                {canUserEditBattle(battle) && (
+                  <td className="p-1 md:p-2 align-top text-right">
+                    <div className="flex justify-end gap-2">
+                      {battleStatusOf(battle) === 'challenge_accepted' && (
+                        <Button
+                          onClick={() => playChallengeMutation.mutate(battle.id)}
+                          disabled={playChallengeMutation.isPending}
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          aria-label="Play as battle session"
+                          title="Play as battle session"
+                        >
+                          <LuSwords className="h-4 w-4" />
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => handleEditBattle(battle)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        aria-label="Edit battle"
+                      >
+                        <LuSquarePen className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        onClick={(e) => handleDeleteBattle(battle, e)}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        aria-label="Delete battle"
+                      >
+                        <LuTrash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const renderAddButton = (asChallenge: boolean) => !hideAddButton && (
+    <Button
+      onClick={() => {
+        setSelectedBattle(null);
+        setAddingChallenge(asChallenge);
+        setShowBattleModal(true);
+      }}
+      className="bg-neutral-900 hover:bg-gray-800 text-white"
+      aria-label={asChallenge ? "Add challenge" : "Add battle log"}
+    >
+      Add
+    </Button>
+  );
+
+  return (
+    <>
       {/* Filter Section */}
       <div className="mb-4">
         <div className="flex items-center justify-between">
@@ -1034,190 +1219,34 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       </div>
 
-      <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-xs md:text-sm">
-          <thead>
-            <tr className="bg-muted border-b">
-              <th 
-                className="p-1 md:p-2 text-left font-medium min-w-[5rem] md:min-w-[6.2rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('date')}
-              >
-                <div className="flex items-center gap-1">
-                  Date
-                  {sortField === 'date' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th 
-                className="p-1 md:p-2 text-left font-medium min-w-[1rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('cycle')}
-              >
-                <div className="flex items-center gap-1">
-                  Cycle
-                  {sortField === 'cycle' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th 
-                className="p-1 md:p-2 text-left font-medium max-w-[8rem] cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('scenario')}
-              >
-                <div className="flex items-center gap-1">
-                  Scenario
-                  {sortField === 'scenario' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th 
-                className="p-1 md:p-2 text-left font-medium cursor-pointer hover:bg-muted transition-colors select-none"
-                onClick={() => handleSort('territory')}
-              >
-                <div className="flex items-center gap-1">
-                  Territory
-                  {sortField === 'territory' && (
-                    <span className="text-muted-foreground">
-                      {sortDirection === 'asc' ? '↑' : '↓'}
-                    </span>
-                  )}
-                </div>
-              </th>
-              <th className="px-7 py-2 text-left font-medium">Gangs</th>
-              <th className="px-2 py-2 text-left font-medium">Winner(s)</th>
-              <th className="p-1 md:p-2 text-left font-medium">Status</th>
-              <th className="p-1 md:p-2 text-left font-medium">Report</th>
-              {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {sortedAndFilteredBattles.length === 0 ? (
-              <tr>
-                <td colSpan={(isAdmin || availableGangs.length > 0) ? 9 : 8} className="text-muted-foreground italic text-center">
-                  {battles.length === 0 
-                    ? "No battles recorded yet."
-                    : "No battles match the selected filters."}
-                </td>
-              </tr>
-            ) : (
-              currentBattles.map((battle) => (
-                <tr key={battle.id} className="border-b">
-                  <td className="p-1 md:p-2 align-top max-w-[5rem]">
-                    {formatDate(battle.created_at)}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top text-right">
-                    {battle.cycle || '-'}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top max-w-[8rem]">
-                    {battle.scenario || battle.scenario_name || '-'}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {battle.territory_name || '-'}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {getGangsWithRoles(battle)}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {(() => {
-                      const winnerIds = getWinnerIds(battle);
-                      if (winnerIds.length === 0) {
-                        // A draw is a result. An unplayed challenge has none yet,
-                        // so it gets the same plain placeholder as the other columns.
-                        return isPlayedBattle(battle)
-                          ? <span className="ml-2 text-xs">Draw</span>
-                          : '-';
-                      }
-                      // Resolve names from the enriched winners array first,
-                      // fall back to the legacy single-winner enrichment for
-                      // historical rows where only `winner` is populated.
-                      const lookupName = (id: string): string =>
-                        battle.winners?.find((w) => w.id === id)?.name
-                        ?? (battle.winner?.id === id ? battle.winner.name : null)
-                        ?? 'Unknown';
-                      return (
-                        <div className="flex flex-col items-start gap-1">
-                          {winnerIds.map((id) => (
-                            <span
-                              key={id}
-                              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                              style={{ color: getGangColour(id) }}
-                            >
-                              <a
-                                href={`/gang/${id}`}
-                                className="hover:text-muted-foreground transition-colors"
-                                onClick={(e) => handleGangClick(e, id)}
-                              >
-                                {lookupName(id)}
-                              </a>
-                            </span>
-                          ))}
-                        </div>
-                      );
-                    })()}
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
-                      {battleStatusLabels[battleStatusOf(battle)]}
-                    </span>
-                  </td>
-
-                  <td className="p-1 md:p-2 align-top">
-                    {battle.note && (
-                      <button
-                        onClick={() => {
-                          setActiveNote(battle.note || '');
-                          setShowNoteModal(true);
-                        }}
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label="View note"
-                      >
-                        <BiSolidNotepad className="text-lg" />
-                      </button>
-                    )}
-                  </td>
-                  {canUserEditBattle(battle) && (
-                    <td className="p-1 md:p-2 align-top text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          onClick={() => handleEditBattle(battle)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0"
-                          aria-label="Edit battle"
-                        >
-                          <LuSquarePen className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          onClick={(e) => handleDeleteBattle(battle, e)}
-                          variant="outline"
-                          size="sm"
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          aria-label="Delete battle"
-                        >
-                          <LuTrash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))
+      <div className="mb-8">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-lg font-bold">Challenges</h3>
+          <div className="flex gap-2">
+            {canStartChallengeRound && (
+              <Button variant="outline" onClick={() => setShowChallengeRoundModal(true)}>
+                Challenge Round
+              </Button>
             )}
-          </tbody>
-        </table>
+            {renderAddButton(true)}
+          </div>
+        </div>
+        {renderBattlesTable(
+          challenges,
+          true,
+          hasChallenges ? "No challenges match the selected filters." : "No challenges yet."
+        )}
       </div>
+
+      <div className="flex justify-between items-center mb-3">
+        <h3 className="text-lg font-bold">Battle Logs</h3>
+        {renderAddButton(false)}
+      </div>
+      {renderBattlesTable(
+        currentBattleLogs,
+        false,
+        hasBattleLogs ? "No battles match the selected filters." : "No battles recorded yet."
+      )}
 
       {/* Pagination Controls */}
       {totalPages > 1 && (
@@ -1248,9 +1277,11 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
         </div>
       )}
 
+      {battleSessions && <div className="mt-8">{battleSessions}</div>}
+
       {/* Standings Table */}
       <div className="mt-8">
-        <h3 className="text-xl md:text-2xl font-bold mb-3">Standings</h3>
+        <h3 className="text-lg font-bold mb-3">Standings</h3>
         <div className="rounded-md border overflow-x-auto">
           <table className="w-full text-xs md:text-sm">
             <thead>
@@ -1306,10 +1337,8 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
                               setRoleChange({
                                 memberId: row.playerId,
                                 username: row.playerName,
-                                currentRole: row.playerRole || 'MEMBER',
-                                newRole: row.playerRole === 'ARBITRATOR' ? 'MEMBER' : 'ARBITRATOR'
+                                currentRole: row.playerRole || 'MEMBER'
                               });
-                              setShowRoleModal(true);
                             }}
                             className="inline-flex items-center px-0.5 py-0.5 rounded-full text-xs font-medium bg-muted hover:text-muted-foreground transition-colors"
                           >
@@ -1346,45 +1375,49 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
       {showChallengeRoundModal && (
         <CampaignChallengeRoundModal
           campaignId={campaignId}
-          gangCount={acceptedGangCount}
+          gangs={acceptedGangs}
           defaultCycle={currentCycle}
           onClose={() => setShowChallengeRoundModal(false)}
           onSuccess={(created) => onBattlesChange(prev => [...prev, ...created])}
         />
       )}
 
-      <CampaignBattleLogModal
-        campaignId={campaignId}
-        editionSlug={editionSlug}
-        availableGangs={availableGangs}
-        territories={territories.map(t => ({
-          id: t.id,
-          name: t.territory_name,
-          controlled_by: t.gang_id || undefined,
-          is_custom: t.is_custom,
-          default_gang_territory: t.default_gang_territory
-        }))}
-        isOpen={showBattleModal}
-        onClose={handleModalClose}
-        onBattleUpdate={onBattlesChange}
-        onTerritoryUpdate={onTerritoryUpdate}
-        battles={battles}
-        battleToEdit={selectedBattle}
-        userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
-        canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
-      />
+      {showBattleModal && (
+        <CampaignBattleLogModal
+          campaignId={campaignId}
+          editionSlug={editionSlug}
+          availableGangs={availableGangs}
+          scenarioTables={scenarioTables}
+          territories={territories.map(t => ({
+            id: t.id,
+            name: t.territory_name,
+            controlled_by: t.gang_id || undefined,
+            is_custom: t.is_custom,
+            default_gang_territory: t.default_gang_territory
+          }))}
+          onClose={handleModalClose}
+          onBattleUpdate={onBattlesChange}
+          onTerritoryUpdate={onTerritoryUpdate}
+          battles={battles}
+          battleToEdit={selectedBattle}
+          userRole={isAdmin ? 'ARBITRATOR' : 'MEMBER'}
+          canRespondToChallenge={isAdmin || ownsGang(selectedBattle?.challenged_gang_id)}
+          newChallenge={addingChallenge}
+          defaultCycle={currentCycle}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <Modal
-          title="Delete Battle Report"
+          title="Delete Battle Log"
           content={
             <div>
-              <p className="mb-4">Are you sure you want to delete this battle report?</p>
+              <p className="mb-4">Are you sure you want to delete this battle log?</p>
               {battleToDelete && (
                 <div className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
                   <p><span className="font-medium">Date:</span> {formatDate(battleToDelete.created_at)}</p>
-                  <p><span className="font-medium">Scenario:</span> {battleToDelete.scenario || battleToDelete.scenario_name || 'N/A'}</p>
+                  <p><span className="font-medium">Scenario:</span> {scenarioLabel(battleToDelete) || 'N/A'}</p>
                 </div>
               )}
               <p className="text-sm text-red-600 mt-4">
@@ -1418,38 +1451,15 @@ const CampaignBattleLogsList = forwardRef<CampaignBattleLogsListRef, CampaignBat
           hideCancel
         />
       )}
-      {showRoleModal && roleChange && (
-        <Modal
-          title="Change Player Role"
-          content={
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Are you sure you want to change <span className="font-bold">{roleChange.username}</span>&apos;s role from{' '}
-                <span className="font-bold">{roleChange.currentRole}</span> to{' '}
-                <span className="font-bold">{roleChange.newRole}</span>?
-              </p>
-            </div>
-          }
-          onClose={() => {
-            setShowRoleModal(false);
-            setRoleChange(null);
-          }}
-          onConfirm={handleRoleChange}
-          confirmText="Change Role"
-          confirmDisabled={false}
+      {roleChange && (
+        <CampaignRoleModal
+          campaignId={campaignId}
+          target={roleChange}
+          canTransferOwnership={isCampaignOwner}
+          onClose={() => setRoleChange(null)}
+          onRoleChange={onMemberRoleChange}
         />
       )}
     </>
   );
-
-  // Return with or without a container based on prop
-  return noContainer ? content : (
-    <div className="bg-card shadow-md rounded-lg p-4">
-      {content}
-    </div>
-  );
-});
-
-CampaignBattleLogsList.displayName = "CampaignBattleLogsList";
-
-export default CampaignBattleLogsList; 
+}

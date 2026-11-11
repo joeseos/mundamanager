@@ -15,12 +15,15 @@ import {
 } from '@/types/edition';
 import {
   N26_CHAMPION_PROMOTION_SKILL_NAME,
+  N26_OUTCAST_LEADER_PET_STARTING_XP,
+  N26_OUTCAST_LEADER_STARTING_XP,
   N26_PROSPECT_PROMOTION_CREDITS,
   N26_PROSPECT_SPECIALISATIONS,
   buildN26ChampionLeaderPromotionSubtypes,
   buildN26GangerChampionPromotionSubtypes,
   buildN26ProspectPromotionSubtypes,
 } from '@/utils/keepTypePromotionN26';
+import { xpAfterStartingXpChange } from '@/utils/advancementRanks';
 
 // Determines the target subtype for promotion based on current subtype
 const PROMOTION_MAP: Record<string, string> = {
@@ -91,10 +94,12 @@ export type FighterPromotionResult = {
   special_rules: string[];
   fighter_specialisation?: string | null;
   fighter_specialisation_id?: string | null;
-  /** N26 promotion recipes with skill grants. */
-  kind?: 'n26_prospect' | 'n26_ganger_champion' | 'n26_champion_leader';
+  /** N26 promotion recipes (all but Outcast Leader grant a skill). */
+  kind?: 'n26_prospect' | 'n26_ganger_champion' | 'n26_champion_leader' | 'n26_outcast_leader';
   credits_increase?: number;
   promoted_from_prospect?: boolean;
+  /** Outcast Leader: the new Starting XP. */
+  starting_xp?: number;
 };
 
 function promotionSpecialisationFields(
@@ -123,10 +128,14 @@ interface FighterPromotionModalProps {
     fighter_variant?: string | null;
   }>;
   editionSlug?: string | null;
-  isOpen: boolean;
   onClose: () => void;
   /** When true, shows guidance to use Add Advancement for XP-based promotion. */
   showXpPromotionHint?: boolean;
+  /** Set when the fighter can become Outcast Leader: shows the checkbox; its XP feeds the summary. */
+  outcastLeader?: {
+    currentXp: number;
+    currentStartingXp: number | null;
+  };
   onPromoted: (data: FighterPromotionResult) => void;
 }
 
@@ -139,14 +148,13 @@ export function FighterPromotionModal({
   currentFighterSpecialisationId,
   fighterTypes,
   editionSlug = null,
-  isOpen,
   onClose,
   showXpPromotionHint = false,
+  outcastLeader,
   onPromoted,
 }: FighterPromotionModalProps) {
   const [selectedTypeId, setSelectedTypeId] = useState('');
   const [selectedSpecialisationId, setSelectedSpecialisationId] = useState('');
-  const [newSpecialRules, setNewSpecialRules] = useState<string[]>([]);
   const [newRuleInput, setNewRuleInput] = useState('');
   const [includeAllGangFighterTypes, setIncludeAllGangFighterTypes] = useState(false);
 
@@ -172,6 +180,13 @@ export function FighterPromotionModal({
     : (PROMOTION_MAP[sourceSubtype] || '');
   const isExoticBeast = resolvedSubtypes.includes('Exotic Beast') || currentSubtype === 'Exotic Beast';
   const isSimplifiedPath = isExoticBeast || isN26ProspectPromotion || isN26GangerChampionPromotion;
+  // The simplified paths and N26 Champion→Leader keep the fighter's own rules
+  // (N26: "existing characteristics and special rules do not change"); the others
+  // take the chosen type's.
+  const keepsOwnSpecialRules = isSimplifiedPath || isN26ChampionLeaderPromotion;
+  const [newSpecialRules, setNewSpecialRules] = useState<string[]>(
+    () => (keepsOwnSpecialRules ? normalizeSpecialRules(currentSpecialRules) : [])
+  );
 
   const n26ProspectSubtypes = useMemo(
     () => buildN26ProspectPromotionSubtypes(
@@ -192,6 +207,13 @@ export function FighterPromotionModal({
       currentSubtypes?.length ? currentSubtypes : (currentSubtype ? [currentSubtype] : [])
     ),
     [currentSubtypes, currentSubtype]
+  );
+
+  // Opt-in for every fighter; subtypes follow the Champion→Leader rebuild.
+  const [promoteToOutcastLeader, setPromoteToOutcastLeader] = useState(false);
+  const isOutcastLeaderPath = Boolean(outcastLeader) && promoteToOutcastLeader;
+  const outcastLeaderRemovedSubtypes = resolvedSubtypes.filter(
+    (subtype) => !n26ChampionLeaderSubtypes.includes(subtype)
   );
 
   const specialisationComboboxOptions = useMemo(
@@ -259,6 +281,7 @@ export function FighterPromotionModal({
       }),
     [
       displayTypes,
+      editionSlug,
       resolvedCurrentSpecialisationId,
       includeAllGangFighterTypes,
       targetSubtype,
@@ -271,36 +294,22 @@ export function FighterPromotionModal({
     [currentSpecialRules]
   );
 
-  // Reset state on each open, pre-select the first eligible type
-  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
-  if (isOpen && !prevIsOpen) {
-    if (isSimplifiedPath) {
-      setSelectedTypeId('');
-      setSelectedSpecialisationId('');
-      setIncludeAllGangFighterTypes(false);
-      setNewSpecialRules(normalizeSpecialRules(currentSpecialRules));
-      setNewRuleInput('');
-    } else {
-      setIncludeAllGangFighterTypes(false);
-      setSelectedTypeId('');
-      setSelectedSpecialisationId('');
-      setNewSpecialRules([]);
-      setNewRuleInput('');
-    }
-  }
-  if (isOpen !== prevIsOpen) {
-    setPrevIsOpen(isOpen);
-  }
-
   const handleIncludeAllGangFighterTypesChange = (checked: boolean) => {
     setIncludeAllGangFighterTypes(checked);
     setSelectedTypeId('');
-    setNewSpecialRules([]);
+    setNewSpecialRules(keepsOwnSpecialRules ? normalizedCurrentSpecialRules : []);
   };
 
-  // When selection changes, update new special rules from the selected type
+  const handleOutcastLeaderChange = (checked: boolean) => {
+    setPromoteToOutcastLeader(checked);
+    setSelectedTypeId('');
+    setNewSpecialRules(checked || keepsOwnSpecialRules ? normalizedCurrentSpecialRules : []);
+  };
+
+  // When selection changes, take the selected type's rules unless the fighter keeps its own
   const handleTypeChange = (typeId: string) => {
     setSelectedTypeId(typeId);
+    if (keepsOwnSpecialRules) return;
     const type = displayTypes.find(ft => ft.id === typeId);
     setNewSpecialRules(type?.special_rules ? normalizeSpecialRules(type.special_rules) : []);
   };
@@ -321,6 +330,17 @@ export function FighterPromotionModal({
   };
 
   const handleConfirm = () => {
+    if (isOutcastLeaderPath) {
+      onPromoted({
+        kind: 'n26_outcast_leader',
+        fighter_type: currentFighterType || '',
+        fighter_type_id: currentFighterTypeId || '',
+        fighter_subtypes: n26ChampionLeaderSubtypes,
+        special_rules: newSpecialRules,
+        starting_xp: N26_OUTCAST_LEADER_STARTING_XP,
+      });
+      return;
+    }
     if (isN26ProspectPromotion) {
       if (!selectedSpecialisation) return;
       onPromoted({
@@ -380,11 +400,11 @@ export function FighterPromotionModal({
     });
   };
 
-  const confirmDisabled = isN26ProspectPromotion
-    ? !selectedSpecialisation
-    : !isExoticBeast && !isN26GangerChampionPromotion && !selectedType;
-
-  if (!isOpen) return null;
+  const confirmDisabled =
+    !isOutcastLeaderPath &&
+    (isN26ProspectPromotion
+      ? !selectedSpecialisation
+      : !isExoticBeast && !isN26GangerChampionPromotion && !selectedType);
 
   return (
     <Modal
@@ -396,7 +416,53 @@ export function FighterPromotionModal({
       confirmDisabled={confirmDisabled}
       content={
         <div className="space-y-6">
-          {isN26ProspectPromotion ? (
+          {outcastLeader && (
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="promote-to-outcast-leader"
+                checked={promoteToOutcastLeader}
+                onCheckedChange={(checked) => handleOutcastLeaderChange(checked === true)}
+              />
+              <label
+                htmlFor="promote-to-outcast-leader"
+                className="text-sm font-medium cursor-pointer"
+              >
+                Promote to Outcast Leader
+              </label>
+            </div>
+          )}
+          {isOutcastLeaderPath && outcastLeader ? (
+            <div className="space-y-2">
+              <p className="text-sm">
+                This fighter becomes the gang&apos;s <strong>Outcast Leader</strong>
+                {currentFighterType && (
+                  <> and stays a <strong>{currentFighterType}</strong> fighter</>
+                )}.
+              </p>
+              <ul className="list-disc pl-5 text-sm space-y-1">
+                <li>
+                  Gains <strong>Leader</strong>
+                  {outcastLeaderRemovedSubtypes.length > 0 && (
+                    <>; loses <strong>{outcastLeaderRemovedSubtypes.join(', ')}</strong></>
+                  )}
+                </li>
+                <li>
+                  Starting XP becomes <strong>{N26_OUTCAST_LEADER_STARTING_XP}</strong> (XP{' '}
+                  {outcastLeader.currentXp} →{' '}
+                  {xpAfterStartingXpChange(
+                    outcastLeader.currentXp,
+                    outcastLeader.currentStartingXp,
+                    N26_OUTCAST_LEADER_STARTING_XP
+                  )})
+                </li>
+                <li>
+                  Pets from this fighter&apos;s wargear start with{' '}
+                  <strong>{N26_OUTCAST_LEADER_PET_STARTING_XP}</strong> XP
+                </li>
+                <li>Skills, equipment and rating are unchanged</li>
+              </ul>
+            </div>
+          ) : isN26ProspectPromotion ? (
             <div className="space-y-4">
               <p className="text-sm">
                 This fighter will remain a <strong>{currentFighterType || 'Prospect'}</strong>,
@@ -497,7 +563,7 @@ export function FighterPromotionModal({
               </div>
 
               {/* Current Special Rules (read-only) */}
-              {normalizedCurrentSpecialRules.length > 0 && (
+              {!keepsOwnSpecialRules && normalizedCurrentSpecialRules.length > 0 && (
                 <div>
                   <label className="block text-sm text-muted-foreground font-medium mb-1">
                   Special Rules to be Removed
@@ -520,7 +586,7 @@ export function FighterPromotionModal({
           {/* Special Rules (editable) */}
           <div>
             <label className="block text-sm text-muted-foreground font-medium mb-1">
-              {isSimplifiedPath ? 'Special Rules' : 'Special Rules to be Added'}
+              {keepsOwnSpecialRules || isOutcastLeaderPath ? 'Special Rules' : 'Special Rules to be Added'}
             </label>
             <div className="flex space-x-2 mb-2">
               <Input

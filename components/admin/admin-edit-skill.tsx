@@ -6,14 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from 'sonner';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
-import { gangOriginRank } from "@/utils/gangOriginRank";
+import { GangOriginOptions } from "@/components/admin/gang-scope-options";
+import { SkillUserKindCheckboxes, type SkillUserKind } from "@/components/admin/skill-user-kind-checkboxes";
 import { AdminFighterEffects } from './admin-fighter-effects';
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
+import { hasSkillUserKindRestrictions } from '@/types/edition';
+import { formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
 import { HiX } from "react-icons/hi";
 import type { EquipmentGrants } from '@/types/equipment';
 
 enum OperationType {
-  POST = 'POST',
   UPDATE = 'UPDATE',
   DELETE = 'DELETE'
 }
@@ -23,6 +25,7 @@ interface Skill {
   name: string;
   gang_origin_id: string | null;
   grants_equipment?: EquipmentGrants | null;
+  usable_by?: SkillUserKind[] | null;
   effects?: any[];
 }
 
@@ -146,10 +149,9 @@ const saveSkillEffects = async (skillId: string, effects: any[], skillNameList: 
 
 interface AdminEditSkillModalProps {
   onClose: () => void;
-  onSubmit?: () => void;
 }
 
-export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalProps) {
+export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
   const queryClient = useQueryClient();
   const [skillName, setSkillName] = useState('');
   const [skillId, setSkillId] = useState('');
@@ -164,9 +166,11 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   const [effectCategories, setEffectCategories] = useState<any[]>([]);
   // Equipment the skill comes with (skills.grants_equipment, fixed and free)
   const [grantedEquipmentIds, setGrantedEquipmentIds] = useState<string[]>([]);
+  const [usableBy, setUsableBy] = useState<SkillUserKind[]>([]);
   const { data: editions = [] } = useEditions();
   const editionSlug = editionSlugOf(editions, editionId);
   const skillSetRank = getSkillSetRank(editionSlug);
+  const showUserKindRestrictions = hasSkillUserKindRestrictions(editionSlug);
 
   const { data: skillTypeList = [] } = useQuery<Array<{id: string, skill_type: string, edition_id?: string | null}>>({
     queryKey: ['admin-skill-types'],
@@ -178,7 +182,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, category_name: string}>>({
+  const { data: gangOriginList = [] } = useQuery<Array<{id: string, origin_name: string, edition_id: string | null}>>({
     queryKey: ['admin-gang-origins'],
     queryFn: async () => {
       const response = await fetch('/api/admin/gang-origins');
@@ -210,6 +214,11 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     ? skillTypeList.filter(type => type.edition_id === editionId)
     : skillTypeList;
 
+  // Origin names repeat across editions under different ids
+  const filteredGangOriginList = editionId
+    ? gangOriginList.filter(origin => origin.edition_id === editionId)
+    : gangOriginList;
+
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
     if (newEditionId && skillType) {
@@ -219,6 +228,8 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         setSkillTypeName('');
         setSkillName('');
         setSkillId('');
+        setGangOrigin('');
+        setUsableBy([]);
         setSkillList([]);
       }
     }
@@ -233,6 +244,9 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
       const selectedSkill = skillNameList.find(s => s.id === skillId);
       setSkillEffects(selectedSkill?.effects ?? []);
       setGrantedEquipmentIds(grantedIdsOf(selectedSkill));
+      setUsableBy(selectedSkill?.usable_by ?? []);
+    } else {
+      setUsableBy([]);
     }
   }
 
@@ -271,6 +285,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
         name: skill.skill_name,
         gang_origin_id: skill.gang_origin_id,
         grants_equipment: skill.grants_equipment ?? null,
+        usable_by: skill.usable_by ?? null,
         effects: skill.effects || []
       })));
 
@@ -290,8 +305,7 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
   };
 
   const handleSubmitType = async (operation: OperationType) => {
-   // For POST and UPDATE operations, validate required fields.
-  if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillType)) {
+  if (operation === OperationType.UPDATE && !skillType) {
     toast.error("Please fill in all required fields");
     return;
   }
@@ -303,12 +317,6 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     let body: string | undefined;
 
     switch (operation) {
-      case OperationType.POST:
-        method = 'POST';
-        body = JSON.stringify({
-          skill_type_name: skillTypeName,
-        });
-        break;
       case OperationType.UPDATE:
         method = 'PATCH';
         body = JSON.stringify({
@@ -323,8 +331,6 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
           id: skillType,
         });
         break;
-      default:
-        throw new Error('Invalid operation');
     }
 
     const response = await fetch(url, {
@@ -336,28 +342,26 @@ export function AdminEditSkillModal({ onClose, onSubmit }: AdminEditSkillModalPr
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+      throw new Error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill set`);
     }
 
-    toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
+    toast.success(`Skill set ${operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
     await queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] });
 
-    if (onSubmit) {
-      onSubmit();
+    if (operation === OperationType.DELETE) {
+      onClose();
     }
-    onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+    toast.error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill set`);
   } finally {
     setIsLoading(false);
   }
 };
 
 const handleSubmitSkill = async (operation: OperationType) => {
-  // For POST and UPDATE operations, validate required fields.
-  if ((operation === OperationType.POST || operation === OperationType.UPDATE) && (!skillName || !skillType)) {
+  if (operation === OperationType.UPDATE && (!skillName || !skillType)) {
     toast.error("Please fill in all required fields");
     return;
   }
@@ -369,13 +373,6 @@ const handleSubmitSkill = async (operation: OperationType) => {
     let body: string | undefined;
 
     switch (operation) {
-      case OperationType.POST:
-        method = 'POST';
-        body = JSON.stringify({
-          name: skillName,
-          skill_type_id: skillType,
-        });
-        break;
       case OperationType.UPDATE:
         method = 'PATCH';
         body = JSON.stringify({
@@ -388,6 +385,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
               .filter(Boolean)
               .map(equipment_id => ({ equipment_id, additional_cost: 0 }))
           },
+          ...(showUserKindRestrictions ? { usable_by: usableBy.length > 0 ? usableBy : null } : {}),
         });
         break;
       case OperationType.DELETE:
@@ -396,8 +394,6 @@ const handleSubmitSkill = async (operation: OperationType) => {
           id: skillId,
         });
         break;
-      default:
-        throw new Error('Invalid operation');
     }
 
     const response = await fetch(url, {
@@ -409,28 +405,26 @@ const handleSubmitSkill = async (operation: OperationType) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+      throw new Error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
     }
 
-    // If UPDATE, save all effects and modifiers
     if (operation === OperationType.UPDATE && skillId) {
       await saveSkillEffects(skillId, skillEffects, skillNameList);
     }
 
-    toast.success(`Skill ${operation === OperationType.POST ? 'created' : operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
+    toast.success(`Skill ${operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
       queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
     ]);
 
-    if (onSubmit) {
-      onSubmit();
+    if (operation === OperationType.DELETE) {
+      onClose();
     }
-    onClose();
   } catch (error) {
     console.error(`Error executing ${operation} operation:`, error);
-    toast.error(`Failed to ${operation === OperationType.POST ? 'create' : operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
+    toast.error(`Failed to ${operation === OperationType.UPDATE ? 'update' : 'delete'} skill`);
   } finally {
     setIsLoading(false);
   }
@@ -530,11 +524,14 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 disabled={skillType == ""}
               >
                 <option value="">Select a skill</option>
-                  {skillNameList.map((skill) => (
+                  {skillNameList.map((skill) => {
+                    const suffix = formatSkillUserKindSuffix(skill.usable_by);
+                    return (
                       <option key={skill.id} value={skill.name} data-skill-id={skill.id} data-gang-origin-id={skill.gang_origin_id || ""}>
-                        {skill.name}
+                        {suffix ? `${skill.name}${suffix}` : skill.name}
                       </option>
-                    ))}
+                    );
+                  })}
               </select>
             </div>
 
@@ -549,36 +546,17 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 disabled={skillName == ''}
               >
                 <option value="">No gang origin restriction</option>
-                {Object.entries(
-                  gangOriginList
-                    .sort((a, b) => {
-                      const rankA = gangOriginRank[a.origin_name.toLowerCase()] ?? Infinity;
-                      const rankB = gangOriginRank[b.origin_name.toLowerCase()] ?? Infinity;
-                      return rankA - rankB;
-                    })
-                    .reduce((groups, origin) => {
-                      const rank = gangOriginRank[origin.origin_name.toLowerCase()] ?? Infinity;
-                      let groupLabel = "Misc."; // Default category for unlisted origins
-
-                      if (rank <= 19) groupLabel = "Prefecture";
-                      else if (rank <= 39) groupLabel = "Ancestry";
-                      else if (rank <= 59) groupLabel = "Tribe";
-
-                      if (!groups[groupLabel]) groups[groupLabel] = [];
-                      groups[groupLabel].push(origin);
-                      return groups;
-                    }, {} as Record<string, typeof gangOriginList>)
-                ).map(([groupLabel, origins]) => (
-                  <optgroup key={groupLabel} label={groupLabel}>
-                    {origins.map((origin) => (
-                      <option key={origin.id} value={origin.id}>
-                        {origin.origin_name}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
+                <GangOriginOptions origins={filteredGangOriginList} />
               </select>
             </div>
+
+            {showUserKindRestrictions && (
+              <SkillUserKindCheckboxes
+                value={usableBy}
+                onChange={setUsableBy}
+                disabled={skillName == ''}
+              />
+            )}
 
             {/* Skill Effects Section */}
             {skillId && skillsCategoryId && (

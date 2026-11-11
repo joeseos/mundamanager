@@ -176,19 +176,19 @@ export interface FighterLoadout {
 export interface CustomEquipment {
   id: string;
   user_id: string;
-  equipment_name: string;
-  availability: string;
-  cost: number;
+  equipment_name: string | null;
+  availability: string | null;
+  cost: number | null;
   /** N26 Trade Points cost (text: numeric string or E); surfaced when edition uses trade points */
   trade_points?: string;
-  variant?: string;
-  equipment_category?: string;
-  equipment_category_id?: string;
-  equipment_type?: string;
+  variant?: string | null;
+  equipment_category?: string | null;
+  equipment_category_id?: string | null;
+  equipment_type?: string | null;
   description?: string | null;
   created_at: string;
-  updated_at?: string;
-  is_consumable?: boolean;
+  updated_at?: string | null;
+  is_consumable?: boolean | null;
   edition_slug?: string | null;
 }
 

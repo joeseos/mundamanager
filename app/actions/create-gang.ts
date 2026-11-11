@@ -4,6 +4,7 @@ import { invalidateGang, invalidateUser, invalidateUserCustoms, invalidateGangCo
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
+import { isUuidArray } from '@/utils/uuid';
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
 
 interface CreateGangParams {
@@ -16,7 +17,7 @@ interface CreateGangParams {
   gangOriginId?: string | null;
   credits?: number;
   gangSubtypes?: string[];
-  defaultGangImage: number | null;
+  gangPortraitId?: string | null;
 }
 
 export async function createGang({
@@ -29,7 +30,7 @@ export async function createGang({
   gangOriginId,
   credits = 1000,
   gangSubtypes = [],
-  defaultGangImage
+  gangPortraitId = null,
 }: CreateGangParams) {
   try {
     console.log('Server action: Creating gang:', name);
@@ -37,6 +38,10 @@ export async function createGang({
     
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
+
+    if (!isUuidArray(gangSubtypes)) {
+      return { success: false, error: 'Invalid gang subtypes' };
+    }
 
     // If using a shared custom gang type (owned by another user), duplicate it
     let effectiveCustomGangTypeId = customGangTypeId;
@@ -71,7 +76,7 @@ export async function createGang({
         gang_affiliation_id: gangAffiliationId || null,
         gang_origin_id: gangOriginId || null,
         gang_subtypes: gangSubtypes.length > 0 ? gangSubtypes : null,
-        default_gang_image: defaultGangImage
+        gang_portrait_id: gangPortraitId
       }])
       .select();
     

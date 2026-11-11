@@ -2,9 +2,6 @@ import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 
-// Add Edge Function configurations
-export const runtime = 'edge';
-
 export async function DELETE(request: Request, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const supabase = await createClient();

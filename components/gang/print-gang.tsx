@@ -5,12 +5,12 @@ import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
 import { VehicleEquipment } from "@/types/fighter";
-import { calculateAdjustedStats, applySpecialRulesModifiers } from "@/utils/effect-modifiers";
+import { calculateAdjustedStats, applySpecialRulesModifiers, calculateVehicleStats } from "@/utils/effect-modifiers";
 import { sortFightersByPositioning } from "@/utils/fighter-positioning";
 import { injuryAggregationLabel } from "@/utils/injuryTarget";
 import WeaponTable from "./fighter-card-weapon-table";
-import { StatsTable, StatsType } from "../ui/fighter-card-stats-table";
-import { hasAlignment, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
+import { StatsTable, StatsType, formatCharacteristic } from "../ui/fighter-card-stats-table";
+import { hasAlignment, hasFleshWoundCondition, hasInjuredCondition, hasSaveCharacteristic, hasTradePoints } from "@/types/edition";
 import { formatFighterSubtypeDisplay } from "@/utils/fighterSubtypeDisplay";
 import { MdCheckBoxOutlineBlank } from "react-icons/md";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,9 +22,18 @@ import { Badge } from "@/components/ui/badge";
 import { GiAncientRuins } from "react-icons/gi";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
-import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL, type DefaultImageEntry } from "@/types/gang";
+import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from "@/types/gang";
+import { detailGangTypeLabel } from "@/utils/gang-type-label";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
+
+const XP_BOX_GROUPS = [
+  { label: 'SI', count: 6 },
+  { label: 'OOA', count: 6 },
+  { label: 'R/A', count: 5 },
+  { label: 'Ld/Ch', count: 5 },
+  { label: 'Misc', count: 6 },
+];
 
 function PrintGangPortrait({
   src,
@@ -69,15 +78,30 @@ function getRosterFighterNotePreview(note: string | undefined): string | null {
   return `${plain.slice(0, ROSTER_FIGHTER_NOTE_MAX_CHARS)}…`;
 }
 
+/**
+ * The damage track printed beside a fighter's W boxes: a Flesh Wound box per
+ * point of Toughness above 1, or N26's single Injured box. Null when the
+ * edition has neither.
+ */
+function damageTrack(editionSlug?: string | null) {
+  if (hasFleshWoundCondition(editionSlug)) {
+    return { name: "Flesh Wound", abbr: "FW", boxes: (toughness: number) => toughness - 1 };
+  }
+  if (hasInjuredCondition(editionSlug)) {
+    return { name: "Injured", abbr: "I", boxes: () => 1 };
+  }
+  return null;
+}
+
 interface PrintGangProps {
   gang: {
     id: string;
     name: string;
     gang_type: string;
     gang_type_id: string;
+    parent_gang_type_name?: string | null;
     image_url?: string;
-    default_gang_image?: number | null;
-    gang_type_default_image_urls?: DefaultImageEntry[];
+    gang_portrait_url?: string | null;
     gang_colour: string | null;
     credits: number | null;
     reputation: number | null;
@@ -98,8 +122,8 @@ interface PrintGangProps {
     campaigns: any[];
     gang_subtypes: Array<{ id: string; subtype: string }>;
     username?: string;
-    patreon_tier_id?: string;
-    patreon_tier_title?: string;
+    patreon_tier_id?: string | null;
+    patreon_tier_title?: string | null;
     hidden: boolean;
     positioning: Record<number, string>;
     note?: string;
@@ -108,70 +132,13 @@ interface PrintGangProps {
   };
 }
 
-const calculateVehicleStats = (
-  baseStats: Vehicle | undefined,
-) => {
-  if (!baseStats) return null;
-
-  const stats = {
-    movement: baseStats.movement ?? 0,
-    front: baseStats.front ?? 0,
-    side: baseStats.side ?? 0,
-    rear: baseStats.rear ?? 0,
-    hull_points: baseStats.hull_points ?? 0,
-    handling: baseStats.handling ?? 0,
-    save: baseStats.save ?? 0,
-    body_slots: baseStats.body_slots ?? 0,
-    drive_slots: baseStats.drive_slots ?? 0,
-    engine_slots: baseStats.engine_slots ?? 0,
-  };
-
-  // Apply modifiers from vehicle effects (lasting damages, vehicle upgrades, and user adjustments)
-  if (baseStats.effects) {
-    const effectCategories = ["lasting damages", "vehicle upgrades", "user"];
-    effectCategories.forEach((categoryName) => {
-      if (baseStats.effects && baseStats.effects[categoryName]) {
-        baseStats.effects[categoryName].forEach((effect: FighterEffect) => {
-          if (
-            effect.fighter_effect_modifiers &&
-            Array.isArray(effect.fighter_effect_modifiers)
-          ) {
-            effect.fighter_effect_modifiers.forEach((modifier) => {
-              // Convert stat_name to lowercase to match our stats object keys
-              const statName = modifier.stat_name.toLowerCase();
-
-              // Skip slot modifiers - these are used for counting occupied slots, not increasing max slots
-              if (
-                statName === "body_slots" ||
-                statName === "drive_slots" ||
-                statName === "engine_slots"
-              ) {
-                return;
-              }
-
-              // Only apply if the stat exists in our stats object
-              if (statName in stats) {
-                // Apply the numeric modifier to the appropriate stat
-                stats[statName as keyof typeof stats] +=
-                  modifier.numeric_value;
-              }
-            });
-          }
-        });
-      }
-    });
-  }
-
-  return stats;
-};
-
 export default function PrintGang({ gang }: PrintGangProps) {
   const {
     name,
     gang_type,
+    parent_gang_type_name,
     image_url,
-    default_gang_image,
-    gang_type_default_image_urls,
+    gang_portrait_url,
     credits,
     rating,
     wealth,
@@ -198,10 +165,11 @@ export default function PrintGang({ gang }: PrintGangProps) {
     last_updated,
   } = gang;
 
+  const gangTypeLabel = detailGangTypeLabel(gang_type, parent_gang_type_name);
+
   const gangImageSrc = resolveGangImageUrl({
     imageUrl: image_url,
-    defaultGangImage: default_gang_image,
-    defaultImageUrls: gang_type_default_image_urls,
+    portraitUrl: gang_portrait_url,
   });
 
   // View mode state: "roster" for table view, "cards" for card-based view
@@ -236,6 +204,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
   const [showInactiveFighterLoadouts, setShowInactiveFighterLoadouts] = useState(false);
   const [cardsGangCardsPosition, setCardsGangCardsPosition] = useState<"before" | "after">("before");
   const [scaleCardsToContent, setScaleCardsToContent] = useState(true);
+  const gangDamageTrack = damageTrack(edition_slug);
 
   // Keep fancy-print on the body while Fancy is selected. iOS Safari's window.print()
   // is non-blocking, so adding/removing the class around the print call drops it
@@ -434,7 +403,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
                     checked={showWFWBoxes}
                     onCheckedChange={(checked) => setShowWFWBoxes(checked === true)}
                   />
-                  <span className="text-sm">Wounds/Flesh Wounds Boxes</span>
+                  <span className="text-sm">
+                    {gangDamageTrack ? `Wound/${gangDamageTrack.name} Boxes` : "Wound Boxes"}
+                  </span>
                 </label>
               </div>
             </div>
@@ -484,7 +455,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold leading-tight">{name}</h1>
                 <span className="text-xs uppercase tracking-wide">
-                  {gang_type}
+                  {gangTypeLabel}
                   {gang_type_has_origin && gang_origin_name && (
                     <> — {gang_origin_name}</>
                   )}
@@ -563,6 +534,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
               {sortedFighters.map((fighter, index) => {
                 const adjustedStats = calculateAdjustedStats(fighter);
                 const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
+                const showFleshWounds = hasFleshWoundCondition(fighter.edition_slug ?? edition_slug);
+                const track = damageTrack(fighter.edition_slug ?? edition_slug);
+                const trackBoxes = track ? track.boxes(adjustedStats.toughness) : 0;
                 const vehicle = fighter.vehicles && fighter.vehicles.length > 0
                   ? (fighter.vehicles[0] as unknown as Vehicle)
                   : undefined;
@@ -707,28 +681,28 @@ export default function PrintGang({ gang }: PrintGangProps) {
                       'HP': vehicleStats ? vehicleStats.hull_points : '*',
                       'Hnd': vehicleStats ? `${vehicleStats.handling}+` : '*',
                       'Sv': vehicleStats ? `${vehicleStats.save}+` : '*',
-                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-                      'Ld': `${adjustedStats.leadership}+`,
-                      'Cl': `${adjustedStats.cool}+`,
-                      'Wil': `${adjustedStats.willpower}+`,
-                      'Int': `${adjustedStats.intelligence}+`
+                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+                      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+                      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+                      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+                      'Int': formatCharacteristic(adjustedStats.intelligence, '+')
                     }
                   : {
-                      'M': `${adjustedStats.movement}"`,
-                      'WS': `${adjustedStats.weapon_skill}+`,
-                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : `${adjustedStats.ballistic_skill}+`,
-                      'S': adjustedStats.strength,
-                      'T': adjustedStats.toughness,
-                      'W': adjustedStats.wounds,
-                      'I': `${adjustedStats.initiative}+`,
-                      'A': adjustedStats.attacks,
+                      'M': formatCharacteristic(adjustedStats.movement, '"'),
+                      'WS': formatCharacteristic(adjustedStats.weapon_skill, '+'),
+                      'BS': adjustedStats.ballistic_skill === 0 ? '-' : formatCharacteristic(adjustedStats.ballistic_skill, '+'),
+                      'S': formatCharacteristic(adjustedStats.strength),
+                      'T': formatCharacteristic(adjustedStats.toughness),
+                      'W': formatCharacteristic(adjustedStats.wounds),
+                      'I': formatCharacteristic(adjustedStats.initiative, '+'),
+                      'A': formatCharacteristic(adjustedStats.attacks),
                       ...(hasSaveCharacteristic(fighter.edition_slug) && {
-                        'Sv': adjustedStats.save != null ? `${adjustedStats.save}+` : '-'
+                        'Sv': formatCharacteristic(adjustedStats.save, '+')
                       }),
-                      'Ld': `${adjustedStats.leadership}+`,
-                      'Cl': `${adjustedStats.cool}+`,
-                      'Wil': `${adjustedStats.willpower}+`,
-                      'Int': `${adjustedStats.intelligence}+`
+                      'Ld': formatCharacteristic(adjustedStats.leadership, '+'),
+                      'Cl': formatCharacteristic(adjustedStats.cool, '+'),
+                      'Wil': formatCharacteristic(adjustedStats.willpower, '+'),
+                      'Int': formatCharacteristic(adjustedStats.intelligence, '+')
                     }) as StatsType;
 
                 const fighterRowKey = `${fighter.id}-${(fighter as { active_loadout_id?: string }).active_loadout_id ?? 'default'}`;
@@ -761,7 +735,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          {/* W/FW boxes */}
                          {showWFWBoxes && (
                            <div>
-                             {!isCrew && (adjustedStats.wounds > 1 || adjustedStats.toughness > 1) && (
+                             {!isCrew && (adjustedStats.wounds > 1 || trackBoxes > 0) && (
                                <div className="flex items-center gap-2 text-[9px] shrink-0">
                                  {adjustedStats.wounds > 1 && (
                                    <div className="flex items-center gap-1">
@@ -773,12 +747,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                      </div>
                                    </div>
                                  )}
-                                 {adjustedStats.toughness > 1 && (
+                                 {track && trackBoxes > 0 && (
                                    <div className="flex items-center gap-1">
-                                     <span className="font-semibold whitespace-nowrap">FW</span>
+                                     <span className="font-semibold whitespace-nowrap">{track.abbr}</span>
                                      <div className="flex items-center gap-0.5">
-                                       {Array.from({ length: adjustedStats.toughness - 1 }).map((_, i) => (
-                                         <MdCheckBoxOutlineBlank key={`fw-${i}`} className="text-black w-2 h-2 shrink-0" />
+                                       {Array.from({ length: trackBoxes }).map((_, i) => (
+                                         <MdCheckBoxOutlineBlank key={`track-${i}`} className="text-black w-2 h-2 shrink-0" />
                                        ))}
                                      </div>
                                    </div>
@@ -797,6 +771,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                    </div>
                                  </div>
                                  )}
+                                 {showFleshWounds && (
                                  <div className="flex items-center gap-1">
                                    <span className="font-semibold whitespace-nowrap">FW</span>
                                    <div className="flex items-center gap-0.5">
@@ -805,6 +780,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                      ))}
                                    </div>
                                  </div>
+                                 )}
                                </div>
                              )}
                            </div>
@@ -965,55 +941,19 @@ export default function PrintGang({ gang }: PrintGangProps) {
                          {!wargearText && !vehicleEquipmentText && !vehicleLastingDamagesText && !rigGlitchesText && !skillsText && !injuriesText && !specialRulesText && !vehicleRulesText && !fighterNotePreview && (
                            <div>—</div>
                          )}
-                         {/* XP boxes */}
+                         {/* XP boxes, sized in px so a larger browser font size can't make them overlap */}
                          {showXPBoxes && (
-                           <div className="mt-4 grid gap-x-1 grid-cols-3 text-[9px]">
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">SI</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`si-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
+                           <div className="mt-4 grid gap-x-[4px] grid-cols-3 text-[9px]">
+                             {[...XP_BOX_GROUPS, { label: 'Participation', count: 1 }].map((group) => (
+                               <div key={group.label} className="flex items-center gap-[4px] min-w-0">
+                                 <span className="font-semibold whitespace-nowrap shrink-0">{group.label}</span>
+                                 <div className="flex items-center gap-[2px] shrink-0">
+                                   {Array.from({ length: group.count }).map((_, i) => (
+                                     <MdCheckBoxOutlineBlank key={i} className="text-black w-[8px] h-[8px] shrink-0" />
+                                   ))}
+                                 </div>
                                </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">OOA</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`ooa-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">R/A</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 5 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`rally-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">Ld/Ch</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 5 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`leader-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">Misc</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 {Array.from({ length: 6 }).map((_, i) => (
-                                   <MdCheckBoxOutlineBlank key={`misc-${i}`} className="text-black w-2 h-2 shrink-0" />
-                                 ))}
-                               </div>
-                             </div>
-                             <div className="flex items-center gap-1 min-w-0">
-                               <span className="font-semibold whitespace-nowrap shrink-0">Participation</span>
-                               <div className="flex items-center gap-0.5 shrink-0">
-                                 <MdCheckBoxOutlineBlank key="xp-fielded" className="text-black w-2 h-2 shrink-0" />
-                               </div>
-                             </div>
+                             ))}
                            </div>
                          )}
                        </div>
@@ -1112,7 +1052,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                             <div className="flex flex-wrap gap-x-2 gap-y-1">
                               {/* Gang Type */}
                               <div className="flex items-center gap-1">
-                                Type: <Badge variant="secondary">{gang_type}</Badge>
+                                Type: <Badge variant="secondary">{gangTypeLabel}</Badge>
                               </div>
                               {/* Gang Origin */}
                               {gang_type_has_origin && gang_origin_name && (
@@ -1333,6 +1273,9 @@ export default function PrintGang({ gang }: PrintGangProps) {
 
                   const adjustedStats = calculateAdjustedStats(fighter);
                   const isCrew = fighter.fighter_subtypes?.includes('Crew') || false;
+                  const showFleshWounds = hasFleshWoundCondition(fighter.edition_slug ?? edition_slug);
+                  const track = damageTrack(fighter.edition_slug ?? edition_slug);
+                  const trackBoxes = track ? track.boxes(adjustedStats.toughness) : 0;
                   const vehicleStats = isCrew
                     ? calculateVehicleStats(vehicle)
                     : null;
@@ -1363,7 +1306,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                           {/* W/FW boxes */}
                           {showWFWBoxes && (
                             <div className="mt-1 flex items-center justify-between gap-2">
-                              {!isCrew && (adjustedStats.wounds > 1 || adjustedStats.toughness > 1) && (
+                              {!isCrew && (adjustedStats.wounds > 1 || trackBoxes > 0) && (
                                 <div className="flex items-center gap-2 shrink-0">
                                   {adjustedStats.wounds > 1 && (
                                     <div className="flex items-center gap-1">
@@ -1375,12 +1318,12 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                       </div>
                                     </div>
                                   )}
-                                  {adjustedStats.toughness > 1 && (
+                                  {track && trackBoxes > 0 && (
                                     <div className="flex items-center gap-1">
-                                      <span className="text-[12px] font-semibold whitespace-nowrap">FW</span>
+                                      <span className="text-[12px] font-semibold whitespace-nowrap">{track.abbr}</span>
                                       <div className="flex items-center gap-0.5">
-                                        {Array.from({ length: adjustedStats.toughness - 1 }).map((_, i) => (
-                                          <MdCheckBoxOutlineBlank key={`fw-${fighter.id}-${i}`} className="w-3 h-3 shrink-0" />
+                                        {Array.from({ length: trackBoxes }).map((_, i) => (
+                                          <MdCheckBoxOutlineBlank key={`track-${fighter.id}-${i}`} className="w-3 h-3 shrink-0" />
                                         ))}
                                       </div>
                                     </div>
@@ -1399,41 +1342,37 @@ export default function PrintGang({ gang }: PrintGangProps) {
                                       </div>
                                     </div>
                                   )}
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[12px] font-semibold whitespace-nowrap">FW</span>
-                                    <div className="flex items-center gap-0.5">
-                                      {Array.from({ length: 3 }).map((_, i) => (
-                                        <MdCheckBoxOutlineBlank key={`fw-crew-${fighter.id}-${i}`} className="w-3 h-3 shrink-0" />
-                                      ))}
+                                  {showFleshWounds && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[12px] font-semibold whitespace-nowrap">FW</span>
+                                      <div className="flex items-center gap-0.5">
+                                        {Array.from({ length: 3 }).map((_, i) => (
+                                          <MdCheckBoxOutlineBlank key={`fw-crew-${fighter.id}-${i}`} className="w-3 h-3 shrink-0" />
+                                        ))}
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
                                 </div>
                               )}
                             </div>
                           )}
 
-                          {/* XP boxes */}
+                          {/* XP boxes, sized in px so a larger browser font size can't make them overlap */}
                           {showXPBoxes && (
-                            <div className="mt-1 flex items-start gap-1">
+                            <div className="mt-1 flex items-start gap-[4px]">
                               <span className="text-[12px] font-semibold whitespace-nowrap">XP:</span>
-                              <div className="grid grid-cols-5 gap-x-2 gap-y-1">
-                              {[
-                                { label: 'SI', count: 6, key: 'si' },
-                                { label: 'OOA', count: 6, key: 'ooa' },
-                                { label: 'R/A', count: 5, key: 'ra' },
-                                { label: 'Ld/Ch', count: 5, key: 'ldch' },
-                                { label: 'Misc', count: 6, key: 'misc' },
-                              ].map((group) => (
-                                <div key={group.key} className="flex items-center gap-1 min-w-0">
-                                  <span className="text-[12px] font-semibold whitespace-nowrap shrink-0">{group.label}</span>
-                                  <div className="flex items-center gap-0.5 shrink-0">
-                                    {Array.from({ length: group.count }).map((_, i) => (
-                                      <MdCheckBoxOutlineBlank key={`${group.key}-${fighter.id}-${i}`} className="w-3 h-3 shrink-0" />
-                                    ))}
+                              <div className="flex flex-1 justify-between gap-x-[8px]">
+                                {XP_BOX_GROUPS.map((group) => (
+                                  <div key={group.label} className="flex items-center gap-[4px]">
+                                    <span className="text-[12px] font-semibold whitespace-nowrap">{group.label}</span>
+                                    <div className="flex items-center gap-[2px]">
+                                      {Array.from({ length: group.count }).map((_, i) => (
+                                        <MdCheckBoxOutlineBlank key={i} className="w-[12px] h-[12px] shrink-0" />
+                                      ))}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
-                            </div>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -1499,7 +1438,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
                         <div className="flex flex-wrap gap-x-2 gap-y-1">
                           {/* Gang Type */}
                           <div className="flex items-center gap-1">
-                            Type: <Badge variant="secondary">{gang_type}</Badge>
+                            Type: <Badge variant="secondary">{gangTypeLabel}</Badge>
                           </div>
                           {/* Gang Origin */}
                           {gang_type_has_origin && gang_origin_name && (

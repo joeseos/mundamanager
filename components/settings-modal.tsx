@@ -13,11 +13,11 @@ import { User as SupabaseUser } from '@supabase/supabase-js';
 import { signOutAction } from "@/app/actions/auth";
 import { createClient } from "@/utils/supabase/client";
 import Link from 'next/link';
-import { useNotificationsRealtime, useUnreadNotificationCount } from '@/hooks/use-notifications';
+import { useNotificationToasts, useNotificationsRealtime, useUnreadNotificationCount } from '@/hooks/use-notifications';
 import dynamic from 'next/dynamic';
 
 // Icons
-import { LuSettings, LuLogOut, LuUser, LuMenu } from "react-icons/lu";
+import { LuSettings, LuLogOut, LuUser, LuMenu, LuFlag } from "react-icons/lu";
 import { FaUsers, FaDiscord, FaPatreon, FaGithub } from "react-icons/fa6";
 import { PiFlagBannerFoldBold } from "react-icons/pi";
 import { MdOutlineColorLens } from "react-icons/md";
@@ -37,18 +37,21 @@ export function NotificationsSection({ userId }: { userId: string }) {
 interface SettingsModalProps {
   user: SupabaseUser;
   isAdmin?: boolean;
+  isForumModerator?: boolean;
   username?: string;
   patreonTierId?: string;
   patreonTierTitle?: string;
   patronStatus?: string;
 }
 
-export default function SettingsModal({ user, isAdmin, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
+export default function SettingsModal({ user, isAdmin, isForumModerator, username, patreonTierId, patreonTierTitle, patronStatus }: SettingsModalProps) {
   const [open, setOpen] = useState(false);
   const notificationCount = useUnreadNotificationCount(user.id);
 
   // The header is on every page, so it keeps the notifications query current
+  // and can toast when a new one arrives.
   useNotificationsRealtime(user.id);
+  useNotificationToasts(user.id);
 
   const handleLogout = async () => {
     setOpen(false);
@@ -106,7 +109,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
         
         {/* Notification indicator that overlays the menu button */}
         {notificationCount > 0 && (
-          <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[0.65rem] text-white z-10">
+          <div className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white z-10">
             {notificationCount > 99 ? '99+' : notificationCount}
           </div>
         )}
@@ -140,7 +143,7 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
               <LuUser className="mr-2 h-4 w-4" />
               Account
               {notificationCount > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[1.25rem] text-center">
+                <span className="ml-auto inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1 text-xs font-bold text-white">
                   {notificationCount > 99 ? '99+' : notificationCount}
                 </span>
               )}
@@ -190,16 +193,24 @@ export default function SettingsModal({ user, isAdmin, username, patreonTierId, 
             </div>
           </div>
 
+          {(isForumModerator || isAdmin) && <DropdownMenuSeparator />}
+
+          {isForumModerator && (
+            <DropdownMenuItem asChild onClick={handleLinkClick}>
+              <Link href="/forum/moderation" prefetch={false} className="w-full cursor-pointer">
+                <LuFlag className="mr-2 h-4 w-4" />
+                Moderation
+              </Link>
+            </DropdownMenuItem>
+          )}
+
           {isAdmin && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild onClick={handleLinkClick}>
-                <Link href="/admin" prefetch={false} className="w-full cursor-pointer">
-                  <LuSettings className="mr-2 h-4 w-4" />
-                  Admin
-                </Link>
-              </DropdownMenuItem>
-            </>
+            <DropdownMenuItem asChild onClick={handleLinkClick}>
+              <Link href="/admin" prefetch={false} className="w-full cursor-pointer">
+                <LuSettings className="mr-2 h-4 w-4" />
+                Admin
+              </Link>
+            </DropdownMenuItem>
           )}
 
           <DropdownMenuSeparator />

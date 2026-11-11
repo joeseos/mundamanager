@@ -19,7 +19,8 @@ import { bestRankedLabel } from '@/utils/rankLookup';
 import { fighterTypeRank } from '@/utils/fighterTypeRank';
 import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import { countLimitPrefix } from '@/utils/countLimitPrefix';
+import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
+import { countsTowardRating } from '@/utils/fighter-status';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
@@ -28,11 +29,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { getArchetypeCatalogSubtype, isArchetypeEligible } from '@/utils/archetypeEligibility';
 import {
   buildFighterFromServerData,
-  buildBeastFromServerData,
+  buildFamiliarFromServerData,
   createEmptyEffects,
   createStats,
   type AddFighterServerData,
-  type ExoticBeastServerData,
+  type FamiliarServerData,
 } from '@/utils/fighter-builder';
 import {
   SelectedEquipmentItem,
@@ -67,6 +68,8 @@ interface FighterAddModalProps {
   onFighterRollback?: (tempFighterId: string, cost: number, ratingCost: number) => void;
   onFighterReconcile?: (tempFighterId: string, realFighter: FighterProps) => void;
   gangSubtypes?: Array<{ id: string; subtype: string }>;
+  /** Gang roster used to show how many of each fighter type are already hired. */
+  fighters?: FighterProps[];
 }
 
 /** Map a raw API fighter-type row into the FighterType shape (superset of fields). */
@@ -79,6 +82,7 @@ function mapFighterType(type: any): FighterType {
     gang_type: type.gang_type,
     cost: type.cost,
     gang_type_id: type.gang_type_id,
+    custom_gang_type_id: type.custom_gang_type_id ?? null,
     special_rules: (type.special_rules || [])
       .map((r: string) => (typeof r === 'string' ? r.replace(/^"|"$/g, '') : r))
       .filter(Boolean),
@@ -123,6 +127,13 @@ function mapFighterType(type: any): FighterType {
   } as FighterType;
 }
 
+function countLimitsFromType(type?: { min_count?: number | null; max_count?: number | null } | null) {
+  return {
+    min_count: type?.min_count ?? null,
+    max_count: type?.max_count ?? null,
+  };
+}
+
 export default function FighterAddModal({
   catalog,
   showModal,
@@ -137,6 +148,7 @@ export default function FighterAddModal({
   onFighterRollback,
   onFighterReconcile,
   gangSubtypes = [],
+  fighters: gangFighters = [],
 }: FighterAddModalProps) {
   const isAdditions = catalog === 'additions';
   const usesCategories = hasGangAdditionCategories(editionSlug);
@@ -406,6 +418,7 @@ export default function FighterAddModal({
       fighter_name: fighterName,
       fighter_type_id: fighterTypeIdToUse,
       fighter_type: selectedType?.fighter_type || '',
+      ...countLimitsFromType(selectedType),
       fighter_subtypes: selectedType?.fighter_subtypes || [],
       fighter_specialisation: selectedType?.specialisation ? {
         fighter_specialisation_id: selectedType.specialisation.id || '',
@@ -424,6 +437,8 @@ export default function FighterAddModal({
       weapons: optimisticWeapons,
       wargear: optimisticWargear,
       special_rules: selectedType?.special_rules || [],
+      fighter_gang_type_id: selectedType?.gang_type_id ?? null,
+      fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
       skills: {},
       advancements: { characteristics: {}, skills: {} },
       free_skill: selectedType?.free_skill || false,
@@ -491,7 +506,10 @@ export default function FighterAddModal({
           selectedType?.specialisation?.specialisation_name
         ),
         edition_slug: selectedType?.edition_slug ?? null,
-        is_vehicle: selectedType?.is_vehicle ?? false
+        is_vehicle: selectedType?.is_vehicle ?? false,
+        ...countLimitsFromType(selectedType),
+        fighter_gang_type_id: selectedType?.gang_type_id ?? null,
+        fighter_custom_gang_type_id: selectedType?.custom_gang_type_id ?? null,
       };
 
       if (context.tempFighterId && onFighterReconcile) {
@@ -500,10 +518,9 @@ export default function FighterAddModal({
         onFighterAdded(realFighter, variables.cost);
       }
 
-      if (data.created_beasts && data.created_beasts.length > 0) {
-        data.created_beasts.forEach((beast: ExoticBeastServerData) => {
-          const beastFighter = buildBeastFromServerData(beast);
-          onFighterAdded(beastFighter, 0);
+      if (data.created_familiars && data.created_familiars.length > 0) {
+        data.created_familiars.forEach((familiar: FamiliarServerData) => {
+          onFighterAdded(buildFamiliarFromServerData(familiar), 0);
         });
       }
 
@@ -512,7 +529,7 @@ export default function FighterAddModal({
         return;
       }
 
-      toast.success(`${data.fighter_name} added successfully${data.created_beasts?.length ? ` with ${data.created_beasts.length} ${beastSubtypeName(editionSlug).toLowerCase()}(s)` : ''}`);
+      toast.success(`${data.fighter_name} added successfully${data.created_familiars?.length ? ` with ${data.created_familiars.length} ${beastSubtypeName(editionSlug).toLowerCase()}(s)` : ''}`);
     },
   });
 
@@ -741,31 +758,71 @@ export default function FighterAddModal({
     return options;
   };
 
+  // Active fighters only: killed, retired, enslaved, and captured are not in the gang.
+  const countsByTypeId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const fighter of gangFighters) {
+      if (!countsTowardRating(fighter)) continue;
+      const typeId = fighter.custom_fighter_type_id || fighter.fighter_type_id;
+      if (!typeId) continue;
+      counts.set(typeId, (counts.get(typeId) ?? 0) + 1);
+    }
+    return counts;
+  }, [gangFighters]);
+
   const buildTypeOptions = () => {
-    const typeSubtypeMap = new Map<string, { fighter: FighterType; cost: number }>();
+    type TypeOptionEntry = { fighter: FighterType; cost: number; memberIds: string[] };
+    const typeSubtypeMap = new Map<string, TypeOptionEntry>();
     filteredTypes.forEach(fighter => {
       // Variants of one fighter share a key, so the list shows the family once.
       const key = fighter.typeSubtypeKey ?? fighter.id;
-      if (!typeSubtypeMap.has(key)) {
-        typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
-      } else {
-        const current = typeSubtypeMap.get(key)!;
-        if (!fighter.fighter_variant && current.fighter.fighter_variant) {
-          typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
-        } else if (fighter.total_cost < current.cost) {
-          typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost });
-        }
+      const existing = typeSubtypeMap.get(key);
+      if (!existing) {
+        typeSubtypeMap.set(key, { fighter, cost: fighter.total_cost, memberIds: [fighter.id] });
+        return;
+      }
+      if (!existing.memberIds.includes(fighter.id)) existing.memberIds.push(fighter.id);
+      // The plain fighter stays on the family line even when a variant is cheaper.
+      // Cost only chooses between two plain fighters, or two variants.
+      const candidateIsBase = !fighter.fighter_variant;
+      const existingIsBase = !existing.fighter.fighter_variant;
+      const prefer = candidateIsBase !== existingIsBase
+        ? candidateIsBase
+        : fighter.total_cost < existing.cost;
+      if (prefer) {
+        existing.fighter = fighter;
+        existing.cost = fighter.total_cost;
       }
     });
+
+    const withCountLimit = (name: string, fighter: FighterType, memberIds: string[]) => {
+      const current = memberIds.reduce((sum, id) => sum + (countsByTypeId.get(id) ?? 0), 0);
+      const limit = fighterCountLimitDisplay({
+        min_count: fighter.min_count,
+        max_count: fighter.max_count,
+        current,
+      });
+      return {
+        label: (
+          <>
+            {/* Red at the cap (current >= max) so hiring shows the limit is full. The gang composition tooltip turns red only once the count is past the maximum. */}
+            <span className={`inline-block w-11 text-center mr-1 ${limit.over ? 'text-red-500' : 'text-gray-400'}`}>
+              {limit.text}
+            </span>
+            {name}
+          </>
+        ) as React.ReactNode,
+        displayValue: `${limit.text} ${name}`,
+      };
+    };
 
     const options: Array<{ value: string; label: string | React.ReactNode; displayValue?: string; disabled?: boolean }> = [];
 
     if (isAdditions) {
-      type AdditionTypeEntry = { fighter: FighterType; cost: number };
       const allEntries = Array.from(typeSubtypeMap.values());
       const nestAssociatedPets = selectedSubtype === N26_HIRED_GUNS_DRAMATIS_CATEGORY;
       const ownerIds = new Set(allEntries.map(({ fighter }) => fighter.id));
-      const petsByOwner = new Map<string, AdditionTypeEntry[]>();
+      const petsByOwner = new Map<string, TypeOptionEntry[]>();
       const nestedPetIds = new Set<string>();
 
       if (nestAssociatedPets) {
@@ -793,28 +850,30 @@ export default function FighterAddModal({
       const additionTypeLabel = (
         fighter: FighterType,
         cost: number,
+        memberIds: string[],
         nested: boolean,
         ownerUnknown = false
       ) => {
         const delegationCost = fighter.delegation_cost;
         const costDisplay = delegationCost ? `${cost} / ${delegationCost} credits` : `${cost} credits`;
-        const displayName = `${countLimitPrefix(fighter)}${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
+        const name = `${fighter.fighter_type} - ${costDisplay}${ownerUnknown ? ' (owner unknown)' : ''}`;
+        const { label, displayValue } = withCountLimit(name, fighter, memberIds);
         return {
           value: fighter.id,
           label: nested
-            ? <span className="ml-6 italic text-neutral-400">{displayName}</span>
-            : <span className="ml-3">{displayName}</span>,
-          displayValue: displayName,
+            ? <span className="ml-6 italic text-neutral-400">{label}</span>
+            : <span className="ml-3">{label}</span>,
+          displayValue,
         };
       };
 
       // Group by alignment (Law Abiding / Outlaw / Unaligned)
-      const groupedByAlignment = topLevel.reduce((groups, { fighter, cost }) => {
-        const alignment = fighter.alignment?.toLowerCase() ?? 'unaligned';
+      const groupedByAlignment = topLevel.reduce((groups, entry) => {
+        const alignment = entry.fighter.alignment?.toLowerCase() ?? 'unaligned';
         if (!groups[alignment]) groups[alignment] = [];
-        groups[alignment].push({ fighter, cost });
+        groups[alignment].push(entry);
         return groups;
-      }, {} as Record<string, AdditionTypeEntry[]>);
+      }, {} as Record<string, TypeOptionEntry[]>);
 
       const alignmentOrder: Record<string, number> = { 'law abiding': 1, outlaw: 2, unaligned: 3 };
       const alignmentDisplayNames: Record<string, string> = { 'law abiding': 'Law Abiding', outlaw: 'Outlaw', unaligned: 'Unaligned' };
@@ -829,18 +888,18 @@ export default function FighterAddModal({
             displayValue: alignmentDisplayNames[alignment] ?? alignment,
             disabled: true,
           });
-          fighters.forEach(({ fighter, cost }) => {
+          fighters.forEach(({ fighter, cost, memberIds }) => {
             const ownerUnknown = nestAssociatedPets && Boolean(fighter.is_associated_pet);
-            options.push(additionTypeLabel(fighter, cost, ownerUnknown, ownerUnknown));
+            options.push(additionTypeLabel(fighter, cost, memberIds, ownerUnknown, ownerUnknown));
             (petsByOwner.get(fighter.id) ?? []).forEach((pet) => {
-              options.push(additionTypeLabel(pet.fighter, pet.cost, true));
+              options.push(additionTypeLabel(pet.fighter, pet.cost, pet.memberIds, true));
             });
           });
         });
       return options;
     }
 
-    const sortFighters = (a: { fighter: FighterType; cost: number }, b: { fighter: FighterType; cost: number }) => {
+    const sortFighters = (a: TypeOptionEntry, b: TypeOptionEntry) => {
       const subtypeRankA = getFighterSubtypeSortRank(a.fighter.fighter_subtypes, a.fighter.edition_slug);
       const subtypeRankB = getFighterSubtypeSortRank(b.fighter.fighter_subtypes, b.fighter.edition_slug);
       if (subtypeRankA !== subtypeRankB) return subtypeRankA - subtypeRankB;
@@ -848,16 +907,25 @@ export default function FighterAddModal({
       return a.fighter.fighter_type.localeCompare(b.fighter.fighter_type);
     };
 
-    const typeOptionLabel = (fighter: FighterType, cost: number) =>
-      `${countLimitPrefix(fighter)}${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+    const typeOptionName = (fighter: FighterType, cost: number) =>
+      `${fighter.fighter_type} (${formatFighterSubtypeDisplay(fighter.fighter_subtypes, fighter.edition_slug ?? editionSlug)}) - ${cost} credits`;
+
+    const pushTypeOption = (entry: TypeOptionEntry, indent: boolean) => {
+      const { label, displayValue } = withCountLimit(typeOptionName(entry.fighter, entry.cost), entry.fighter, entry.memberIds);
+      options.push({
+        value: entry.fighter.id,
+        label: indent ? <span className="ml-3">{label}</span> : label,
+        displayValue,
+      });
+    };
 
     if (includeAllFighterTypes) {
-      const groupedByGangType = Array.from(typeSubtypeMap.values()).reduce((groups, { fighter, cost }) => {
-        const gangTypeName = fighter.gang_type || 'Unknown';
+      const groupedByGangType = Array.from(typeSubtypeMap.values()).reduce((groups, entry) => {
+        const gangTypeName = entry.fighter.gang_type || 'Unknown';
         if (!groups[gangTypeName]) groups[gangTypeName] = [];
-        groups[gangTypeName].push({ fighter, cost });
+        groups[gangTypeName].push(entry);
         return groups;
-      }, {} as Record<string, Array<{ fighter: FighterType; cost: number }>>);
+      }, {} as Record<string, TypeOptionEntry[]>);
 
       Object.keys(groupedByGangType).sort((a, b) => a.localeCompare(b)).forEach(gangTypeName => {
         const fighters = groupedByGangType[gangTypeName].sort(sortFighters);
@@ -867,21 +935,18 @@ export default function FighterAddModal({
           displayValue: gangTypeName,
           disabled: true,
         });
-        fighters.forEach(({ fighter, cost }) => {
-          const displayName = typeOptionLabel(fighter, cost);
-          options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
-        });
+        fighters.forEach((entry) => pushTypeOption(entry, true));
       });
       return options;
     }
 
     // Default grouping: regular vs custom
-    const groupedByType = Array.from(typeSubtypeMap.values()).reduce((groups, { fighter, cost }) => {
-      const groupKey = fighter.is_custom_fighter ? 'custom' : 'regular';
+    const groupedByType = Array.from(typeSubtypeMap.values()).reduce((groups, entry) => {
+      const groupKey = entry.fighter.is_custom_fighter ? 'custom' : 'regular';
       if (!groups[groupKey]) groups[groupKey] = [];
-      groups[groupKey].push({ fighter, cost });
+      groups[groupKey].push(entry);
       return groups;
-    }, {} as Record<string, Array<{ fighter: FighterType; cost: number }>>);
+    }, {} as Record<string, TypeOptionEntry[]>);
 
     const groupDisplayNames: Record<string, string> = { regular: `${noun} Types`, custom: `Custom ${noun} Types` };
     const hasMultipleGroups = Object.keys(groupedByType).length > 1;
@@ -891,9 +956,7 @@ export default function FighterAddModal({
 
     if (!hasMultipleGroups) {
       const fighters = (groupedByType[sortedGroups[0]] || []).sort(sortFighters);
-      fighters.forEach(({ fighter, cost }) => {
-        options.push({ value: fighter.id, label: typeOptionLabel(fighter, cost) });
-      });
+      fighters.forEach((entry) => pushTypeOption(entry, false));
       return options;
     }
 
@@ -905,10 +968,7 @@ export default function FighterAddModal({
         displayValue: groupDisplayNames[groupKey],
         disabled: true,
       });
-      fighters.forEach(({ fighter, cost }) => {
-        const displayName = typeOptionLabel(fighter, cost);
-        options.push({ value: fighter.id, label: <span className="ml-3">{displayName}</span>, displayValue: displayName });
-      });
+      fighters.forEach((entry) => pushTypeOption(entry, true));
     });
     return options;
   };

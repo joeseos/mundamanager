@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
-import { Button } from "@/components/ui/button";
 import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { HexColorPicker } from "react-colorful";
@@ -17,14 +16,9 @@ import { deleteGang } from '@/app/actions/delete-gang';
 import { hasAlignment, sameEditionForDisplay } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { saveVenatorSkillRanks } from '@/app/actions/gang/save-venator-skill-ranks';
-import { createClient } from '@/utils/supabase/client';
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
-import { CSS } from '@dnd-kit/utilities';
-import { useDndSensorsConfig, dragSurfaceProps } from '@/hooks/use-dnd-sensors';
+import { SortableRankList } from '@/components/ui/sortable-rank-list';
 import { buildGroupedSkillSetComboboxOptions } from '@/utils/skillSetComboboxOptions';
-import { LuGripVertical, LuX } from 'react-icons/lu';
+import { getSkillSetGroupLabel, getSkillSetRank } from '@/utils/skillSetRank';
 
 interface GangUpdates {
   name?: string;
@@ -41,6 +35,18 @@ interface GangUpdates {
   campaign_allegiance_id?: string | null;
   campaign_allegiance_is_custom?: boolean;
   campaign_id?: string;
+  credits?: number;
+  credits_operation?: 'subtract';
+  credits_reason?: string;
+}
+
+interface Alliance {
+  id: string;
+  alliance_name: string;
+  alliance_type?: string | null;
+  strong_alliance: string;
+  tithe_cost?: number | null;
+  edition_slug?: string | null;
 }
 
 interface Campaign {
@@ -54,13 +60,13 @@ interface Campaign {
 
 interface GangEditModalProps {
   // Modal control
-  isOpen: boolean;
   onClose: () => void;
 
   // Gang data
   gangId: string;
   gangName: string;
   editionSlug?: string | null;
+  credits: number;
   alignment: string;
   allianceId: string | null;
   allianceName: string;
@@ -89,72 +95,6 @@ interface GangEditModalProps {
   onSave: (updates: GangUpdates) => Promise<boolean>;
 }
 
-function SortableSkillSetRankRow({
-  id,
-  rank,
-  name,
-  onRemove,
-}: {
-  id: string;
-  rank: number;
-  name: string;
-  onRemove: () => void;
-}) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const surface = dragSurfaceProps(true);
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={{
-        transform: CSS.Translate.toString(transform),
-        transition,
-        zIndex: isDragging ? 50 : 'auto',
-        position: 'relative',
-        // Prefer none over dragSurfaceProps' "manipulation" so vertical drags
-        // reorder rows instead of scrolling the modal underneath.
-        WebkitUserSelect: 'none',
-        userSelect: 'none',
-        WebkitTouchCallout: 'none',
-        WebkitTapHighlightColor: 'transparent',
-        touchAction: 'none',
-      }}
-      className={`flex items-center gap-2 rounded-md border border-border bg-card px-2 py-1.5 cursor-grab ${
-        isDragging ? 'shadow-md border-rose-700 cursor-grabbing' : ''
-      }`}
-      aria-label={`Drag to reorder ${name}`}
-      onContextMenu={surface.onContextMenu}
-      {...attributes}
-      {...listeners}
-    >
-      <span className="inline-flex w-5 shrink-0 items-center justify-center text-sm text-muted-foreground">{rank}</span>
-      <span className="shrink-0 p-1 text-muted-foreground" aria-hidden="true">
-        <LuGripVertical className="h-4 w-4" />
-      </span>
-      <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-8 w-8 shrink-0 cursor-pointer touch-auto p-0"
-        onPointerDown={(e) => e.stopPropagation()}
-        onClick={onRemove}
-        aria-label={`Remove ${name}`}
-      >
-        <LuX className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-}
-
 /**
  * Gang Edit Modal Component
  * 
@@ -167,11 +107,11 @@ function SortableSkillSetRankRow({
  * - Campaign allegiance
  */
 export default function GangEditModal({
-  isOpen,
   onClose,
   gangId,
   gangName,
   editionSlug,
+  credits,
   alignment,
   allianceId,
   allianceName,
@@ -205,6 +145,7 @@ export default function GangEditModal({
   const effectiveAlignment = showAlignment ? alignment : '';
 
   const isVenator = isVenatorGang(editionSlug, gangType, Boolean(customGangTypeId));
+  const skillSetRank = getSkillSetRank(editionSlug);
 
   const { data: skillTypes = [] } = useQuery<Array<{ id: string; name: string }>>({
     queryKey: ['skill-types', editionSlug, 'strict'],
@@ -224,53 +165,14 @@ export default function GangEditModal({
     queryKey: ['gang-skill-set-ranks', gangId],
     enabled: isVenator,
     queryFn: async () => {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('gang_skill_set_ranks')
-        .select('rank, skill_type_id')
-        .eq('gang_id', gangId)
-        .order('rank');
-      if (error) throw error;
-      return data ?? [];
+      const response = await fetch(`/api/gangs/${gangId}/skill-set-ranks`);
+      if (!response.ok) throw new Error('Failed to load skill set ranks');
+      return response.json();
     },
   });
 
   const [ranks, setRanks] = useState<string[]>([]);
   const [showRankChangeConfirm, setShowRankChangeConfirm] = useState(false);
-  const rankSensors = useDndSensorsConfig('distance');
-  const rankListRef = useRef<HTMLDivElement | null>(null);
-  const lockedScrollParentRef = useRef<{
-    el: HTMLElement;
-    overflowY: string;
-    overscrollBehavior: string;
-  } | null>(null);
-
-  const unlockRankModalScroll = useCallback(() => {
-    const locked = lockedScrollParentRef.current;
-    if (!locked) return;
-    locked.el.style.overflowY = locked.overflowY;
-    locked.el.style.overscrollBehavior = locked.overscrollBehavior;
-    lockedScrollParentRef.current = null;
-  }, []);
-
-  const lockRankModalScroll = useCallback(() => {
-    unlockRankModalScroll();
-    let el = rankListRef.current?.parentElement ?? null;
-    while (el) {
-      const { overflowY } = window.getComputedStyle(el);
-      if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') {
-        lockedScrollParentRef.current = {
-          el,
-          overflowY: el.style.overflowY,
-          overscrollBehavior: el.style.overscrollBehavior,
-        };
-        el.style.overflowY = 'hidden';
-        el.style.overscrollBehavior = 'none';
-        break;
-      }
-      el = el.parentElement;
-    }
-  }, [unlockRankModalScroll]);
 
   const addRank = useCallback((skillTypeId: string) => {
     if (!skillTypeId) return;
@@ -284,26 +186,10 @@ export default function GangEditModal({
     setRanks((prev) => prev.filter((id) => id !== skillTypeId));
   }, []);
 
-  const handleRankDragEnd = useCallback((event: DragEndEvent) => {
-    unlockRankModalScroll();
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setRanks((prev) => {
-      const oldIndex = prev.findIndex((id) => id === active.id);
-      const newIndex = prev.findIndex((id) => id === over.id);
-      if (oldIndex === -1 || newIndex === -1) return prev;
-      return arrayMove(prev, oldIndex, newIndex);
-    });
-  }, [unlockRankModalScroll]);
-
   // Seeded once per opening, so a refetch mid-edit cannot overwrite unsaved reordering.
   // Adjusted during render like the form state below; an effect here cascades a render.
   const [ranksSeeded, setRanksSeeded] = useState(false);
-  if (!isOpen && ranksSeeded) {
-    setRanksSeeded(false);
-    setShowRankChangeConfirm(false);
-  }
-  if (isOpen && !ranksSeeded && existingRanksLoaded) {
+  if (!ranksSeeded && existingRanksLoaded) {
     setRanksSeeded(true);
     setRanks(
       [...existingRanks]
@@ -311,11 +197,6 @@ export default function GangEditModal({
         .map((r) => r.skill_type_id),
     );
   }
-
-  // Closing mid-drag would otherwise leave the scroll parent locked.
-  useEffect(() => {
-    if (!isOpen) unlockRankModalScroll();
-  }, [isOpen, unlockRankModalScroll]);
 
   // Get campaign ID and current allegiance if gang is in a campaign
   const campaignId = campaigns?.[0]?.campaign_id;
@@ -340,6 +221,8 @@ export default function GangEditModal({
     name: gangName,
     alignment: effectiveAlignment,
     allianceId: allianceId || '',
+    // Tithe paid on forming or breaking an alliance; prefilled from the listed prices, editable
+    tithe: '',
     gangColour: gangColour,
     gangHasSubtypes: gangSubtypes.length > 0,
     gangSubtypes: gangSubtypes,
@@ -349,26 +232,65 @@ export default function GangEditModal({
     campaignAllegianceId: effectiveCurrentAllegianceId
   });
   
-  // Alliance management state
-  const [allianceList, setAllianceList] = useState<Array<{
-    id: string;
-    alliance_name: string;
-    alliance_type?: string | null;
-    strong_alliance: string;
-    edition_slug?: string | null;
-  }>>([]);
-  const [allianceListLoaded, setAllianceListLoaded] = useState(false);
-  const editionAllianceList = allianceList.filter(alliance =>
-    sameEditionForDisplay(alliance.edition_slug, editionSlug)
-  );
-  
-  // Gang affiliation management state
-  const [affiliationList, setAffiliationList] = useState<Array<{id: string, name: string}>>([]);
-  const [affiliationListLoaded, setAffiliationListLoaded] = useState(false);
+  // Alliances, affiliations and origins load on first focus of their field, then
+  // come from the query cache (same keys as FighterAddModal and the injury hatred picker)
+  const [alliancesRequested, setAlliancesRequested] = useState(false);
+  const { data: editionAllianceList = [], isSuccess: allianceListLoaded, error: alliancesError } = useQuery<Alliance[]>({
+    queryKey: ['alliances', editionSlug],
+    queryFn: async () => {
+      const response = await fetch('/api/alliances');
+      if (!response.ok) throw new Error('Failed to fetch alliances');
+      const data: Alliance[] = await response.json();
+      return data.filter((alliance) => sameEditionForDisplay(alliance.edition_slug, editionSlug));
+    },
+    enabled: alliancesRequested,
+  });
 
-  // Gang origin management state
-  const [originList, setOriginList] = useState<Array<{id: string, origin_name: string, category_name: string}>>([]);
-  const [originListLoaded, setOriginListLoaded] = useState(false);
+  useEffect(() => {
+    if (alliancesError) toast.error('Failed to load alliances');
+  }, [alliancesError]);
+
+  const [gangTypesRequested, setGangTypesRequested] = useState(false);
+  const { data: gangTypes, isSuccess: gangTypesLoaded, error: gangTypesError } = useQuery<Array<{
+    edition_slug?: string | null;
+    available_affiliations?: Array<{ id: string; name: string }>;
+    available_origins?: Array<{ id: string; origin_name: string; category_name: string }>;
+  }>>({
+    queryKey: ['gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    enabled: gangTypesRequested,
+  });
+
+  useEffect(() => {
+    if (gangTypesError) toast.error('Failed to load affiliations/origins');
+  }, [gangTypesError]);
+
+  // Affiliations come from the first gang type of this gang's edition that has any
+  const affiliationList = useMemo(
+    () => gangTypes?.find((type) =>
+      sameEditionForDisplay(type.edition_slug, editionSlug)
+      && (type.available_affiliations?.length ?? 0) > 0
+    )?.available_affiliations ?? [],
+    [gangTypes, editionSlug]
+  );
+
+  // Origins in this gang's origin category, from the first gang type that has any
+  const originList = useMemo(() => {
+    if (!gangTypes || !gangOriginCategoryName) return [];
+    for (const type of gangTypes) {
+      const matchingOrigins = (type.available_origins ?? []).filter((origin) =>
+        origin.category_name === gangOriginCategoryName
+      );
+      if (matchingOrigins.length > 0) {
+        return matchingOrigins.sort((a, b) => a.origin_name.localeCompare(b.origin_name));
+      }
+    }
+    return [];
+  }, [gangTypes, gangOriginCategoryName]);
 
   // Colour picker modal state
   const [showColourPickerModal, setShowColourPickerModal] = useState(false);
@@ -395,116 +317,49 @@ export default function GangEditModal({
     gcTime: 10 * 60 * 1000,  // 10 minutes - cache is kept for 10 minutes
   });
   
-  const resetKey = `${isOpen}-${gangName}-${alignment}-${allianceId}-${gangColour}-${JSON.stringify(gangSubtypes)}-${gangAffiliationId}-${gangOriginId}-${hidden}-${effectiveCurrentAllegianceId}`;
+  const resetKey = `${gangName}-${alignment}-${allianceId}-${gangColour}-${JSON.stringify(gangSubtypes)}-${gangAffiliationId}-${gangOriginId}-${hidden}-${effectiveCurrentAllegianceId}`;
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
-    if (isOpen) {
-      setInitialValues({
-        name: gangName,
-        alignment: effectiveAlignment,
-        allianceId: allianceId || '',
-        gangColour: gangColour,
-        gangHasSubtypes: gangSubtypes.length > 0,
-        gangSubtypes: gangSubtypes,
-        gangAffiliationId: gangAffiliationId || '',
-        gangOriginId: gangOriginId || '',
-        hidden: hidden,
-        campaignAllegianceId: effectiveCurrentAllegianceId
-      });
+    setInitialValues({
+      name: gangName,
+      alignment: effectiveAlignment,
+      allianceId: allianceId || '',
+      gangColour: gangColour,
+      gangHasSubtypes: gangSubtypes.length > 0,
+      gangSubtypes: gangSubtypes,
+      gangAffiliationId: gangAffiliationId || '',
+      gangOriginId: gangOriginId || '',
+      hidden: hidden,
+      campaignAllegianceId: effectiveCurrentAllegianceId
+    });
 
-      setFormState(prev => ({
-        ...prev,
-        name: gangName,
-        alignment: effectiveAlignment,
-        allianceId: allianceId || '',
-        gangColour: gangColour,
-        gangHasSubtypes: gangSubtypes.length > 0,
-        gangSubtypes: gangSubtypes,
-        gangAffiliationId: gangAffiliationId || '',
-        gangOriginId: gangOriginId || '',
-        hidden: hidden,
-        campaignAllegianceId: effectiveCurrentAllegianceId
-      }));
-    }
+    setFormState(prev => ({
+      ...prev,
+      name: gangName,
+      alignment: effectiveAlignment,
+      allianceId: allianceId || '',
+      tithe: '',
+      gangColour: gangColour,
+      gangHasSubtypes: gangSubtypes.length > 0,
+      gangSubtypes: gangSubtypes,
+      gangAffiliationId: gangAffiliationId || '',
+      gangOriginId: gangOriginId || '',
+      hidden: hidden,
+      campaignAllegianceId: effectiveCurrentAllegianceId
+    }));
   }
 
   const [prevEffectiveAllegianceId, setPrevEffectiveAllegianceId] = useState(effectiveCurrentAllegianceId);
   if (effectiveCurrentAllegianceId !== prevEffectiveAllegianceId) {
     setPrevEffectiveAllegianceId(effectiveCurrentAllegianceId);
-    if (isOpen && formState.campaignAllegianceId === initialValues.campaignAllegianceId) {
+    if (formState.campaignAllegianceId === initialValues.campaignAllegianceId) {
       setFormState(prev => ({
         ...prev,
         campaignAllegianceId: effectiveCurrentAllegianceId
       }));
     }
   }
-
-  const fetchAlliances = async () => {
-    if (allianceListLoaded) return;
-    
-    try {
-      const response = await fetch('/api/alliances');
-      if (!response.ok) throw new Error('Failed to fetch alliances');
-      const data = await response.json();
-      setAllianceList(data);
-      setAllianceListLoaded(true);
-    } catch (error) {
-      console.error('Error fetching alliances:', error);
-      toast.error('Failed to load alliances');
-    }
-  };
-
-  const fetchAffiliations = async () => {
-    if (affiliationListLoaded && originListLoaded) return;
-
-    try {
-      const response = await fetch('/api/gang-types');
-      if (!response.ok) throw new Error('Failed to fetch gang types');
-      const data = await response.json();
-      
-      // Extract all available affiliations from the first gang type of this
-      // gang's edition that has them
-      if (!affiliationListLoaded) {
-        const gangTypeWithAffiliations = data.find((type: any) =>
-          sameEditionForDisplay(type.edition_slug, editionSlug)
-          && type.available_affiliations && type.available_affiliations.length > 0);
-        if (gangTypeWithAffiliations) {
-          setAffiliationList(gangTypeWithAffiliations.available_affiliations);
-        }
-        setAffiliationListLoaded(true);
-      }
-
-      // Extract origins that match this gang's category
-      if (!originListLoaded) {
-        // First try to find gang type with origins matching this gang's category
-        let originsForThisGang: any[] = [];
-
-        if (gangOriginCategoryName) {
-          // Look for gang type that has origins matching our category
-          for (const type of data) {
-            if (type.available_origins && type.available_origins.length > 0) {
-              const matchingOrigins = type.available_origins.filter((origin: any) =>
-                origin.category_name === gangOriginCategoryName
-              );
-              if (matchingOrigins.length > 0) {
-                originsForThisGang = matchingOrigins;
-                break;
-              }
-            }
-          }
-        }
-
-        // No fallback - if no matching origins found, keep empty list
-
-        setOriginList(originsForThisGang);
-        setOriginListLoaded(true);
-      }
-    } catch (error) {
-      console.error('Error fetching affiliations/origins:', error);
-      toast.error('Failed to load affiliations/origins');
-    }
-  };
 
   const syncGangSubtypesWithAlignment = (newAlignment: string, currentSubtypes: Array<{id: string, subtype: string}>) => {
     const outlaw = editionAvailableSubtypes.find(v => v.subtype === 'Outlaw');
@@ -555,7 +410,28 @@ export default function GangEditModal({
     }
   };
 
+  // Breaking and forming an alliance each cost its Tithe Price, so a change prefills the
+  // sum of both. This field is what is paid; the server moves rating by the listed prices.
+  const titheOf = (id: string) => editionAllianceList.find(a => a.id === id)?.tithe_cost ?? 0;
+  const listedTitheFor = (id: string) =>
+    id === initialValues.allianceId ? 0 : titheOf(initialValues.allianceId) + titheOf(id);
+  const titheParts = formState.allianceId === initialValues.allianceId ? [] : [
+    { verb: 'break', name: allianceName, cost: titheOf(initialValues.allianceId) },
+    { verb: 'form', name: editionAllianceList.find(a => a.id === formState.allianceId)?.alliance_name ?? '', cost: titheOf(formState.allianceId) },
+  ].filter(part => part.cost > 0);
+  const showTithe = titheParts.length > 0;
+  const titheAmount = Number(formState.tithe);
+  const titheError = !showTithe
+    ? null
+    : formState.tithe.trim() === '' || !Number.isInteger(titheAmount) || titheAmount < 0
+      ? 'Enter a whole number of 0 or more'
+      : titheAmount > credits
+        ? 'Not enough credits to pay the tithe'
+        : null;
+
   const handleSave = async (options?: { skipRankConfirm?: boolean }) => {
+    if (titheError) return false;
+
     const updates: GangUpdates = {};
     const initial = initialValues;
 
@@ -576,8 +452,14 @@ export default function GangEditModal({
       if (formState.allianceId === '') {
         updates.alliance_name = '';
       } else {
-        const alliance = allianceList.find(a => a.id === formState.allianceId);
+        const alliance = editionAllianceList.find(a => a.id === formState.allianceId);
         updates.alliance_name = alliance?.alliance_name || '';
+      }
+
+      if (showTithe && titheAmount > 0) {
+        updates.credits = titheAmount;
+        updates.credits_operation = 'subtract';
+        updates.credits_reason = `Alliance tithe: ${titheParts.map(part => `${part.verb} ${part.name}`).join(', ')}`;
       }
     }
 
@@ -627,7 +509,8 @@ export default function GangEditModal({
       updates.gang_subtypes = formState.gangSubtypes.map(v => v.id);
     }
 
-    if (isVenator) {
+    // Saved ranks that have not loaded yet are left untouched
+    if (isVenator && ranksSeeded) {
       const filled = ranks.filter(Boolean);
       const hadPreviousRanks = existingRanks.length > 0;
       const previousOrdered = [...existingRanks]
@@ -765,34 +648,20 @@ export default function GangEditModal({
             Add four Skill Sets, then drag to rank them. Rank order
             determines skill access for each fighter.
           </p>
-          {ranks.length > 0 && (
-            <DndContext
-              sensors={rankSensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-              onDragStart={lockRankModalScroll}
-              onDragEnd={handleRankDragEnd}
-              onDragCancel={unlockRankModalScroll}
-            >
-              <SortableContext items={ranks} strategy={verticalListSortingStrategy}>
-                <div ref={rankListRef} className="space-y-2" style={{ touchAction: 'none' }}>
-                  {ranks.map((skillTypeId, i) => {
-                    const skillType = skillTypes.find((s) => s.id === skillTypeId);
-                    return (
-                      <SortableSkillSetRankRow
-                        key={skillTypeId}
-                        id={skillTypeId}
-                        rank={i + 1}
-                        name={skillType?.name ?? 'Unknown Skill Set'}
-                        onRemove={() => removeRank(skillTypeId)}
-                      />
-                    );
-                  })}
-                </div>
-              </SortableContext>
-            </DndContext>
+          {!ranksSeeded && (
+            <p className="text-sm text-muted-foreground">Loading Skill Sets...</p>
           )}
-          {ranks.length < 4 && (
+          {ranksSeeded && ranks.length > 0 && (
+            <SortableRankList
+              items={ranks.map((skillTypeId) => ({
+                id: skillTypeId,
+                name: skillTypes.find((s) => s.id === skillTypeId)?.name ?? 'Unknown Skill Set',
+              }))}
+              onReorder={(items) => setRanks(items.map((item) => item.id))}
+              onRemove={removeRank}
+            />
+          )}
+          {ranksSeeded && ranks.length < 4 && (
             <Combobox
               key={ranks.join(',')}
               value={undefined}
@@ -802,7 +671,22 @@ export default function GangEditModal({
               options={buildGroupedSkillSetComboboxOptions(
                 skillTypes,
                 editionSlug,
-                { excludeIds: new Set(ranks) },
+                {
+                  excludeIds: new Set(ranks),
+                  // Venators rank the core Skill Sets; others stay pickable but muted
+                  formatItem: (item) => {
+                    const rank = skillSetRank[item.name.toLowerCase()] ?? Infinity;
+                    const isCore = getSkillSetGroupLabel(rank) === 'Universal Skill Sets';
+                    return {
+                      label: isCore ? (
+                        <span className="pl-3">{item.name}</span>
+                      ) : (
+                        <span className="pl-3 italic text-neutral-400">{item.name}</span>
+                      ),
+                      displayValue: item.name,
+                    };
+                  },
+                },
               )}
               placeholder="Add a Skill Set"
               dropdownPlacement="down"
@@ -829,8 +713,12 @@ export default function GangEditModal({
         <p className="text-sm font-medium">Alliance</p>
         <Combobox
           value={formState.allianceId || ""}
-          onValueChange={(value) => setFormState(prev => ({ ...prev, allianceId: value }))}
-          onFocus={fetchAlliances}
+          onValueChange={(value) => setFormState(prev => ({
+            ...prev,
+            allianceId: value,
+            tithe: String(listedTitheFor(value))
+          }))}
+          onFocus={() => setAlliancesRequested(true)}
           placeholder={allianceListLoaded ? "Select Alliance" : "Select Alliance"}
           options={(() => {
             if (!allianceListLoaded) {
@@ -859,11 +747,9 @@ export default function GangEditModal({
               formState.allianceId &&
               !editionAllianceList.some(a => a.id === formState.allianceId)
             ) {
-              const currentAlliance =
-                allianceList.find(a => a.id === formState.allianceId) ||
-                (allianceId === formState.allianceId
-                  ? { id: allianceId, alliance_name: allianceName }
-                  : null);
+              const currentAlliance = allianceId === formState.allianceId
+                ? { id: allianceId, alliance_name: allianceName }
+                : null;
               if (currentAlliance) {
                 options.push({
                   value: currentAlliance.id,
@@ -888,10 +774,13 @@ export default function GangEditModal({
 
                 // Add alliances in this group
                 alliancesInGroup.forEach(alliance => {
+                  const displayName = alliance.tithe_cost
+                    ? `${alliance.alliance_name} - ${alliance.tithe_cost} credits`
+                    : alliance.alliance_name;
                   options.push({
                     value: alliance.id,
-                    label: <span className="ml-3">{alliance.alliance_name}</span>,
-                    displayValue: alliance.alliance_name
+                    label: <span className="ml-3">{displayName}</span>,
+                    displayValue: displayName
                   });
                 });
               }
@@ -902,6 +791,21 @@ export default function GangEditModal({
         />
       </div>
 
+      {showTithe && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Tithe (credits)</p>
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            value={formState.tithe}
+            onChange={(e) => setFormState(prev => ({ ...prev, tithe: e.target.value }))}
+            className="w-full"
+          />
+          {titheError && <p className="text-sm text-red-500">{titheError}</p>}
+        </div>
+      )}
+
       {/* Gang Affiliation Section - Only show if gang type supports affiliations */}
       {gangTypeHasAffiliation && (
         <div className="space-y-2">
@@ -909,14 +813,14 @@ export default function GangEditModal({
           <select
             value={formState.gangAffiliationId || ""}
             onChange={(e) => setFormState(prev => ({ ...prev, gangAffiliationId: e.target.value }))}
-            onFocus={fetchAffiliations}
+            onFocus={() => setGangTypesRequested(true)}
             className="w-full p-2 border rounded-md"
           >
             {/* Default "None" option */}
             <option value="">None</option>
 
             {/* Display affiliations after they are loaded */}
-            {affiliationListLoaded ? (
+            {gangTypesLoaded ? (
               affiliationList.map((affiliation) => (
                 <option key={affiliation.id} value={affiliation.id}>
                   {affiliation.name}
@@ -939,18 +843,16 @@ export default function GangEditModal({
           <select
             value={formState.gangOriginId || ""}
             onChange={(e) => setFormState(prev => ({ ...prev, gangOriginId: e.target.value }))}
-            onFocus={fetchAffiliations}
+            onFocus={() => setGangTypesRequested(true)}
             className="w-full p-2 border rounded-md"
           >
             <option value="">None</option>
-            {originListLoaded ? (
-              originList
-                .sort((a, b) => a.origin_name.localeCompare(b.origin_name))
-                .map((origin) => (
-                  <option key={origin.id} value={origin.id}>
-                    {origin.origin_name}
-                  </option>
-                ))
+            {gangTypesLoaded ? (
+              originList.map((origin) => (
+                <option key={origin.id} value={origin.id}>
+                  {origin.origin_name}
+                </option>
+              ))
             ) : (
               <>
                 {gangOriginId && <option value={gangOriginId}>{gangOriginName}</option>}
@@ -1055,25 +957,24 @@ export default function GangEditModal({
 
   return (
     <>
-      {isOpen && (
-        <Modal
-          title="Edit Gang"
-          content={editModalContent}
-          onClose={onClose}
-          onConfirm={handleSave}
-          confirmText="Save Changes"
-          onDelete={(isGangOwner || isAdmin) ? () => setShowDeleteModal(true) : undefined}
-          deleteLabel={(isGangOwner || isAdmin) ? 'Delete' : undefined}
-        />
-      )}
+      <Modal
+        title="Edit Gang"
+        content={editModalContent}
+        onClose={onClose}
+        onConfirm={handleSave}
+        confirmText="Save Changes"
+        confirmDisabled={!!titheError}
+        onDelete={(isGangOwner || isAdmin) ? () => setShowDeleteModal(true) : undefined}
+        deleteLabel={(isGangOwner || isAdmin) ? 'Delete' : undefined}
+      />
 
       {showColourPickerModal && (
         <Modal
-          title="Select Gang Colour"
+          title="Gang Colour"
           helper="This sets your gang's appearance in a campaign."
           onClose={() => setShowColourPickerModal(false)}
           onConfirm={() => setShowColourPickerModal(false)}
-          confirmText="Close"
+          confirmText="Confirm"
           content={
             <div className="space-y-4">
               <div className="flex justify-center">

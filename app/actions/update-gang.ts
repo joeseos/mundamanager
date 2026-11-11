@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
+import { isUuidArray } from '@/utils/uuid';
 import { logGangResourceChanges } from './logs/gang-resource-logs';
 import { gangEditionSlug, hasTradePoints } from '@/types/edition';
 import { sanitizeResourceReason } from '@/utils/sanitize-resource-reason';
@@ -37,6 +38,8 @@ interface UpdateGangParams {
   }>;
   gang_subtypes?: string[];
   note?: string;
+  note_backstory?: string;
+  note_private?: string;
   hidden?: boolean;
 }
 
@@ -46,6 +49,8 @@ interface UpdateGangResult {
     gang_id: string;
     name: string;
     credits: number;
+    rating: number;
+    wealth: number;
     reputation: number;
     trade_points: number;
     alignment: string;
@@ -57,6 +62,7 @@ interface UpdateGangResult {
     gang_origin_name?: string;
     gang_colour: string;
     last_updated: string;
+    note_private_updated_at?: string;
     gang_subtypes: Array<{id: string, subtype: string}>;
     resources?: Array<{
       resource_id: string;
@@ -79,11 +85,15 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
     // Ensure the caller is authenticated (RLS handles write permissions)
     await getAuthenticatedUser(supabase);
 
+    if (params.gang_subtypes !== undefined && !isUuidArray(params.gang_subtypes)) {
+      return { success: false, error: 'Invalid gang subtypes' };
+    }
+
     // Get gang information (RLS will handle permissions)
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
       .select(`
-        id, user_id, credits, reputation, trade_points, rating, wealth,
+        id, user_id, credits, reputation, trade_points, rating, wealth, alliance_id,
         gang_types!gang_type_id ( editions:edition_id ( slug ) ),
         custom_gang_types!custom_gang_type_id ( editions:edition_id ( slug ) )
       `)
@@ -107,9 +117,18 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       updates.name = params.name.trimEnd();
     }
 
-    // Add note if provided
+    // Add notes if provided
     if (params.note !== undefined) {
       updates.note = params.note;
+    }
+
+    if (params.note_backstory !== undefined) {
+      updates.note_backstory = params.note_backstory;
+    }
+
+    if (params.note_private !== undefined) {
+      updates.note_private = params.note_private;
+      updates.note_private_updated_at = updates.last_updated;
     }
 
     // Add alignment if provided
@@ -180,6 +199,39 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       updates.gang_subtypes = params.gang_subtypes;
     }
 
+    // While allied, a gang's rating includes its ally's listed Tithe Price, so forming,
+    // breaking or switching an alliance moves the rating by the difference. What was
+    // paid for it is the separate credits change.
+    let ratingDelta = 0;
+    if (params.alliance_id !== undefined && params.alliance_id !== gang.alliance_id) {
+      const { data: tithes, error: tithesError } = await supabase
+        .from('alliances')
+        .select('id, tithe_cost')
+        .in('id', [gang.alliance_id, params.alliance_id].filter(Boolean));
+      if (tithesError) {
+        throw new Error(`Failed to read alliance tithes: ${tithesError.message}`);
+      }
+      const titheOf = (allianceId: string | null) =>
+        Number(tithes?.find(a => a.id === allianceId)?.tithe_cost ?? 0);
+      ratingDelta = titheOf(params.alliance_id) - titheOf(gang.alliance_id);
+    }
+
+    // Credits and rating move before the gang row is written: the deduction is the step
+    // that can fail (not enough credits), and failing here leaves nothing changed.
+    if (creditsChanged || ratingDelta !== 0) {
+      const financialResult = await updateGangFinancials(supabase, {
+        gangId: params.gang_id,
+        creditsDelta: creditsChanged
+          ? (params.credits_operation === 'add' ? params.credits! : -params.credits!)
+          : 0,
+        ratingDelta
+      });
+
+      if (!financialResult.success) {
+        throw new Error(financialResult.error || 'Failed to update gang financials');
+      }
+    }
+
     // Perform the gang update
     const { data: updatedGang, error: gangUpdateError } = await supabase
       .from("gangs")
@@ -189,6 +241,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         id,
         name,
         credits,
+        rating,
+        wealth,
         reputation,
         trade_points,
         alignment,
@@ -196,7 +250,8 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         gang_affiliation_id,
         gang_origin_id,
         gang_colour,
-        last_updated
+        last_updated,
+        note_private_updated_at
       `)
       .single();
 
@@ -357,9 +412,6 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
     }
 
-    // Declare variable to store financial result for later use
-    let financialResult: any = null;
-
     // Granular cache invalidation based on what changed
 
     // Always invalidate basic gang data if gang settings changed
@@ -370,23 +422,15 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       invalidateGang(params.gang_id);
       invalidateGangOverview(params.gang_id);
     }
+
+    // Notes show only on the gang's own pages
+    if (params.note !== undefined || params.note_backstory !== undefined ||
+        params.note_private !== undefined) {
+      invalidateGang(params.gang_id);
+    }
     
-    // Invalidate credits if changed and update wealth
-    if (creditsChanged) {
-      // Calculate delta from params: positive for add, negative for subtract
-      const creditsDelta = params.credits_operation === 'add'
-        ? params.credits!
-        : -params.credits!;
-
-      financialResult = await updateGangFinancials(supabase, {
-        gangId: params.gang_id,
-        creditsDelta
-      });
-
-      if (!financialResult.success) {
-        throw new Error(financialResult.error || 'Failed to update gang financials');
-      }
-
+    // Credits, rating and wealth were updated above
+    if (creditsChanged || ratingDelta !== 0) {
       invalidateGangFinancials(params.gang_id);
     }
     
@@ -426,11 +470,6 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
     // Log resource changes (campaign resources + credits/reputation)
     try {
-      // Get final credits value from financialResult if credits changed
-      const finalCredits = creditsChanged && financialResult?.newValues?.credits
-        ? financialResult.newValues.credits
-        : gang.credits;
-
       const oldState: Record<string, number> = {
         ...oldResourceStates,
         credits: gang.credits,
@@ -441,9 +480,10 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
 
       const newState: Record<string, number> = {
         ...newResourceStates,
-        credits: finalCredits,
-        rating: gang.rating || 0,  // Rating unchanged by manual credit changes
-        wealth: financialResult?.newValues?.wealth ?? (gang.wealth || 0),
+        // Read back after the financial update, so these are the values it wrote
+        credits: updatedGang.credits ?? 0,
+        rating: updatedGang.rating ?? 0,
+        wealth: updatedGang.wealth ?? 0,
         reputation: updates.reputation ?? (gang.reputation || 0)
       };
 
@@ -477,7 +517,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       }
 
       // Only log if something changed
-      if (Object.keys(oldResourceStates).length > 0 || creditsChanged || (params.reputation !== undefined && params.reputation_operation) || tradePointsChanged) {
+      if (Object.keys(oldResourceStates).length > 0 || creditsChanged || ratingDelta !== 0 || (params.reputation !== undefined && params.reputation_operation) || tradePointsChanged) {
         // Use gang owner's user_id so logs are attributed to the owner even
         // when an arbitrator edits on their behalf (matches gang-campaign-logs).
         // Ownerless gangs fall back to the caller inside createGangLog.
@@ -502,9 +542,9 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
       data: {
         gang_id: updatedGang.id,
         name: updatedGang.name,
-        credits: creditsChanged && financialResult?.newValues?.credits
-          ? financialResult.newValues.credits
-          : updatedGang.credits,
+        credits: updatedGang.credits,
+        rating: updatedGang.rating ?? 0,
+        wealth: updatedGang.wealth ?? 0,
         reputation: updatedGang.reputation,
         trade_points: updatedGang.trade_points,
         alignment: updatedGang.alignment,
@@ -516,6 +556,7 @@ export async function updateGang(params: UpdateGangParams): Promise<UpdateGangRe
         gang_origin_name: undefined, // Frontend handles display
         gang_colour: updatedGang.gang_colour,
         last_updated: updatedGang.last_updated,
+        note_private_updated_at: updatedGang.note_private_updated_at ?? undefined,
         gang_subtypes: gangSubtypes,
         resources: updatedResources.length > 0 ? updatedResources : undefined,
         failedResources: failedResources.length > 0 ? failedResources : undefined

@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/utils/supabase/client";
 import { Equipment } from '@/types/equipment';
 import { LuChevronRight } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
@@ -42,7 +41,6 @@ interface ItemModalProps {
   fighterCredits: number;
   fighterHasLegacy?: boolean;
   vehicleId?: string;
-  vehicleType?: string;
   vehicleTypeId?: string;
   isVehicleEquipment?: boolean;
   allowedCategories?: string[];
@@ -104,7 +102,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   fighterCredits,
   fighterHasLegacy,
   vehicleId,
-  vehicleType,
   vehicleTypeId,
   isVehicleEquipment,
   allowedCategories,
@@ -125,14 +122,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
 }) => {
   const showTradePoints = hasTradePoints(editionSlug);
   const [searchQuery, setSearchQuery] = useState('');
-  const [error, setError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
-  const [session, setSession] = useState<any>(null);
   const [equipmentListType, setEquipmentListType] = useState<EquipmentTab>(
     isStashMode ? "fighters-tradingpost" : "fighters-list"
   );
-  const [localVehicleTypeId, setLocalVehicleTypeId] = useState<string | undefined>(vehicleTypeId);
   const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
   const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
   const [tradePointsRange, setTradePointsRange] = useState<[number, number]>([0, 5]);
@@ -146,7 +140,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const chargesTradePoints = showTradePoints && equipmentListType !== 'fighters-list';
 
   const { purchaseEquipment } = usePurchaseEquipment({
-    session,
     gangId,
     fighterId,
     vehicleId,
@@ -161,68 +154,25 @@ const ItemModal: React.FC<ItemModalProps> = ({
     closePurchaseModal: () => setBuyModalData(null),
   });
 
-  useEffect(() => {
-    const getSession = async () => {
-      const supabase = createClient();
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      setSession(currentSession);
-    };
-    getSession();
-  }, []);
-
-  useEffect(() => {
-    const fetchVehicleTypeId = async () => {
-      if (isVehicleEquipment && !localVehicleTypeId && session && vehicleType) {
-        try {
-          const response = await fetch(
-            `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/vehicle_types?select=id&vehicle_type=eq.${encodeURIComponent(vehicleType)}`,
-            {
-              headers: {
-                'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string,
-                'Authorization': `Bearer ${session.access_token}`
-              }
-            }
-          );
-
-          if (!response.ok) throw new Error('Failed to fetch vehicle type ID');
-          const data = await response.json();
-          if (data && data.length > 0) {
-            setLocalVehicleTypeId(data[0].id);
-          }
-        } catch (error) {
-          console.error('Error fetching vehicle type ID:', error);
-          setError('Could not determine vehicle type. Please try again later.');
-        }
-      }
-    };
-
-    fetchVehicleTypeId();
-  }, [isVehicleEquipment, localVehicleTypeId, session, vehicleType]);
-
   // The gang's overlay (one call per opening of the modal) and the catalogue snapshot files it
   // names. Every tab, and the Legacy switch, is resolved from them without another request.
   const catalogue = useEquipmentCatalogue(gangId, fighterId || null);
 
   // The fighter type the modal resolves for: the vehicle's type for an N23 vehicle, else the
   // fighter's (official, else custom); none at gang level (the stash).
-  const skipFighterTypeValidation = !fighterId || isCustomFighter;
   const resolvedTypeId =
-    (isVehicleEquipment ? localVehicleTypeId || vehicleTypeId : fighterTypeId) ||
-    (!isVehicleEquipment && !skipFighterTypeValidation ? catalogue.overlay?.fighter?.fighterType : null) ||
+    (isVehicleEquipment ? vehicleTypeId : fighterTypeId) ||
+    (!isVehicleEquipment && fighterId && !isCustomFighter ? catalogue.overlay?.fighter?.fighterType : null) ||
     null;
-  const typeError =
-    !resolvedTypeId && !skipFighterTypeValidation && (!isVehicleEquipment || !vehicleType)
-      ? isVehicleEquipment
-        ? `Vehicle type information is missing. Vehicle: ${vehicleType || 'unknown'}`
-        : catalogue.overlay
-          ? 'Fighter type information is missing'
-          : null
-      : null;
+  // Gang-level access (no fighter) and custom fighters list equipment without a type.
+  const typeError = !resolvedTypeId && fighterId && !isCustomFighter && (isVehicleEquipment || catalogue.overlay)
+    ? isVehicleEquipment
+      ? 'Vehicle type information is missing'
+      : 'Fighter type information is missing'
+    : null;
 
   const resolved = useMemo(() => {
     if (!catalogue.index || !catalogue.overlay || typeError) return null;
-    // An N23 vehicle's type may still be loading by name.
-    if (isVehicleEquipment && !resolvedTypeId) return null;
     return resolveEquipment(catalogue.index, catalogue.overlay, {
       typeId: resolvedTypeId,
       isVehicle: Boolean(isVehicleEquipment),
@@ -233,6 +183,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   useEffect(() => {
     if (catalogue.error) console.error('Error loading the equipment catalogue:', catalogue.error);
   }, [catalogue.error]);
+  const error = typeError ?? (catalogue.error ? 'Failed to load equipment categories' : null);
 
   // The tab's rows, sorted and grouped by category as before.
   const { equipment, availableCategories } = useMemo(() => {
@@ -251,17 +202,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return { equipment: byCategory, availableCategories: Object.keys(byCategory) };
   }, [resolved, equipmentListType, resolvedTypeId, isVehicleEquipment]);
 
-  const toggleCategory = async (category: Category) => {
-    const isExpanded = expandedCategories.has(category.category_name);
+  const toggleCategory = (category: Category) => {
     const newSet = new Set(expandedCategories);
-
-    if (isExpanded) {
-      newSet.delete(category.category_name);
-    } else {
-      newSet.add(category.category_name);
-      // No need to fetch individual categories anymore - all equipment is loaded at once
-    }
-
+    if (!newSet.delete(category.category_name)) newSet.add(category.category_name);
     setExpandedCategories(newSet);
   };
 
@@ -383,11 +326,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
     });
   };
 
-  // Derive categories from available category names (no separate fetch needed)
-  const categories: Category[] = availableCategories.map(name => ({
-    id: name,
-    category_name: name
-  }));
+  const categories: Category[] = useMemo(
+    () => Object.keys(equipment).map(name => ({ id: name, category_name: name })),
+    [equipment]
+  );
 
   const useN26CategoryFormation = hasEquipmentSuperCategories(editionSlug);
 
@@ -398,13 +340,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
           ? allowedCategories.includes(category.category_name)
           : !isVehicleEquipment;
 
-        const isAvailable = availableCategories.includes(category.category_name);
-
         const hasMatchingEquipment = !searchQuery ||
           (equipment[category.category_name] &&
            filterEquipment(equipment[category.category_name]).length > 0);
 
-        return isVehicleAllowed && isAvailable && hasMatchingEquipment;
+        return isVehicleAllowed && hasMatchingEquipment;
       })
       .sort((a, b) => {
         if (useN26CategoryFormation) {
@@ -424,7 +364,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
     categories,
     isVehicleEquipment,
     allowedCategories,
-    availableCategories,
     searchQuery,
     equipment,
     costRange,
@@ -616,9 +555,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
           <div>
             <div className="flex flex-col">
-              {(error || typeError || catalogue.error) && (
-                <p className="text-red-500 p-4">{error ?? typeError ?? 'Failed to load equipment categories'}</p>
-              )}
+              {error && <p className="text-red-500 p-4">{error}</p>
 
               {categoryGroups.map((group) => (
                 <div key={group.superCategory ?? '__ungrouped__'}>

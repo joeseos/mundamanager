@@ -1,6 +1,8 @@
 // @ts-nocheck
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SCENARIO_PARTS, typedPartNames, type ScenarioPart } from "../../../types/campaign.ts";
+import { postDiscordEmbeds } from "../../../utils/discord.ts";
 
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS")!);
 const supabase = createClient(
@@ -10,7 +12,7 @@ const supabase = createClient(
 
 const DISCORD_BOT_TOKEN = Deno.env.get("DISCORD_BOT_TOKEN")!
 
-const DISCORD_CHANNEL_TYPES = { TEXT: 0, FORUM: 15 } as const;
+const SCENARIO_PART_ICONS = { deployment_id: "🗺️", objective_id: "🎯", crew_selection_id: "🎲" };
 
 Deno.serve(async (req) => {
   const auth = req.headers.get("Authorization");
@@ -59,14 +61,46 @@ Deno.serve(async (req) => {
           .map((p: any) => p.gang_id as string)
       : [];
 
-    const { data: gangs } = await supabase
-      .from("gangs")
-      .select("id, name, gang_type, rating, reputation")
-      .in("id", gangIds);
+    // N26: what the battle rolled for its Deployment, Objective and Crew, and each gang for its Side Job.
+    const entryIds = [
+      ...SCENARIO_PARTS.map((part) => battle[part.key]),
+      ...participants.map((p: { side_job_id?: string | null }) => p.side_job_id),
+    ].filter(Boolean);
+
+    const [{ data: gangs }, { data: entries, error: entriesError }, { data: territory }] = await Promise.all([
+      supabase
+        .from("gangs")
+        .select("id, name, gang_type, rating, reputation")
+        .in("id", gangIds),
+      entryIds.length > 0
+        ? supabase.from("scenario_table_entries").select("id, name").in("id", entryIds)
+        : { data: [] },
+      battle.campaign_territory_id
+        ? supabase
+            .from("campaign_territories")
+            .select("territory_name")
+            .eq("id", battle.campaign_territory_id)
+            .single()
+        : { data: null },
+    ]);
+
+    if (entriesError) {
+      console.error("Scenario table entries lookup failed:", entriesError);
+    }
 
     const gangMap = new Map(gangs?.map((g) => [g.id, g]) ?? []);
+    const entryNames = new Map(entries?.map((e) => [e.id, e.name]) ?? []);
+    const territoryName: string | null = territory?.territory_name ?? null;
 
-    type BattleParticipantRow = { gang_id: string; role?: string; is_winner?: boolean };
+    type BattleParticipantRow = {
+      gang_id: string;
+      role?: string;
+      is_winner?: boolean;
+      side_job_id?: string | null;
+      /** A custom Side Job, which has no entry. */
+      side_job_name?: string | null;
+      side_job_completed?: boolean;
+    };
     const participantRows: BattleParticipantRow[] = Array.isArray(participants)
       ? participants
       : [];
@@ -110,17 +144,6 @@ Deno.serve(async (req) => {
         .map((id) => gangMap.get(id)?.name)
         .filter(Boolean)
         .join("\n");
-
-    // Resolve territory name via campaign_territory_id
-    let territoryName: string | null = null;
-    if (battle.campaign_territory_id) {
-      const { data: territory } = await supabase
-        .from("campaign_territories")
-        .select("territory_name")
-        .eq("id", battle.campaign_territory_id)
-        .single();
-      territoryName = territory?.territory_name ?? null;
-    }
 
     const fields: { name: string; value: string; inline: boolean }[] = [];
 
@@ -196,16 +219,47 @@ Deno.serve(async (req) => {
     }
 
     if (territoryName) {
-      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: true });
+      fields.push({ name: "🏭 Territory Claimed", value: territoryName, inline: false });
     }
 
     if (battle.cycle) {
-      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: true });
+      fields.push({ name: "🔄 Cycle", value: `${battle.cycle}`, inline: false });
     }
 
-    if (battle.scenario) {
-      fields.push({ name: "📋 Scenario", value: battle.scenario, inline: true });
-    }
+    const sideJobLines = participantRows
+      .map((p) => {
+        const gang = gangMap.get(p.gang_id);
+        const sideJob = entryNames.get(p.side_job_id) ?? p.side_job_name;
+        if (!gang || !sideJob) return null;
+        return `**${gang.name}**: ${sideJob}${p.side_job_completed ? " (completed)" : ""}`;
+      })
+      .filter(Boolean);
+
+    const sideJobsField = sideJobLines.length > 0 && {
+      name: sideJobLines.length > 1 ? "💼 Side Jobs" : "💼 Side Job",
+      value: sideJobLines.join("\n"),
+      inline: false,
+    };
+
+    // The scenario text names the battle: an N23 scenario, or an N26 battle's
+    // optional scenario name. N26 also rolls its Deployment, Objective and Crew,
+    // each of which may instead be custom. Side Jobs come before the Crew.
+    const typed = typedPartNames(battle);
+    const partField = (part: ScenarioPart) => {
+      const value = entryNames.get(battle[part.key]) ?? typed[part.key];
+      return value && { name: `${SCENARIO_PART_ICONS[part.key]} ${part.label}`, value, inline: false };
+    };
+    const scenario = battle.scenario?.trim();
+    const scenarioField = scenario && { name: "📋 Scenario", value: scenario, inline: false };
+    const scenarioFields = SCENARIO_PARTS.some((part) => battle[part.key] || typed[part.key])
+      ? [
+          scenarioField,
+          ...SCENARIO_PARTS.flatMap((part) =>
+            part.key === "crew_selection_id" ? [sideJobsField, partField(part)] : [partField(part)]
+          ),
+        ]
+      : [scenarioField, sideJobsField];
+    fields.push(...scenarioFields.filter(Boolean));
 
     const DISCORD_DESC_MAX = 4096;
     const DISCORD_TOTAL_MAX = 6000;
@@ -221,10 +275,10 @@ Deno.serve(async (req) => {
     };
 
     const embeds: Record<string, unknown>[] = [infoEmbed];
+    const footerText = "Munda Manager";
 
     if (battle.note) {
       const reportTitle = "📝 Report";
-      const footerText = "MundaManager";
       // Characters consumed by everything except the report description, across
       // both embeds (info title + field names/values + report title + footer).
       const infoChars =
@@ -253,41 +307,16 @@ Deno.serve(async (req) => {
     } else {
       // No report → footer + timestamp stay on the battle-info embed.
       infoEmbed.timestamp = battle.created_at;
-      infoEmbed.footer = { text: "MundaManager" };
+      infoEmbed.footer = { text: footerText };
     }
 
-    let discordRes: Response
-
-    if (campaign.discord_channel_type === DISCORD_CHANNEL_TYPES.FORUM) {
-      const date = new Date().toISOString().slice(0, 10)
-      discordRes = await fetch(
-        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/threads`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: `${campaign.campaign_name} — Battle Report (${date})`,
-            auto_archive_duration: 10080,
-            message: { embeds },
-          }),
-        }
-      )
-    } else {
-      discordRes = await fetch(
-        `https://discord.com/api/v10/channels/${campaign.discord_channel_id}/messages`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ embeds }),
-        }
-      )
-    }
+    const date = new Date().toISOString().slice(0, 10);
+    const discordRes = await postDiscordEmbeds(
+      DISCORD_BOT_TOKEN,
+      { id: campaign.discord_channel_id, type: campaign.discord_channel_type },
+      `${campaign.campaign_name} — Battle Report (${date})`,
+      embeds
+    );
 
     if (!discordRes.ok) {
       const error = await discordRes.text();

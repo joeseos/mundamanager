@@ -1,0 +1,762 @@
+'use client';
+
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Cropper from 'react-easy-crop';
+import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
+import { Combobox } from '@/components/ui/combobox';
+import { DefaultImageCreditLine } from '@/components/ui/default-image-credit-line';
+import { Input } from '@/components/ui/input';
+import Modal from '@/components/ui/modal';
+import { createClient } from '@/utils/supabase/client';
+import { isValidHttpUrl } from '@/utils/http-url';
+import {
+  comparePortraits,
+  PORTRAIT_CATALOGUES,
+  PORTRAIT_STYLES,
+  portraitPublicUrl,
+  type Portrait,
+  type PortraitCatalogueKey,
+} from '@/utils/portrait-catalogue';
+import {
+  type CropArea,
+  getCroppedImg,
+  processImageFile,
+  validateImageFile,
+} from '@/utils/image-processing';
+const PORTRAIT_PX = 512;
+const STYLES_SET = new Set<string>(PORTRAIT_STYLES);
+
+const STYLE_FILE_SLUG: Record<string, string> = {
+  colour: 'colour',
+  'black & white': 'bw',
+  'ai-assisted': 'ai',
+};
+
+export interface PortraitFormState {
+  canSave: boolean;
+  canDelete: boolean;
+  hasSelection: boolean;
+  isBusy: boolean;
+  pendingAction: 'save' | 'delete' | null;
+  isCreateMode: boolean;
+}
+
+export interface PortraitFormHandle {
+  save: () => void;
+  remove: () => void;
+}
+
+interface AdminPortraitFormProps {
+  catalogue: PortraitCatalogueKey;
+  onStateChange: (state: PortraitFormState) => void;
+  /** When set, the group label is a campaign type instead of free text. */
+  campaignTypes?: { id: string; campaign_type_name: string | null }[];
+  groupLabelPlaceholder: string;
+  deleteWarning: string;
+}
+
+function slugPart(value: string): string {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug.slice(0, 60) || 'portrait';
+}
+
+function portraitBaseName(group: string, label: string, style: string): string {
+  const parts = [slugPart(group)];
+  if (label.trim()) parts.push(slugPart(label));
+  if (style !== 'colour') parts.push(STYLE_FILE_SLUG[style] ?? slugPart(style));
+  return parts.join('-');
+}
+
+function candidatePath(base: string, suffix?: number): string {
+  const name = suffix ? `${base}-${suffix}` : base;
+  return `admin/${name}.webp`;
+}
+
+function isDuplicateStorageError(error: { message?: string; statusCode?: string | number }): boolean {
+  const message = error.message?.toLowerCase() ?? '';
+  const status = String(error.statusCode ?? '');
+  return status === '409' || message.includes('already exists') || message.includes('duplicate');
+}
+
+async function listAdminPaths(bucket: string): Promise<Set<string>> {
+  const supabase = createClient();
+  const paths = new Set<string>();
+  const pageSize = 1000;
+
+  for (let offset = 0; offset < 10000; offset += pageSize) {
+    const { data, error } = await supabase.storage.from(bucket).list('admin', {
+      limit: pageSize,
+      offset,
+      sortBy: { column: 'name', order: 'asc' },
+    });
+    if (error || !data) return paths;
+    for (const file of data) {
+      if (file.name) paths.add(`admin/${file.name}`);
+    }
+    if (data.length < pageSize) break;
+  }
+
+  return paths;
+}
+
+function nextFreePath(base: string, taken: Set<string>): string {
+  let suffix: number | undefined;
+  let path = candidatePath(base);
+  while (taken.has(path)) {
+    suffix = suffix ? suffix + 1 : 2;
+    path = candidatePath(base, suffix);
+  }
+  return path;
+}
+
+async function uploadPortraitBlob(
+  blob: Blob,
+  group: string,
+  label: string,
+  style: string,
+  reservedPaths: Set<string>,
+  bucket: string,
+): Promise<string> {
+  const taken = new Set<string>([...reservedPaths, ...(await listAdminPaths(bucket))]);
+  const base = portraitBaseName(group, label, style);
+  const supabase = createClient();
+
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const path = nextFreePath(base, taken);
+    const { error } = await supabase.storage.from(bucket).upload(path, blob, {
+      contentType: 'image/webp',
+      cacheControl: 'no-cache',
+      upsert: false,
+    });
+    if (!error) return path;
+    if (!isDuplicateStorageError(error)) throw error;
+    taken.add(path);
+  }
+
+  throw new Error('Could not find a free image path');
+}
+
+function isAdminUploadedPath(storagePath: string): boolean {
+  return storagePath.startsWith('admin/') && !storagePath.includes('..');
+}
+
+async function removePortraitFile(storagePath: string, bucket: string) {
+  if (!isAdminUploadedPath(storagePath)) return;
+  const supabase = createClient();
+  const { error } = await supabase.storage.from(bucket).remove([storagePath]);
+  if (error) throw error;
+}
+
+function portraitOption(portrait: Portrait) {
+  const primary = [portrait.group_label, portrait.label].filter(Boolean).join(' · ');
+  const artist = portrait.credit?.name?.trim() ?? '';
+  const detail = [artist ? `• ${artist}` : '', portrait.style].filter(Boolean).join(' · ');
+  return {
+    value: portrait.id,
+    label: (
+      <span className="inline-flex items-baseline gap-1 min-w-0">
+        <span className="truncate">{primary}</span>
+        {detail && (
+          <span className="text-xs text-muted-foreground shrink-0">
+            {detail}
+          </span>
+        )}
+      </span>
+    ),
+    displayValue: [primary, artist, portrait.style].filter(Boolean).join(' '),
+  };
+}
+
+export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFormProps>(
+  function AdminPortraitForm({ catalogue, onStateChange, campaignTypes, groupLabelPlaceholder, deleteWarning }, ref) {
+    const config = PORTRAIT_CATALOGUES[catalogue];
+    const queryClient = useQueryClient();
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const onStateChangeRef = useRef(onStateChange);
+    onStateChangeRef.current = onStateChange;
+
+    const [selectedId, setSelectedId] = useState('');
+    const [groupLabel, setGroupLabel] = useState('');
+    const [campaignTypeId, setCampaignTypeId] = useState('');
+    const [style, setStyle] = useState<string>(PORTRAIT_STYLES[0]);
+    const [label, setLabel] = useState('');
+    const [creditName, setCreditName] = useState('');
+    const [creditUrl, setCreditUrl] = useState('');
+    const [creditSuffix, setCreditSuffix] = useState('');
+    const [isCreateMode, setIsCreateMode] = useState(false);
+    const [isBusy, setIsBusy] = useState(false);
+    const [pendingAction, setPendingAction] = useState<'save' | 'delete' | null>(null);
+    const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [pendingImage, setPendingImage] = useState<string | null>(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
+
+    const { data: portraits = [], isLoading } = useQuery<Portrait[]>({
+      queryKey: [config.adminQueryKey],
+      queryFn: async () => {
+        const response = await fetch(`/api/admin/portraits/${catalogue}`);
+        if (!response.ok) throw new Error('Failed to fetch portraits');
+        return response.json();
+      },
+      staleTime: 60 * 1000,
+    });
+
+    const options = useMemo(() => {
+      return [...portraits]
+        .sort((a, b) => {
+          const group = a.group_label.localeCompare(b.group_label, undefined, { sensitivity: 'base' });
+          if (group !== 0) return group;
+          return comparePortraits(a, b);
+        })
+        .map((portrait) => portraitOption(portrait));
+    }, [portraits]);
+
+    const selectedPortrait = portraits.find((portrait) => portrait.id === selectedId);
+    const fieldsDisabled = (!isCreateMode && !selectedId) || isBusy || isLoading || isProcessing;
+    const creditUrlTrimmed = creditUrl.trim();
+    const creditUrlValid = creditUrlTrimmed === '' || isValidHttpUrl(creditUrlTrimmed);
+    const selectedTypeName = (campaignTypes ?? [])
+      .find((type) => type.id === campaignTypeId)
+      ?.campaign_type_name
+      ?.trim() ?? '';
+    const resolvedGroupLabel = config.requiresCampaignType ? selectedTypeName : groupLabel.trim();
+    const metadataValid =
+      resolvedGroupLabel !== '' &&
+      (!config.requiresCampaignType || campaignTypeId !== '') &&
+      STYLES_SET.has(style) &&
+      creditName.trim() !== '' &&
+      creditUrlValid;
+    const imageReady = Boolean(pendingImage && croppedAreaPixels);
+    const hasSelection = !isCreateMode && Boolean(selectedId);
+    const canSave =
+      metadataValid &&
+      !isBusy &&
+      !isLoading &&
+      !isProcessing &&
+      (isCreateMode ? imageReady : hasSelection && (!pendingImage || imageReady));
+    const canDelete = hasSelection && !isBusy && !isLoading;
+
+    useEffect(() => {
+      onStateChangeRef.current({
+        canSave,
+        canDelete,
+        hasSelection,
+        isBusy: isBusy || isProcessing,
+        pendingAction,
+        isCreateMode,
+      });
+    }, [canSave, canDelete, hasSelection, isBusy, isProcessing, isCreateMode, pendingAction]);
+
+    const clearPendingImage = useCallback(() => {
+      setPendingImage(null);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setCroppedAreaPixels(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }, []);
+
+    const clearFields = useCallback(() => {
+      setGroupLabel('');
+      setCampaignTypeId('');
+      setStyle(PORTRAIT_STYLES[0]);
+      setLabel('');
+      setCreditName('');
+      setCreditUrl('');
+      setCreditSuffix('');
+      clearPendingImage();
+    }, [clearPendingImage]);
+
+    const applyPortrait = useCallback((portrait: Portrait) => {
+      setGroupLabel(portrait.group_label ?? '');
+      setCampaignTypeId(portrait.campaign_type_id ?? '');
+      setStyle(portrait.style || PORTRAIT_STYLES[0]);
+      setLabel(portrait.label ?? '');
+      setCreditName(portrait.credit?.name ?? '');
+      setCreditUrl(portrait.credit?.url ?? '');
+      setCreditSuffix(portrait.credit?.suffix ?? '');
+      clearPendingImage();
+    }, [clearPendingImage]);
+
+    const handleSelect = (portraitId: string) => {
+      setSelectedId(portraitId);
+      const portrait = portraits.find((item) => item.id === portraitId);
+      if (portrait) {
+        applyPortrait(portrait);
+        setIsCreateMode(false);
+      } else {
+        clearFields();
+        setIsCreateMode(false);
+      }
+    };
+
+    const handleCreateNew = () => {
+      setSelectedId('');
+      clearFields();
+      setIsCreateMode(true);
+    };
+
+    const onCropComplete = useCallback((_area: CropArea, pixels: CropArea) => {
+      setCroppedAreaPixels(pixels);
+    }, []);
+
+    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const validation = validateImageFile(file);
+      if (!validation.valid) {
+        toast.error(validation.error?.includes('10MB') ? 'File too large' : 'Unsupported file type', {
+          description: validation.error,
+        });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      try {
+        setIsProcessing(true);
+        const processedFile = await processImageFile(file);
+        const reader = new FileReader();
+        reader.onload = () => {
+          setCrop({ x: 0, y: 0 });
+          setZoom(1);
+          setCroppedAreaPixels(null);
+          setPendingImage(reader.result as string);
+        };
+        reader.readAsDataURL(processedFile);
+      } catch (error) {
+        console.error('Error processing portrait image:', error);
+        toast.error('File processing failed', {
+          description: 'Failed to process the image. Please try a different file.',
+        });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      } finally {
+        setIsProcessing(false);
+      }
+    };
+
+    const refreshPortraits = useCallback(async () => {
+      await queryClient.invalidateQueries({ queryKey: [config.adminQueryKey] });
+      await queryClient.invalidateQueries({ queryKey: [config.queryKey] });
+    }, [config.adminQueryKey, config.queryKey, queryClient]);
+
+    const handleSave = useCallback(async () => {
+      if (!metadataValid || isBusy) return;
+      if (isCreateMode && !imageReady) return;
+      if (!isCreateMode && !selectedId) return;
+      if (pendingImage && !croppedAreaPixels) return;
+
+      setPendingAction('save');
+      setIsBusy(true);
+      let uploadedPath: string | null = null;
+      const previousPath = selectedPortrait?.storage_path ?? null;
+
+      try {
+        let storagePath = previousPath ?? '';
+        if (pendingImage && croppedAreaPixels) {
+          const cropped = await getCroppedImg(pendingImage, croppedAreaPixels, PORTRAIT_PX, PORTRAIT_PX);
+          const reserved = new Set(portraits.map((portrait) => portrait.storage_path));
+          if (previousPath) reserved.add(previousPath);
+          uploadedPath = await uploadPortraitBlob(cropped, resolvedGroupLabel, label, style, reserved, config.bucket);
+          storagePath = uploadedPath;
+        }
+
+        if (!storagePath) {
+          throw new Error('Choose an image before saving');
+        }
+
+        const payload = {
+          storage_path: storagePath,
+          style,
+          credit_name: creditName.trim(),
+          credit_url: creditUrl.trim(),
+          credit_suffix: creditSuffix.trim(),
+          ...(config.requiresCampaignType
+            ? { campaign_type_id: campaignTypeId }
+            : { group_label: resolvedGroupLabel, label: label.trim() }),
+        };
+
+        const response = await fetch(`/api/admin/portraits/${catalogue}`, {
+          method: isCreateMode ? 'POST' : 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(isCreateMode ? payload : { id: selectedId, ...payload }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to ${isCreateMode ? 'create' : 'update'} portrait`);
+        }
+
+        const saved = await response.json() as Portrait;
+
+        if (previousPath && uploadedPath && previousPath !== uploadedPath) {
+          try {
+            await removePortraitFile(previousPath, config.bucket);
+          } catch (removeError) {
+            console.error('Error removing the previous portrait file:', removeError);
+            toast.error('Portrait saved, but the previous image file could not be removed');
+          }
+        }
+
+        toast.success(`Portrait ${isCreateMode ? 'created' : 'updated'} successfully`);
+        await refreshPortraits();
+        setSelectedId(saved.id);
+        setIsCreateMode(false);
+        applyPortrait(saved);
+      } catch (error) {
+        console.error('Error saving portrait:', error);
+        if (uploadedPath) {
+          try {
+            await removePortraitFile(uploadedPath, config.bucket);
+          } catch (removeError) {
+            console.error('Error removing the unused portrait file:', removeError);
+          }
+        }
+        toast.error(error instanceof Error ? error.message : 'Failed to save portrait');
+      } finally {
+        setIsBusy(false);
+        setPendingAction(null);
+      }
+    }, [
+      applyPortrait,
+      campaignTypeId,
+      catalogue,
+      config.bucket,
+      config.requiresCampaignType,
+      creditName,
+      creditSuffix,
+      creditUrl,
+      croppedAreaPixels,
+      resolvedGroupLabel,
+      imageReady,
+      isBusy,
+      isCreateMode,
+      label,
+      metadataValid,
+      pendingImage,
+      portraits,
+      refreshPortraits,
+      selectedId,
+      selectedPortrait?.storage_path,
+      style,
+    ]);
+
+    const handleDelete = useCallback(async () => {
+      if (!selectedId || !selectedPortrait || isBusy) return false;
+
+      setPendingAction('delete');
+      setIsBusy(true);
+      try {
+        const response = await fetch(`/api/admin/portraits/${catalogue}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedId }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to delete portrait');
+        }
+
+        const removed = await response.json() as { storage_path?: string };
+        if (removed.storage_path) {
+          try {
+            await removePortraitFile(removed.storage_path, config.bucket);
+          } catch (removeError) {
+            console.error('Error removing the portrait file:', removeError);
+            toast.error('Portrait deleted, but the image file could not be removed');
+          }
+        }
+
+        toast.success('Portrait deleted successfully');
+        await refreshPortraits();
+        setSelectedId('');
+        clearFields();
+        setIsCreateMode(false);
+        return true;
+      } catch (error) {
+        console.error('Error deleting portrait:', error);
+        toast.error(error instanceof Error ? error.message : 'Failed to delete portrait');
+        return false;
+      } finally {
+        setIsBusy(false);
+        setPendingAction(null);
+      }
+    }, [catalogue, clearFields, config.bucket, isBusy, refreshPortraits, selectedId, selectedPortrait]);
+
+    useImperativeHandle(ref, () => ({
+      save: () => { void handleSave(); },
+      remove: () => {
+        if (!selectedId || !selectedPortrait || isBusy) return;
+        setDeleteConfirmOpen(true);
+      },
+    }), [handleSave, isBusy, selectedId, selectedPortrait]);
+
+    const previewUrl = !isCreateMode && selectedPortrait
+      ? portraitPublicUrl(config.publicBase, selectedPortrait.storage_path)
+      : undefined;
+    const showPortraitPreview = Boolean(previewUrl || isCreateMode || selectedId);
+    const previewCredit = {
+      name: creditName.trim(),
+      url: creditUrl.trim(),
+      suffix: creditSuffix.trim(),
+    };
+
+    return (
+      <>
+      <div className="space-y-4">
+        <div>
+          <div className="flex justify-between items-center mb-1">
+            <label className="block text-sm font-medium text-muted-foreground">
+              Select Portrait
+            </label>
+            <Button
+              onClick={handleCreateNew}
+              disabled={isBusy || isLoading || isProcessing}
+              className="text-xs h-7 px-3"
+            >
+              Create New
+            </Button>
+          </div>
+          <Combobox
+            value={selectedId}
+            onValueChange={handleSelect}
+            options={options}
+            placeholder="Select a portrait to edit"
+            disabled={isBusy || isLoading || isProcessing}
+            clearable
+            showLabelWhenClosed
+          />
+          {isCreateMode && (
+            <p className="text-xs text-amber-600 mt-1">
+              Creating a new portrait. Select from the dropdown to cancel and edit an existing one.
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-col items-center gap-3">
+          {showPortraitPreview && (
+            <div className="flex flex-col items-center">
+              <CogwheelPortrait
+                src={previewUrl}
+                alt={groupLabel || 'Portrait'}
+                fallback={null}
+                large
+              />
+              <DefaultImageCreditLine credit={previewCredit} />
+            </div>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif,image/avif,image/svg+xml,.heic,.heif,.avif,.svg"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={fieldsDisabled}
+            className="w-full"
+          >
+            {isProcessing ? 'Processing image...' : previewUrl || pendingImage ? 'Replace image' : 'Choose image'}
+          </Button>
+          <p className="text-xs text-muted-foreground text-center">
+            Supported: JPG, PNG, WEBP, GIF, AVIF, SVG, HEIC • Max 10MB
+          </p>
+        </div>
+
+        {pendingImage && (
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-medium text-muted-foreground">Crop Image</h3>
+              <button
+                type="button"
+                onClick={clearPendingImage}
+                className="text-xs text-muted-foreground underline"
+                disabled={isBusy}
+              >
+                Cancel image
+              </button>
+            </div>
+            <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden">
+              <Cropper
+                image={pendingImage}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                showGrid={true}
+                objectFit="contain"
+                style={{
+                  containerStyle: {
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: '#f3f4f6',
+                  },
+                }}
+              />
+            </div>
+            <div className="flex items-center mt-2">
+              <label className="text-sm font-medium text-muted-foreground">Zoom:</label>
+              <input
+                type="range"
+                min={1}
+                max={3}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full ml-2 mt-1"
+              />
+            </div>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            {config.requiresCampaignType ? 'Campaign type *' : 'Group label *'}
+          </label>
+          {config.requiresCampaignType ? (
+            <select
+              value={campaignTypeId}
+              onChange={(e) => setCampaignTypeId(e.target.value)}
+              className="w-full p-2 border rounded-md"
+              disabled={fieldsDisabled}
+            >
+              <option value="">Select a campaign type</option>
+              {(campaignTypes ?? [])
+                .filter((type) => type.campaign_type_name?.trim())
+                .sort((a, b) => (a.campaign_type_name ?? '').localeCompare(b.campaign_type_name ?? '', undefined, { sensitivity: 'base' }))
+                .map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.campaign_type_name}
+                  </option>
+                ))}
+            </select>
+          ) : (
+            <Input
+              type="text"
+              value={groupLabel}
+              onChange={(e) => setGroupLabel(e.target.value)}
+              placeholder={groupLabelPlaceholder}
+              className="w-full"
+              disabled={fieldsDisabled}
+            />
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Style *
+          </label>
+          <select
+            value={style}
+            onChange={(e) => setStyle(e.target.value)}
+            className="w-full p-2 border rounded-md"
+            disabled={fieldsDisabled}
+          >
+            {PORTRAIT_STYLES.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {!config.requiresCampaignType && (
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Label
+            </label>
+            <Input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="Optional, e.g. Pride 1"
+              className="w-full"
+              disabled={fieldsDisabled}
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Credit name *
+          </label>
+          <Input
+            type="text"
+            value={creditName}
+            onChange={(e) => setCreditName(e.target.value)}
+            placeholder="Artist Name"
+            className="w-full"
+            disabled={fieldsDisabled}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Credit URL
+          </label>
+          <Input
+            type="url"
+            value={creditUrl}
+            onChange={(e) => setCreditUrl(e.target.value)}
+            placeholder="https://"
+            className="w-full"
+            disabled={fieldsDisabled}
+          />
+          {creditUrlTrimmed !== '' && !creditUrlValid && (
+            <p className="text-xs text-red-600 mt-1">Enter an http or https URL.</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-muted-foreground mb-1">
+            Credit suffix
+          </label>
+          <Input
+            type="text"
+            value={creditSuffix}
+            onChange={(e) => setCreditSuffix(e.target.value)}
+            placeholder="Optional, e.g. (AI-assisted)"
+            className="w-full"
+            disabled={fieldsDisabled}
+          />
+        </div>
+      </div>
+      {deleteConfirmOpen && (
+        <Modal
+          title="Delete Portrait"
+          width="sm"
+          content={
+            <p>
+              {deleteWarning}
+              {selectedPortrait && isAdminUploadedPath(selectedPortrait.storage_path)
+                ? ' The uploaded image file will also be removed.'
+                : ''}
+            </p>
+          }
+          onClose={() => setDeleteConfirmOpen(false)}
+          onConfirm={handleDelete}
+          confirmText="Delete"
+        />
+      )}
+      </>
+    );
+  }
+);

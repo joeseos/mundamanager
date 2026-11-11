@@ -8,6 +8,7 @@ import { Color } from '@tiptap/extension-color';
 import TextAlign from '@tiptap/extension-text-align';
 import Placeholder from '@tiptap/extension-placeholder';
 import Image from '@tiptap/extension-image';
+import { UserMention } from '@/components/ui/rich-text-mention';
 
 // Upper bound for a user-chosen display width, in CSS px.
 const MAX_IMAGE_WIDTH = 2000;
@@ -85,9 +86,11 @@ export interface RichTextEditorHandle {
   discardAssets: () => Promise<void>;
   /** Replace editor HTML without emitting onChange (caller owns draft state). */
   setContent: (html: string) => void;
+  /** Add HTML after the document's last block, emitting onChange. */
+  appendContent: (html: string) => void;
 }
 
-interface RichTextEditorProps {
+export interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
   placeholder?: string;
@@ -99,7 +102,10 @@ interface RichTextEditorProps {
   filePrefix?: string; // Final file name prefix for promoted uploads; defaults to 'pack'
   maxImages?: number | null; // Max hosted images; null = unlimited; defaults to 5
   enableImages?: boolean; // When false, hide all image upload/hotlink UI
+  enableMentions?: boolean; // When true, typing @ suggests users to mention
   stickyWithinScrollContainer?: boolean; // When true, sticky toolbar follows nearest scrollable parent
+  // Matches the notification sanitizer: headings 1–3, no code, no horizontal rule.
+  notificationFormatting?: boolean;
 }
 
 const colors = [
@@ -130,7 +136,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     filePrefix,
     maxImages,
     enableImages,
+    enableMentions = false,
     stickyWithinScrollContainer = false,
+    notificationFormatting = false,
   }: RichTextEditorProps,
   ref
 ) {
@@ -141,10 +149,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const [imageUrl, setImageUrl] = useState('');
   const [imageWidth, setImageWidth] = useState(''); // '' = original size
   const [isEditingImage, setIsEditingImage] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-  const [toolbarTop, setToolbarTop] = useState(90);
-  const [scrollY, setScrollY] = useState(0);
-  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [isToolbarFloating, setIsToolbarFloating] = useState(false);
   const [, forceUpdate] = useState({});
   const colorPickerRef = useRef<HTMLDivElement>(null);
@@ -152,7 +156,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   const imageInputRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
-  const useViewportFixedToolbar = isMobile && !stickyWithinScrollContainer;
   
 
   // Ref to hold the image insertion function (set after editor is ready)
@@ -198,7 +201,17 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ link: false }),
+      StarterKit.configure(
+        notificationFormatting
+          ? {
+              link: false,
+              heading: { levels: [1, 2, 3] as [1, 2, 3] },
+              code: false,
+              codeBlock: false,
+              horizontalRule: false,
+            }
+          : { link: false },
+      ),
       Link.configure({
         openOnClick: false,
         HTMLAttributes: {
@@ -218,6 +231,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
           class: 'max-w-full h-auto rounded-md my-2',
         },
       }),
+      ...(enableMentions ? [UserMention] : []),
     ],
     content,
     onUpdate: ({ editor }) => {
@@ -250,7 +264,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
         class: 'focus:outline-hidden min-h-[200px] ProseMirror',
       },
     },
-    immediatelyRender: false,
+    // Every caller mounts the editor only after a click, never on the server,
+    // so it can render on its first pass instead of after a blank frame.
+    immediatelyRender: true,
   });
 
   // Close dropdowns when clicking outside
@@ -275,80 +291,6 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     };
   }, []);
 
-  // Detect mobile device and handle mobile-specific behavior
-  useEffect(() => {
-    const checkMobile = () => {
-      const isMobileDevice = window.innerWidth <= 768 || 
-                            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      setIsMobile(isMobileDevice);
-    };
-
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    
-    return () => {
-      window.removeEventListener('resize', checkMobile);
-    };
-  }, []);
-
-  // Handle mobile keyboard and viewport changes
-  useEffect(() => {
-    if (!isMobile || stickyWithinScrollContainer) return;
-
-    let initialViewportHeight = window.innerHeight;
-
-    const handleVisualViewportChange = () => {
-      if (window.visualViewport) {
-        // Detect if keyboard is open
-        const currentViewportHeight = window.visualViewport.height;
-        const keyboardOpen = currentViewportHeight < initialViewportHeight * 0.8;
-        setIsKeyboardOpen(keyboardOpen);
-
-        if (keyboardOpen) {
-          // Keyboard is open - use scroll-dependent positioning
-          const baseTop = 90;
-          const scrollOffset = Math.min(scrollY, baseTop); // Don't go below 0
-          const viewportOffset = window.visualViewport.offsetTop;
-          const newTop = Math.max(0, baseTop - scrollOffset + viewportOffset);
-          setToolbarTop(newTop);
-        } else {
-          // Keyboard is closed - use default position
-          setToolbarTop(90);
-        }
-      }
-    };
-
-    const handleScroll = () => {
-      setScrollY(window.scrollY);
-      
-      // Only apply scroll offset if keyboard is open
-      if (isKeyboardOpen && window.visualViewport) {
-        const baseTop = 90;
-        const scrollOffset = Math.min(window.scrollY, baseTop);
-        const viewportOffset = window.visualViewport.offsetTop;
-        const newTop = Math.max(0, baseTop - scrollOffset + viewportOffset);
-        setToolbarTop(newTop);
-      }
-    };
-
-    // Listen for visual viewport changes (keyboard open/close)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', handleVisualViewportChange);
-      window.visualViewport.addEventListener('scroll', handleVisualViewportChange);
-    }
-    
-    // Listen for page scroll
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleVisualViewportChange);
-        window.visualViewport.removeEventListener('scroll', handleVisualViewportChange);
-      }
-      window.removeEventListener('scroll', handleScroll);
-    };
-  }, [isMobile, scrollY, isKeyboardOpen, stickyWithinScrollContainer]);
-
   // Calculate character count from HTML content
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
@@ -356,7 +298,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
   };
 
   useEffect(() => {
-    if (!stickyWithinScrollContainer || isMobile) return;
+    if (!stickyWithinScrollContainer) return;
     if (!toolbarRef.current) return;
 
     const getScrollParent = (element: HTMLElement): HTMLElement | null => {
@@ -390,7 +332,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       scrollParent.removeEventListener('scroll', handleScroll);
       window.removeEventListener('resize', handleScroll);
     };
-  }, [stickyWithinScrollContainer, isMobile]);
+  }, [stickyWithinScrollContainer]);
 
   const charCount = getCharCount(content);
   const isOverLimit = charLimit && charCount > charLimit;
@@ -537,6 +479,9 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     setContent: (html: string) => {
       editor?.commands.setContent(html || '', { emitUpdate: false });
     },
+    appendContent: (html: string) => {
+      editor?.chain().insertContentAt(editor.state.doc.content.size, html).focus('end').run();
+    },
   }));
 
   if (!editor) {
@@ -557,6 +502,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     className?: string;
   }) => (
     <Button
+      type="button"
       variant={isActive ? "default" : "outline"}
       size="sm"
       onClick={onClick}
@@ -572,17 +518,10 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       {/* Toolbar */}
       <div
         ref={toolbarRef}
-        className={`border-b rounded-t-md p-1 flex flex-wrap gap-[3px] items-center bg-card z-[70] ${
-        useViewportFixedToolbar
-          ? 'fixed left-0 right-0 border-b-2 border-border' 
-          : stickyWithinScrollContainer
-            ? 'sticky top-[-20px]'
-            : 'sticky top-[90px]'
-      } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}
-      style={useViewportFixedToolbar ? { 
-        top: `${toolbarTop}px`,
-        position: 'fixed'
-      } : {}}>
+        className={`border-b p-1 flex flex-wrap gap-[3px] items-center bg-card z-30 sticky ${
+        // Below the fixed site header (57px) and breadcrumb bar (40px)
+        stickyWithinScrollContainer ? 'top-[-20px]' : 'top-[97px]'
+      } ${isToolbarFloating ? 'shadow-md' : 'shadow-xs'}`}>
         {/* Text formatting */}
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -721,6 +660,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
               <div className="grid grid-cols-3 gap-2 justify-items-center">
                 {colors.map((color) => (
                   <button
+                    type="button"
                     key={color.value}
                     onClick={() => setColor(color.value)}
                     className="w-8 h-8 rounded-sm border-2 border-border hover:border-gray-400 hover:scale-110 transition-all duration-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
@@ -841,12 +781,13 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                 className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault();
                     addLink();
                   }
                 }}
               />
-              <Button size="sm" onClick={addLink}>Add</Button>
-              <Button size="sm" variant="outline" onClick={() => setShowLinkInput(false)}>Cancel</Button>
+              <Button type="button" size="sm" onClick={addLink}>Add</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setShowLinkInput(false)}>Cancel</Button>
             </div>
           </div>
         )}
@@ -873,6 +814,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       <div className="flex flex-wrap gap-1">
                         {IMAGE_WIDTH_PRESETS.map((preset) => (
                           <Button
+                            type="button"
                             key={preset.width}
                             size="sm"
                             variant={imageWidth === String(preset.width) ? 'default' : 'outline'}
@@ -884,6 +826,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                           </Button>
                         ))}
                         <Button
+                          type="button"
                           size="sm"
                           variant={imageWidth === '' ? 'default' : 'outline'}
                           onClick={() => applyImageWidth('')}
@@ -903,6 +846,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                           onBlur={(e) => applyImageWidth(e.target.value)}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
+                              e.preventDefault();
                               applyImageWidth((e.target as HTMLInputElement).value);
                             }
                           }}
@@ -929,6 +873,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                   </p>
                   <div className="flex gap-2 justify-end">
                     <Button
+                      type="button"
                       size="sm"
                       variant="outline"
                       onClick={() => {
@@ -942,6 +887,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       Cancel
                     </Button>
                     <Button
+                      type="button"
                       size="sm"
                       variant="destructive"
                       onClick={() => {
@@ -973,6 +919,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                         disabled={isUploadingImage || imageLimitReached}
                       />
                       <Button
+                        type="button"
                         size="sm"
                         variant="outline"
                         onClick={() => fileInputRef.current?.click()}
@@ -1007,6 +954,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                     className="flex-1 px-3 py-1 border rounded-sm text-base md:text-sm"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
+                        e.preventDefault();
                         addImage();
                       }
                       if (e.key === 'Escape') {
@@ -1020,7 +968,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                   />
                   <div className="flex justify-between gap-2">
                     {isEditingImage && (
-                      <Button 
+                      <Button
+                        type="button"
                         size="sm" 
                         variant="destructive" 
                         onClick={removeImage}
@@ -1030,7 +979,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       </Button>
                     )}
                     <div className="flex gap-2 ml-auto">
-                      <Button 
+                      <Button
+                        type="button"
                         size="sm" 
                         variant="outline" 
                         onClick={() => {
@@ -1042,7 +992,8 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
                       >
                         Cancel
                       </Button>
-                      <Button 
+                      <Button
+                        type="button"
                         size="sm" 
                         onClick={addImage}
                         disabled={isUploadingImage || !imageUrl}
@@ -1060,9 +1011,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       </div>
 
       {/* Editor content */}
-      <div className={isMobile ? '' : ''}>
-        <EditorContent editor={editor} />
-      </div>
+      <EditorContent editor={editor} />
     </div>
   );
 }); 

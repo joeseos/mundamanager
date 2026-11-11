@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Combobox } from "@/components/ui/combobox";
 import Modal from "@/components/ui/modal";
-import { LuPlus, LuMinus } from "react-icons/lu";
+import { Counter } from "@/components/ui/counter";
 import { FaBookDead } from "react-icons/fa";
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterXpWithOoa } from '@/app/actions/edit-fighter';
@@ -15,7 +14,7 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useCampaignGangFighterOptions } from '@/utils/campaign-gang-fighter-options';
 import { XP_CASES, xpAwardsFor, type XpCaseDef, type XpCaseId } from '@/utils/xpCases';
 import { hasCumulativeXp } from '@/types/edition';
-import { nextTierStartFor } from '@/utils/advancementRanks';
+import { xpTowardNextTier } from '@/utils/advancementRanks';
 import { XpLadderTooltip } from '@/components/ui/xp-ladder-tooltip';
 import { toast } from 'sonner';
 
@@ -35,7 +34,6 @@ const TARGET_CASES: TargetCaseConfig[] = [
 type XpCase = XpCaseDef & { id: XpCaseId };
 
 interface FighterXpModalProps {
-  isOpen: boolean;
   fighterId: string;
   currentXp: number;
   currentTotalXp: number;
@@ -48,18 +46,21 @@ interface FighterXpModalProps {
   gangId?: string;
   /** The campaign to scope target gangs to (the fighter gang's first campaign). */
   campaignId?: string;
+  /** Limits the target gangs to these, e.g. a battle session's opponents. */
+  targetGangIds?: string[];
   /**
    * The gang's (or battle session's) edition, which decides the award list.
    * Taken from the gang rather than the fighter type: a fighter-derived slug is
    * null for custom fighter types. Unset/unknown → manual XP entry only.
    */
   editionSlug?: string | null;
+  /** Battle sessions award participation XP from the post-battle view instead. */
+  hideBattleParticipation?: boolean;
   onClose: () => void;
   onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;
 }
 
 export function FighterXpModal({
-  isOpen,
   fighterId,
   currentXp,
   currentTotalXp,
@@ -69,7 +70,9 @@ export function FighterXpModal({
   helperFighterName,
   gangId,
   campaignId,
+  targetGangIds,
   editionSlug,
+  hideBattleParticipation = false,
   onClose,
   onXpUpdated
 }: FighterXpModalProps) {
@@ -87,8 +90,11 @@ export function FighterXpModal({
   // The edition decides which XP awards exist; an unknown edition offers none,
   // leaving the manual amount field below as the only way to add XP.
   const awards = useMemo(
-    () => xpAwardsFor(editionSlug).map((id): XpCase => ({ id, ...XP_CASES[id] })),
-    [editionSlug]
+    () =>
+      xpAwardsFor(editionSlug)
+        .filter((id) => !(hideBattleParticipation && id === 'battleParticipation'))
+        .map((id): XpCase => ({ id, ...XP_CASES[id] })),
+    [editionSlug, hideBattleParticipation]
   );
 
   // Repeatable awards render with -/+ steppers, once-only ones as checkboxes.
@@ -115,7 +121,7 @@ export function FighterXpModal({
   // ---------------------------------------------------------------------------
   // Optional OOA / Wreck target selectors
   // ---------------------------------------------------------------------------
-  const showTargets = !!gangId;
+  const showTargets = !!gangId && targetGangIds?.length !== 0;
 
   const [expandedTargets, setExpandedTargets] = useState<Record<string, boolean>>({
     outOfAction: false,
@@ -128,12 +134,15 @@ export function FighterXpModal({
     vehicleWrecked: [],
   });
 
-  const { data: campaignGangs = [], isLoading: gangsLoading } = useQuery({
+  const { data: fetchedGangs = [], isLoading: gangsLoading } = useQuery({
     queryKey: ['campaign-gangs-fighters', gangId, campaignId],
     queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId: gangId! }),
-    enabled: isOpen && showTargets,
+    enabled: showTargets,
     staleTime: 60_000,
   });
+  const campaignGangs = targetGangIds
+    ? fetchedGangs.filter((g) => targetGangIds.includes(g.gang_id))
+    : fetchedGangs;
 
   const { getFighterOptions } = useCampaignGangFighterOptions(campaignGangs, editionSlug);
 
@@ -281,7 +290,7 @@ export function FighterXpModal({
     onXpUpdated(optimisticXp, optimisticTotalXp, optimisticKills, optimisticKillCount);
 
     // Close modal immediately for instant UX
-    handleModalClose();
+    onClose();
 
     // Build XP breakdown for rich log format (only when it matches the amount)
     const xpBreakdown: Record<string, number> = {};
@@ -359,35 +368,6 @@ export function FighterXpModal({
     return true;
   };
 
-  // Handle modal close - resets all state
-  const handleModalClose = () => {
-    // Reset all checkboxes
-    setXpCheckboxes(
-      xpCheckboxCases.reduce((acc, xpCase) => {
-        acc[xpCase.id] = false;
-        return acc;
-      }, {} as Record<string, boolean>)
-    );
-    // Reset all counters
-    setXpCounts(
-      xpCountCases.reduce((acc, xpCase) => {
-        acc[xpCase.id] = 0;
-        return acc;
-      }, {} as Record<string, number>)
-    );
-    // Clear XP amount, error, and misc note
-    setXpAmount('');
-    setXpError('');
-    setMiscNote('');
-    // Reset optional OOA / wreck target selectors
-    setExpandedTargets({ outOfAction: false, vehicleWrecked: false });
-    setTargetRows({ outOfAction: [], vehicleWrecked: [] });
-    // Call the parent onClose function
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
   return (
     <Modal
       title="Add XP"
@@ -402,7 +382,7 @@ export function FighterXpModal({
               >
                 <span className="mr-2 text-sm text-muted-foreground">XP</span>
                 <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">
-                  {`${currentXp}/${nextTierStartFor(editionSlug, currentXp) ?? '–'}`}
+                  {xpTowardNextTier(editionSlug, currentXp)}
                 </span>
               </div>
               <XpLadderTooltip
@@ -453,25 +433,11 @@ export function FighterXpModal({
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                      onClick={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
-                    >
-                      <LuMinus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-6 text-center">{xpCounts[xpCase.id]}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="flex items-center justify-center border bg-background hover:bg-accent hover:text-accent-foreground h-10 w-10 rounded-md"
-                      onClick={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
-                    >
-                      <LuPlus className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Counter
+                    value={xpCounts[xpCase.id]}
+                    onDecrement={() => handleXpCountChange(xpCase.id, Math.max(0, xpCounts[xpCase.id] - 1))}
+                    onIncrement={() => handleXpCountChange(xpCase.id, xpCounts[xpCase.id] + 1)}
+                  />
                 </div>
                 {xpCase.id === 'misc' && xpCounts.misc > 0 && (
                   <Input
@@ -580,7 +546,7 @@ export function FighterXpModal({
           )}
         </div>
       }
-      onClose={handleModalClose}
+      onClose={onClose}
       onConfirm={() => handleAddXp(xpCounts.outOfAction)}
       confirmText={parseInt(xpAmount || '0', 10) < 0 ? 'Subtract XP' : 'Add XP'}
       confirmDisabled={!xpAmount || !isValidXpInput(xpAmount) || hasIncompleteTargetRows}

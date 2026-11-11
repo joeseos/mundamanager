@@ -166,7 +166,7 @@ function GangTypeEquipmentModal({
   onAdd,
   onClose,
 }: {
-  gangTypes: { gang_type_id: number; gang_type: string }[];
+  gangTypes: { id: string; gang_type: string }[];
   equipment: Array<{ id: string; equipment_name: string }>;
   gangTypeEquipment: Array<{ gang_type_id: string; equipment_id: string }>;
   onAdd: (item: { gang_type_id: string; gang_type_name: string; equipment_id: string; equipment_name: string }) => void;
@@ -187,7 +187,7 @@ function GangTypeEquipmentModal({
       return;
     }
 
-    const gangType = gangTypes.find(g => g.gang_type_id.toString() === selectedGangType);
+    const gangType = gangTypes.find(g => g.id === selectedGangType);
     const equipmentItem = equipment.find(e => e.id === selectedEquipment);
 
     if (!gangType || !equipmentItem) {
@@ -240,7 +240,7 @@ function GangTypeEquipmentModal({
             >
               <option value="">Select a gang type</option>
               {sortedGangTypes.map((gangType) => (
-                <option key={gangType.gang_type_id} value={gangType.gang_type_id.toString()}>
+                <option key={gangType.id} value={gangType.id}>
                   {gangType.gang_type}
                 </option>
               ))}
@@ -291,7 +291,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
   const [gangTypeEquipment, setGangTypeEquipment] = useState<Array<{ id?: string; gang_type_id: string; gang_type_name: string; equipment_id: string; equipment_name: string }>>([]);
   const [showGangTypeModal, setShowGangTypeModal] = useState(false);
 
-  const { data: gangTypes = [] } = useQuery<{ gang_type_id: number; gang_type: string }[]>({
+  const { data: gangTypes = [] } = useQuery<{ id: string; gang_type: string }[]>({
     queryKey: ['admin-vehicle-gang-types'],
     queryFn: async () => {
       const response = await fetch('/api/admin/vehicles');
@@ -469,7 +469,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
                 <option value="">Select a gang type</option>
                 <option value="0">Generic</option>
                 {gangTypes.map((gangType) => (
-                  <option key={gangType.gang_type_id} value={gangType.gang_type_id}>
+                  <option key={gangType.id} value={gangType.id}>
                     {gangType.gang_type}
                   </option>
                 ))}
