@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServiceRoleClient } from '@/utils/supabase/server';
-import { buildCatalogueIndex, catalogueFilesFor, type CatalogueIndex } from '@/utils/equipment/resolve';
+import { buildCatalogueIndex, catalogueFileUrl, catalogueFilesFor, type CatalogueIndex } from '@/utils/equipment/resolve';
 import type {
   EquipmentCatalogueCore,
   EquipmentCatalogueGangType,
@@ -148,12 +148,8 @@ export async function loadCatalogueIndex(overlay: EquipmentOverlay): Promise<Cat
   throw new Error('The equipment catalogue is being updated. Please try again.');
 }
 
-function catalogueUrl(version: number, edition: string, gangType: string | null): string {
-  return `/api/equipment/catalogue/${version}/${edition}${gangType ? `/${gangType}` : ''}`;
-}
-
 function redirectToVersion(requestUrl: string, version: number, edition: string, gangType: string | null) {
-  const response = NextResponse.redirect(new URL(catalogueUrl(version, edition, gangType), requestUrl), 307);
+  const response = NextResponse.redirect(new URL(catalogueFileUrl(version, edition, gangType), requestUrl), 307);
   response.headers.set('Cache-Control', NO_STORE);
   return response;
 }
