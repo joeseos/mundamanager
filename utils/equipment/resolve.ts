@@ -389,16 +389,16 @@ export function resolveEquipment(
   const { typeId, isVehicle } = context;
   const gangSubtypes = gang.subtypes ?? [];
 
-  // The modal sends fighter_id, which brings in the fighter's legacy and own subtypes, only
-  // for a fighter (not a vehicle) with the Legacy switch on or a gang with an affiliation.
-  const fighterRecord = !isVehicle && fighter !== null && (context.legacy || gang.affiliation !== null);
-  // Without it, the subtypes are those of the type the modal sent.
+  // A fighter's (not a vehicle's) own subtypes decide subtype rules, so a keep-type promotion
+  // to Leader or Champion sees that list; a fighter with none of its own uses its type's.
+  const fighterRecord = !isVehicle && fighter !== null;
   const typeSubtypes =
     fighter !== null && typeId !== null && (typeId === fighter.fighterType || typeId === fighter.customFighterType)
       ? fighter.typeSubtypes
       : [];
   const fighterSubtypes = fighterRecord ? (fighter!.subtypes ?? typeSubtypes) : typeSubtypes;
-  const legacyType = fighterRecord ? fighter!.legacyFighterType : null;
+  // The Gang Legacy switch alone decides whether the legacy's list applies.
+  const legacyType = fighterRecord && context.legacy ? fighter!.legacyFighterType : null;
   const affiliationType = gang.affiliationFighterType;
   // A custom fighter's own list, when the modal's type is that custom type.
   const customList =
@@ -513,10 +513,7 @@ export function resolveEquipment(
     };
 
     const listRarity =
-      (originRows[0]?.availability ?? null) ??
-      (subtypeRows[0]?.availability ?? null) ??
-      (gangTypeRows[0]?.availability ?? null) ??
-      item.availability;
+      originRows[0]?.availability ?? subtypeRows[0]?.availability ?? gangTypeRows[0]?.availability ?? item.availability;
 
     const countLimit = countLimits.find(
       (limit) =>

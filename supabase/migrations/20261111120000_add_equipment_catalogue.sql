@@ -222,7 +222,7 @@ BEGIN
       WHERE r.kind <> 'list' OR r.fighter_type_id IS NULL
     ),
     gang_tps AS (
-      SELECT gt.gang_type_id, gt.trading_post_type_id
+      SELECT gt.id AS gang_type_id, gt.trading_post_type_id
       FROM gang_types gt
       WHERE gt.edition_id = p_edition_id AND gt.trading_post_type_id IS NOT NULL
     ),
@@ -434,7 +434,7 @@ BEGIN
     WHERE cv.id
       AND EXISTS (
         SELECT 1 FROM gang_types gt
-        WHERE gt.gang_type_id = p_gang_type_id AND gt.edition_id = p_edition_id
+        WHERE gt.id = p_gang_type_id AND gt.edition_id = p_edition_id
       );
   END IF;
 END;
@@ -486,7 +486,7 @@ BEGIN
              COALESCE(gt.edition_id, cgt.edition_id) AS edition_id,
              gt.trading_post_type_id AS own_trading_post_id
       FROM gangs g
-      LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+      LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
       LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
       LEFT JOIN gang_affiliation ga ON ga.id = g.gang_affiliation_id
       WHERE g.id = p_gang_id
@@ -595,7 +595,7 @@ BEGIN
       SELECT f.id,
              ft.id AS fighter_type_id,
              CASE WHEN ft.id IS NULL THEN f.custom_fighter_type_id END AS custom_fighter_type_id,
-             f.fighter_subtypes,
+             NULLIF(f.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
              COALESCE(ft.fighter_subtypes, cft.fighter_subtypes) AS type_subtypes,
              fgl.fighter_type_id AS legacy_fighter_type_id
       FROM fighters f
@@ -615,7 +615,7 @@ BEGIN
     -- Fighter types whose equipment lists can apply: the fighter's own, its legacy's and the
     -- gang's affiliation's. Each list lives in the file of the gang type owning that type.
     rule_files AS (
-      SELECT DISTINCT gt.edition_id, gt.gang_type_id
+      SELECT DISTINCT gt.edition_id, gt.id AS gang_type_id
       FROM (
         SELECT fr.fighter_type_id AS id FROM fighter fr
         UNION ALL
@@ -624,7 +624,7 @@ BEGIN
         SELECT g.affiliation_fighter_type_id FROM gang g
       ) t
       JOIN fighter_types ft ON ft.id = t.id
-      JOIN gang_types gt ON gt.gang_type_id = ft.gang_type_id
+      JOIN gang_types gt ON gt.id = ft.gang_type_id
     ),
     -- Official items the gang can reach outside its fighters' own lists: Trading Post stock,
     -- a custom list, gang-wide list rules (no fighter type) and rarity rows for its origin or

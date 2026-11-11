@@ -18,14 +18,14 @@
 --
 -- Called only by the catalogue route through the service role.
 --
--- DEPLOY ORDER: apply migration 20261002075353_add_equipment_catalogue.sql (which creates the
+-- DEPLOY ORDER: apply migration 20261111120000_add_equipment_catalogue.sql (which creates the
 -- equipment_rules view) BEFORE this file is deployed. The guard below stops the deploy
 -- otherwise.
 
 DO $$
 BEGIN
   IF to_regclass('public.equipment_rules') IS NULL OR to_regclass('public.catalogue_version') IS NULL THEN
-    RAISE EXCEPTION 'Apply migration 20261002075353_add_equipment_catalogue.sql first';
+    RAISE EXCEPTION 'Apply migration 20261111120000_add_equipment_catalogue.sql first';
   END IF;
 END $$;
 
@@ -58,7 +58,7 @@ BEGIN
       WHERE r.kind <> 'list' OR r.fighter_type_id IS NULL
     ),
     gang_tps AS (
-      SELECT gt.gang_type_id, gt.trading_post_type_id
+      SELECT gt.id AS gang_type_id, gt.trading_post_type_id
       FROM gang_types gt
       WHERE gt.edition_id = p_edition_id AND gt.trading_post_type_id IS NOT NULL
     ),
@@ -270,7 +270,7 @@ BEGIN
     WHERE cv.id
       AND EXISTS (
         SELECT 1 FROM gang_types gt
-        WHERE gt.gang_type_id = p_gang_type_id AND gt.edition_id = p_edition_id
+        WHERE gt.id = p_gang_type_id AND gt.edition_id = p_edition_id
       );
   END IF;
 END;

@@ -1,7 +1,7 @@
 -- The Equipment modal's per-gang overlay: what the catalogue snapshot (get_equipment_catalogue)
 -- cannot hold because it depends on the gang, its campaign, the fighter or the viewer. The modal
--- calls it from the browser when it opens; its version names the snapshot files to load. The buy
--- action calls it too, to resolve the listed price on the server.
+-- reads it through GET /api/gangs/[id]/equipment-overlay when it opens; its version names the
+-- snapshot files to load. The buy action calls it too, to resolve the listed price on the server.
 --
 -- It derives here, from the gang, what get_equipment_detailed_data is given by the client or
 -- reads itself, and returns:
@@ -19,7 +19,7 @@
 --                   list when the gang has a campaign row, whatever its status (its own gang
 --                   type's post only if listed), else its gang type's own post
 --   fighter         p_fighter_id's fighter type (official, else custom), its own subtypes (null
---                   when unset, as get_equipment_detailed_data then uses its type's), its type's
+--                   when it has none, as get_equipment_detailed_data then uses its type's), its type's
 --                   subtypes, its legacy's fighter type and its custom fighter type's equipment
 --                   list. null without p_fighter_id or when the fighter is in another gang
 --   customItems     custom equipment of the gang's edition the viewer can see: their own, any
@@ -41,13 +41,13 @@
 -- uuids; ruleFiles, customItems and customTpStock rows are positional arrays, with null for an
 -- absent value and 0/1 for booleans.
 --
--- DEPLOY ORDER: apply migration 20261002075353_add_equipment_catalogue.sql (which creates
+-- DEPLOY ORDER: apply migration 20261111120000_add_equipment_catalogue.sql (which creates
 -- catalogue_version) BEFORE this file is deployed. The guard below stops the deploy otherwise.
 
 DO $$
 BEGIN
   IF to_regclass('public.catalogue_version') IS NULL THEN
-    RAISE EXCEPTION 'Apply migration 20261002075353_add_equipment_catalogue.sql first';
+    RAISE EXCEPTION 'Apply migration 20261111120000_add_equipment_catalogue.sql first';
   END IF;
 END $$;
 
@@ -93,7 +93,7 @@ BEGIN
              COALESCE(gt.edition_id, cgt.edition_id) AS edition_id,
              gt.trading_post_type_id AS own_trading_post_id
       FROM gangs g
-      LEFT JOIN gang_types gt ON gt.gang_type_id = g.gang_type_id
+      LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
       LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
       LEFT JOIN gang_affiliation ga ON ga.id = g.gang_affiliation_id
       WHERE g.id = p_gang_id
@@ -202,7 +202,7 @@ BEGIN
       SELECT f.id,
              ft.id AS fighter_type_id,
              CASE WHEN ft.id IS NULL THEN f.custom_fighter_type_id END AS custom_fighter_type_id,
-             f.fighter_subtypes,
+             NULLIF(f.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
              COALESCE(ft.fighter_subtypes, cft.fighter_subtypes) AS type_subtypes,
              fgl.fighter_type_id AS legacy_fighter_type_id
       FROM fighters f
@@ -222,7 +222,7 @@ BEGIN
     -- Fighter types whose equipment lists can apply: the fighter's own, its legacy's and the
     -- gang's affiliation's. Each list lives in the file of the gang type owning that type.
     rule_files AS (
-      SELECT DISTINCT gt.edition_id, gt.gang_type_id
+      SELECT DISTINCT gt.edition_id, gt.id AS gang_type_id
       FROM (
         SELECT fr.fighter_type_id AS id FROM fighter fr
         UNION ALL
@@ -231,7 +231,7 @@ BEGIN
         SELECT g.affiliation_fighter_type_id FROM gang g
       ) t
       JOIN fighter_types ft ON ft.id = t.id
-      JOIN gang_types gt ON gt.gang_type_id = ft.gang_type_id
+      JOIN gang_types gt ON gt.id = ft.gang_type_id
     ),
     -- Official items the gang can reach outside its fighters' own lists: Trading Post stock,
     -- a custom list, gang-wide list rules (no fighter type) and rarity rows for its origin or
