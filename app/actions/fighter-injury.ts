@@ -395,13 +395,6 @@ export async function deleteFighterInjury(
       }
     }
 
-    // Skills granted by this injury go with it (fighter_skills.fighter_effect_id cascade)
-    const { count: relatedSkillCount } = await supabase
-      .from('fighter_skills')
-      .select('id', { count: 'exact', head: true })
-      .eq('fighter_effect_id', params.injury_id);
-    const hasRelatedSkills = !!relatedSkillCount;
-
     // Delete the injury (this will cascade delete the modifiers and granted skills)
     const { error: deleteError } = await supabase
       .from('fighter_effects')
@@ -504,13 +497,8 @@ export async function deleteFighterInjury(
       }
     }
 
-    // Invalidate fighter cache
+    // Invalidate fighter cache (granted skills are in it too)
     invalidateFighter(params.fighter_id, fighter.gang_id);
-
-    // If injury had related skills, invalidate skills cache
-    if (hasRelatedSkills) {
-      revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
-    }
 
     return {
       success: true,

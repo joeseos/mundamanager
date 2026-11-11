@@ -38,18 +38,11 @@ async function deleteKilledStatusEffects(
   fighterId: string,
   gangId: string,
   fighterName: string
-): Promise<{ removedCount: number; removedSkillCount: number }> {
+): Promise<{ removedCount: number }> {
   const killedStatusEffects = await getKilledStatusEffects(supabase, fighterId);
-  let removedSkillCount = 0;
 
   for (const effect of killedStatusEffects) {
     // Granted skills go with the effect (fighter_skills.fighter_effect_id cascade)
-    const { count: skillCount } = await supabase
-      .from('fighter_skills')
-      .select('id', { count: 'exact', head: true })
-      .eq('fighter_effect_id', effect.id);
-    removedSkillCount += skillCount ?? 0;
-
     const { error: deleteError } = await supabase
       .from('fighter_effects')
       .delete()
@@ -67,8 +60,7 @@ async function deleteKilledStatusEffects(
   }
 
   return {
-    removedCount: killedStatusEffects.length,
-    removedSkillCount
+    removedCount: killedStatusEffects.length
   };
 }
 
@@ -361,14 +353,11 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
         const removedKilledStatusEffects = !willBeKilled
           ? await deleteKilledStatusEffects(supabase, params.fighter_id, gangId, fighter.fighter_name)
-          : { removedCount: 0, removedSkillCount: 0 };
+          : { removedCount: 0 };
 
         invalidateFighter(params.fighter_id, gangId);
         await invalidateBeastOwnerCache(params.fighter_id, gangId, supabase, fighter.fighter_pet_id ?? null);
         if (removedKilledStatusEffects.removedCount > 0) {
-          revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
-        }
-        if (removedKilledStatusEffects.removedSkillCount > 0) {
           revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
         }
 
