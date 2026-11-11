@@ -3,7 +3,7 @@
 import { invalidateGang, invalidateFighter, invalidateUser } from '@/utils/cache-tags';
 import { copyUploadedImages } from '@/utils/copy-uploaded-images';
 import { gangImageFolders } from '@/utils/storage-cleanup';
-import {createClient, createServiceRoleClient} from "@/utils/supabase/server";
+import {createClient} from "@/utils/supabase/server";
 import {checkAdmin, getAuthenticatedUser} from "@/utils/auth";
 import { syncFighter } from '@/utils/syncVenatorSkillOverrides';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
@@ -14,7 +14,7 @@ import {logFighterAction} from '@/app/actions/logs/fighter-logs';
 import {revalidateTag} from 'next/cache';
 import { resolveFighterEditionSlug } from '@/utils/fighter-subtype-grants';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
-import { grantSkillsForEffects, linkSkillToEffect } from '@/app/actions/equipment';
+import { grantSkillsForEffects } from '@/app/actions/equipment';
 
 interface CopyFighterParams {
   fighter_id: string;
@@ -128,7 +128,7 @@ async function copySkills(
   // Gear-granted skills are granted again from the copied gear's effects
   // (grantCopiedEquipmentSkills), linked to the copy's own gear
   const sourceSkills = (sourceFighter.fighter_skills || []).filter(
-    (skill: any) => !skill.fighter_effect_skills?.fighter_effects?.fighter_equipment_id
+    (skill: any) => !skill.fighter_effect?.fighter_equipment_id
   );
   if (sourceSkills.length === 0) return { skillIdMap };
 
@@ -184,8 +184,8 @@ async function grantCopiedEquipmentSkills(
 }
 
 /**
- * Links copied effect-granted skills (injuries) to the copy's own copies of
- * their effects; the source's link rows belong to the source.
+ * Points copied effect-granted skills (injuries) at the copy's own copies of
+ * their effects.
  */
 async function linkCopiedEffectSkills(
   supabase: any,
@@ -195,14 +195,16 @@ async function linkCopiedEffectSkills(
   insertedEffects: Array<{ id: string }>
 ): Promise<boolean> {
   const effectIdMap = new Map(sourceEffects.map((effect, index) => [effect.id, insertedEffects[index]?.id]));
-  const serviceClient = createServiceRoleClient();
 
   for (const skill of sourceSkills ?? []) {
     const newSkillId = skillIdMap.get(skill.id);
-    const newEffectId = effectIdMap.get(skill.fighter_effect_skills?.fighter_effect_id);
-    if (newSkillId && newEffectId && !await linkSkillToEffect(supabase, serviceClient, newEffectId, newSkillId)) {
-      return false;
-    }
+    const newEffectId = effectIdMap.get(skill.fighter_effect_id);
+    if (!newSkillId || !newEffectId) continue;
+    const { error } = await supabase
+      .from('fighter_skills')
+      .update({ fighter_effect_id: newEffectId })
+      .eq('id', newSkillId);
+    if (error) return false;
   }
 
   return true;
@@ -236,7 +238,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           credits_increase,
           xp_cost,
           is_advance,
-          fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effect_id, fighter_effects(fighter_equipment_id))
+          fighter_effect_id, fighter_effect:fighter_effects!fighter_skills_fighter_effect_id_fkey(fighter_equipment_id)
         ),
         fighter_effects(
           id,
@@ -836,7 +838,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           .select(`
             *,
             fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted, is_editable, fighter_skill_id),
-            fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effect_id, fighter_effects(fighter_equipment_id))),
+            fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance, fighter_effect_id, fighter_effect:fighter_effects!fighter_skills_fighter_effect_id_fkey(fighter_equipment_id)),
             fighter_effects(
               id, effect_name, fighter_effect_type_id, type_specific_data,
               fighter_equipment_id, target_equipment_id, fighter_skill_id,

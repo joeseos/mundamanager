@@ -771,20 +771,15 @@ function rosterQuery(db: AppDb, gangId: string) {
               credits_increase: true,
               xp_cost: true,
               is_advance: true,
-              fighter_effect_skill_id: true,
+              fighter_effect_id: true,
               custom_skill_id: true,
               created_at: true,
             },
             with: {
               skill: { columns: { name: true } },
               custom_skill: { columns: { skill_name: true } },
-              fighter_effect_skills: {
-                columns: {},
-                with: {
-                  fighter_effects: {
-                    columns: { effect_name: true, type_specific_data: true, fighter_equipment_id: true },
-                  },
-                },
+              fighter_effect: {
+                columns: { effect_name: true, type_specific_data: true, fighter_equipment_id: true },
               },
             },
           },

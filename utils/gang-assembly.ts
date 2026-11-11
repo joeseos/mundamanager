@@ -184,7 +184,7 @@ function mapSkills(skillsData: any[], activeLoadoutEquipmentIds: Set<string> | n
   skillsData.forEach((skillData: any) => {
     const skillName = (skillData.skill as any)?.name || (skillData.custom_skill as any)?.skill_name;
     if (skillName) {
-      const fe = skillData.fighter_effect_skills?.fighter_effects;
+      const fe = skillData.fighter_effect;
 
       // Same rule as the effects filter below
       if (
@@ -212,7 +212,7 @@ function mapSkills(skillsData: any[], activeLoadoutEquipmentIds: Set<string> | n
         xp_cost: skillData.xp_cost || 0,
         is_advance: skillData.is_advance || false,
         custom_skill_id: skillData.custom_skill_id || undefined,
-        fighter_injury_id: skillData.fighter_effect_skill_id || undefined,
+        fighter_injury_id: skillData.fighter_effect_id || undefined,
         injury_name: injuryName || undefined,
         granted_by_equipment_id: fe?.fighter_equipment_id || undefined,
         acquired_at: skillData.created_at,

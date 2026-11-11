@@ -33,8 +33,6 @@ DECLARE
     effect_type_record RECORD;
     modifier_record RECORD;
     skill_id_val UUID;
-    new_fighter_skill_id UUID;
-    new_fighter_effect_skill_id UUID;
     v_is_admin BOOLEAN;
     v_user_has_access BOOLEAN;
     v_gang_id UUID;
@@ -257,33 +255,19 @@ BEGIN
 
         -- Always a new row, as grantSkillsForEffects does: reusing a skill the
         -- fighter already has would let removing the injury delete it.
+        -- fighter_effect_id cascades the skill away with the injury.
         INSERT INTO fighter_skills (
             fighter_id,
             skill_id,
-            user_id
+            user_id,
+            fighter_effect_id
         )
         VALUES (
             in_fighter_id,
             skill_id_val,
-            v_fighter_owner_id
-        )
-        RETURNING id INTO new_fighter_skill_id;
-
-        -- Create the relation in fighter_effect_skills
-        INSERT INTO fighter_effect_skills (
-            fighter_effect_id,
-            fighter_skill_id
-        )
-        VALUES (
-            new_effect_id,
-            new_fighter_skill_id
-        )
-        RETURNING id INTO new_fighter_effect_skill_id;
-
-        -- Update the fighter_skills record with the relation ID
-        UPDATE fighter_skills
-        SET fighter_effect_skill_id = new_fighter_effect_skill_id
-        WHERE id = new_fighter_skill_id;
+            v_fighter_owner_id,
+            new_effect_id
+        );
     END IF;
 
     -- Return the newly created effect
@@ -326,13 +310,11 @@ BEGIN
             SELECT COALESCE(json_agg(
                 json_build_object(
                     'fighter_skill_id', fs.id,
-                    'skill_id', fs.skill_id,
-                    'fighter_effect_skill_id', fs.fighter_effect_skill_id
+                    'skill_id', fs.skill_id
                 )
             ), '[]'::json)
-            FROM fighter_effect_skills fes
-            JOIN fighter_skills fs ON fes.fighter_skill_id = fs.id
-            WHERE fes.fighter_effect_id = fe.id
+            FROM fighter_skills fs
+            WHERE fs.fighter_effect_id = fe.id
         )
     ) as result
     FROM fighter_effects fe

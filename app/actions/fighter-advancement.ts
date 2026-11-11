@@ -1702,7 +1702,7 @@ export async function deleteAdvancement(
             .from('fighter_skills')
             .select('*', { count: 'exact', head: true })
             .eq('fighter_id', params.fighter_id)
-            .is('fighter_effect_skill_id', null);
+            .is('fighter_effect_id', null);
 
           // Check if deleted skill was a default skill
           const { count: wasDefaultSkill } = await supabase
