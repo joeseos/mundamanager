@@ -1,13 +1,13 @@
 'use server'
 
 import { invalidateGang, invalidateUser, invalidateUserCustoms, invalidateGangCount } from '@/utils/cache-tags';
-import { createClient } from '@/utils/supabase/server';
+import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { copyUploadedImages } from '@/utils/copy-uploaded-images';
 import { gangImageFolders } from '@/utils/storage-cleanup';
 
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
-import { grantSkillsForEffects } from '@/app/actions/equipment';
+import { grantSkillsForEffects, linkSkillToEffect } from '@/app/actions/equipment';
 
 interface CopyGangInput {
   sourceGangId: string;
@@ -244,10 +244,12 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     // 6) Copy fighter skills (before equipment: the skill ID map relinks
     // fighter_skill_id on skill-granted equipment and on effects)
     const skillIdMap = new Map<string, string>();
+    // Injury-granted skills, relinked to the copied injury in step 9
+    const effectGrantedSkills: { sourceEffectId: string; skillId: string }[] = [];
     if (oldFighterIds.length > 0) {
       const { data: allSkills, error: skillsError } = await supabase
         .from('fighter_skills')
-        .select('*, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effects(fighter_equipment_id))')
+        .select('*, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effect_id, fighter_effects(fighter_equipment_id))')
         .in('fighter_id', oldFighterIds);
       if (skillsError) {
         await cleanupOnError(new Error(`Failed to load fighter skills: ${skillsError.message}`));
@@ -262,6 +264,8 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           const o: any = { ...item };
           delete o.id;
           delete o.fighter_effect_skills;
+          // The source's link row belongs to the source's injury
+          o.fighter_effect_skill_id = null;
           // no gang_id column on fighter_skills
           o.user_id = user.id;
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
@@ -279,7 +283,11 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           await cleanupOnError(new Error(`Failed to insert fighter skills: ${insertSkillsError.message}`));
         }
         skills.forEach((item: any, i: number) => {
-          if (insertedSkills?.[i]?.id) skillIdMap.set(item.id, insertedSkills[i].id);
+          const newSkillId = insertedSkills?.[i]?.id;
+          if (!newSkillId) return;
+          skillIdMap.set(item.id, newSkillId);
+          const sourceEffectId = item.fighter_effect_skills?.fighter_effect_id;
+          if (sourceEffectId) effectGrantedSkills.push({ sourceEffectId, skillId: newSkillId });
         });
       }
     }
@@ -511,6 +519,14 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         copiedEquipmentEffects.filter(effect => effect.fighter_id === fighterId),
         user.id
       );
+    }
+
+    if (effectGrantedSkills.length > 0) {
+      const serviceClient = createServiceRoleClient();
+      for (const { sourceEffectId, skillId } of effectGrantedSkills) {
+        const newEffectId = effectIdMap.get(sourceEffectId);
+        if (newEffectId) await linkSkillToEffect(supabase, serviceClient, newEffectId, skillId);
+      }
     }
 
     if (sourceEffects.length > 0) {
