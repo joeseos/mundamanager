@@ -43,22 +43,12 @@ async function deleteKilledStatusEffects(
   let removedSkillCount = 0;
 
   for (const effect of killedStatusEffects) {
-    const { data: relatedSkills } = await supabase
-      .from('fighter_effect_skills')
-      .select('fighter_skill_id')
+    // Granted skills go with the effect (fighter_skills.fighter_effect_id cascade)
+    const { count: skillCount } = await supabase
+      .from('fighter_skills')
+      .select('id', { count: 'exact', head: true })
       .eq('fighter_effect_id', effect.id);
-
-    if (relatedSkills && relatedSkills.length > 0) {
-      const skillIds = relatedSkills.map((rs: any) => rs.fighter_skill_id);
-      removedSkillCount += skillIds.length;
-
-      const { error: skillDeleteError } = await supabase
-        .from('fighter_skills')
-        .delete()
-        .in('id', skillIds);
-
-      if (skillDeleteError) throw skillDeleteError;
-    }
+    removedSkillCount += skillCount ?? 0;
 
     const { error: deleteError } = await supabase
       .from('fighter_effects')

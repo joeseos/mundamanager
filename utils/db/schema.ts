@@ -314,7 +314,6 @@ export const fighterEquipment = pgTable('fighter_equipment', {
   vehicle_id: uuid('vehicle_id'),
   user_id: uuid('user_id').default(sql`auth.uid()`),
   is_master_crafted: boolean('is_master_crafted').default(false).notNull(),
-  fighter_effect_equipment_id: uuid('fighter_effect_equipment_id'),
   custom_equipment_id: uuid('custom_equipment_id'),
   gang_stash: boolean('gang_stash').default(false),
   gang_id: uuid('gang_id'),
@@ -426,7 +425,7 @@ export const fighterSkills = pgTable('fighter_skills', {
   xp_cost: numeric('xp_cost', { mode: 'number' }),
   fighter_injury_id: uuid('fighter_injury_id'),
   user_id: uuid('user_id'),
-  fighter_effect_skill_id: uuid('fighter_effect_skill_id'),
+  fighter_effect_id: uuid('fighter_effect_id'),
   custom_skill_id: uuid('custom_skill_id'),
 });
 
@@ -470,14 +469,6 @@ export const customSkillTypes = pgTable('custom_skill_types', {
   name: text('name'),
   user_id: uuid('user_id'),
   edition_id: uuid('edition_id').notNull(),
-});
-
-export const fighterEffectSkills = pgTable('fighter_effect_skills', {
-  id: uuid('id').defaultRandom().primaryKey(),
-  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
-  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
-  fighter_effect_id: uuid('fighter_effect_id'),
-  fighter_skill_id: uuid('fighter_skill_id'),
 });
 
 export const fighterEffects = pgTable('fighter_effects', {
@@ -1494,15 +1485,8 @@ export const fighterSkillsRelations = relations(fighterSkills, ({ one }) => ({
     fields: [fighterSkills.custom_skill_id],
     references: [customSkills.id],
   }),
-  fighter_effect_skills: one(fighterEffectSkills, {
-    fields: [fighterSkills.fighter_effect_skill_id],
-    references: [fighterEffectSkills.id],
-  }),
-}));
-
-export const fighterEffectSkillsRelations = relations(fighterEffectSkills, ({ one }) => ({
-  fighter_effects: one(fighterEffects, {
-    fields: [fighterEffectSkills.fighter_effect_id],
+  fighter_effect: one(fighterEffects, {
+    fields: [fighterSkills.fighter_effect_id],
     references: [fighterEffects.id],
   }),
 }));

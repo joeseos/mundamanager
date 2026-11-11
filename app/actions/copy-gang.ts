@@ -1,13 +1,13 @@
 'use server'
 
 import { invalidateGang, invalidateUser, invalidateUserCustoms, invalidateGangCount } from '@/utils/cache-tags';
-import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
+import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { copyUploadedImages } from '@/utils/copy-uploaded-images';
 import { gangImageFolders } from '@/utils/storage-cleanup';
 
 import { duplicateCustomGangType } from '@/utils/duplicate-custom-gang-type';
-import { grantSkillsForEffects, linkSkillToEffect } from '@/app/actions/equipment';
+import { grantSkillsForEffects } from '@/app/actions/equipment';
 
 interface CopyGangInput {
   sourceGangId: string;
@@ -249,7 +249,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     if (oldFighterIds.length > 0) {
       const { data: allSkills, error: skillsError } = await supabase
         .from('fighter_skills')
-        .select('*, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effect_id, fighter_effects(fighter_equipment_id))')
+        .select('*, fighter_effect:fighter_effects!fighter_skills_fighter_effect_id_fkey(fighter_equipment_id)')
         .in('fighter_id', oldFighterIds);
       if (skillsError) {
         await cleanupOnError(new Error(`Failed to load fighter skills: ${skillsError.message}`));
@@ -257,15 +257,15 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       // Gear-granted skills are granted again from the copied gear's effects in
       // step 9, linked to the copy's own gear instead of the source's
       const skills = (allSkills || []).filter(
-        (item: any) => !item.fighter_effect_skills?.fighter_effects?.fighter_equipment_id
+        (item: any) => !item.fighter_effect?.fighter_equipment_id
       );
       if (skills.length > 0) {
         const inserts = skills.map((item: any) => {
           const o: any = { ...item };
           delete o.id;
-          delete o.fighter_effect_skills;
-          // The source's link row belongs to the source's injury
-          o.fighter_effect_skill_id = null;
+          delete o.fighter_effect;
+          // Set to the copy's own injury in step 9
+          o.fighter_effect_id = null;
           // no gang_id column on fighter_skills
           o.user_id = user.id;
           o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
@@ -286,8 +286,7 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           const newSkillId = insertedSkills?.[i]?.id;
           if (!newSkillId) return;
           skillIdMap.set(item.id, newSkillId);
-          const sourceEffectId = item.fighter_effect_skills?.fighter_effect_id;
-          if (sourceEffectId) effectGrantedSkills.push({ sourceEffectId, skillId: newSkillId });
+          if (item.fighter_effect_id) effectGrantedSkills.push({ sourceEffectId: item.fighter_effect_id, skillId: newSkillId });
         });
       }
     }
@@ -521,13 +520,15 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       );
     }
 
-    if (effectGrantedSkills.length > 0) {
-      const serviceClient = createServiceRoleClient();
-      for (const { sourceEffectId, skillId } of effectGrantedSkills) {
-        const newEffectId = effectIdMap.get(sourceEffectId);
-        if (newEffectId && !await linkSkillToEffect(supabase, serviceClient, newEffectId, skillId)) {
-          await cleanupOnError(new Error('Failed to link a copied skill to its copied injury'));
-        }
+    for (const { sourceEffectId, skillId } of effectGrantedSkills) {
+      const newEffectId = effectIdMap.get(sourceEffectId);
+      if (!newEffectId) continue;
+      const { error: linkError } = await supabase
+        .from('fighter_skills')
+        .update({ fighter_effect_id: newEffectId })
+        .eq('id', skillId);
+      if (linkError) {
+        await cleanupOnError(new Error(`Failed to link copied skill to its injury: ${linkError.message}`));
       }
     }
 
