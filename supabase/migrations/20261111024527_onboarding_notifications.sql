@@ -1,204 +1,17 @@
--- Onboarding welcome (T+30m after first confirmed session) and month-1
--- inactive nudge. Stamps live on profiles so they survive notification expiry.
--- Canonical RPC copies: supabase/functions/handle_new_user.sql,
--- stamp_first_confirmed_session.sql, enqueue_onboarding_notifications.sql,
--- enqueue_notification_email.sql, claim_email_deliveries.sql. Auth trigger
--- bind is also in supabase/bootstrap/auth_trigger.sql.
+-- Onboarding welcome (T+30m after confirm + first sign-in) and month-1 inactive
+-- nudge, sent as mm_staff_message. Stamps live on profiles so they survive
+-- notification expiry. Canonical copy: supabase/functions/enqueue_onboarding_notifications.sql.
 
 BEGIN;
 
 ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS first_confirmed_session_at timestamptz,
   ADD COLUMN IF NOT EXISTS welcome_notified_at timestamptz,
   ADD COLUMN IF NOT EXISTS inactive_nudge_notified_at timestamptz;
 
-COMMENT ON COLUMN public.profiles.first_confirmed_session_at IS
-  'First auth session after email confirm. Null for users who signed up before this column existed.';
 COMMENT ON COLUMN public.profiles.welcome_notified_at IS
   'When the automated welcome notification was inserted. Survives notification expiry.';
 COMMENT ON COLUMN public.profiles.inactive_nudge_notified_at IS
   'When the month-1 early-bounce nudge was inserted. Survives notification expiry.';
-
-CREATE INDEX IF NOT EXISTS profiles_first_confirmed_session_at_idx
-  ON public.profiles (first_confirmed_session_at)
-  WHERE first_confirmed_session_at IS NOT NULL;
-
-CREATE INDEX IF NOT EXISTS profiles_welcome_due_idx
-  ON public.profiles (first_confirmed_session_at)
-  WHERE first_confirmed_session_at IS NOT NULL
-    AND welcome_notified_at IS NULL;
-
-CREATE INDEX IF NOT EXISTS profiles_inactive_nudge_due_idx
-  ON public.profiles (first_confirmed_session_at)
-  WHERE first_confirmed_session_at IS NOT NULL
-    AND welcome_notified_at IS NOT NULL
-    AND inactive_nudge_notified_at IS NULL;
-
-ALTER TABLE public.notifications
-  DROP CONSTRAINT IF EXISTS notifications_type_check,
-  ADD CONSTRAINT notifications_type_check
-  CHECK (type = ANY (ARRAY[
-    'info',
-    'warning',
-    'error',
-    'campaign_invite',
-    'friend_request',
-    'battle_invite',
-    'gang_invite',
-    'campaign_join_request',
-    'campaign_challenge',
-    'user_message',
-    'campaign_message',
-    'mm_staff_message',
-    'mm_announcement',
-    'forum_reply',
-    'forum_mention',
-    'forum_article',
-    'welcome',
-    'inactive_nudge'
-  ]::text[]));
-
-CREATE UNIQUE INDEX IF NOT EXISTS notifications_one_welcome_per_user
-  ON public.notifications (receiver_id)
-  WHERE type = 'welcome';
-
-CREATE UNIQUE INDEX IF NOT EXISTS notifications_one_inactive_nudge_per_user
-  ON public.notifications (receiver_id)
-  WHERE type = 'inactive_nudge';
-
-DROP POLICY IF EXISTS "Users can create notifications" ON public.notifications;
-
-CREATE POLICY "Users can create notifications"
-  ON public.notifications
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    sender_id = (SELECT auth.uid() AS uid)
-    AND is_html = false
-    AND (
-      (type)::text <> ALL (ARRAY[
-        'user_message',
-        'campaign_message',
-        'mm_staff_message',
-        'mm_announcement',
-        'welcome',
-        'inactive_nudge'
-      ]::text[])
-      OR (
-        (type)::text = ANY (ARRAY['mm_staff_message', 'mm_announcement']::text[])
-        AND (SELECT private.is_admin() AS is_admin)
-      )
-    )
-  );
-
-CREATE OR REPLACE FUNCTION public.stamp_first_confirmed_session()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-BEGIN
-  IF NEW.email_confirmed_at IS NOT NULL AND NEW.last_sign_in_at IS NOT NULL THEN
-    UPDATE public.profiles
-    SET first_confirmed_session_at = NEW.last_sign_in_at
-    WHERE id = NEW.id
-      AND first_confirmed_session_at IS NULL;
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-REVOKE ALL ON FUNCTION public.stamp_first_confirmed_session() FROM PUBLIC;
-REVOKE EXECUTE ON FUNCTION public.stamp_first_confirmed_session() FROM anon;
-REVOKE EXECUTE ON FUNCTION public.stamp_first_confirmed_session() FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.stamp_first_confirmed_session() TO service_role;
-
--- Stamp INSERT-time confirmed users here, in the same function that creates
--- the profiles row. A second AFTER INSERT trigger would depend on name order
--- and silently no-op if it ran first.
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = ''
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, username)
-  VALUES (
-    NEW.id,
-    NEW.raw_user_meta_data ->> 'username'
-  );
-
-  IF NEW.email_confirmed_at IS NOT NULL AND NEW.last_sign_in_at IS NOT NULL THEN
-    UPDATE public.profiles
-    SET first_confirmed_session_at = NEW.last_sign_in_at
-    WHERE id = NEW.id
-      AND first_confirmed_session_at IS NULL;
-  END IF;
-
-  RETURN NEW;
-END;
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM public, anon, authenticated;
-
-DROP TRIGGER IF EXISTS on_auth_user_first_confirmed_session ON auth.users;
-DROP TRIGGER IF EXISTS on_auth_user_first_confirmed_session_insert ON auth.users;
-DROP TRIGGER IF EXISTS on_auth_user_first_confirmed_session_update ON auth.users;
-
-CREATE TRIGGER on_auth_user_first_confirmed_session_update
-  AFTER UPDATE ON auth.users
-  FOR EACH ROW
-  WHEN (
-    NEW.email_confirmed_at IS NOT NULL
-    AND NEW.last_sign_in_at IS NOT NULL
-    AND (OLD.email_confirmed_at IS NULL OR OLD.last_sign_in_at IS NULL)
-  )
-  EXECUTE FUNCTION public.stamp_first_confirmed_session();
-
-CREATE OR REPLACE FUNCTION public.enqueue_notification_email()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public AS $$
-BEGIN
-   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge', 'campaign_message', 'mm_staff_message', 'mm_announcement', 'welcome', 'inactive_nudge') THEN
-      INSERT INTO email_deliveries (notification_id, user_id)
-      VALUES (NEW.id, NEW.receiver_id)
-      ON CONFLICT (notification_id) DO NOTHING;
-   END IF;
-
-   RETURN NEW;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION public.claim_email_deliveries(batch_size integer DEFAULT 25)
-RETURNS SETOF public.email_deliveries
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public AS $$
-BEGIN
-   RETURN QUERY
-   WITH due AS (
-      SELECT id
-      FROM email_deliveries
-      WHERE (status = 'pending' AND next_attempt_at <= now())
-         OR (status = 'failed' AND attempts < 5 AND next_attempt_at <= now())
-         OR (status = 'processing' AND locked_at < now() - interval '10 minutes')
-      ORDER BY created_at
-      FOR UPDATE SKIP LOCKED
-      LIMIT batch_size
-   )
-   UPDATE email_deliveries d
-      SET status = 'processing',
-          attempts = d.attempts + 1,
-          locked_at = now(),
-          updated_at = now()
-     FROM due
-    WHERE d.id = due.id
-   RETURNING d.*;
-END;
-$$;
 
 CREATE OR REPLACE FUNCTION public.enqueue_onboarding_notifications()
 RETURNS jsonb
@@ -210,9 +23,8 @@ DECLARE
   v_sender_id uuid;
   v_welcome_count integer := 0;
   v_nudge_count integer := 0;
-  v_batch integer;
-  v_iter integer;
-  v_max_batches constant integer := 20;
+  -- Users created before this never match. Set to the UTC day this ships.
+  v_launch_at constant timestamptz := timestamptz '2026-11-12 00:00:00+00';
   v_welcome_html text :=
     '<p>Welcome to Munda Manager.</p>'
     || '<p>The <a href="/user-guide">User Guide</a> is the place for the fiddly bits — Venator skill access and gang legacy, Spyrer tier upgrades, Gene-Smithing, Chem-alchemy, Archaeo-Cyberteknika, and more.</p>'
@@ -231,122 +43,82 @@ BEGIN
   FROM public.profiles
   WHERE id = 'b09cb332-f4a9-4c9c-815f-2d8a36f265cb';
 
-  FOR v_iter IN 1..v_max_batches LOOP
-    WITH due AS (
-      SELECT p.id
-      FROM public.profiles p
-      JOIN auth.users u ON u.id = p.id
-      WHERE p.first_confirmed_session_at IS NOT NULL
-        AND p.first_confirmed_session_at <= now() - interval '30 minutes'
-        AND p.welcome_notified_at IS NULL
-        AND u.email_confirmed_at IS NOT NULL
-      ORDER BY p.first_confirmed_session_at
-      FOR UPDATE OF p SKIP LOCKED
-      LIMIT 100
-    ),
-    ins AS (
-      INSERT INTO public.notifications (
-        text, type, is_html, sender_id, receiver_id, dismissed, link
-      )
-      SELECT
-        v_welcome_html,
-        'welcome',
-        true,
-        v_sender_id,
-        due.id,
-        false,
-        '/user-guide'
-      FROM due
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM public.notifications n
-        WHERE n.receiver_id = due.id
-          AND n.type = 'welcome'
-      )
-      RETURNING receiver_id
-    ),
-    -- Stamp every due row, including NOT EXISTS misses, so a leftover
-    -- notification cannot be retried forever. CROSS JOIN ins so Postgres
-    -- actually runs the INSERT CTE (unreferenced data-modifying CTEs are
-    -- skipped).
-    stamped AS (
-      UPDATE public.profiles p
-      SET welcome_notified_at = now()
-      FROM due
-      WHERE p.id = due.id
-        AND p.welcome_notified_at IS NULL
-      RETURNING p.id
+  WITH due AS (
+    SELECT p.id
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p.welcome_notified_at IS NULL
+      AND u.created_at >= v_launch_at
+      AND u.email_confirmed_at IS NOT NULL
+      AND u.last_sign_in_at IS NOT NULL
+      AND GREATEST(u.email_confirmed_at, u.last_sign_in_at) <= now() - interval '30 minutes'
+    FOR UPDATE OF p SKIP LOCKED
+  ),
+  ins AS (
+    INSERT INTO public.notifications (
+      text, type, is_html, sender_id, receiver_id, dismissed, link
     )
-    SELECT count(*)::integer INTO v_batch
-    FROM stamped
-    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
+    SELECT
+      v_welcome_html,
+      'mm_staff_message',
+      true,
+      v_sender_id,
+      due.id,
+      false,
+      '/user-guide'
+    FROM due
+    RETURNING receiver_id
+  )
+  UPDATE public.profiles p
+  SET welcome_notified_at = now()
+  FROM ins
+  WHERE p.id = ins.receiver_id;
 
-    v_welcome_count := v_welcome_count + v_batch;
-    EXIT WHEN v_batch = 0;
-  END LOOP;
+  GET DIAGNOSTICS v_welcome_count = ROW_COUNT;
 
-  FOR v_iter IN 1..v_max_batches LOOP
-    WITH due AS (
-      SELECT
-        p.id,
-        EXISTS (
-          SELECT 1 FROM public.gangs g WHERE g.user_id = p.id
-        ) AS has_gang
-      FROM public.profiles p
-      JOIN auth.users u ON u.id = p.id
-      WHERE p.welcome_notified_at IS NOT NULL
-        AND p.inactive_nudge_notified_at IS NULL
-        AND p.first_confirmed_session_at IS NOT NULL
-        AND p.first_confirmed_session_at <= now() - interval '1 month'
-        AND u.last_sign_in_at IS NOT NULL
-        AND u.last_sign_in_at <= p.first_confirmed_session_at + interval '3 days'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM auth.sessions s
-          WHERE s.user_id = u.id
-            AND (s.refreshed_at AT TIME ZONE 'UTC')
-              > p.first_confirmed_session_at + interval '3 days'
-        )
-      ORDER BY p.first_confirmed_session_at
-      FOR UPDATE OF p SKIP LOCKED
-      LIMIT 100
-    ),
-    ins AS (
-      INSERT INTO public.notifications (
-        text, type, is_html, sender_id, receiver_id, dismissed, link
-      )
-      SELECT
-        CASE WHEN due.has_gang THEN v_nudge_has_gang_html ELSE v_nudge_no_gang_html END,
-        'inactive_nudge',
-        true,
-        v_sender_id,
-        due.id,
-        false,
-        CASE WHEN due.has_gang THEN '/user-guide' ELSE '/' END
-      FROM due
-      WHERE NOT EXISTS (
+  WITH due AS (
+    SELECT
+      p.id,
+      EXISTS (
+        SELECT 1 FROM public.gangs g WHERE g.user_id = p.id
+      ) AS has_gang
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p.welcome_notified_at IS NOT NULL
+      AND p.inactive_nudge_notified_at IS NULL
+      AND p.welcome_notified_at <= now() - interval '1 month'
+      AND u.last_sign_in_at IS NOT NULL
+      AND u.last_sign_in_at <= p.welcome_notified_at + interval '3 days'
+      AND NOT EXISTS (
         SELECT 1
-        FROM public.notifications n
-        WHERE n.receiver_id = due.id
-          AND n.type = 'inactive_nudge'
+        FROM auth.sessions s
+        WHERE s.user_id = u.id
+          AND (s.refreshed_at AT TIME ZONE 'UTC')
+            > p.welcome_notified_at + interval '3 days'
       )
-      RETURNING receiver_id
-    ),
-    stamped AS (
-      UPDATE public.profiles p
-      SET inactive_nudge_notified_at = now()
-      FROM due
-      WHERE p.id = due.id
-        AND p.inactive_nudge_notified_at IS NULL
-      RETURNING p.id
+    FOR UPDATE OF p SKIP LOCKED
+  ),
+  ins AS (
+    INSERT INTO public.notifications (
+      text, type, is_html, sender_id, receiver_id, dismissed, link
     )
-    SELECT count(*)::integer INTO v_batch
-    FROM stamped
-    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
+    SELECT
+      CASE WHEN due.has_gang THEN v_nudge_has_gang_html ELSE v_nudge_no_gang_html END,
+      'mm_staff_message',
+      true,
+      v_sender_id,
+      due.id,
+      false,
+      CASE WHEN due.has_gang THEN '/user-guide' ELSE '/' END
+    FROM due
+    RETURNING receiver_id
+  )
+  UPDATE public.profiles p
+  SET inactive_nudge_notified_at = now()
+  FROM ins
+  WHERE p.id = ins.receiver_id;
 
-    v_nudge_count := v_nudge_count + v_batch;
-    EXIT WHEN v_batch = 0;
-  END LOOP;
+  GET DIAGNOSTICS v_nudge_count = ROW_COUNT;
 
   RETURN jsonb_build_object(
     'welcome', v_welcome_count,

@@ -44,23 +44,13 @@ if (!AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY || !SES_FROM_EMAIL || !UNSUBSCR
 const MAX_ATTEMPTS = 5;
 const BATCH_SIZE = 25;
 const MASTER_PREF_KEY = "all";
-const UNCONFIRMED_RETRY_MS = 15 * 60 * 1000;
-const UNCONFIRMED_ABANDON_MS = 48 * 60 * 60 * 1000;
 
 // Mirror of the email-eligible subset of utils/notifications.ts. Kept in
 // sync deliberately — see the note in _email-layout.ts about the Deno/Next import split.
 // A `{sender}` token in a subject is replaced with the sender's username (see resolveSubject).
 // `ctaPath` points the email button at an app path instead of notification.link.
 // When it is absent, the button uses notification.link.
-// `preferenceType` is the user_notification_preferences key (and unsubscribe
-// token `t`) when this type shares another category's toggle.
-const EMAIL_CONFIG: Record<string, {
-  defaultEnabled: boolean;
-  subject: string;
-  ctaPath?: string;
-  ctaLabel?: string;
-  preferenceType?: string;
-}> = {
+const EMAIL_CONFIG: Record<string, { defaultEnabled: boolean; subject: string; ctaPath?: string }> = {
   campaign_invite: { defaultEnabled: true, subject: "You've been invited to a campaign" },
   gang_invite: {
     defaultEnabled: true,
@@ -97,18 +87,6 @@ const EMAIL_CONFIG: Record<string, {
     subject: "An announcement from Munda Manager",
     ctaPath: "/account",
   },
-  welcome: {
-    defaultEnabled: true,
-    subject: "Welcome to Munda Manager",
-    ctaPath: "/user-guide",
-    ctaLabel: "Open the User Guide",
-    preferenceType: "mm_staff_message",
-  },
-  inactive_nudge: {
-    defaultEnabled: true,
-    subject: "Need a hand getting started?",
-    preferenceType: "mm_staff_message",
-  },
 };
 
 function isEmailEnabled(
@@ -119,33 +97,8 @@ function isEmailEnabled(
   if (!cfg) return false;
   const master = prefs.find((p) => p.notification_type === MASTER_PREF_KEY);
   if (master && master.enabled === false) return false;
-  const prefKey = cfg.preferenceType ?? type;
-  const perType = prefs.find((p) => p.notification_type === prefKey);
-  const defaultEnabled = cfg.preferenceType
-    ? (EMAIL_CONFIG[cfg.preferenceType]?.defaultEnabled ?? cfg.defaultEnabled)
-    : cfg.defaultEnabled;
-  return perType ? perType.enabled : defaultEnabled;
-}
-
-function ctaLabelForPath(path: string | null | undefined): string | undefined {
-  if (!path) return undefined;
-  let pathname = path;
-  try {
-    if (/^https?:\/\//i.test(path)) {
-      pathname = new URL(path).pathname;
-    } else if (path.startsWith("/")) {
-      pathname = new URL(path, "http://localhost").pathname;
-    } else {
-      pathname = path.split(/[?#]/)[0] ?? path;
-    }
-  } catch {
-    pathname = path.split(/[?#]/)[0] ?? path;
-  }
-  if (pathname === "/user-guide" || pathname.startsWith("/user-guide/")) {
-    return "Open the User Guide";
-  }
-  if (pathname === "/") return "Create a gang";
-  return undefined;
+  const perType = prefs.find((p) => p.notification_type === type);
+  return perType ? perType.enabled : cfg.defaultEnabled;
 }
 
 // Mirror of signUnsubscribeToken in utils/unsubscribe-token.ts.
@@ -262,7 +215,6 @@ async function buildEmail(delivery: {
   user_id: string;
 }): Promise<
   | { skip: string }
-  | { retry: string }
   | { to: string; subject: string; html: string; text: string; unsubscribeUrl: string }
 > {
   const { data: notification } = await supabase
@@ -291,11 +243,10 @@ async function buildEmail(delivery: {
   if (userError || !userResult?.user) return { skip: "user not found" };
   const authUser = userResult.user;
   if (!authUser.email) return { skip: "user has no email address" };
-  if (!authUser.email_confirmed_at) return { retry: "user email not confirmed" };
+  if (!authUser.email_confirmed_at) return { skip: "user email not confirmed" };
 
-  const prefKey = cfg.preferenceType ?? notification.type;
   const token = await signUnsubscribeToken(
-    { u: delivery.user_id, t: prefKey, e: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
+    { u: delivery.user_id, t: notification.type, e: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30 },
     UNSUBSCRIBE_SECRET,
   );
   const tokenParam = encodeURIComponent(token);
@@ -312,22 +263,17 @@ async function buildEmail(delivery: {
     ? notificationHtmlEmailBody(notification.text ?? "", APP_URL)
     : null;
 
-  const ctaPath = cfg.ctaPath
-    ?? (notification.link?.startsWith("/") ? notification.link : null);
-  const ctaUrl = cfg.ctaPath
-    ? `${APP_URL}${cfg.ctaPath}`
-    // In-app links may be app-relative; an email needs them absolute.
-    : notification.link?.startsWith("/")
-      ? `${APP_URL}${notification.link}`
-      : notification.link;
-
   const { html, text } = emailLayout({
     subject,
     bodyHtml: htmlBody ? htmlBody.html : notificationTextToHtml(notification.text),
     bodyText: htmlBody ? htmlBody.text : notificationTextToPlain(notification.text),
     bodyIsHtml: Boolean(htmlBody),
-    ctaUrl,
-    ctaLabel: cfg.ctaLabel ?? ctaLabelForPath(ctaPath ?? notification.link),
+    ctaUrl: cfg.ctaPath
+      ? `${APP_URL}${cfg.ctaPath}`
+      // In-app links may be app-relative; an email needs them absolute.
+      : notification.link?.startsWith("/")
+        ? `${APP_URL}${notification.link}`
+        : notification.link,
     preferencesUrl: `${APP_URL}/account`,
     unsubscribeUrl: unsubscribePageUrl,
   });
@@ -369,17 +315,13 @@ Deno.serve(async (req) => {
     const previews = [];
     for (const d of due ?? []) {
       const built = await buildEmail(d);
-      previews.push(
-        "skip" in built ? { id: d.id, skipped: built.skip }
-        : "retry" in built ? { id: d.id, retry: built.retry }
-        : {
-          id: d.id,
-          to: built.to,
-          subject: built.subject,
-          html: built.html,
-          text: built.text,
-        },
-      );
+      previews.push("skip" in built ? { id: d.id, skipped: built.skip } : {
+        id: d.id,
+        to: built.to,
+        subject: built.subject,
+        html: built.html,
+        text: built.text,
+      });
     }
     return Response.json({ dryRun: true, count: previews.length, previews });
   }
@@ -396,29 +338,10 @@ Deno.serve(async (req) => {
   let sent = 0;
   let skipped = 0;
   let failed = 0;
-  let retried = 0;
 
   for (const d of claimed ?? []) {
     try {
       const built = await buildEmail(d);
-      if ("retry" in built) {
-        const createdAt = d.created_at ? new Date(d.created_at).getTime() : 0;
-        const tooOld = createdAt > 0 && Date.now() - createdAt > UNCONFIRMED_ABANDON_MS;
-        if (tooOld) {
-          await markStatus(d.id, { status: "abandoned", last_error: built.retry });
-          skipped++;
-        } else {
-          await markStatus(d.id, {
-            status: "pending",
-            last_error: built.retry,
-            attempts: Math.max(0, (d.attempts ?? 1) - 1),
-            next_attempt_at: new Date(Date.now() + UNCONFIRMED_RETRY_MS).toISOString(),
-            locked_at: null,
-          });
-          retried++;
-        }
-        continue;
-      }
       if ("skip" in built) {
         await markStatus(d.id, { status: "skipped", last_error: built.skip });
         skipped++;
@@ -471,5 +394,5 @@ Deno.serve(async (req) => {
     }
   }
 
-  return Response.json({ claimed: claimed?.length ?? 0, sent, skipped, failed, retried });
+  return Response.json({ claimed: claimed?.length ?? 0, sent, skipped, failed });
 });

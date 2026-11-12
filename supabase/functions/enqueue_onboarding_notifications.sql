@@ -1,21 +1,20 @@
--- Insert due welcome and inactive_nudge notifications, then stamp the profile
--- so a later run cannot send again. Invoked by pg_cron every 5 minutes.
+-- Insert due welcome and month-1 inactive-nudge notifications as mm_staff_message,
+-- then stamp the profile so a later run cannot send again. Invoked by pg_cron
+-- every 5 minutes.
 --
--- Welcome: 30 minutes after first_confirmed_session_at, whether or not they
--- have a gang. Inactive nudge: one month after first session, only if they
--- already got the welcome, and last app activity (sign-in or session refresh)
--- is still within 3 days of that first session. No upper age cap — a lagged
--- cron still picks them up; the profile stamp is the one-shot.
+-- Welcome: 30 minutes after the later of email confirm and first sign-in, for
+-- users created on or after v_launch_at. SSO has both timestamps at insert.
+-- Inactive nudge: one month after welcome_notified_at, only if last app activity
+-- (sign-in or session refresh) is still within 3 days of that welcome.
 --
--- Existing users are never stamped, so they never match. The MundaManager
--- brand profile (b09cb332-f4a9-4c9c-815f-2d8a36f265cb) is the sender when it
--- exists; otherwise sender_id is null.
+-- Existing users (created before v_launch_at) never match and are never stamped.
+-- The MundaManager brand profile is the sender when it exists; otherwise
+-- sender_id is null.
 --
--- service_role / cron only. Authenticated clients cannot insert these types
--- (see the notifications INSERT policy).
+-- service_role / cron only.
 --
--- Keep the HTML in step with the copy in the onboarding_notifications plan.
 -- Visible text must stay under 1000 characters (NOTIFICATION_BROADCAST_MAX_LENGTH).
+-- Update Discord channel names here if they are renamed.
 
 CREATE OR REPLACE FUNCTION public.enqueue_onboarding_notifications()
 RETURNS jsonb
@@ -27,9 +26,8 @@ DECLARE
   v_sender_id uuid;
   v_welcome_count integer := 0;
   v_nudge_count integer := 0;
-  v_batch integer;
-  v_iter integer;
-  v_max_batches constant integer := 20;
+  -- Users created before this never match. Set to the UTC day this ships.
+  v_launch_at constant timestamptz := timestamptz '2026-11-12 00:00:00+00';
   v_welcome_html text :=
     '<p>Welcome to Munda Manager.</p>'
     || '<p>The <a href="/user-guide">User Guide</a> is the place for the fiddly bits — Venator skill access and gang legacy, Spyrer tier upgrades, Gene-Smithing, Chem-alchemy, Archaeo-Cyberteknika, and more.</p>'
@@ -48,122 +46,82 @@ BEGIN
   FROM public.profiles
   WHERE id = 'b09cb332-f4a9-4c9c-815f-2d8a36f265cb';
 
-  FOR v_iter IN 1..v_max_batches LOOP
-    WITH due AS (
-      SELECT p.id
-      FROM public.profiles p
-      JOIN auth.users u ON u.id = p.id
-      WHERE p.first_confirmed_session_at IS NOT NULL
-        AND p.first_confirmed_session_at <= now() - interval '30 minutes'
-        AND p.welcome_notified_at IS NULL
-        AND u.email_confirmed_at IS NOT NULL
-      ORDER BY p.first_confirmed_session_at
-      FOR UPDATE OF p SKIP LOCKED
-      LIMIT 100
-    ),
-    ins AS (
-      INSERT INTO public.notifications (
-        text, type, is_html, sender_id, receiver_id, dismissed, link
-      )
-      SELECT
-        v_welcome_html,
-        'welcome',
-        true,
-        v_sender_id,
-        due.id,
-        false,
-        '/user-guide'
-      FROM due
-      WHERE NOT EXISTS (
-        SELECT 1
-        FROM public.notifications n
-        WHERE n.receiver_id = due.id
-          AND n.type = 'welcome'
-      )
-      RETURNING receiver_id
-    ),
-    -- Stamp every due row, including NOT EXISTS misses, so a leftover
-    -- notification cannot be retried forever. CROSS JOIN ins so Postgres
-    -- actually runs the INSERT CTE (unreferenced data-modifying CTEs are
-    -- skipped).
-    stamped AS (
-      UPDATE public.profiles p
-      SET welcome_notified_at = now()
-      FROM due
-      WHERE p.id = due.id
-        AND p.welcome_notified_at IS NULL
-      RETURNING p.id
+  WITH due AS (
+    SELECT p.id
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p.welcome_notified_at IS NULL
+      AND u.created_at >= v_launch_at
+      AND u.email_confirmed_at IS NOT NULL
+      AND u.last_sign_in_at IS NOT NULL
+      AND GREATEST(u.email_confirmed_at, u.last_sign_in_at) <= now() - interval '30 minutes'
+    FOR UPDATE OF p SKIP LOCKED
+  ),
+  ins AS (
+    INSERT INTO public.notifications (
+      text, type, is_html, sender_id, receiver_id, dismissed, link
     )
-    SELECT count(*)::integer INTO v_batch
-    FROM stamped
-    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
+    SELECT
+      v_welcome_html,
+      'mm_staff_message',
+      true,
+      v_sender_id,
+      due.id,
+      false,
+      '/user-guide'
+    FROM due
+    RETURNING receiver_id
+  )
+  UPDATE public.profiles p
+  SET welcome_notified_at = now()
+  FROM ins
+  WHERE p.id = ins.receiver_id;
 
-    v_welcome_count := v_welcome_count + v_batch;
-    EXIT WHEN v_batch = 0;
-  END LOOP;
+  GET DIAGNOSTICS v_welcome_count = ROW_COUNT;
 
-  FOR v_iter IN 1..v_max_batches LOOP
-    WITH due AS (
-      SELECT
-        p.id,
-        EXISTS (
-          SELECT 1 FROM public.gangs g WHERE g.user_id = p.id
-        ) AS has_gang
-      FROM public.profiles p
-      JOIN auth.users u ON u.id = p.id
-      WHERE p.welcome_notified_at IS NOT NULL
-        AND p.inactive_nudge_notified_at IS NULL
-        AND p.first_confirmed_session_at IS NOT NULL
-        AND p.first_confirmed_session_at <= now() - interval '1 month'
-        AND u.last_sign_in_at IS NOT NULL
-        AND u.last_sign_in_at <= p.first_confirmed_session_at + interval '3 days'
-        AND NOT EXISTS (
-          SELECT 1
-          FROM auth.sessions s
-          WHERE s.user_id = u.id
-            AND (s.refreshed_at AT TIME ZONE 'UTC')
-              > p.first_confirmed_session_at + interval '3 days'
-        )
-      ORDER BY p.first_confirmed_session_at
-      FOR UPDATE OF p SKIP LOCKED
-      LIMIT 100
-    ),
-    ins AS (
-      INSERT INTO public.notifications (
-        text, type, is_html, sender_id, receiver_id, dismissed, link
-      )
-      SELECT
-        CASE WHEN due.has_gang THEN v_nudge_has_gang_html ELSE v_nudge_no_gang_html END,
-        'inactive_nudge',
-        true,
-        v_sender_id,
-        due.id,
-        false,
-        CASE WHEN due.has_gang THEN '/user-guide' ELSE '/' END
-      FROM due
-      WHERE NOT EXISTS (
+  WITH due AS (
+    SELECT
+      p.id,
+      EXISTS (
+        SELECT 1 FROM public.gangs g WHERE g.user_id = p.id
+      ) AS has_gang
+    FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE p.welcome_notified_at IS NOT NULL
+      AND p.inactive_nudge_notified_at IS NULL
+      AND p.welcome_notified_at <= now() - interval '1 month'
+      AND u.last_sign_in_at IS NOT NULL
+      AND u.last_sign_in_at <= p.welcome_notified_at + interval '3 days'
+      AND NOT EXISTS (
         SELECT 1
-        FROM public.notifications n
-        WHERE n.receiver_id = due.id
-          AND n.type = 'inactive_nudge'
+        FROM auth.sessions s
+        WHERE s.user_id = u.id
+          AND (s.refreshed_at AT TIME ZONE 'UTC')
+            > p.welcome_notified_at + interval '3 days'
       )
-      RETURNING receiver_id
-    ),
-    stamped AS (
-      UPDATE public.profiles p
-      SET inactive_nudge_notified_at = now()
-      FROM due
-      WHERE p.id = due.id
-        AND p.inactive_nudge_notified_at IS NULL
-      RETURNING p.id
+    FOR UPDATE OF p SKIP LOCKED
+  ),
+  ins AS (
+    INSERT INTO public.notifications (
+      text, type, is_html, sender_id, receiver_id, dismissed, link
     )
-    SELECT count(*)::integer INTO v_batch
-    FROM stamped
-    CROSS JOIN (SELECT count(*) FROM ins) AS inserted;
+    SELECT
+      CASE WHEN due.has_gang THEN v_nudge_has_gang_html ELSE v_nudge_no_gang_html END,
+      'mm_staff_message',
+      true,
+      v_sender_id,
+      due.id,
+      false,
+      CASE WHEN due.has_gang THEN '/user-guide' ELSE '/' END
+    FROM due
+    RETURNING receiver_id
+  )
+  UPDATE public.profiles p
+  SET inactive_nudge_notified_at = now()
+  FROM ins
+  WHERE p.id = ins.receiver_id;
 
-    v_nudge_count := v_nudge_count + v_batch;
-    EXIT WHEN v_batch = 0;
-  END LOOP;
+  GET DIAGNOSTICS v_nudge_count = ROW_COUNT;
 
   RETURN jsonb_build_object(
     'welcome', v_welcome_count,
