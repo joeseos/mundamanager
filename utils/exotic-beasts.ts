@@ -2,41 +2,37 @@ import 'server-only';
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighter } from '@/utils/cache-tags';
+import { isBeastWargear } from '@/types/equipment';
 
-/** Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26. */
-export function isBeastWargear(equipmentCategory: string | null | undefined): boolean {
-  const category = equipmentCategory?.toLowerCase();
-  return category === 'status items: exotic beasts' || category === 'pets';
-}
+/** Embed for a fighter_equipment row: the fighters it grants, with what was added to them. */
+export const GRANTED_FIGHTERS_COLUMNS = `
+  granted_fighters:fighter_exotic_beasts!fk_fighter_equipment_cascade (
+    fighter_pet_id,
+    pet:fighters!fighter_pet_id (
+      fighter_equipment!fighter_id (purchase_cost),
+      fighter_effects (type_specific_data)
+    )
+  )
+`;
 
 /**
- * The fighters a stash item keeps in the stash with it (the Trazior Pattern
- * Sentry Gun's card), and the stash value their gear and effects add (see
- * fighterCostTarget). Read it before removing the item: the delete cascades to them.
+ * The fighters a stash item keeps in the stash with it, and the stash value their
+ * gear and effects add (see fighterCostTarget). Only an item that is not beast
+ * wargear does (the Trazior Pattern Sentry Gun's card); a beast goes to its owner.
+ * Pass the row's GRANTED_FIGHTERS_COLUMNS, read before the item is removed: the
+ * delete cascades to them.
  */
-export async function getStashItemFighters(
-  supabase: any,
-  fighterEquipmentId: string
-): Promise<{ ids: string[]; gearValue: number }> {
-  const { data: links, error } = await supabase
-    .from('fighter_exotic_beasts')
-    .select(`
-      fighter_pet_id,
-      pet:fighters!fighter_pet_id (
-        fighter_equipment!fighter_id (purchase_cost),
-        fighter_effects (type_specific_data)
-      )
-    `)
-    .eq('fighter_equipment_id', fighterEquipmentId)
-    .is('fighter_owner_id', null);
-  if (error) throw error;
-
-  const gearValue = links.reduce((sum: number, { pet }: any) =>
+export function stashItemFighters(
+  equipmentCategory: string | null | undefined,
+  grantedFighters: any[]
+): { ids: string[]; gearValue: number } {
+  const kept = isBeastWargear(equipmentCategory) ? [] : grantedFighters;
+  const gearValue = kept.reduce((sum: number, { pet }: any) =>
     sum +
     (pet?.fighter_equipment ?? []).reduce((s: number, item: any) => s + (item.purchase_cost || 0), 0) +
     (pet?.fighter_effects ?? []).reduce((s: number, effect: any) => s + (effect.type_specific_data?.credits_increase || 0), 0),
   0);
-  return { ids: links.map((link: { fighter_pet_id: string }) => link.fighter_pet_id), gearValue };
+  return { ids: kept.map((link: { fighter_pet_id: string }) => link.fighter_pet_id), gearValue };
 }
 
 /**

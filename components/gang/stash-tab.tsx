@@ -212,6 +212,13 @@ export default function GangInventory({
     return baseName;
   };
 
+  // A moved item's cost goes where the fighter counts it: stash value for a card kept
+  // in the stash (the Trazior Pattern Sentry Gun), otherwise the fighter's cost
+  const withItemCost = (fighter: FighterProps, cost: number): FighterProps =>
+    fighter.stash_value === undefined
+      ? { ...fighter, credits: fighter.credits + cost }
+      : { ...fighter, stash_value: fighter.stash_value + cost };
+
   // Removing an item from the stash deletes the fighter cards it kept there
   const removeStashItemFighters = (fighterIds: string[]) => {
     setFighters(prev => prev.filter(fighter => !fighterIds.includes(fighter.id)));
@@ -388,8 +395,7 @@ export default function GangInventory({
           for (const config of configurations) {
             const item = config.stashItem;
             optimisticFighter = {
-              ...optimisticFighter,
-              credits: optimisticFighter.credits + (item.cost || 0),
+              ...withItemCost(optimisticFighter, item.cost || 0),
               weapons: item.equipment_type === 'weapon'
                 ? [
                     ...(optimisticFighter.weapons || []),
@@ -533,8 +539,7 @@ export default function GangInventory({
             }
 
             finalFighter = {
-              ...finalFighter,
-              credits: finalFighter.credits + (item.cost || 0),
+              ...withItemCost(finalFighter, item.cost || 0),
               weapons: item.equipment_type === 'weapon'
                 ? [
                     ...modifiedWeapons,

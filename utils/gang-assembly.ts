@@ -3,7 +3,7 @@ import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import type { CountLimit } from '@/types/fighter-type';
-import { WeaponProfile } from '@/types/equipment';
+import { isBeastWargear, WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import { gangRulesForWeapon } from '@/utils/gang-rules';
 import type {
@@ -922,9 +922,6 @@ export function selectGangFighterIndex(bundle: GangFightersBundle): GangFighterI
 // FIGHTER PAGE VIEW - the gang page's fighter plus what only the fighter page lists
 // =============================================================================
 
-// The beast-granting item's category: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26
-const BEAST_EQUIPMENT_CATEGORIES = new Set(['status items: exotic beasts', 'pets']);
-
 export interface FighterView {
   /**
    * The fighter as the gang page assembles it, with the fighter page's vehicle
@@ -999,7 +996,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     },
     equipment: equipment.map((item: any) => {
       const row = rowById.get(item.fighter_equipment_id);
-      const beastBreakdown = BEAST_EQUIPMENT_CATEGORIES.has(item.equipment_category.toLowerCase())
+      const beastBreakdown = isBeastWargear(item.equipment_category)
         ? beastCosts.byEquipmentId[item.fighter_equipment_id]
         : undefined;
       return {

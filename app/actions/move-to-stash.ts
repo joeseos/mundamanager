@@ -9,7 +9,8 @@ import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-ra
 import { logEquipmentAction } from './logs/equipment-logs';
 import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { isBeastWargear } from '@/types/equipment';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;

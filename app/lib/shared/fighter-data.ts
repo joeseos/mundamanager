@@ -300,6 +300,7 @@ export async function getFighterPageData(fighterId: string) {
       vehicles: fighter.vehicles,
       campaigns,
       owner_name: fighter.owner_name,
+      stash_value: fighter.stash_value,
       captured_by_gang_name: fighter.captured_by_gang_name,
       refund_credits: refundCredits,
     },

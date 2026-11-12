@@ -11,8 +11,8 @@ import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
-import type { CostResourcePayload } from '@/types/equipment';
-import { getStashItemFighters, invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
+import { isBeastWargear, type CostResourcePayload } from '@/types/equipment';
+import { GRANTED_FIGHTERS_COLUMNS, invalidateBeastOwnerCache, stashItemFighters } from '@/utils/exotic-beasts';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -354,19 +354,20 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash, purchase_cost, cost_resource, equipment:equipment_id (equipment_category)')
+      .select(`id, gang_id, gang_stash, purchase_cost, cost_resource, equipment:equipment_id (equipment_category), ${GRANTED_FIGHTERS_COLUMNS}`)
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
+    const equipmentCategory = (row as any).equipment?.equipment_category;
     const isResourcePurchaseStash = row.cost_resource && (row.cost_resource as any).name;
     const sellValue = isResourcePurchaseStash ? 0 : Math.floor(params.manual_cost || 0);
     const purchaseCost = row.purchase_cost || 0;
 
     // Query beast equipment cost before deletion (only for beast-granting equipment)
     let beastEquipmentCost = 0;
-    if (isBeastWargear((row as any).equipment?.equipment_category)) {
+    if (isBeastWargear(equipmentCategory)) {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -391,7 +392,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       }
     }
 
-    const stashFighters = await getStashItemFighters(supabase, params.stash_id);
+    const stashFighters = stashItemFighters(equipmentCategory, row.granted_fighters);
 
     // Update credits and wealth using centralized helper
     // When selling from stash:

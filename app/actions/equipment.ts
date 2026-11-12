@@ -8,8 +8,8 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { fighterCostTarget, FighterCostTarget, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
-import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
-import { createExoticBeastsForEquipment, getStashItemFighters, invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
+import { EquipmentGrants, ResourceCost, CostResourcePayload, isBeastWargear } from '@/types/equipment';
+import { createExoticBeastsForEquipment, GRANTED_FIGHTERS_COLUMNS, invalidateBeastOwnerCache, stashItemFighters } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
@@ -385,6 +385,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           cost,
           trade_points,
           is_editable,
+          exotic_beasts (id),
           weapon_profiles (
             id,
             profile_name,
@@ -764,7 +765,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     let createdFamiliarsRatingDelta = 0;
     const createsFamiliars = isBeastWargear(equipmentDetails.equipment_category)
       ? !!params.fighter_id && !params.buy_for_gang_stash
-      : !!params.buy_for_gang_stash;
+      : !!params.buy_for_gang_stash && equipmentDetails.exotic_beasts?.length > 0;
 
     if (createsFamiliars && !params.custom_equipment_id && params.equipment_id) {
       try {
@@ -1405,14 +1406,14 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash, purchase_cost')
+      .select(`id, gang_id, gang_stash, purchase_cost, equipment:equipment_id (equipment_category), ${GRANTED_FIGHTERS_COLUMNS}`)
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
     const purchaseCost = row.purchase_cost || 0;
-    const stashFighters = await getStashItemFighters(supabase, params.stash_id);
+    const stashFighters = stashItemFighters((row as any).equipment?.equipment_category, row.granted_fighters);
 
     // Permission implicitly enforced by RLS; we still fetch to invalidate correctly
     const { error: delErr } = await supabase

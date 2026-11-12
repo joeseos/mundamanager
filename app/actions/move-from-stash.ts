@@ -10,7 +10,8 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { grantSkillsForEffects, insertEffectWithModifiers, type GrantedSkill } from './equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
-import { invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
+import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { isBeastWargear } from '@/types/equipment';
 
 export interface MoveFromStashItem {
   stash_id: string;
@@ -73,7 +74,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         purchase_cost,
         is_master_crafted,
         equipment:equipment_id (equipment_category),
-        beast_links:fighter_exotic_beasts!fk_fighter_equipment_cascade (fighter_owner_id)
+        granted_fighters:fighter_exotic_beasts!fk_fighter_equipment_cascade (fighter_pet_id)
       `)
       .in('id', stashIds)
       .eq('gang_stash', true);
@@ -173,7 +174,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         return { stash_id: item.stash_id, success: false, error: 'Item has neither equipment_id nor custom_equipment_id' };
       }
       // An item that keeps its fighter in the stash (the Trazior Pattern Sentry Gun) stays there
-      if (stashData.beast_links.some((link) => !link.fighter_owner_id)) {
+      if (!isBeastWargear((stashData as any).equipment?.equipment_category) && stashData.granted_fighters.length > 0) {
         return { stash_id: item.stash_id, success: false, error: 'This item stays in the gang stash' };
       }
 
