@@ -1237,7 +1237,9 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     }
 
     // Update rating and wealth if needed
-    await updateGangFinancials(supabase, { gangId: params.gang_id, ratingDelta, costTarget });
+    if (ratingDelta !== 0 && costTarget !== 'none') {
+      await updateGangFinancials(supabase, { gangId: params.gang_id, ratingDelta, costTarget });
+    }
 
     // Get fresh fighter total cost after deletion for accurate response
     let freshFighterTotalCost = null;
