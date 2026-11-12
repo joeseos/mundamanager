@@ -112,8 +112,6 @@ DECLARE
     effect_type_record RECORD;
     modifier_record RECORD;
     skill_id_val UUID;
-    new_fighter_skill_id UUID;
-    new_fighter_effect_skill_id UUID;
     v_is_admin BOOLEAN;
     v_user_has_access BOOLEAN;
     v_gang_id UUID;
@@ -336,33 +334,19 @@ BEGIN
 
         -- Always a new row, as grantSkillsForEffects does: reusing a skill the
         -- fighter already has would let removing the injury delete it.
+        -- fighter_effect_id cascades the skill away with the injury.
         INSERT INTO fighter_skills (
             fighter_id,
             skill_id,
-            user_id
+            user_id,
+            fighter_effect_id
         )
         VALUES (
             in_fighter_id,
             skill_id_val,
-            v_fighter_owner_id
-        )
-        RETURNING id INTO new_fighter_skill_id;
-
-        -- Create the relation in fighter_effect_skills
-        INSERT INTO fighter_effect_skills (
-            fighter_effect_id,
-            fighter_skill_id
-        )
-        VALUES (
-            new_effect_id,
-            new_fighter_skill_id
-        )
-        RETURNING id INTO new_fighter_effect_skill_id;
-
-        -- Update the fighter_skills record with the relation ID
-        UPDATE fighter_skills
-        SET fighter_effect_skill_id = new_fighter_effect_skill_id
-        WHERE id = new_fighter_skill_id;
+            v_fighter_owner_id,
+            new_effect_id
+        );
     END IF;
 
     -- Return the newly created effect
@@ -405,13 +389,11 @@ BEGIN
             SELECT COALESCE(json_agg(
                 json_build_object(
                     'fighter_skill_id', fs.id,
-                    'skill_id', fs.skill_id,
-                    'fighter_effect_skill_id', fs.fighter_effect_skill_id
+                    'skill_id', fs.skill_id
                 )
             ), '[]'::json)
-            FROM fighter_effect_skills fes
-            JOIN fighter_skills fs ON fes.fighter_skill_id = fs.id
-            WHERE fes.fighter_effect_id = fe.id
+            FROM fighter_skills fs
+            WHERE fs.fighter_effect_id = fe.id
         )
     ) as result
     FROM fighter_effects fe
@@ -2968,7 +2950,17 @@ BEGIN
                     'equipment_category', e.equipment_category,
                     'cost', 0,
                     'availability', e.availability,
-                    'is_editable', COALESCE(e.is_editable, false)
+                    'is_editable', COALESCE(e.is_editable, false),
+                    -- Grant options with names, so the add-fighter modal can offer a choice grant
+                    'grants_equipment', CASE
+                        WHEN e.grants_equipment->'options' IS NOT NULL THEN
+                            jsonb_set(e.grants_equipment, '{options}', COALESCE((
+                                SELECT jsonb_agg(opt || jsonb_build_object('equipment_name', COALESCE(ge.equipment_name, 'Unknown')) ORDER BY ord)
+                                FROM jsonb_array_elements(e.grants_equipment->'options') WITH ORDINALITY AS o(opt, ord)
+                                LEFT JOIN equipment ge ON ge.id = (opt->>'equipment_id')::uuid
+                            ), '[]'::jsonb))
+                        ELSE e.grants_equipment
+                    END
                 )
             ), '[]'::jsonb)
             FROM fighter_defaults fd
@@ -6332,19 +6324,6 @@ CREATE TABLE public.fighter_effect_modifiers (
 
 
 --
--- Name: fighter_effect_skills; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.fighter_effect_skills (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone,
-    fighter_effect_id uuid,
-    fighter_skill_id uuid
-);
-
-
---
 -- Name: fighter_effect_type_modifiers; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -6411,7 +6390,6 @@ CREATE TABLE public.fighter_equipment (
     vehicle_id uuid,
     user_id uuid DEFAULT auth.uid(),
     is_master_crafted boolean DEFAULT false NOT NULL,
-    fighter_effect_equipment_id uuid,
     custom_equipment_id uuid,
     gang_stash boolean DEFAULT false,
     gang_id uuid,
@@ -6590,9 +6568,16 @@ CREATE TABLE public.fighter_skills (
     xp_cost numeric,
     fighter_injury_id uuid,
     user_id uuid,
-    fighter_effect_skill_id uuid,
-    custom_skill_id uuid
+    custom_skill_id uuid,
+    fighter_effect_id uuid
 );
+
+
+--
+-- Name: COLUMN fighter_skills.fighter_effect_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_skills.fighter_effect_id IS 'Effect (injury or gear effect) of the same fighter that granted this skill. Deleted with the effect. Null = not granted by an effect.';
 
 
 --
@@ -8479,14 +8464,6 @@ ALTER TABLE ONLY public.fighter_effect_categories
 
 
 --
--- Name: fighter_effect_skills fighter_effect_skills_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.fighter_effect_skills
-    ADD CONSTRAINT fighter_effect_skills_pkey PRIMARY KEY (id);
-
-
---
 -- Name: fighter_effect_modifiers fighter_effect_stat_modifiers_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -8508,6 +8485,14 @@ ALTER TABLE ONLY public.fighter_effect_type_modifiers
 
 ALTER TABLE ONLY public.fighter_effect_types
     ADD CONSTRAINT fighter_effect_types_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: fighter_effects fighter_effects_id_fighter_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_effects
+    ADD CONSTRAINT fighter_effects_id_fighter_id_key UNIQUE (id, fighter_id);
 
 
 --
@@ -9854,13 +9839,6 @@ CREATE INDEX fighter_effect_modifiers_user_id_idx ON public.fighter_effect_modif
 
 
 --
--- Name: fighter_effect_skills_fighter_effect_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX fighter_effect_skills_fighter_effect_id_idx ON public.fighter_effect_skills USING btree (fighter_effect_id);
-
-
---
 -- Name: fighter_effect_type_modifiers_fighter_effect_type_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10029,10 +10007,10 @@ CREATE INDEX fighter_skills_custom_skill_id_idx ON public.fighter_skills USING b
 
 
 --
--- Name: fighter_skills_fighter_effect_skill_id_idx; Type: INDEX; Schema: public; Owner: -
+-- Name: fighter_skills_fighter_effect_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE INDEX fighter_skills_fighter_effect_skill_id_idx ON public.fighter_skills USING btree (fighter_effect_skill_id) WHERE (fighter_effect_skill_id IS NOT NULL);
+CREATE INDEX fighter_skills_fighter_effect_id_idx ON public.fighter_skills USING btree (fighter_effect_id) WHERE (fighter_effect_id IS NOT NULL);
 
 
 --
@@ -12408,14 +12386,6 @@ ALTER TABLE ONLY public.fighter_defaults
 
 
 --
--- Name: fighter_effect_skills fighter_effect_skills_fighter_effect_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.fighter_effect_skills
-    ADD CONSTRAINT fighter_effect_skills_fighter_effect_id_fkey FOREIGN KEY (fighter_effect_id) REFERENCES public.fighter_effects(id) ON DELETE CASCADE;
-
-
---
 -- Name: fighter_effect_modifiers fighter_effect_stat_modifiers_fighter_effect_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -12712,11 +12682,11 @@ ALTER TABLE ONLY public.fighter_skills
 
 
 --
--- Name: fighter_skills fighter_skills_fighter_effect_skill_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: fighter_skills fighter_skills_fighter_effect_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
 ALTER TABLE ONLY public.fighter_skills
-    ADD CONSTRAINT fighter_skills_fighter_effect_skill_id_fkey FOREIGN KEY (fighter_effect_skill_id) REFERENCES public.fighter_effect_skills(id) ON DELETE CASCADE;
+    ADD CONSTRAINT fighter_skills_fighter_effect_id_fkey FOREIGN KEY (fighter_effect_id, fighter_id) REFERENCES public.fighter_effects(id, fighter_id) ON DELETE CASCADE;
 
 
 --
@@ -14147,13 +14117,6 @@ CREATE POLICY "Allow authenticated users to view fighter_effect_categories" ON p
 
 
 --
--- Name: fighter_effect_skills Allow authenticated users to view fighter_effect_skills; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view fighter_effect_skills" ON public.fighter_effect_skills FOR SELECT TO authenticated USING (true);
-
-
---
 -- Name: fighter_effect_type_modifiers Allow authenticated users to view fighter_effect_type_modifiers; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14913,13 +14876,6 @@ CREATE POLICY "Only admin can create exotic_beasts entries" ON public.exotic_bea
 
 
 --
--- Name: fighter_effect_skills Only admin can create fighter_effect_skills entries; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only admin can create fighter_effect_skills entries" ON public.fighter_effect_skills FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
 -- Name: fighter_effect_type_modifiers Only admin can create fighter_effect_type_modifiers entries; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -15092,13 +15048,6 @@ CREATE POLICY "Only admin can delete exotic_beasts" ON public.exotic_beasts FOR 
 --
 
 CREATE POLICY "Only admin can delete fighter_effect_categories" ON public.fighter_effect_categories FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: fighter_effect_skills Only admin can delete fighter_effect_skills; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only admin can delete fighter_effect_skills" ON public.fighter_effect_skills FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -15309,13 +15258,6 @@ CREATE POLICY "Only admin can update exotic_beasts" ON public.exotic_beasts FOR 
 --
 
 CREATE POLICY "Only admin can update fighter_effect_categories" ON public.fighter_effect_categories FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
-
-
---
--- Name: fighter_effect_skills Only admin can update fighter_effect_skills; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Only admin can update fighter_effect_skills" ON public.fighter_effect_skills FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
@@ -16859,12 +16801,6 @@ CREATE POLICY fighter_effect_modifiers_update_policy ON public.fighter_effect_mo
      JOIN public.vehicles v ON ((v.id = fe.vehicle_id)))
   WHERE ((fe.id = fighter_effect_modifiers.fighter_effect_id) AND private.is_gang_arb(v.gang_id))))));
 
-
---
--- Name: fighter_effect_skills; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.fighter_effect_skills ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: fighter_effect_type_modifiers; Type: ROW SECURITY; Schema: public; Owner: -

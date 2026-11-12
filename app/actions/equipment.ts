@@ -1,7 +1,7 @@
 'use server'
 
 import { invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
-import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/server";
 
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
@@ -72,7 +72,7 @@ export type GrantedSkill = { skill_id: string; skill_name: string };
 
 /**
  * Effect-granted skills, as add_fighter_injury.sql does it. Removal is the
- * fighter_effects -> fighter_effect_skills -> fighter_skills cascade.
+ * fighter_skills.fighter_effect_id cascade.
  *
  * Like that function this never reuses an existing row: reusing means selling
  * the equipment cascades away a skill the fighter bought with XP.
@@ -111,9 +111,6 @@ export async function grantSkillsForEffects(
       .map((row: any) => row.id)
   );
 
-  // fighter_effect_skills INSERT is admin-only, and stays that way: the link is
-  // derived, joining two rows this user just wrote under RLS.
-  const serviceClient = createServiceRoleClient();
   const granted: GrantedSkill[] = [];
 
   for (const effect of candidates) {
@@ -129,39 +126,14 @@ export async function grantSkillsForEffects(
         user_id: userId,
         credits_increase: 0,
         xp_cost: 0,
-        is_advance: false
+        is_advance: false,
+        fighter_effect_id: effect.id
       })
-      .select('id, skill_id, skills!skill_id ( name )')
+      .select('skill_id, skills!skill_id ( name )')
       .single();
 
     if (!skill) {
       console.error('Failed to insert granted skill:', skillError);
-      continue;
-    }
-
-    const { data: link, error: linkError } = await serviceClient
-      .from('fighter_effect_skills')
-      .insert({ fighter_effect_id: effect.id, fighter_skill_id: skill.id })
-      .select('id')
-      .single();
-
-    if (!link) {
-      console.error('Failed to link granted skill to effect:', linkError);
-      await supabase.from('fighter_skills').delete().eq('id', skill.id);
-      continue;
-    }
-
-    // The cascade reaches fighter_skills through this column, so a row that never
-    // gets it outlives its effect as a free skill nobody bought.
-    const { error: backfillError } = await supabase
-      .from('fighter_skills')
-      .update({ fighter_effect_skill_id: link.id })
-      .eq('id', skill.id);
-
-    if (backfillError) {
-      console.error('Failed to back-fill granted skill provenance:', backfillError);
-      await supabase.from('fighter_skills').delete().eq('id', skill.id);
-      await serviceClient.from('fighter_effect_skills').delete().eq('id', link.id);
       continue;
     }
 

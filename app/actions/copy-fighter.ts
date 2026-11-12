@@ -128,7 +128,7 @@ async function copySkills(
   // Gear-granted skills are granted again from the copied gear's effects
   // (grantCopiedEquipmentSkills), linked to the copy's own gear
   const sourceSkills = (sourceFighter.fighter_skills || []).filter(
-    (skill: any) => !skill.fighter_effect_skills?.fighter_effects?.fighter_equipment_id
+    (skill: any) => !skill.fighter_effect?.fighter_equipment_id
   );
   if (sourceSkills.length === 0) return { skillIdMap };
 
@@ -183,6 +183,33 @@ async function grantCopiedEquipmentSkills(
   );
 }
 
+/**
+ * Points copied effect-granted skills (injuries) at the copy's own copies of
+ * their effects.
+ */
+async function linkCopiedEffectSkills(
+  supabase: any,
+  sourceSkills: any[] | null | undefined,
+  skillIdMap: Map<string, string>,
+  sourceEffects: Array<{ id: string }>,
+  insertedEffects: Array<{ id: string }>
+): Promise<boolean> {
+  const effectIdMap = new Map(sourceEffects.map((effect, index) => [effect.id, insertedEffects[index]?.id]));
+
+  for (const skill of sourceSkills ?? []) {
+    const newSkillId = skillIdMap.get(skill.id);
+    const newEffectId = effectIdMap.get(skill.fighter_effect_id);
+    if (!newSkillId || !newEffectId) continue;
+    const { error } = await supabase
+      .from('fighter_skills')
+      .update({ fighter_effect_id: newEffectId })
+      .eq('id', newSkillId);
+    if (error) return false;
+  }
+
+  return true;
+}
+
 export async function copyFighter(params: CopyFighterParams): Promise<CopyFighterResult> {
   try {
     const supabase = await createClient();
@@ -211,7 +238,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           credits_increase,
           xp_cost,
           is_advance,
-          fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effects(fighter_equipment_id))
+          fighter_effect_id, fighter_effect:fighter_effects!fighter_skills_fighter_effect_id_fkey(fighter_equipment_id)
         ),
         fighter_effects(
           id,
@@ -685,6 +712,9 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
         if (insertedEffects) {
           await grantCopiedEquipmentSkills(supabase, newFighterId, effectsToCopy, insertedEffects, gang.user_id);
+          if (!await linkCopiedEffectSkills(supabase, sourceFighter.fighter_skills, skillIdMap, effectsToCopyList, insertedEffects)) {
+            return await rollbackFighter('Failed to link a copied skill to its copied injury');
+          }
 
           const allModifiers: any[] = [];
           effectsToCopyList.forEach((sourceEffect: any, index: number) => {
@@ -808,7 +838,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
           .select(`
             *,
             fighter_equipment(id, equipment_id, custom_equipment_id, purchase_cost, original_cost, is_master_crafted, is_editable, fighter_skill_id),
-            fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effects(fighter_equipment_id))),
+            fighter_skills(id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance, fighter_effect_id, fighter_effect:fighter_effects!fighter_skills_fighter_effect_id_fkey(fighter_equipment_id)),
             fighter_effects(
               id, effect_name, fighter_effect_type_id, type_specific_data,
               fighter_equipment_id, target_equipment_id, fighter_skill_id,
@@ -991,6 +1021,9 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
 
             if (insertedBeastEffects) {
               await grantCopiedEquipmentSkills(supabase, newBeastFighter.id, beastEffectsToCopy, insertedBeastEffects, gang.user_id);
+              if (!await linkCopiedEffectSkills(supabase, beastFighter.fighter_skills, beastSkillIdMap, beastEffectsToCopyList, insertedBeastEffects)) {
+                return await rollbackFighter('Failed to link a copied beast skill to its copied injury');
+              }
 
               const allBeastModifiers: any[] = [];
               beastEffectsToCopyList.forEach((sourceEffect: any, index: number) => {

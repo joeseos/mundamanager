@@ -244,10 +244,12 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
     // 6) Copy fighter skills (before equipment: the skill ID map relinks
     // fighter_skill_id on skill-granted equipment and on effects)
     const skillIdMap = new Map<string, string>();
+    // Injury-granted skills, relinked to the copied injury in step 9
+    const effectGrantedSkills: { sourceEffectId: string; skillId: string }[] = [];
     if (oldFighterIds.length > 0) {
       const { data: allSkills, error: skillsError } = await supabase
         .from('fighter_skills')
-        .select('*, fighter_effect_skills!fighter_skills_fighter_effect_skill_id_fkey(fighter_effects(fighter_equipment_id))')
+        .select('id, created_at, fighter_id, skill_id, custom_skill_id, credits_increase, xp_cost, is_advance, fighter_effect_id, fighter_effect:fighter_effects!fighter_skills_fighter_effect_id_fkey(fighter_equipment_id)')
         .in('fighter_id', oldFighterIds);
       if (skillsError) {
         await cleanupOnError(new Error(`Failed to load fighter skills: ${skillsError.message}`));
@@ -255,22 +257,21 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
       // Gear-granted skills are granted again from the copied gear's effects in
       // step 9, linked to the copy's own gear instead of the source's
       const skills = (allSkills || []).filter(
-        (item: any) => !item.fighter_effect_skills?.fighter_effects?.fighter_equipment_id
+        (item: any) => !item.fighter_effect?.fighter_equipment_id
       );
       if (skills.length > 0) {
-        const inserts = skills.map((item: any) => {
-          const o: any = { ...item };
-          delete o.id;
-          delete o.fighter_effect_skills;
-          // no gang_id column on fighter_skills
-          o.user_id = user.id;
-          o.fighter_id = fighterIdMap.get(item.fighter_id) || null;
-          // Remap custom_skill_id to the duplicated custom skill
-          if (o.custom_skill_id && customSkillIdMap.has(o.custom_skill_id)) {
-            o.custom_skill_id = customSkillIdMap.get(o.custom_skill_id);
-          }
-          return o;
-        });
+        // Named columns, not a spread: a copy must not inherit the source's links.
+        // fighter_effect_id is set to the copy's own injury in step 9.
+        const inserts = skills.map((item: any) => ({
+          created_at: item.created_at,
+          fighter_id: fighterIdMap.get(item.fighter_id) || null,
+          skill_id: item.skill_id,
+          custom_skill_id: (item.custom_skill_id && customSkillIdMap.get(item.custom_skill_id)) || item.custom_skill_id,
+          credits_increase: item.credits_increase,
+          xp_cost: item.xp_cost,
+          is_advance: item.is_advance,
+          user_id: user.id,
+        }));
         const { data: insertedSkills, error: insertSkillsError } = await supabase
           .from('fighter_skills')
           .insert(inserts)
@@ -279,7 +280,10 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
           await cleanupOnError(new Error(`Failed to insert fighter skills: ${insertSkillsError.message}`));
         }
         skills.forEach((item: any, i: number) => {
-          if (insertedSkills?.[i]?.id) skillIdMap.set(item.id, insertedSkills[i].id);
+          const newSkillId = insertedSkills?.[i]?.id;
+          if (!newSkillId) return;
+          skillIdMap.set(item.id, newSkillId);
+          if (item.fighter_effect_id) effectGrantedSkills.push({ sourceEffectId: item.fighter_effect_id, skillId: newSkillId });
         });
       }
     }
@@ -511,6 +515,18 @@ export async function copyGang(params: CopyGangInput): Promise<CopyGangResult> {
         copiedEquipmentEffects.filter(effect => effect.fighter_id === fighterId),
         user.id
       );
+    }
+
+    for (const { sourceEffectId, skillId } of effectGrantedSkills) {
+      const newEffectId = effectIdMap.get(sourceEffectId);
+      if (!newEffectId) continue;
+      const { error: linkError } = await supabase
+        .from('fighter_skills')
+        .update({ fighter_effect_id: newEffectId })
+        .eq('id', skillId);
+      if (linkError) {
+        await cleanupOnError(new Error(`Failed to link copied skill to its injury: ${linkError.message}`));
+      }
     }
 
     if (sourceEffects.length > 0) {
