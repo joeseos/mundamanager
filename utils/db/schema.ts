@@ -844,6 +844,8 @@ export const profiles = pgTable('profiles', {
   patreon_tier_id: text('patreon_tier_id'),
   patreon_discord_role_ids: text('patreon_discord_role_ids').array(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).default(sql`timezone('utc'::text, now())`),
+  welcome_notified_at: timestamp('welcome_notified_at', { withTimezone: true, mode: 'string' }),
+  inactive_nudge_notified_at: timestamp('inactive_nudge_notified_at', { withTimezone: true, mode: 'string' }),
 });
 
 export const friends = pgTable('friends', {
