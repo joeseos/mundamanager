@@ -1,6 +1,36 @@
--- add_fighter_injury grants every skill in an injury's skill_ids, or its single
--- skill_id when it was saved before skill_ids. Same as
--- supabase/functions/add_fighter_injury.sql; no data changes.
+-- Step 1 of 2: an effect grants a list of skills, type_specific_data.skill_ids,
+-- instead of one skill_id. Apply BEFORE merging: add_fighter_injury (below)
+-- reads skill_ids, and so does the new app. Step 2 (20261112180100) removes the
+-- old skill_id from these rows once the new app is live; until then the
+-- running app still reads it.
+--
+-- Only types outside the 'skills' category grant skills. On a 'skills' type
+-- skill_id is the skill the effect belongs to, and it stays.
+--
+-- fighter_effects carry a copy of their type's type_specific_data, and copying a
+-- fighter or gang grants skills from that copy, so they move over too.
+--
+-- add_fighter_injury at the end is the same as supabase/functions/add_fighter_injury.sql.
+
+UPDATE public.fighter_effect_types fet
+SET type_specific_data = fet.type_specific_data
+  || jsonb_build_object('skill_ids', jsonb_build_array(fet.type_specific_data->'skill_id'))
+WHERE fet.type_specific_data ? 'skill_id'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.fighter_effect_categories fec
+    WHERE fec.id = fet.fighter_effect_category_id AND fec.category_name = 'skills'
+  );
+
+UPDATE public.fighter_effects fe
+SET type_specific_data = fe.type_specific_data
+  || jsonb_build_object('skill_ids', jsonb_build_array(fe.type_specific_data->'skill_id'))
+FROM public.fighter_effect_types fet
+WHERE fet.id = fe.fighter_effect_type_id
+  AND fe.type_specific_data ? 'skill_id'
+  AND NOT EXISTS (
+    SELECT 1 FROM public.fighter_effect_categories fec
+    WHERE fec.id = fet.fighter_effect_category_id AND fec.category_name = 'skills'
+  );
 
 -- Drop all versions of the function to prevent overload conflicts
 DROP FUNCTION IF EXISTS add_fighter_injury(UUID, UUID, UUID, UUID, UUID) CASCADE;
@@ -248,7 +278,6 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- skill_ids, or the single skill_id of injuries saved before skill_ids.
     -- Always new rows, as grantSkillsForEffects does: reusing a skill the
     -- fighter already has would let removing the injury delete it.
     -- fighter_effect_id cascades the skills away with the injury.
@@ -259,11 +288,7 @@ BEGIN
         fighter_effect_id
     )
     SELECT in_fighter_id, granted.skill_id::UUID, v_fighter_owner_id, new_effect_id
-    FROM jsonb_array_elements_text(COALESCE(
-        effect_type_record.type_specific_data->'skill_ids',
-        CASE WHEN effect_type_record.type_specific_data->>'skill_id' IS NOT NULL
-            THEN jsonb_build_array(effect_type_record.type_specific_data->'skill_id') END
-    )) AS granted(skill_id);
+    FROM jsonb_array_elements_text(effect_type_record.type_specific_data->'skill_ids') AS granted(skill_id);
 
     -- Return the newly created effect
     RETURN QUERY

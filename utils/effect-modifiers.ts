@@ -501,11 +501,9 @@ export function applySpecialRulesModifiers(
 // =============================================================================
 
 /**
- * Skills an effect grants, e.g. an Outrider Quad granting Hit & Run and Nerves
- * of Steel. Effects saved before skill_ids hold one skill_id instead.
- *
- * On a 'skills'-category type skill_id means the opposite — the skill the
- * effect BELONGS TO — so callers must exclude that category first.
+ * Skills an effect grants, e.g. an Outrider Quad granting Hit & Run and
+ * Nerves of Steel. Not skill_id: on a 'skills'-category type that is the skill
+ * the effect belongs to.
  */
 export function grantedSkillsFromEffect(
   effect: { type_specific_data?: unknown } | null | undefined
@@ -513,9 +511,9 @@ export function grantedSkillsFromEffect(
   const tsd = effect && typeof effect.type_specific_data === 'object' && effect.type_specific_data
     ? effect.type_specific_data as Record<string, unknown>
     : null;
+  const skillIds = tsd?.skill_ids;
 
-  if (Array.isArray(tsd?.skill_ids)) return tsd.skill_ids;
-  return typeof tsd?.skill_id === 'string' && tsd.skill_id ? [tsd.skill_id] : [];
+  return Array.isArray(skillIds) ? skillIds : [];
 }
 
 // =============================================================================

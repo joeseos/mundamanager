@@ -30,7 +30,7 @@ export interface TraitModificationData {
 export interface TypeSpecificData extends TraitModificationData {
   // Base fields
   equipment_id?: string;
-  /** On a 'skills'-category type the skill this effect belongs to; on an older granting effect, the one skill it grants */
+  /** 'skills'-category types only: the skill this effect belongs to */
   skill_id?: string;
   /** Skills the fighter gains while the effect is applied */
   skill_ids?: string[];

@@ -169,7 +169,7 @@ async function applyEffectsForEquipmentOptimized(
     const { data: insertedEffects, error: effectsError } = await supabase
       .from('fighter_effects')
       .insert(effectsToInsert)
-      .select('id, fighter_effect_type_id');
+      .select('id');
 
     if (effectsError || !insertedEffects) {
       console.error('Failed to insert effects:', effectsError);
@@ -204,7 +204,6 @@ async function applyEffectsForEquipmentOptimized(
       fighterId,
       insertedEffects.map((effect: any, index: number) => ({
         id: effect.id,
-        fighter_effect_type_id: effect.fighter_effect_type_id,
         type_specific_data: effectTypes[index]?.type_specific_data
       })),
       userId

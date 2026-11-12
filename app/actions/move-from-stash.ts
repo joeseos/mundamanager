@@ -253,7 +253,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
               const { data: insertedEffects, error: insertErr } = await supabase
                 .from('fighter_effects')
                 .insert(effectsToInsert)
-                .select('id, fighter_effect_type_id');
+                .select('id');
 
               if (insertErr) {
                 console.error(`Failed to insert effects for ${item.stash_id}: ${insertErr.message}`);
@@ -264,7 +264,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
                   params.fighter_id,
                   insertedEffects.map((effect, index) => ({
                     id: effect.id,
-                    fighter_effect_type_id: effect.fighter_effect_type_id,
                     type_specific_data: toApply[index]?.type_specific_data
                   })),
                   fighterOwnerId!

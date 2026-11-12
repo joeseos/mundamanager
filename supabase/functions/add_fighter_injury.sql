@@ -248,7 +248,6 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- skill_ids, or the single skill_id of injuries saved before skill_ids.
     -- Always new rows, as grantSkillsForEffects does: reusing a skill the
     -- fighter already has would let removing the injury delete it.
     -- fighter_effect_id cascades the skills away with the injury.
@@ -259,11 +258,7 @@ BEGIN
         fighter_effect_id
     )
     SELECT in_fighter_id, granted.skill_id::UUID, v_fighter_owner_id, new_effect_id
-    FROM jsonb_array_elements_text(COALESCE(
-        effect_type_record.type_specific_data->'skill_ids',
-        CASE WHEN effect_type_record.type_specific_data->>'skill_id' IS NOT NULL
-            THEN jsonb_build_array(effect_type_record.type_specific_data->'skill_id') END
-    )) AS granted(skill_id);
+    FROM jsonb_array_elements_text(effect_type_record.type_specific_data->'skill_ids') AS granted(skill_id);
 
     -- Return the newly created effect
     RETURN QUERY

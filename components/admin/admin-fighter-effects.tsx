@@ -10,7 +10,6 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
 import { Badge } from "@/components/ui/badge";
-import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier, 
@@ -356,7 +355,7 @@ export function AdminFighterEffects({
       special_rules_to_remove: fromList(effect.type_specific_data?.special_rules_to_remove),
       fighter_subtype_ids_to_add: effect.type_specific_data?.fighter_subtype_ids_to_add || [],
       fighter_subtype_ids_to_remove: effect.type_specific_data?.fighter_subtype_ids_to_remove || [],
-      grants_skill_ids: isSkill ? [] : grantedSkillsFromEffect(effect),
+      grants_skill_ids: isSkill ? [] : (effect.type_specific_data?.skill_ids || []),
       credits_increase: effect.type_specific_data?.credits_increase?.toString() || '',
       cost: effect.type_specific_data?.cost?.toString() || '',
       is_editable: effect.type_specific_data?.is_editable === true,
@@ -412,8 +411,7 @@ export function AdminFighterEffects({
       // Set is_editable or remove it if false
       ...(newEffect.is_editable ? { is_editable: true } : { is_editable: undefined }),
       // On the skill page skill_id is the owning skill, set at creation and never edited here
-      // Saving moves an older effect's single skill_id into skill_ids
-      ...(isSkill ? {} : { skill_ids: newEffect.grants_skill_ids.length > 0 ? newEffect.grants_skill_ids : undefined, skill_id: undefined }),
+      ...(isSkill ? {} : { skill_ids: newEffect.grants_skill_ids.length > 0 ? newEffect.grants_skill_ids : undefined }),
       // Hardpoint fields - always include when category is hardpoint, clear when not
       // default_arcs = immutable template baseline for cost calc; arcs = current player-facing state.
       // At creation they're identical; arcs diverges later when the player modifies the hardpoint.
@@ -690,9 +688,9 @@ export function AdminFighterEffects({
                           </Badge>
                         )}
 
-                        {!isSkill && grantedSkillsFromEffect(effect).length > 0 && (
+                        {!isSkill && effect.type_specific_data?.skill_ids && effect.type_specific_data.skill_ids.length > 0 && (
                           <Badge variant="secondary" className="text-xs">
-                            Grants: {grantedSkillsFromEffect(effect).map(id => skillNameById.get(id) ?? id).join(', ')}
+                            Grants: {effect.type_specific_data.skill_ids.map(id => skillNameById.get(id) ?? id).join(', ')}
                           </Badge>
                         )}
 
