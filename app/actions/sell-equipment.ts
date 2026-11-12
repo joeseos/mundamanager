@@ -437,6 +437,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     // Invalidate stash cache so UI refreshes
     invalidateGangStash(row.gang_id);
     invalidateGang(row.gang_id);
+    stashFighters.ids.forEach((fighterId) => invalidateFighter(fighterId, row.gang_id));
 
     return { success: true, data: { gang: updatedGang, removed_fighter_ids: stashFighters.ids } };
   } catch (e) {

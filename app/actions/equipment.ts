@@ -1430,6 +1430,7 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
 
     invalidateGangStash(row.gang_id);
     invalidateGang(row.gang_id);
+    stashFighters.ids.forEach((fighterId) => invalidateFighter(fighterId, row.gang_id));
     return {
       success: true,
       data: {

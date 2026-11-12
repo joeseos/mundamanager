@@ -331,6 +331,8 @@ export function buildFamiliarFromServerData(familiar: FamiliarServerData): Fight
     fighter_custom_gang_type_id: familiar.fighter_custom_gang_type_id ?? null,
     credits: familiar.credits,
     owner_name: familiar.owner?.fighter_name,
+    // A card created with no owner is kept in the stash by its item and starts with nothing added
+    stash_value: familiar.owner === null ? 0 : undefined,
     movement: stats.movement,
     weapon_skill: stats.weapon_skill,
     ballistic_skill: stats.ballistic_skill,

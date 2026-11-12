@@ -325,8 +325,9 @@ export default function GangPageContent({
     });
   }, []);
 
-  // Rollback handler for optimistic updates - removes temp fighter and restores credits/rating/wealth
-  const handleFighterRollback = useCallback((tempFighterId: string, cost: number, ratingCost: number) => {
+  // Removes a fighter and gives back what it cost: the rollback of an optimistic add, or
+  // (costing nothing) a card removed with its stash item
+  const handleFighterRollback = useCallback((tempFighterId: string, cost = 0, ratingCost = 0) => {
     setGangData((prev: GangDataState) => {
       // Remove the temp fighter from the fighters array
       const updatedFighters = prev.processedData.fighters.filter(f => f.id !== tempFighterId);
@@ -706,7 +707,7 @@ export default function GangPageContent({
           onStashUpdate={handleStashUpdate}
           onFighterUpdate={handleFighterUpdate}
           onFighterAdd={handleFighterAdd}
-          onFighterRemove={(fighterId) => handleFighterRollback(fighterId, 0, 0)}
+          onFighterRemove={handleFighterRollback}
           vehicles={gangData.processedData.vehicles || []}
           gangTypeId={gangData.processedData.gang_type_id ?? undefined}
           gangId={gangId}
