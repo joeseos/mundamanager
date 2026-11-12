@@ -1200,9 +1200,6 @@ export default function GangInventory({
                 if (res.data?.gang?.credits !== undefined) {
                   onGangCreditsUpdate?.(res.data.gang.credits);
                 }
-                if (res.data?.gang?.rating !== undefined) {
-                  onGangRatingUpdate?.(res.data.gang.rating);
-                }
                 if (res.data?.gang?.wealth !== undefined) {
                   onGangWealthUpdate?.(res.data.gang.wealth);
                 }
@@ -1238,7 +1235,6 @@ export default function GangInventory({
               setStash(newStash);
               onStashUpdate?.(newStash);
               removeStashItemFighters(res.data.removed_fighter_ids);
-              if (res.data.rating !== undefined) onGangRatingUpdate?.(res.data.rating);
               if (res.data.wealth !== undefined) onGangWealthUpdate?.(res.data.wealth);
               toast.success(`Deleted ${getItemName(item)} from stash`);
             } else {

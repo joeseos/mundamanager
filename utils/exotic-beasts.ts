@@ -2,8 +2,6 @@ import 'server-only';
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighter } from '@/utils/cache-tags';
-import { countsTowardRating } from '@/utils/fighter-status';
-import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 
 /** Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26. */
 export function isBeastWargear(equipmentCategory: string | null | undefined): boolean {
@@ -13,33 +11,34 @@ export function isBeastWargear(equipmentCategory: string | null | undefined): bo
 
 /**
  * The fighters a stash item keeps in the stash with it (the Trazior Pattern
- * Sentry Gun's card), and the rating of the active ones. Read it before removing
- * the item: the delete cascades to them.
+ * Sentry Gun's card), and the stash value their gear adds (see
+ * fighterCostTarget). Read it before removing the item: the delete cascades to them.
  */
 export async function getStashItemFighters(
   supabase: any,
   fighterEquipmentId: string
-): Promise<{ ids: string[]; rating: number }> {
+): Promise<{ ids: string[]; gearValue: number }> {
   const { data: links, error } = await supabase
     .from('fighter_exotic_beasts')
-    .select('fighter_pet_id')
+    .select(`
+      fighter_pet_id,
+      pet:fighters!fighter_pet_id (
+        fighter_equipment!fighter_id (
+          purchase_cost,
+          fighter_effects!fighter_effects_fighter_equipment_id_fkey (type_specific_data)
+        )
+      )
+    `)
     .eq('fighter_equipment_id', fighterEquipmentId)
     .is('fighter_owner_id', null);
   if (error) throw error;
 
-  const ids: string[] = links.map((link: { fighter_pet_id: string }) => link.fighter_pet_id);
-  if (ids.length === 0) return { ids, rating: 0 };
-
-  const { data: fighters, error: fightersError } = await supabase
-    .from('fighters')
-    .select('id, killed, retired, enslaved, captured')
-    .in('id', ids);
-  if (fightersError) throw fightersError;
-
-  const costs = await Promise.all(
-    fighters.filter(countsTowardRating).map((fighter: { id: string }) => getFighterTotalCost(fighter.id))
-  );
-  return { ids, rating: costs.reduce((sum, cost) => sum + cost, 0) };
+  const gearValue = links
+    .flatMap((link: any) => link.pet?.fighter_equipment ?? [])
+    .reduce((sum: number, item: any) => sum + (item.purchase_cost || 0) + item.fighter_effects.reduce(
+      (s: number, effect: any) => s + (effect.type_specific_data?.credits_increase || 0), 0
+    ), 0);
+  return { ids: links.map((link: { fighter_pet_id: string }) => link.fighter_pet_id), gearValue };
 }
 
 /**
@@ -290,7 +289,8 @@ export async function createExoticBeastsForEquipment(
         fighter_type_id: beastConfig.fighter_type_id,
         fighter_gang_type_id: fighterType.gang_type_id ?? null,
         fighter_custom_gang_type_id: null,
-        credits: fighterType.cost || 0,
+        // A fighter kept in the stash costs nothing: its item's cost is stash value
+        credits: params.ownerFighterId ? fighterType.cost || 0 : 0,
         equipment_source: 'Granted by equipment',
         created_at: newFighter.created_at,
         // Owner information (null for stash purchases)

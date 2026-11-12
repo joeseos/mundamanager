@@ -500,7 +500,9 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
 
     // Calculate total cost
     let totalCost = 0;
-    const isOwnedBeast = !!ownershipInfo;
+    // A beast's cost rolls into its owner, and a fighter kept in the stash by its
+    // item (no owner) is stash value, so the card itself costs nothing
+    const isGrantedByItem = !!fighter.fighter_pet_id;
 
     // Process vehicles with equipment and effects for display
     const processedVehicles = vehicles.map((vehicle: any) => {
@@ -569,7 +571,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
       .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
 
-    if (!isOwnedBeast) {
+    if (!isGrantedByItem) {
       // Total cost for gang rating uses ALL equipment, skills and effects (not filtered by loadout)
       const allEquipmentCost = processedEquipment
         .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
@@ -607,7 +609,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
     const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, gangScope);
 
     // Loadout cost for fighter card display: base cost + loadout equipment + skills + effects
-    const displayLoadoutCost = !isOwnedBeast
+    const displayLoadoutCost = !isGrantedByItem
       ? fighter.credits + loadoutEquipmentCost + skillCredits(Object.values(skills)) + effectCredits(Object.values(effects).flat()) + vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total
       : 0;
 

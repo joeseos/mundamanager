@@ -104,7 +104,7 @@ function fighterCostQuery(db: AppDb, fighterId: string) {
     columns: { credits: true, cost_adjustment: true },
     where: (fighter, { eq }) => eq(fighter.id, fighterId),
     with: {
-      beast_link: { columns: { fighter_owner_id: true } },
+      beast_link: { columns: { id: true } },
       fighter_equipment: {
         columns: { purchase_cost: true },
         where: (item, { isNull }) => isNull(item.vehicle_id),
@@ -162,7 +162,7 @@ export const getFighterTotalCost = async (fighterId: string): Promise<number> =>
   if (!fighter) return 0;
 
   // Fighters owned by another fighter (exotic beasts) always cost 0
-  if (fighter.beast_link?.fighter_owner_id) return 0;
+  if (fighter.beast_link) return 0;
 
   const equipmentCost = fighter.fighter_equipment.reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0);
   const skillsCost = fighter.fighter_skills.reduce((sum, skill) => sum + (skill.credits_increase || 0), 0);

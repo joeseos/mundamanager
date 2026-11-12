@@ -37,7 +37,7 @@ export function countsTowardRating(fighter: FighterStatus | null | undefined): b
 }
 
 /**
- * Columns to select on `fighters` for costCountsTowardRating: the fighter's
+ * Columns to select on `fighters` for fighterCostTarget: the fighter's
  * status and, for an exotic beast, its owner's status.
  */
 export const RATING_STATUS_COLUMNS = `
@@ -51,15 +51,23 @@ export const RATING_STATUS_COLUMNS = `
 export type FighterRatingStatus = FighterStatus & { beast_link?: unknown };
 
 /**
- * Whether costs added to this fighter (equipment, effects) count toward gang
- * rating. An exotic beast's cost rolls into its owner, so the owner must count
- * too. A fighter kept in the stash by its item has no owner and counts alone.
+ * Where a change to a fighter's cost goes: gang rating (and wealth), stash
+ * value (wealth only), or nowhere.
  */
-export function costCountsTowardRating(fighter: FighterRatingStatus | null | undefined): boolean {
+export type FighterCostTarget = 'rating' | 'stash' | 'none';
+
+/**
+ * Where costs added to this fighter (equipment, effects) go. Only an active
+ * fighter's count toward rating, and an exotic beast's cost rolls into its
+ * owner, so the owner must count too. A fighter kept in the stash by its item
+ * (no owner, the Trazior Pattern Sentry Gun) is part of that item's stash value.
+ */
+export function fighterCostTarget(fighter: FighterRatingStatus | null | undefined): FighterCostTarget {
   // A many-to-one embed, so PostgREST returns an object; without generated
   // types supabase-js types it as an array.
   const beastLink = fighter?.beast_link as { owner: FighterStatus | null } | null | undefined;
-  return countsTowardRating(fighter) && (!beastLink?.owner || countsTowardRating(beastLink.owner));
+  if (beastLink && !beastLink.owner) return 'stash';
+  return countsTowardRating(fighter) && (!beastLink || countsTowardRating(beastLink.owner)) ? 'rating' : 'none';
 }
 
 export function hasKilledStatusFlag(typeSpecificData: any): boolean {
