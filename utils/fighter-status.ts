@@ -53,13 +53,13 @@ export type FighterRatingStatus = FighterStatus & { beast_link?: unknown };
 /**
  * Whether costs added to this fighter (equipment, effects) count toward gang
  * rating. An exotic beast's cost rolls into its owner, so the owner must count
- * too.
+ * too. A fighter kept in the stash by its item has no owner and counts alone.
  */
 export function costCountsTowardRating(fighter: FighterRatingStatus | null | undefined): boolean {
   // A many-to-one embed, so PostgREST returns an object; without generated
   // types supabase-js types it as an array.
   const beastLink = fighter?.beast_link as { owner: FighterStatus | null } | null | undefined;
-  return countsTowardRating(fighter) && (!beastLink || countsTowardRating(beastLink.owner));
+  return countsTowardRating(fighter) && (!beastLink?.owner || countsTowardRating(beastLink.owner));
 }
 
 export function hasKilledStatusFlag(typeSpecificData: any): boolean {

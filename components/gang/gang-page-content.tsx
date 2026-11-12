@@ -705,6 +705,8 @@ export default function GangPageContent({
           title="Stash"
           onStashUpdate={handleStashUpdate}
           onFighterUpdate={handleFighterUpdate}
+          onFighterAdd={handleFighterAdd}
+          onFighterRemove={(fighterId) => handleFighterRollback(fighterId, 0, 0)}
           vehicles={gangData.processedData.vehicles || []}
           gangTypeId={gangData.processedData.gang_type_id ?? undefined}
           gangId={gangId}

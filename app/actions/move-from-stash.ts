@@ -10,7 +10,7 @@ import { logEquipmentAction } from './logs/equipment-logs';
 import { grantSkillsForEffects, insertEffectWithModifiers, type GrantedSkill } from './equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
-import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
 
 export interface MoveFromStashItem {
   stash_id: string;
@@ -72,7 +72,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         custom_equipment_id,
         purchase_cost,
         is_master_crafted,
-        equipment:equipment_id (equipment_category)
+        equipment:equipment_id (equipment_category),
+        beast_links:fighter_exotic_beasts!fk_fighter_equipment_cascade (fighter_owner_id)
       `)
       .in('id', stashIds)
       .eq('gang_stash', true);
@@ -171,6 +172,10 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
       if (!stashData.equipment_id && !stashData.custom_equipment_id) {
         return { stash_id: item.stash_id, success: false, error: 'Item has neither equipment_id nor custom_equipment_id' };
+      }
+      // An item that keeps its fighter in the stash (the Trazior Pattern Sentry Gun) stays there
+      if (stashData.beast_links.some((link) => !link.fighter_owner_id)) {
+        return { stash_id: item.stash_id, success: false, error: 'This item stays in the gang stash' };
       }
 
       // Move equipment from stash
@@ -389,9 +394,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       // Beast equipment cost
       let beastEquipmentCost = 0;
       let beastOwnershipData: any[] | null = null;
-      // Beast-granting wargear: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
-      const equipmentCategory = (stashData as any).equipment?.equipment_category?.toLowerCase();
-      const isExoticBeast = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+      const isExoticBeast = isBeastWargear((stashData as any).equipment?.equipment_category);
 
       if (params.fighter_id && !isCustomEquipment && stashData.equipment_id && isExoticBeast) {
         hasExoticBeastEquipment = true;

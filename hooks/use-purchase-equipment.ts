@@ -4,6 +4,8 @@ import { buyEquipmentForFighter } from '@/app/actions/equipment';
 import { Equipment, ResourceCost } from '@/types/equipment';
 import { toast } from 'sonner';
 import { parseTradePointsCost } from '@/utils/campaigns/resources';
+import { buildFamiliarFromServerData, type FamiliarServerData } from '@/utils/fighter-builder';
+import type { FighterProps } from '@/types/fighter';
 
 // This is for the wrapper function to inject dependencies from the parent component.
 export interface PurchaseEquipmentContext {
@@ -27,6 +29,8 @@ export interface EquipmentBoughtResult {
   newGangRating?: number;
   newGangWealth?: number;
   newGangTradePoints?: number;
+  /** Fighters the item created: a beast, or the card an item keeps in the stash. */
+  createdFighters: FighterProps[];
 }
 
 export type EquipmentTarget = { target_equipment_id: string; effect_type_id: string };
@@ -165,7 +169,8 @@ export function usePurchaseEquipment(deps: PurchaseEquipmentContext) {
         },
         newGangRating,
         newGangWealth,
-        newGangTradePoints
+        newGangTradePoints,
+        createdFighters: (data.created_familiars ?? []).map((familiar: FamiliarServerData) => buildFamiliarFromServerData(familiar))
       });
 
       const displayName = equipmentRecord.is_master_crafted && item.equipment_type === 'weapon'

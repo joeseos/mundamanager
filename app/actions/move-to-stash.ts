@@ -9,7 +9,7 @@ import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-ra
 import { logEquipmentAction } from './logs/equipment-logs';
 import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -183,13 +183,11 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       throw new Error(`Failed to move equipment to stash: ${updateError?.message || 'No data returned'}`);
     }
 
-    // Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
-    const equipmentCategory = (equipmentData.equipment as any)?.equipment_category?.toLowerCase();
-    const isBeastWargear = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+    const grantsBeast = isBeastWargear((equipmentData.equipment as any)?.equipment_category);
 
     // Query beast equipment cost before clearing ownership (only for beast-granting equipment)
     let beastEquipmentCost = 0;
-    if (isBeastWargear) {
+    if (grantsBeast) {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -259,7 +257,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         invalidateFighter(equipmentData.fighter_id, gangId);
       }
       // If moving beast-granting equipment to stash, invalidate beast costs cache for the owner
-      if (isBeastWargear) {
+      if (grantsBeast) {
         revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache

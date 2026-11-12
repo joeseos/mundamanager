@@ -9,7 +9,7 @@ import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
-import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { createExoticBeastsForEquipment, getStashItemFighters, invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
@@ -380,6 +380,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           id,
           equipment_name,
           equipment_type,
+          equipment_category,
           cost,
           trade_points,
           is_editable,
@@ -768,15 +769,19 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Name for beast creation — from the fighter row read in the opening batch.
     const fighterName: string | null = fighterRow?.fighter_name ?? null;
 
-    // Handle familiar creation for fighter equipment purchases
+    // Handle familiar creation. A beast needs an owner, so beast wargear creates its fighter
+    // when bought for a fighter; any other item (the Trazior Pattern Sentry Gun) in the stash.
     let createdFamiliars: any[] = [];
     let createdFamiliarsRatingDelta = 0;
+    const createsFamiliars = isBeastWargear(equipmentDetails.equipment_category)
+      ? !!params.fighter_id && !params.buy_for_gang_stash
+      : !!params.buy_for_gang_stash;
 
-    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
+    if (createsFamiliars && !params.custom_equipment_id && params.equipment_id) {
       try {
         const familiarResult = await createExoticBeastsForEquipment({
           equipmentId: params.equipment_id,
-          ownerFighterId: params.fighter_id,
+          ownerFighterId: params.buy_for_gang_stash ? null : params.fighter_id!,
           ownerFighterName: fighterName,
           gangId: params.gang_id,
           userId: gang.user_id,
@@ -1413,7 +1418,7 @@ export async function applyEquipmentEffect(params: {
   }
 }
 
-// Delete an item directly from the gang stash (no rating updates)
+// Delete an item directly from the gang stash
 export async function deleteEquipmentFromStash(params: StashDeleteParams): Promise<StashActionResult> {
   try {
     const supabase = await createClient();
@@ -1428,6 +1433,7 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
     const purchaseCost = row.purchase_cost || 0;
+    const stashFighters = await getStashItemFighters(supabase, params.stash_id);
 
     // Permission implicitly enforced by RLS; we still fetch to invalidate correctly
     const { error: delErr } = await supabase
@@ -1436,17 +1442,23 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
 
-    // Update wealth (stash value decreases, so wealth decreases)
-    if (purchaseCost !== 0) {
-      await updateGangFinancials(supabase, {
-        gangId: row.gang_id,
-        stashValueDelta: -purchaseCost
-      });
-    }
+    // Stash value decreases, and rating loses the fighters the item kept in the stash
+    const financialResult = await updateGangFinancials(supabase, {
+      gangId: row.gang_id,
+      ratingDelta: -stashFighters.rating,
+      stashValueDelta: -purchaseCost
+    });
 
     invalidateGangStash(row.gang_id);
     invalidateGang(row.gang_id);
-    return { success: true };
+    return {
+      success: true,
+      data: {
+        rating: financialResult.newValues?.rating,
+        wealth: financialResult.newValues?.wealth,
+        removed_fighter_ids: stashFighters.ids
+      }
+    };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }

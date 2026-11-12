@@ -12,7 +12,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import type { CostResourcePayload } from '@/types/equipment';
-import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { getStashItemFighters, invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -46,7 +46,7 @@ interface StashSellParams {
 
 interface StashActionResult {
   success: boolean;
-  data?: { gang: { id: string; credits: number; wealth: number } };
+  data?: { gang: { id: string; credits: number; rating: number; wealth: number }; removed_fighter_ids: string[] };
   error?: string;
 }
 
@@ -172,13 +172,11 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       .select('id, type_specific_data')
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
-    // Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
-    const equipmentCategory = (equipmentData.equipment as any)?.equipment_category?.toLowerCase();
-    const isBeastWargear = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+    const grantsBeast = isBeastWargear((equipmentData.equipment as any)?.equipment_category);
 
     // Query beast equipment cost before deletion (cascade may delete beast data)
     let beastEquipmentCost = 0;
-    if (isBeastWargear && equipmentData.fighter_id) {
+    if (grantsBeast && equipmentData.fighter_id) {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -300,7 +298,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         invalidateFighter(equipmentData.fighter_id, gangId);
       }
       // If selling beast-granting equipment, invalidate beast costs cache
-      if (isBeastWargear) {
+      if (grantsBeast) {
         revalidateTag(TAGS.fighter(equipmentData.fighter_id), { expire: 0 });
       }
       // If this fighter is a beast, invalidate the owner's cache
@@ -377,9 +375,8 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     const purchaseCost = row.purchase_cost || 0;
 
     // Query beast equipment cost before deletion (only for beast-granting equipment)
-    const equipmentCategory = (row as any).equipment?.equipment_category?.toLowerCase();
     let beastEquipmentCost = 0;
-    if (equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets') {
+    if (isBeastWargear((row as any).equipment?.equipment_category)) {
       const { data: beastData } = await supabase
         .from('fighter_exotic_beasts')
         .select(`
@@ -404,13 +401,17 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       }
     }
 
+    const stashFighters = await getStashItemFighters(supabase, params.stash_id);
+
     // Update credits, rating and wealth using centralized helper
     // When selling from stash:
     // - Credits increase by sellValue (0 for resource purchases)
     // - Stash value decreases by purchaseCost + beastEquipmentCost
+    // - Rating loses the fighters the item kept in the stash
     const financialResult = await updateGangFinancials(supabase, {
       gangId: row.gang_id,
       creditsDelta: sellValue,
+      ratingDelta: -stashFighters.rating,
       stashValueDelta: -(purchaseCost + beastEquipmentCost)
     });
 
@@ -422,6 +423,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     const updatedGang = {
       id: row.gang_id,
       credits: financialResult.newValues?.credits ?? 0,
+      rating: financialResult.newValues?.rating ?? 0,
       wealth: financialResult.newValues?.wealth ?? 0
     };
 
@@ -448,7 +450,7 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     invalidateGangStash(row.gang_id);
     invalidateGang(row.gang_id);
 
-    return { success: true, data: { gang: { id: updatedGang.id, credits: updatedGang.credits, wealth: updatedGang.wealth } } };
+    return { success: true, data: { gang: updatedGang, removed_fighter_ids: stashFighters.ids } };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }

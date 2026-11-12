@@ -2,6 +2,45 @@ import 'server-only';
 
 import { createClient } from "@/utils/supabase/server";
 import { invalidateFighter } from '@/utils/cache-tags';
+import { countsTowardRating } from '@/utils/fighter-status';
+import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+
+/** Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26. */
+export function isBeastWargear(equipmentCategory: string | null | undefined): boolean {
+  const category = equipmentCategory?.toLowerCase();
+  return category === 'status items: exotic beasts' || category === 'pets';
+}
+
+/**
+ * The fighters a stash item keeps in the stash with it (the Trazior Pattern
+ * Sentry Gun's card), and the rating of the active ones. Read it before removing
+ * the item: the delete cascades to them.
+ */
+export async function getStashItemFighters(
+  supabase: any,
+  fighterEquipmentId: string
+): Promise<{ ids: string[]; rating: number }> {
+  const { data: links, error } = await supabase
+    .from('fighter_exotic_beasts')
+    .select('fighter_pet_id')
+    .eq('fighter_equipment_id', fighterEquipmentId)
+    .is('fighter_owner_id', null);
+  if (error) throw error;
+
+  const ids: string[] = links.map((link: { fighter_pet_id: string }) => link.fighter_pet_id);
+  if (ids.length === 0) return { ids, rating: 0 };
+
+  const { data: fighters, error: fightersError } = await supabase
+    .from('fighters')
+    .select('id, killed, retired, enslaved, captured')
+    .in('id', ids);
+  if (fightersError) throw fightersError;
+
+  const costs = await Promise.all(
+    fighters.filter(countsTowardRating).map((fighter: { id: string }) => getFighterTotalCost(fighter.id))
+  );
+  return { ids, rating: costs.reduce((sum, cost) => sum + cost, 0) };
+}
 
 /**
  * A beast's cost rolls up into its owner, so changing a beast invalidates the
@@ -42,7 +81,7 @@ export async function invalidateBeastOwnerCache(
 
 export interface ExoticBeastCreationParams {
   equipmentId: string;
-  ownerFighterId: string | null;  // null for stash purchases
+  ownerFighterId: string | null;  // null for items that keep their fighter in the stash
   ownerFighterName: string | null;
   gangId: string;
   userId: string;
@@ -172,8 +211,9 @@ export async function createExoticBeastsForEquipment(
           fighter_type: fighterType.fighter_type,
           fighter_type_id: beastConfig.fighter_type_id,
           // From the fighter type, so each edition gets its own name for this
-          // (N23 'Exotic Beast', N26 'Pet') without branching on the edition.
-          fighter_subtypes: fighterType.fighter_subtypes?.length ? fighterType.fighter_subtypes : ['Exotic Beast'],
+          // (N23 'Exotic Beast', N26 'Pet') without branching on the edition,
+          // and a type that is no beast (the Trazior Pattern Sentry Gun) gets none.
+          fighter_subtypes: fighterType.fighter_subtypes ?? [],
           gang_id: params.gangId,
           credits: 0,
           movement: fighterType.movement,
