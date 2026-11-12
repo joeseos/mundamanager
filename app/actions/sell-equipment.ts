@@ -6,7 +6,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
-import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
@@ -116,8 +116,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         throw new Error('Vehicle not found for this equipment');
       }
       gangId = vehicle.gang_id;
-      // An unassigned vehicle has no fighter, so its gear counts toward nothing
-      costTarget = fighterCostTarget(vehicle.fighters as FighterStatus | null);
+      costTarget = vehicleCostTarget(vehicle.fighters as FighterStatus | null);
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
     }

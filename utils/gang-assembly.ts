@@ -571,10 +571,10 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
       .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
 
+    // Total cost for gang rating uses ALL equipment, skills and effects (not filtered by loadout)
+    const allEquipmentCost = processedEquipment
+      .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
     if (!isGrantedByItem) {
-      // Total cost for gang rating uses ALL equipment, skills and effects (not filtered by loadout)
-      const allEquipmentCost = processedEquipment
-        .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
       totalCost = fighter.credits + allEquipmentCost + skillCredits(Object.values(allSkills)) + unfilteredEffectsCost +
                   vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total;
     }
@@ -676,6 +676,8 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       owner_id: ownershipInfo?.owner_id,
       owner_name: ownershipInfo?.owner_name,
       beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+      // Kept in the stash by its item (no owner): what was added to it is stash value
+      stash_value: isGrantedByItem && !ownershipInfo ? allEquipmentCost + unfilteredEffectsCost : undefined,
       active_loadout_id: activeLoadoutId || undefined,
       active_loadout_name: activeLoadoutId ? (loadoutCtx?.loadoutName ?? loadoutNameMap.get(activeLoadoutId)) : undefined,
       isActiveLoadoutForPrint: loadoutCtx?.isActiveLoadout ?? true

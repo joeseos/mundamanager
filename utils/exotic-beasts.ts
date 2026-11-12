@@ -11,7 +11,7 @@ export function isBeastWargear(equipmentCategory: string | null | undefined): bo
 
 /**
  * The fighters a stash item keeps in the stash with it (the Trazior Pattern
- * Sentry Gun's card), and the stash value their gear adds (see
+ * Sentry Gun's card), and the stash value their gear and effects add (see
  * fighterCostTarget). Read it before removing the item: the delete cascades to them.
  */
 export async function getStashItemFighters(
@@ -23,21 +23,19 @@ export async function getStashItemFighters(
     .select(`
       fighter_pet_id,
       pet:fighters!fighter_pet_id (
-        fighter_equipment!fighter_id (
-          purchase_cost,
-          fighter_effects!fighter_effects_fighter_equipment_id_fkey (type_specific_data)
-        )
+        fighter_equipment!fighter_id (purchase_cost),
+        fighter_effects (type_specific_data)
       )
     `)
     .eq('fighter_equipment_id', fighterEquipmentId)
     .is('fighter_owner_id', null);
   if (error) throw error;
 
-  const gearValue = links
-    .flatMap((link: any) => link.pet?.fighter_equipment ?? [])
-    .reduce((sum: number, item: any) => sum + (item.purchase_cost || 0) + item.fighter_effects.reduce(
-      (s: number, effect: any) => s + (effect.type_specific_data?.credits_increase || 0), 0
-    ), 0);
+  const gearValue = links.reduce((sum: number, { pet }: any) =>
+    sum +
+    (pet?.fighter_equipment ?? []).reduce((s: number, item: any) => s + (item.purchase_cost || 0), 0) +
+    (pet?.fighter_effects ?? []).reduce((s: number, effect: any) => s + (effect.type_specific_data?.credits_increase || 0), 0),
+  0);
   return { ids: links.map((link: { fighter_pet_id: string }) => link.fighter_pet_id), gearValue };
 }
 

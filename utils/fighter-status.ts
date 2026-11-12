@@ -70,6 +70,17 @@ export function fighterCostTarget(fighter: FighterRatingStatus | null | undefine
   return countsTowardRating(fighter) && (!beastLink || countsTowardRating(beastLink.owner)) ? 'rating' : 'none';
 }
 
+/**
+ * Where costs added to a vehicle (equipment, effects) go: its crew's target, or
+ * stash value for a vehicle without crew, which counts toward wealth only.
+ * crew is null only when the vehicle was read and has none; undefined (not read)
+ * goes nowhere.
+ */
+export function vehicleCostTarget(crew: FighterStatus | null | undefined): FighterCostTarget {
+  if (crew === undefined) return 'none';
+  return crew ? fighterCostTarget(crew) : 'stash';
+}
+
 export function hasKilledStatusFlag(typeSpecificData: any): boolean {
   return typeSpecificData?.killed === 'true' || typeSpecificData?.killed === true;
 }

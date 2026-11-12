@@ -9,7 +9,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { grantSkillsForEffects, insertEffectWithModifiers, type GrantedSkill } from './equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
 import { invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
 
 export interface MoveFromStashItem {
@@ -128,7 +128,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (vehicleError || !vehicle) throw new Error('Vehicle not found');
       if (vehicle.gang_id !== gangId) throw new Error('Vehicle does not belong to the same gang');
       vehicleFighterId = vehicle.fighter_id;
-      costTarget = fighterCostTarget(vehicle.fighters as FighterStatus | null);
+      costTarget = vehicleCostTarget(vehicle.fighters as FighterStatus | null);
 
       const { data: gang, error: gangError } = await supabase
         .from('gangs')

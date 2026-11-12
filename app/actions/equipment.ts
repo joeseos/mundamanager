@@ -7,7 +7,7 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { fighterCostTarget, FighterCostTarget, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { fighterCostTarget, FighterCostTarget, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, getStashItemFighters, invalidateBeastOwnerCache, isBeastWargear } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -354,11 +354,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       fighter_pet_id: string | null;
     }) | null;
     // Only gear on an active fighter counts toward rating: a beast's gear rolls
-    // into its owner and a vehicle's into its assigned fighter. An inactive
-    // fighter's whole cost is added back when they return.
-    const costTarget = fighterCostTarget(
-      params.fighter_id ? fighterRow : vehicleResult.data?.fighters as FighterStatus | null | undefined
-    );
+    // into its owner and a vehicle's into its assigned fighter, and a vehicle
+    // without crew counts toward wealth only. An inactive fighter's whole cost
+    // is added back when they return.
+    const costTarget = params.fighter_id
+      ? fighterCostTarget(fighterRow)
+      : vehicleCostTarget(vehicleResult.data?.fighters as FighterStatus | null | undefined);
     /**
      * null only when the row was actually read and says this fighter is not a
      * pet. A missing/failed read stays undefined so the helper falls back to
@@ -625,11 +626,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // Calculate base rating delta for the main equipment purchase
     if (!params.buy_for_gang_stash) {
-      if (params.fighter_id) {
-        ratingDelta += ratingCost;
-      } else if (params.vehicle_id && vehicleAssignedFighterId) {
-        ratingDelta += ratingCost;
-      }
+      ratingDelta += ratingCost;
     }
 
     // Handle equipment grants (equipment that automatically includes other items)
@@ -689,10 +686,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                 user_id: gang.user_id
               });
 
-            // Add to rating delta for granted equipment (fighters and assigned vehicles)
-            if (params.fighter_id || (params.vehicle_id && vehicleAssignedFighterId)) {
-              grantsRatingDelta += option.additional_cost;
-            }
+            grantsRatingDelta += option.additional_cost;
 
             // Track for logging after gang update
             grantedEquipmentForLogging.push({
@@ -750,12 +744,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
               });
 
               // Rating delta calculation
-              const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
-              if (params.fighter_id) {
-                ratingDelta += creditsIncrease;
-              } else if (params.vehicle_id && vehicleAssignedFighterId) {
-                ratingDelta += creditsIncrease;
-              }
+              ratingDelta += effectType.type_specific_data?.credits_increase || 0;
             }
           }
         }
@@ -1195,14 +1184,14 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           ? fighter.fighter_pet_id ?? null
           : undefined;
     } else if (equipmentBefore.vehicle_id) {
-      // Only counts if the vehicle is assigned to an active fighter
+      // Follows the vehicle's crew, or counts toward wealth only without one
       const { data: veh } = await supabase
         .from('vehicles')
         .select('fighters (killed, retired, enslaved, captured)')
         .eq('id', equipmentBefore.vehicle_id)
         .single();
 
-      costTarget = fighterCostTarget(veh?.fighters as FighterStatus | null | undefined);
+      costTarget = vehicleCostTarget(veh?.fighters as FighterStatus | null | undefined);
     }
 
     // Delete the equipment (cascade will handle fighter effects automatically)
