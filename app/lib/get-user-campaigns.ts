@@ -30,6 +30,7 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
       const members = await getAppDb().query.campaignMembers.findMany({
         columns: { id: true, role: true, is_favourite: true, favourite_order: true },
         where: (member, { eq }) => eq(member.user_id, userId),
+        orderBy: (member, { asc }) => [asc(member.created_at), asc(member.id)],
         with: {
           campaign: {
             columns: { id: true, campaign_name: true, campaign_type_id: true, image_url: true, created_at: true, updated_at: true },
@@ -49,7 +50,7 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
         },
       });
 
-      // A user can hold more than one membership in a campaign; the first one wins
+      // A user can hold more than one membership in a campaign; the oldest one wins
       const campaigns = new Map<string, Campaign>();
       for (const { campaign, ...member } of members) {
         if (!campaign || campaigns.has(campaign.id)) continue;
