@@ -20,11 +20,8 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_sender_id uuid;
   v_welcome_count integer := 0;
   v_nudge_count integer := 0;
-  -- Users created before this never match. Set to the UTC day this ships.
-  v_launch_at constant timestamptz := timestamptz '2026-11-12 00:00:00+00';
   v_welcome_html text :=
     '<p>Welcome to Munda Manager.</p>'
     || '<p>The <a href="/user-guide">User Guide</a> is the place for the fiddly bits — Venator skill access and gang legacy, Spyrer tier upgrades, Gene-Smithing, Chem-alchemy, Archaeo-Cyberteknika, and more.</p>'
@@ -38,20 +35,15 @@ DECLARE
     || '<p>The <a href="/user-guide">User Guide</a> is there when you pick it up again — Venator skill access, Spyrer tiers, Gene-Smithing, Chem-alchemy, and the rest of the fiddly bits.</p>'
     || '<p>If you got stuck, join <a href="https://discord.gg/ZWXXqd5NUt">Discord</a> and post in #feature-requests-and-support. Catalogue mistakes go in #data-is-wrong; bugs in #stuff-is-broken.</p>';
 BEGIN
-  SELECT id
-  INTO v_sender_id
-  FROM public.profiles
-  WHERE id = 'b09cb332-f4a9-4c9c-815f-2d8a36f265cb';
-
   WITH due AS (
     SELECT p.id
     FROM public.profiles p
     JOIN auth.users u ON u.id = p.id
     WHERE p.welcome_notified_at IS NULL
-      AND u.created_at >= v_launch_at
       AND u.email_confirmed_at IS NOT NULL
       AND u.last_sign_in_at IS NOT NULL
       AND GREATEST(u.email_confirmed_at, u.last_sign_in_at) <= now() - interval '30 minutes'
+      AND GREATEST(u.email_confirmed_at, u.last_sign_in_at) > now() - interval '1 day'
     FOR UPDATE OF p SKIP LOCKED
   ),
   ins AS (
@@ -62,7 +54,7 @@ BEGIN
       v_welcome_html,
       'mm_staff_message',
       true,
-      v_sender_id,
+      'b09cb332-f4a9-4c9c-815f-2d8a36f265cb'::uuid,
       due.id,
       false,
       '/user-guide'
@@ -106,10 +98,10 @@ BEGIN
       CASE WHEN due.has_gang THEN v_nudge_has_gang_html ELSE v_nudge_no_gang_html END,
       'mm_staff_message',
       true,
-      v_sender_id,
+      'b09cb332-f4a9-4c9c-815f-2d8a36f265cb'::uuid,
       due.id,
       false,
-      CASE WHEN due.has_gang THEN '/user-guide' ELSE '/' END
+      '/user-guide'
     FROM due
     RETURNING receiver_id
   )
