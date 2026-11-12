@@ -1423,10 +1423,10 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
     if (delErr) return { success: false, error: delErr.message };
 
     // Stash value loses the item and the gear of the fighters it kept in the stash
-    const financialResult = await updateGangFinancials(supabase, {
-      gangId: row.gang_id,
-      stashValueDelta: -(purchaseCost + stashFighters.gearValue)
-    });
+    const stashValueDelta = -(purchaseCost + stashFighters.gearValue);
+    const financialResult = stashValueDelta !== 0
+      ? await updateGangFinancials(supabase, { gangId: row.gang_id, stashValueDelta })
+      : null;
 
     invalidateGangStash(row.gang_id);
     invalidateGang(row.gang_id);
@@ -1434,7 +1434,7 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
     return {
       success: true,
       data: {
-        wealth: financialResult.newValues?.wealth,
+        wealth: financialResult?.newValues?.wealth,
         removed_fighter_ids: stashFighters.ids
       }
     };
