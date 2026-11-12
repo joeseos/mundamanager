@@ -6,7 +6,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 
 import { revalidateTag } from 'next/cache';
 import { logEquipmentAction } from './logs/equipment-logs';
-import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { clearHardpointReference } from './vehicle-hardpoints';
@@ -85,8 +85,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
     let gangOwnerUserId: string | null = null;
-    let vehicleAssigned = false;
-    let fighterIsActive = true; // Default to true for non-fighter equipment
+    let costTarget: FighterCostTarget = 'none';
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
     
@@ -103,7 +102,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
       gangId = fighter.gang_id;
       gangOwnerUserId = fighter.user_id ?? null;
-      fighterIsActive = costCountsTowardRating(fighter);
+      costTarget = fighterCostTarget(fighter);
       fighterPetId = fighter.fighter_pet_id ?? null;
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle and whether vehicle is assigned
@@ -117,12 +116,8 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
         throw new Error('Vehicle not found for this equipment');
       }
       gangId = vehicle.gang_id;
-      vehicleAssigned = !!vehicle.fighter_id;
-
-      // If vehicle is assigned to a fighter, check if that fighter is active
-      if (vehicleAssigned) {
-        fighterIsActive = countsTowardRating(vehicle.fighters as FighterStatus | null);
-      }
+      // An unassigned vehicle has no fighter, so its gear counts toward nothing
+      costTarget = fighterCostTarget(vehicle.fighters as FighterStatus | null);
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
     }
@@ -203,16 +198,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
-    // Compute rating delta: subtract purchase_cost and associated effects credits when applicable
-    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
-    // Inactive fighters are already excluded from rating calculations
-    let ratingDelta = 0;
-    if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
-      ratingDelta -= (equipmentData.purchase_cost || 0);
-      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-      ratingDelta -= effectsCredits;
-      ratingDelta -= beastEquipmentCost;
-    }
+    // The item, its effects and its beasts' gear come off the fighter's cost; an
+    // inactive fighter's cost is already out of rating (see fighterCostTarget)
+    const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+    const ratingDelta = -(equipmentData.purchase_cost || 0) - effectsCredits - beastEquipmentCost;
 
     // Charge before deleting. A negative-cost item (e.g. gene-smithing) sells for a negative
     // value, so the gang can be unable to pay for the sale; that has to fail with the item
@@ -221,6 +210,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     const financialResult = await updateGangFinancials(supabase, {
       gangId,
       ratingDelta,
+      costTarget,
       creditsDelta: sellValue
     });
 
@@ -238,6 +228,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       const reversal = await updateGangFinancials(supabase, {
         gangId,
         ratingDelta: -ratingDelta,
+        costTarget,
         creditsDelta: -sellValue
       });
       if (!reversal.success) {

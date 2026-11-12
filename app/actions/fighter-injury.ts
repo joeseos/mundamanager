@@ -585,7 +585,6 @@ export async function clearRigGlitchesDowntime(params: {
     const financialResult = await updateGangFinancials(supabase, {
       gangId: fighter.gang_id,
       creditsDelta: -params.credit_cost,
-      applyToRating: false,
     });
 
     if (!financialResult.success) throw new Error(financialResult.error || 'Failed to deduct credits');

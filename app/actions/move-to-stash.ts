@@ -7,7 +7,7 @@ import { getAuthenticatedUser } from "@/utils/auth";
 import { revalidateTag } from 'next/cache';
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
-import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 
@@ -91,8 +91,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
     let gangOwnerUserId: string | null = null;
-    let vehicleAssigned = false;
-    let fighterIsActive = true; // Default to true for non-fighter equipment
+    let costTarget: FighterCostTarget = 'none';
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
     
@@ -109,7 +108,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
       gangId = fighter.gang_id;
       gangOwnerUserId = fighter.user_id ?? null;
-      fighterIsActive = costCountsTowardRating(fighter);
+      costTarget = fighterCostTarget(fighter);
       fighterPetId = fighter.fighter_pet_id ?? null;
     } else if (equipmentData.vehicle_id) {
       // Get gang_id from vehicle
@@ -123,12 +122,8 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
         throw new Error('Vehicle not found for this equipment');
       }
       gangId = vehicle.gang_id;
-      vehicleAssigned = !!vehicle.fighter_id;
-
-      // If vehicle is assigned to a fighter, check if that fighter is active
-      if (vehicleAssigned) {
-        fighterIsActive = countsTowardRating(vehicle.fighters as FighterStatus | null);
-      }
+      // An unassigned vehicle has no fighter, so its gear counts toward nothing
+      costTarget = fighterCostTarget(vehicle.fighters as FighterStatus | null);
     } else {
       throw new Error('Equipment is not associated with a fighter or vehicle');
     }
@@ -214,39 +209,20 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     }
 
-    // Rating delta: subtract equipment purchase_cost, effects, and beast equipment cost
-    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
-    // Inactive fighters are already excluded from rating calculations
-    let ratingDelta = 0;
-    if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
-      ratingDelta -= (equipmentData.purchase_cost || 0);
-      const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-      ratingDelta -= effectsCredits;
-      ratingDelta -= beastEquipmentCost;
-    }
-
-    // Calculate equipment value for wealth calculation
-    // Wealth includes stash value, so moving equipment to stash increases wealth by equipment value
+    // The item, its effects and its beasts' gear move off the fighter's cost and into stash value
     const equipmentValue = (equipmentData.purchase_cost || 0) +
       (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0) +
       beastEquipmentCost;
 
-    // Wealth delta calculation:
-    // - If fighter is active: rating decreases (ratingDelta is negative), but stash value increases (equipmentValue is positive)
-    //   Net wealth change: ratingDelta + equipmentValue = 0 (equipment moves from rating to stash)
-    // - If fighter is inactive: rating doesn't change (ratingDelta = 0), but stash value increases
-    //   Net wealth change: equipmentValue (stash value increases)
-    const wealthDelta = ratingDelta + equipmentValue;
-
-    // Always update wealth when moving equipment to stash (stash value is part of wealth)
-    // Only update rating if it changed (active fighter)
+    // Wealth change:
+    // - Active fighter: rating drops by equipmentValue and stash value rises by it, so wealth holds
+    // - Inactive fighter: its cost is already out of rating, so only stash value (and wealth) rises
     let financialResult: GangFinancialUpdateResult | null = null;
-    if (ratingDelta !== 0 || wealthDelta !== 0) {
-      // Use stashValueDelta since equipment is moving to stash
-      // wealthDelta = ratingDelta + equipmentValue, so stashValueDelta = equipmentValue
+    if (equipmentValue !== 0) {
       financialResult = await updateGangFinancials(supabase, {
         gangId,
-        ratingDelta,
+        ratingDelta: -equipmentValue,
+        costTarget,
         stashValueDelta: equipmentValue
       });
     }

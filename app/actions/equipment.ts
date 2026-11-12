@@ -3,11 +3,11 @@
 import { invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
-import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { fighterCostTarget, FighterCostTarget, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -356,9 +356,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Only gear on an active fighter counts toward rating: a beast's gear rolls
     // into its owner and a vehicle's into its assigned fighter. An inactive
     // fighter's whole cost is added back when they return.
-    const ownerIsActive = params.fighter_id
-      ? costCountsTowardRating(fighterRow)
-      : countsTowardRating(vehicleResult.data?.fighters as FighterStatus | null | undefined);
+    const costTarget = fighterCostTarget(
+      params.fighter_id ? fighterRow : vehicleResult.data?.fighters as FighterStatus | null | undefined
+    );
     /**
      * null only when the row was actually read and says this fighter is not a
      * pet. A missing/failed read stays undefined so the helper falls back to
@@ -800,7 +800,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate deltas for gang updates
-    const totalRatingDelta = ownerIsActive ? ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta : 0;
+    const totalRatingDelta = ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
     // Update gang credits, rating, wealth and Trade Points using centralized helper.
@@ -810,6 +810,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
+      costTarget,
       creditsDelta: isResourcePurchase ? 0 : -finalPurchaseCost - grantsRatingDelta,
       tradePointsDelta: -tradePointsCost,
       reputationDelta: isReputationPurchase ? -params.resourceCost!.amount : 0,
@@ -1167,47 +1168,36 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       `)
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
-    // Determine rating delta prior to deletion
-    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
-    // Inactive fighters are already excluded from rating calculations
-    let ratingDelta = 0;
+    // The item and its effects come off the fighter's cost; an inactive fighter's
+    // cost is already out of rating (see fighterCostTarget)
+    const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+    const ratingDelta = -(equipmentBefore.purchase_cost || 0) - effectsCredits;
+    let costTarget: FighterCostTarget = 'none';
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
     if (equipmentBefore.fighter_id) {
-      // Check if the fighter is active before applying rating delta
       const { data: fighter } = await supabase
         .from('fighters')
         .select(`fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
         .eq('id', equipmentBefore.fighter_id)
         .single();
 
-      const fighterIsActive = costCountsTowardRating(fighter);
+      costTarget = fighterCostTarget(fighter);
       // Only a hint when the row was read AND belongs to the fighter the
       // invalidation below targets; otherwise leave undefined to force a lookup.
       fighterPetId =
         fighter && equipmentBefore.fighter_id === params.fighter_id
           ? fighter.fighter_pet_id ?? null
           : undefined;
-
-      if (fighterIsActive) {
-        ratingDelta -= (equipmentBefore.purchase_cost || 0);
-        // subtract associated effects credits if any
-        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-        ratingDelta -= effectsCredits;
-      }
     } else if (equipmentBefore.vehicle_id) {
-      // Only count if vehicle assigned to an active fighter
+      // Only counts if the vehicle is assigned to an active fighter
       const { data: veh } = await supabase
         .from('vehicles')
         .select('fighters (killed, retired, enslaved, captured)')
         .eq('id', equipmentBefore.vehicle_id)
         .single();
 
-      if (countsTowardRating(veh?.fighters as FighterStatus | null | undefined)) {
-        ratingDelta -= (equipmentBefore.purchase_cost || 0);
-        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-        ratingDelta -= effectsCredits;
-      }
+      costTarget = fighterCostTarget(veh?.fighters as FighterStatus | null | undefined);
     }
 
     // Delete the equipment (cascade will handle fighter effects automatically)
@@ -1247,9 +1237,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     }
 
     // Update rating and wealth if needed
-    if (ratingDelta !== 0) {
-      await updateGangRatingSimple(supabase, params.gang_id, ratingDelta);
-    }
+    await updateGangFinancials(supabase, { gangId: params.gang_id, ratingDelta, costTarget });
 
     // Get fresh fighter total cost after deletion for accurate response
     let freshFighterTotalCost = null;
@@ -1535,11 +1523,10 @@ export async function applySelfUpgradesToEquipment(params: {
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: params.credits_increase,
-          applyToRating: fighterIsActive
+          costTarget: fighterCostTarget(fighter)
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);
@@ -1611,11 +1598,10 @@ export async function deleteEquipmentEffect(
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: -params.credits_increase,
-          applyToRating: fighterIsActive
+          costTarget: fighterCostTarget(fighter)
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);

@@ -1088,7 +1088,7 @@ export async function copyFighter(params: CopyFighterParams): Promise<CopyFighte
       gangId: params.target_gang_id,
       ratingDelta: totalCopyCost,
       creditsDelta: params.deduct_credits ? -totalCopyCost : 0,
-      applyToRating: params.add_to_rating !== false
+      costTarget: params.add_to_rating === false ? 'none' : 'rating'
     });
 
     if (!financialResult.success) {
