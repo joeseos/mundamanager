@@ -63,6 +63,7 @@ interface StashActionResult {
 
 type GrantingEffect = {
   id: string;
+  fighter_effect_type_id: string;
   type_specific_data?: any;
 };
 
@@ -86,32 +87,58 @@ export async function grantSkillsForEffects(
   // N23 vehicle-only effects grant nothing; on N26 a vehicle is a fighter
   if (!fighterId) return [];
 
-  // Zero cost: the equipment's price and the effect's credits_increase already
-  // drive rating.
-  const rows = (effects ?? []).flatMap(effect =>
-    grantedSkillsFromEffect(effect).map(skillId => ({
-      fighter_id: fighterId,
-      skill_id: skillId,
-      user_id: userId,
-      credits_increase: 0,
-      xp_cost: 0,
-      is_advance: false,
-      fighter_effect_id: effect.id
-    }))
-  );
-  if (rows.length === 0) return [];
+  const candidates = (effects ?? []).filter(effect => grantedSkillsFromEffect(effect).length > 0);
+  if (candidates.length === 0) return [];
 
-  const { data: skills, error } = await supabase
-    .from('fighter_skills')
-    .insert(rows)
-    .select('skill_id, skills!skill_id ( name )');
+  // On a 'skills'-category type, skill_id is the skill this effect BELONGS TO
+  // (fighter-advancement.ts), not one it grants. addEquipmentEffect takes an
+  // effect_type_id from the client, so this decides a real request.
+  const { data: types, error: typesError } = await supabase
+    .from('fighter_effect_types')
+    .select('id, fighter_effect_categories ( category_name )')
+    .in('id', candidates.map(effect => effect.fighter_effect_type_id));
 
-  if (error) {
-    console.error('Failed to insert granted skills:', error);
+  // Bail rather than fail open: an empty set would exclude nothing
+  if (typesError || !types) {
+    console.error('Failed to read effect type categories, skipping skill grants:', typesError);
     return [];
   }
 
-  return (skills ?? []).map((skill: any) => ({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' }));
+  const skillCategoryTypeIds = new Set(
+    types
+      .filter((row: any) => row.fighter_effect_categories?.category_name === 'skills')
+      .map((row: any) => row.id)
+  );
+
+  const granted: GrantedSkill[] = [];
+
+  for (const effect of candidates) {
+    if (skillCategoryTypeIds.has(effect.fighter_effect_type_id)) continue;
+
+    // Zero cost: the equipment's price and the effect's credits_increase already
+    // drive rating.
+    const { data: skills, error: skillError } = await supabase
+      .from('fighter_skills')
+      .insert(grantedSkillsFromEffect(effect).map(skillId => ({
+        fighter_id: fighterId,
+        skill_id: skillId,
+        user_id: userId,
+        credits_increase: 0,
+        xp_cost: 0,
+        is_advance: false,
+        fighter_effect_id: effect.id
+      })))
+      .select('skill_id, skills!skill_id ( name )');
+
+    if (!skills) {
+      console.error('Failed to insert granted skills:', skillError);
+      continue;
+    }
+
+    granted.push(...skills.map((skill: any) => ({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' })));
+  }
+
+  return granted;
 }
 
 /**
@@ -230,7 +257,11 @@ export async function insertEffectWithModifiers(
     await grantSkillsForEffects(
       supabase,
       params.fighter_id,
-      [{ id: newEffect.id, type_specific_data: effectType.type_specific_data }],
+      [{
+        id: newEffect.id,
+        fighter_effect_type_id: effectType.id,
+        type_specific_data: effectType.type_specific_data
+      }],
       params.user_id
     );
 
