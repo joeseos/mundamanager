@@ -1,7 +1,7 @@
 'use server'
 
 import { TAGS } from '@/utils/cache-tags';
-import { createClient } from "@/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
 
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -57,11 +57,16 @@ export async function reorderFavourites(
       return { success: false, error: `You do not own all specified ${entityLabel}` };
     }
 
+    // campaign_members RLS only lets owners and arbitrators update rows, so a member's own
+    // favourite columns are written with the service role, scoped to the caller's rows
+    const writer = params.type === 'campaign' ? createServiceRoleClient() : supabase;
+
     for (let i = 0; i < params.ids.length; i++) {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await writer
         .from(table)
         .update({ favourite_order: i })
-        .eq('id', params.ids[i]);
+        .eq('id', params.ids[i])
+        .eq('user_id', user.id);
 
       if (updateError) {
         console.error(`Error updating favourite_order for ${table} ${params.ids[i]}:`, updateError);
