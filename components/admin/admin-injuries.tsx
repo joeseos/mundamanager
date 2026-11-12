@@ -166,7 +166,7 @@ export function AdminInjuriesGlitchesModal({ onClose }: AdminInjuriesGlitchesMod
 
       // Spread the existing value first: the PATCH route replaces this column
       // wholesale, and this form knows only five of its keys. Without it,
-      // saving silently dropped skill_id, hatred_target, special_rules_to_add
+      // saving silently dropped skill_ids, hatred_target, special_rules_to_add
       // and the d66 ranges.
       const existingTypeSpecificData =
         (operation === OperationType.UPDATE ? fighterEffects[0]?.type_specific_data : null) ?? {};

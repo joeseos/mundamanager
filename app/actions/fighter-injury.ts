@@ -314,8 +314,8 @@ export async function addFighterInjury(
       invalidateGang(params.captured_by_gang_id);
     }
 
-    // If injury grants a skill, invalidate skills cache
-    if (injuryData?.type_specific_data?.skill_id) {
+    // If injury grants skills, invalidate skills cache
+    if (injuryData?.type_specific_data?.skill_ids?.length) {
       revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     }
 

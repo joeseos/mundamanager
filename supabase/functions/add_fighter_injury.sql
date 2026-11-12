@@ -32,7 +32,6 @@ DECLARE
     new_effect_id UUID;
     effect_type_record RECORD;
     modifier_record RECORD;
-    skill_id_val UUID;
     v_is_admin BOOLEAN;
     v_user_has_access BOOLEAN;
     v_gang_id UUID;
@@ -249,26 +248,17 @@ BEGIN
         END IF;
     END LOOP;
 
-    -- Check if there's a skill_id in the type_specific_data and add the skill relation
-    IF effect_type_record.type_specific_data->>'skill_id' IS NOT NULL THEN
-        skill_id_val := (effect_type_record.type_specific_data->>'skill_id')::UUID;
-
-        -- Always a new row, as grantSkillsForEffects does: reusing a skill the
-        -- fighter already has would let removing the injury delete it.
-        -- fighter_effect_id cascades the skill away with the injury.
-        INSERT INTO fighter_skills (
-            fighter_id,
-            skill_id,
-            user_id,
-            fighter_effect_id
-        )
-        VALUES (
-            in_fighter_id,
-            skill_id_val,
-            v_fighter_owner_id,
-            new_effect_id
-        );
-    END IF;
+    -- Always new rows, as grantSkillsForEffects does: reusing a skill the
+    -- fighter already has would let removing the injury delete it.
+    -- fighter_effect_id cascades the skills away with the injury.
+    INSERT INTO fighter_skills (
+        fighter_id,
+        skill_id,
+        user_id,
+        fighter_effect_id
+    )
+    SELECT in_fighter_id, granted.skill_id::UUID, v_fighter_owner_id, new_effect_id
+    FROM jsonb_array_elements_text(effect_type_record.type_specific_data->'skill_ids') AS granted(skill_id);
 
     -- Return the newly created effect
     RETURN QUERY
