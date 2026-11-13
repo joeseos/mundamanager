@@ -1,13 +1,12 @@
 /**
- * Shared query definitions for a fighter's skill sets and skill access, used by
- * the Advancements and Skill Access modals so both read one cache entry.
- * gcTime 0: promotions, fighter edits and skills gained change these, so they are
- * fetched fresh whenever a modal opens.
+ * Query definitions shared by the Advancements and Skill Access modals.
+ * gcTime 0: promotions, fighter edits and skills gained change this data, so it is
+ * dropped once no modal uses it.
  */
 
 import { queryOptions } from '@tanstack/react-query';
 
-export interface FighterSkillAccess {
+export interface SkillAccess {
   skill_type_id: string;
   access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
   override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
@@ -47,7 +46,7 @@ export const fighterSkillAccessQuery = (
 ) =>
   queryOptions({
     queryKey: preview ? ['fighter-skill-access', fighterId, preview] : ['fighter-skill-access', fighterId],
-    queryFn: async ({ signal }): Promise<{ skill_access?: FighterSkillAccess[]; skills?: SkillInSet[] }> => {
+    queryFn: async ({ signal }): Promise<{ skill_access?: SkillAccess[]; skills?: SkillInSet[] }> => {
       const response = await fetch(`/api/fighters/skill-access?${new URLSearchParams({ fighterId, ...preview })}`, { signal });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

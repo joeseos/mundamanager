@@ -12,7 +12,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   fighterSkillAccessQuery,
   fighterSkillTypesQuery,
-  type FighterSkillAccess as SkillAccess,
+  type SkillAccess,
   type SkillInSet,
 } from '@/utils/api/skill-access';
 import { 
@@ -355,6 +355,7 @@ const NO_CHARACTERISTICS: Record<string, CharacteristicAdvancement> = {};
 const NO_SKILL_TYPES: SkillType[] = [];
 const NO_SKILL_ACCESS: SkillAccess[] = [];
 const NO_SKILLS_IN_SET: SkillInSet[] = [];
+const toSkillAccess = (data: { skill_access?: SkillAccess[] }) => data.skill_access ?? NO_SKILL_ACCESS;
 const DEFAULT_GANGER_SPECIALIST_COSTS: GangerSpecialistCosts = { xp_cost: 6, credits_increase: 20 };
 
 type AdvancementTypeValue = 'characteristic' | 'skill' | 'promotion_to_champion' | '';
@@ -479,7 +480,7 @@ export function AdvancementModal({
   const isSkillLikeAdvancementType =
     advancementType === 'skill' || advancementType === 'promotion_to_champion';
 
-  // Also the Ganger specialist promotion's skill sets
+  // Skill sets for the Skill and Champion promotion flows and the Ganger specialist promotion
   const {
     data: skillSetCategories = NO_SKILL_TYPES,
     isLoading: skillSetsLoading,
@@ -516,7 +517,7 @@ export function AdvancementModal({
   // N23 only needs it once a skill advancement is chosen.
   const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading } = useQuery({
     ...fighterSkillAccessQuery(fighterId),
-    select: (data) => data.skill_access ?? NO_SKILL_ACCESS,
+    select: toSkillAccess,
     enabled: isCumulativeXp || advancementType === 'skill',
   });
 
@@ -527,7 +528,7 @@ export function AdvancementModal({
     isLoading: championPreviewSkillAccessLoading,
   } = useQuery({
     ...fighterSkillAccessQuery(fighterId, { previewFighterTypeId: championPromotionTypeId ?? '' }),
-    select: (data) => data.skill_access ?? NO_SKILL_ACCESS,
+    select: toSkillAccess,
     enabled: advancementType === 'promotion_to_champion' && !!championPromotionTypeId,
   });
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
@@ -772,10 +773,9 @@ export function AdvancementModal({
     isLoading: gangerPreviewSkillAccessLoading,
   } = useQuery({
     ...fighterSkillAccessQuery(fighterId, { previewFighterTypeId: gangerPromotionTypeId ?? '' }),
-    select: (data) => data.skill_access ?? NO_SKILL_ACCESS,
+    select: toSkillAccess,
     enabled: gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId,
   });
-
 
   const [prevGangerPairDeps, setPrevGangerPairDeps] = useState({ gangerSelectedRowId, gangerSelectedRow });
   if (gangerSelectedRowId !== prevGangerPairDeps.gangerSelectedRowId || gangerSelectedRow !== prevGangerPairDeps.gangerSelectedRow) {
