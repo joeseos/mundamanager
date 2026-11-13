@@ -1006,6 +1006,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
         target_equipment_id: targetBySource.get(item.fighter_equipment_id) || null,
         loadout_ids: loadoutIdsByItem.get(item.fighter_equipment_id),
         fighter_skill_id: row.fighter_skill_id ?? null,
+        granted_by_equipment_id: row.granted_by_equipment_id ?? null,
         granted_by_skill_name: row.fighter_skill_id ? skillNameById.get(row.fighter_skill_id) : undefined,
         ...(beastBreakdown
           ? { beast_equipment_cost: beastBreakdown.equipment, beast_advancements_cost: beastBreakdown.advancements }

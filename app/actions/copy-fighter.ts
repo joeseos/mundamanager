@@ -167,7 +167,7 @@ async function copySkills(
 async function grantCopiedEquipmentSkills(
   supabase: any,
   fighterId: string,
-  copiedEffects: Array<{ fighter_effect_type_id: string; type_specific_data: any; fighter_equipment_id: string | null }>,
+  copiedEffects: Array<{ type_specific_data: any; fighter_equipment_id: string | null }>,
   insertedEffects: Array<{ id: string }>,
   userId: string
 ): Promise<void> {
@@ -176,7 +176,7 @@ async function grantCopiedEquipmentSkills(
     fighterId,
     copiedEffects.flatMap((effect, index) =>
       effect.fighter_equipment_id && insertedEffects[index]
-        ? [{ id: insertedEffects[index].id, fighter_effect_type_id: effect.fighter_effect_type_id, type_specific_data: effect.type_specific_data }]
+        ? [{ id: insertedEffects[index].id, type_specific_data: effect.type_specific_data }]
         : []
     ),
     userId

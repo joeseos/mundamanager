@@ -11,10 +11,11 @@ import { fighterCostTarget, FighterCostTarget, FighterRatingStatus, FighterStatu
 import { EquipmentGrants, ResourceCost, CostResourcePayload, isBeastWargear } from '@/types/equipment';
 import { createExoticBeastsForEquipment, GRANTED_FIGHTERS_COLUMNS, invalidateBeastOwnerCache, stashItemFighters } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
+import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
+import { chosenGrantOptions, grantedEquipment, insertGrantedEquipment } from '@/utils/equipment-grants';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -63,7 +64,6 @@ interface StashActionResult {
 
 type GrantingEffect = {
   id: string;
-  fighter_effect_type_id: string;
   type_specific_data?: any;
 };
 
@@ -87,59 +87,32 @@ export async function grantSkillsForEffects(
   // N23 vehicle-only effects grant nothing; on N26 a vehicle is a fighter
   if (!fighterId) return [];
 
-  const candidates = (effects ?? []).filter(effect => grantedSkillFromEffect(effect));
-  if (candidates.length === 0) return [];
+  // Zero cost: the equipment's price and the effect's credits_increase already
+  // drive rating.
+  const rows = (effects ?? []).flatMap(effect =>
+    grantedSkillsFromEffect(effect).map(skillId => ({
+      fighter_id: fighterId,
+      skill_id: skillId,
+      user_id: userId,
+      credits_increase: 0,
+      xp_cost: 0,
+      is_advance: false,
+      fighter_effect_id: effect.id
+    }))
+  );
+  if (rows.length === 0) return [];
 
-  // On a 'skills'-category type, skill_id is the skill this effect BELONGS TO
-  // (fighter-advancement.ts), not one it grants. addEquipmentEffect takes an
-  // effect_type_id from the client, so this decides a real request.
-  const { data: types, error: typesError } = await supabase
-    .from('fighter_effect_types')
-    .select('id, fighter_effect_categories ( category_name )')
-    .in('id', candidates.map(effect => effect.fighter_effect_type_id));
+  const { data: skills, error } = await supabase
+    .from('fighter_skills')
+    .insert(rows)
+    .select('skill_id, skills!skill_id ( name )');
 
-  // Bail rather than fail open: an empty set would exclude nothing
-  if (typesError || !types) {
-    console.error('Failed to read effect type categories, skipping skill grants:', typesError);
+  if (error) {
+    console.error('Failed to insert granted skills:', error);
     return [];
   }
 
-  const skillCategoryTypeIds = new Set(
-    types
-      .filter((row: any) => row.fighter_effect_categories?.category_name === 'skills')
-      .map((row: any) => row.id)
-  );
-
-  const granted: GrantedSkill[] = [];
-
-  for (const effect of candidates) {
-    if (skillCategoryTypeIds.has(effect.fighter_effect_type_id)) continue;
-
-    // Zero cost: the equipment's price and the effect's credits_increase already
-    // drive rating.
-    const { data: skill, error: skillError } = await supabase
-      .from('fighter_skills')
-      .insert({
-        fighter_id: fighterId,
-        skill_id: grantedSkillFromEffect(effect),
-        user_id: userId,
-        credits_increase: 0,
-        xp_cost: 0,
-        is_advance: false,
-        fighter_effect_id: effect.id
-      })
-      .select('skill_id, skills!skill_id ( name )')
-      .single();
-
-    if (!skill) {
-      console.error('Failed to insert granted skill:', skillError);
-      continue;
-    }
-
-    granted.push({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' });
-  }
-
-  return granted;
+  return (skills ?? []).map((skill: any) => ({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' }));
 }
 
 /**
@@ -258,11 +231,7 @@ export async function insertEffectWithModifiers(
     await grantSkillsForEffects(
       supabase,
       params.fighter_id,
-      [{
-        id: newEffect.id,
-        fighter_effect_type_id: effectType.id,
-        type_specific_data: effectType.type_specific_data
-      }],
+      [{ id: newEffect.id, type_specific_data: effectType.type_specific_data }],
       params.user_id
     );
 
@@ -641,60 +610,26 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       const grantsConfig = sourceEquip?.grants_equipment as EquipmentGrants | null;
 
       if (grantsConfig && grantsConfig.options && grantsConfig.options.length > 0) {
-        // Determine which options to grant based on selection type
-        let optionsToGrant = grantsConfig.options;
-
-        if (grantsConfig.selection_type !== 'fixed') {
-          // For single_select and multiple_select, filter to only selected options
-          optionsToGrant = grantsConfig.options.filter(
-            opt => params.selected_grant_equipment_ids?.includes(opt.equipment_id)
-          );
-
-          // Validate selection counts
-          if (grantsConfig.selection_type === 'single_select' && optionsToGrant.length !== 1) {
-            throw new Error('Single select requires exactly one option to be selected');
+        const granted = await insertGrantedEquipment(
+          supabase,
+          chosenGrantOptions(grantsConfig, params.selected_grant_equipment_ids),
+          {
+            granted_by_equipment_id: newEquipmentId,
+            gang_id: params.gang_id,
+            fighter_id: params.fighter_id,
+            vehicle_id: params.vehicle_id,
+            user_id: gang.user_id
           }
-          if (grantsConfig.selection_type === 'multiple_select') {
-            const maxSelections = grantsConfig.max_selections || grantsConfig.options.length;
-            if (optionsToGrant.length === 0) {
-              throw new Error('At least one option must be selected');
-            }
-            if (optionsToGrant.length > maxSelections) {
-              throw new Error(`Cannot select more than ${maxSelections} options`);
-            }
-          }
-        }
+        );
 
-        // Insert each granted equipment
-        for (const option of optionsToGrant) {
-          const { data: grantedEquip } = await supabase
-            .from('equipment')
-            .select('id, equipment_name, cost')
-            .eq('id', option.equipment_id)
-            .single();
+        for (const item of granted) {
+          grantsRatingDelta += item.purchase_cost;
 
-          if (grantedEquip) {
-            await supabase
-              .from('fighter_equipment')
-              .insert({
-                gang_id: params.gang_id,
-                fighter_id: params.fighter_id,
-                vehicle_id: params.vehicle_id,
-                equipment_id: grantedEquip.id,
-                original_cost: grantedEquip.cost,
-                purchase_cost: option.additional_cost,
-                granted_by_equipment_id: newEquipmentId,
-                user_id: gang.user_id
-              });
-
-            grantsRatingDelta += option.additional_cost;
-
-            // Track for logging after gang update
-            grantedEquipmentForLogging.push({
-              equipment_name: grantedEquip.equipment_name,
-              purchase_cost: option.additional_cost
-            });
-          }
+          // Track for logging after gang update
+          grantedEquipmentForLogging.push({
+            equipment_name: item.equipment?.equipment_name ?? 'Unknown',
+            purchase_cost: item.purchase_cost
+          });
         }
       }
     }
@@ -1163,10 +1098,12 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       `)
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
-    // The item and its effects come off the fighter's cost; an inactive fighter's
-    // cost is already out of rating (see fighterCostTarget)
+    // The item, the equipment it granted (e.g. an Outrider Quad's weapon, which the delete
+    // cascades to) and its effects come off the fighter's cost; an inactive fighter's cost
+    // is already out of rating (see fighterCostTarget)
+    const itemCost = (equipmentBefore.purchase_cost || 0) + (await grantedEquipment(supabase, equipmentBefore)).cost;
     const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-    const ratingDelta = -(equipmentBefore.purchase_cost || 0) - effectsCredits;
+    const ratingDelta = -itemCost - effectsCredits;
     let costTarget: FighterCostTarget = 'none';
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
@@ -1412,7 +1349,8 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
-    const purchaseCost = row.purchase_cost || 0;
+    // Includes the equipment it granted, which the delete cascades to
+    const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;
     const stashFighters = stashItemFighters((row as any).equipment?.equipment_category, row.granted_fighters);
 
     // Permission implicitly enforced by RLS; we still fetch to invalidate correctly

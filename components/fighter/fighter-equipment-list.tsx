@@ -205,6 +205,11 @@ export function WeaponList({
     }
   }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate]);
 
+  // An item and the equipment it granted (e.g. an Outrider Quad's weapon), which go together when it is sold, deleted or stashed
+  const withGranted = (item: Equipment) =>
+    [item, ...equipment.filter(e => e.granted_by_equipment_id === item.fighter_equipment_id)];
+  const costOf = (items: Equipment[]) => items.reduce((sum, e) => sum + (e.cost ?? 0), 0);
+
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     // Snapshot for rollback
     const previousEquipment = [...equipment];
@@ -219,8 +224,9 @@ export function WeaponList({
       }
 
       // Optimistic UI: remove item and adjust fighter credits
-      const optimisticEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      const optimisticFighterCredits = previousFighterCredits - (equipmentToDelete.cost ?? 0);
+      const removed = withGranted(equipmentToDelete);
+      const optimisticEquipment = equipment.filter(e => !removed.includes(e));
+      const optimisticFighterCredits = previousFighterCredits - costOf(removed);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
 
       // Execute server action
@@ -265,10 +271,9 @@ export function WeaponList({
       if (!equipmentToSell) throw new Error('Equipment not found');
 
       // Optimistic UI: remove item, adjust fighter and gang credits
-      const optimisticEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const optimisticFighterCredits = previousFighterCredits - (equipmentToSell.cost ?? 0);
+      const removed = withGranted(equipmentToSell);
+      const optimisticEquipment = equipment.filter(item => !removed.includes(item));
+      const optimisticFighterCredits = previousFighterCredits - costOf(removed);
       const optimisticGangCredits = previousGangCredits + (manualCost || 0);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, optimisticGangCredits);
 
@@ -313,10 +318,9 @@ export function WeaponList({
       }
 
       // Optimistic UI: remove item and adjust fighter credits (gang credits unchanged)
-      const optimisticEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const optimisticFighterCredits = previousFighterCredits - (equipmentToStash.cost ?? 0);
+      const removed = withGranted(equipmentToStash);
+      const optimisticEquipment = equipment.filter(item => !removed.includes(item));
+      const optimisticFighterCredits = previousFighterCredits - costOf(removed);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
 
       // Server action
@@ -339,9 +343,15 @@ export function WeaponList({
     }
   };
 
-  // Separate equipment into parent items (equipment that targets fighters/vehicles) and child items (equipment targeting other equipment)
-  const parentEquipment = equipment.filter(item => !item.target_equipment_id);
-  const childEquipment = equipment.filter(item => item.target_equipment_id);
+  // Granted equipment (e.g. an Outrider Quad's weapon) nests under the item that granted it, when listed
+  const equipmentById = new Map(equipment.map(item => [item.fighter_equipment_id, item]));
+  const grantedByOf = (item: Equipment) =>
+    item.granted_by_equipment_id ? equipmentById.get(item.granted_by_equipment_id) : undefined;
+
+  // Separate equipment into parent items and child items (equipment targeting or granted by other equipment)
+  const parentIdOf = (item: Equipment) => item.target_equipment_id || grantedByOf(item)?.fighter_equipment_id;
+  const parentEquipment = equipment.filter(item => !parentIdOf(item));
+  const childEquipment = equipment.filter(item => parentIdOf(item));
 
   // Sort parent equipment: core equipment first, then by name
   const sortedParentEquipment = [...parentEquipment].sort((a, b) => {
@@ -353,7 +363,7 @@ export function WeaponList({
   // Build a tree structure: map parent equipment IDs to their child equipment
   const equipmentTree = new Map<string, Equipment[]>();
   childEquipment.forEach(child => {
-    const parentId = child.target_equipment_id!;
+    const parentId = parentIdOf(child)!;
     if (!equipmentTree.has(parentId)) {
       equipmentTree.set(parentId, []);
     }
@@ -977,7 +987,7 @@ export function WeaponList({
               ? (sellModalData.cost_resource_amount ?? 0)
               : sellModalData.beast_cost_breakdown
                 ? sellModalData.beast_cost_breakdown.base + sellModalData.beast_cost_breakdown.equipment
-                : sellModalData.cost ?? 0
+                : costOf(withGranted(sellModalData))
           }
           showD6Roll={!sellModalData.cost_resource_name}
           editionSlug={editionSlug}

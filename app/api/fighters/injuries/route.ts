@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from 'next/server';
 import { getEditionIdBySlug } from '@/utils/editions';
+import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 
 /**
  * Lists the lasting injury (or rig glitch) catalog.
@@ -56,39 +57,33 @@ export async function GET(request: Request) {
 
     if (effectsError) throw effectsError;
 
-    // Transform and add skills for injuries
-    const effectsWithSkills = await Promise.all(
-      (effects || []).map(async (effect) => {
-        // Transform fighter_effect_type_modifiers to fighter_effect_modifiers format
-        // This normalizes the API response to match the instance format used throughout the app
-        const fighter_effect_modifiers = (effect.fighter_effect_type_modifiers || []).map((mod: any) => ({
-          id: mod.id,
-          stat_name: mod.stat_name,
-          numeric_value: mod.default_numeric_value,
-          operation: mod.operation
-        }));
+    // Names of the skills injuries grant, e.g. Bitter Enmity granting Berserker
+    const grantedSkillIds = [...new Set((effects || []).flatMap(effect => grantedSkillsFromEffect(effect)))];
+    const { data: grantedSkills } = grantedSkillIds.length > 0
+      ? await supabase.from('skills').select('id, name').in('id', grantedSkillIds)
+      : { data: [] };
+    const skillById = new Map((grantedSkills || []).map(skill => [skill.id, skill]));
 
-        let result: any = {
-          ...effect,
-          fighter_effect_modifiers,
-        };
-        // Remove the original type modifiers to avoid confusion
-        delete result.fighter_effect_type_modifiers;
+    const effectsWithSkills = (effects || []).map((effect) => {
+      // Transform fighter_effect_type_modifiers to fighter_effect_modifiers format
+      // This normalizes the API response to match the instance format used throughout the app
+      const fighter_effect_modifiers = (effect.fighter_effect_type_modifiers || []).map((mod: any) => ({
+        id: mod.id,
+        stat_name: mod.stat_name,
+        numeric_value: mod.default_numeric_value,
+        operation: mod.operation
+      }));
 
-        // For injuries that grant skills, fetch the skill names
-        if (effect.type_specific_data?.skill_id) {
-          const { data: skill } = await supabase
-            .from('skills')
-            .select('id, name')
-            .eq('id', effect.type_specific_data.skill_id)
-            .single();
+      const result: any = {
+        ...effect,
+        fighter_effect_modifiers,
+        granted_skills: grantedSkillsFromEffect(effect).flatMap(id => skillById.get(id) ?? [])
+      };
+      // Remove the original type modifiers to avoid confusion
+      delete result.fighter_effect_type_modifiers;
 
-          result.granted_skill = skill || null;
-        }
-
-        return result;
-      })
-    );
+      return result;
+    });
 
     return NextResponse.json(effectsWithSkills);
   } catch (error) {

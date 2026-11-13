@@ -263,11 +263,18 @@ export default function GangInventory({
     });
   };
 
+  // A stash item and the items it granted (e.g. an Outrider Quad's weapon), which go together
+  const withGrantedIndices = (indices: number[]) => [...new Set(indices.flatMap(index => [
+    index,
+    ...stash.flatMap((item, i) => item.granted_by_equipment_id === stash[index].id ? [i] : []),
+  ]))];
+
   const handleItemToggle = (index: number, checked: boolean) => {
+    const indices = withGrantedIndices([index]);
     if (checked) {
-      setSelectedItems(prev => [...prev, index]);
+      setSelectedItems(prev => [...new Set([...prev, ...indices])]);
     } else {
-      setSelectedItems(prev => prev.filter(i => i !== index));
+      setSelectedItems(prev => prev.filter(i => !indices.includes(i)));
     }
   };
 
@@ -284,7 +291,7 @@ export default function GangInventory({
       const targetId = isVehicleTarget ? selectedFighter.replace('vehicle-', '') : selectedFighter;
 
       // Phase 1: Snapshot items by value and prefetch effects in parallel
-      const items = selectedItems.map(i => ({ ...stash[i], originalIndex: i }));
+      const items = withGrantedIndices(selectedItems).map(i => ({ ...stash[i], originalIndex: i }));
 
       const effectsMap = new Map<string, any[]>();
       await Promise.all(
@@ -880,6 +887,8 @@ export default function GangInventory({
                       <Checkbox
                         checked={selectedItems.includes(index)}
                         onCheckedChange={(checked) => handleItemToggle(index, checked as boolean)}
+                        // Granted items move with the selected item that granted them
+                        disabled={selectedItems.some(i => stash[i].id === item.granted_by_equipment_id)}
                         className="mr-3"
                       />
                       <span className="grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
@@ -1178,11 +1187,12 @@ export default function GangInventory({
       {sellModalItemIdx !== null && (() => {
         const sellItem = stash[sellModalItemIdx];
         const isResourceItem = !!sellItem.cost_resource;
+        const soldIndices = withGrantedIndices([sellModalItemIdx]);
         return (
           <SellConfirmModal
             title="Sell Stash Item"
             itemName={getItemName(sellItem)}
-            initialCost={isResourceItem ? (sellItem.cost_resource!.amount ?? 0) : (sellItem.cost || 0)}
+            initialCost={isResourceItem ? (sellItem.cost_resource!.amount ?? 0) : soldIndices.reduce((sum, i) => sum + (stash[i].cost || 0), 0)}
             showD6Roll={!isResourceItem}
             editionSlug={editionSlug}
             costLabel={isResourceItem ? sellItem.cost_resource!.name : 'Sale Price'}
@@ -1193,7 +1203,7 @@ export default function GangInventory({
               const item = stash[idx];
               const res = await sellEquipmentFromStash({ stash_id: item.id, manual_cost: isResourceItem ? 0 : (cost || 0) });
               if (res.success) {
-                const newStash = stash.filter((_, i) => i !== idx);
+                const newStash = stash.filter((_, i) => !soldIndices.includes(i));
                 setStash(newStash);
                 onStashUpdate?.(newStash);
                 removeStashItemFighters(res.data!.removed_fighter_ids);
@@ -1236,7 +1246,8 @@ export default function GangInventory({
             const item = stash[idx];
             const res = await deleteEquipmentFromStash({ stash_id: item.id });
             if (res.success) {
-              const newStash = stash.filter((_, i) => i !== idx);
+              const deletedIndices = withGrantedIndices([idx]);
+              const newStash = stash.filter((_, i) => !deletedIndices.includes(i));
               setStash(newStash);
               onStashUpdate?.(newStash);
               removeStashItemFighters(res.data.removed_fighter_ids);

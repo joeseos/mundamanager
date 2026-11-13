@@ -13,6 +13,7 @@ import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import { isBeastWargear, type CostResourcePayload } from '@/types/equipment';
 import { GRANTED_FIGHTERS_COLUMNS, invalidateBeastOwnerCache, stashItemFighters } from '@/utils/exotic-beasts';
+import { grantedEquipment } from '@/utils/equipment-grants';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -135,7 +136,9 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // Resource-purchased items: return resource, not credits
     const isResourcePurchase = equipmentData.cost_resource && equipmentData.cost_resource.name;
-    const sellValue = isResourcePurchase ? 0 : (params.manual_cost ?? equipmentData.purchase_cost ?? 0);
+    // Includes the equipment it granted (e.g. an Outrider Quad's weapon), which the delete cascades to
+    const itemCost = (equipmentData.purchase_cost || 0) + (await grantedEquipment(supabase, equipmentData)).cost;
+    const sellValue = isResourcePurchase ? 0 : (params.manual_cost ?? itemCost);
 
     // Get equipment name for logging before deletion
     let equipmentName = 'Unknown Equipment';
@@ -195,10 +198,10 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
       }
     }
 
-    // The item, its effects and its beasts' gear come off the fighter's cost; an
-    // inactive fighter's cost is already out of rating (see fighterCostTarget)
+    // The item (with the equipment it granted), its effects and its beasts' gear come off
+    // the fighter's cost; an inactive fighter's cost is already out of rating (see fighterCostTarget)
     const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-    const ratingDelta = -(equipmentData.purchase_cost || 0) - effectsCredits - beastEquipmentCost;
+    const ratingDelta = -itemCost - effectsCredits - beastEquipmentCost;
 
     // Charge before deleting. A negative-cost item (e.g. gene-smithing) sells for a negative
     // value, so the gang can be unable to pay for the sale; that has to fail with the item
@@ -363,7 +366,8 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
     const equipmentCategory = (row as any).equipment?.equipment_category;
     const isResourcePurchaseStash = row.cost_resource && (row.cost_resource as any).name;
     const sellValue = isResourcePurchaseStash ? 0 : Math.floor(params.manual_cost || 0);
-    const purchaseCost = row.purchase_cost || 0;
+    // Includes the equipment it granted, which the delete cascades to
+    const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;
 
     // Query beast equipment cost before deletion (only for beast-granting equipment)
     let beastEquipmentCost = 0;

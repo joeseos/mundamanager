@@ -11,6 +11,7 @@ import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLU
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { isBeastWargear } from '@/types/equipment';
+import { grantedEquipment } from '@/utils/equipment-grants';
 
 interface MoveToStashParams {
   fighter_equipment_id: string;
@@ -74,6 +75,10 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       throw new Error('This item comes with a skill and cannot be moved to the stash. Remove the skill instead.');
     }
 
+    // The equipment it granted (e.g. an Outrider Quad's weapon) goes to the stash with it
+    const granted = await grantedEquipment(supabase, equipmentData);
+    const movedIds = [params.fighter_equipment_id, ...granted.ids].join(',');
+
     // Get associated fighter effects before moving to stash (they need to be removed)
     // Include both effects attached to this equipment (modifier) and effects targeting this equipment
     const { data: associatedEffects } = await supabase
@@ -87,7 +92,7 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
           numeric_value
         )
       `)
-      .or(`fighter_equipment_id.eq.${params.fighter_equipment_id},target_equipment_id.eq.${params.fighter_equipment_id}`);
+      .or(`fighter_equipment_id.in.(${movedIds}),target_equipment_id.in.(${movedIds})`);
 
     // Determine the gang_id based on whether it's fighter or vehicle equipment
     let gangId: string;
@@ -168,7 +173,9 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       .update({
         fighter_id: null,
         vehicle_id: null,
-        gang_stash: true
+        gang_stash: true,
+        // A granted item stashed on its own no longer goes with the item that granted it
+        granted_by_equipment_id: null
       })
       .eq('id', params.fighter_equipment_id)
       .select('id')
@@ -176,6 +183,16 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
 
     if (updateError || !stashData) {
       throw new Error(`Failed to move equipment to stash: ${updateError?.message || 'No data returned'}`);
+    }
+
+    if (granted.ids.length > 0) {
+      const { error: grantedError } = await supabase
+        .from('fighter_equipment')
+        .update({ fighter_id: null, vehicle_id: null, gang_stash: true })
+        .in('id', granted.ids);
+      if (grantedError) {
+        throw new Error(`Failed to move granted equipment to stash: ${grantedError.message}`);
+      }
     }
 
     const grantsBeast = isBeastWargear((equipmentData.equipment as any)?.equipment_category);
@@ -207,8 +224,9 @@ export async function moveEquipmentToStash(params: MoveToStashParams): Promise<M
       }
     }
 
-    // The item, its effects and its beasts' gear move off the fighter's cost and into stash value
-    const equipmentValue = (equipmentData.purchase_cost || 0) +
+    // The item, the equipment it granted, its effects and its beasts' gear move off the
+    // fighter's cost and into stash value
+    const equipmentValue = (equipmentData.purchase_cost || 0) + granted.cost +
       (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0) +
       beastEquipmentCost;
 
