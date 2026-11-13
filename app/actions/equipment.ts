@@ -11,7 +11,7 @@ import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, Fighte
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
+import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
@@ -63,7 +63,6 @@ interface StashActionResult {
 
 type GrantingEffect = {
   id: string;
-  fighter_effect_type_id: string;
   type_specific_data?: any;
 };
 
@@ -87,59 +86,32 @@ export async function grantSkillsForEffects(
   // N23 vehicle-only effects grant nothing; on N26 a vehicle is a fighter
   if (!fighterId) return [];
 
-  const candidates = (effects ?? []).filter(effect => grantedSkillFromEffect(effect));
-  if (candidates.length === 0) return [];
+  // Zero cost: the equipment's price and the effect's credits_increase already
+  // drive rating.
+  const rows = (effects ?? []).flatMap(effect =>
+    grantedSkillsFromEffect(effect).map(skillId => ({
+      fighter_id: fighterId,
+      skill_id: skillId,
+      user_id: userId,
+      credits_increase: 0,
+      xp_cost: 0,
+      is_advance: false,
+      fighter_effect_id: effect.id
+    }))
+  );
+  if (rows.length === 0) return [];
 
-  // On a 'skills'-category type, skill_id is the skill this effect BELONGS TO
-  // (fighter-advancement.ts), not one it grants. addEquipmentEffect takes an
-  // effect_type_id from the client, so this decides a real request.
-  const { data: types, error: typesError } = await supabase
-    .from('fighter_effect_types')
-    .select('id, fighter_effect_categories ( category_name )')
-    .in('id', candidates.map(effect => effect.fighter_effect_type_id));
+  const { data: skills, error } = await supabase
+    .from('fighter_skills')
+    .insert(rows)
+    .select('skill_id, skills!skill_id ( name )');
 
-  // Bail rather than fail open: an empty set would exclude nothing
-  if (typesError || !types) {
-    console.error('Failed to read effect type categories, skipping skill grants:', typesError);
+  if (error) {
+    console.error('Failed to insert granted skills:', error);
     return [];
   }
 
-  const skillCategoryTypeIds = new Set(
-    types
-      .filter((row: any) => row.fighter_effect_categories?.category_name === 'skills')
-      .map((row: any) => row.id)
-  );
-
-  const granted: GrantedSkill[] = [];
-
-  for (const effect of candidates) {
-    if (skillCategoryTypeIds.has(effect.fighter_effect_type_id)) continue;
-
-    // Zero cost: the equipment's price and the effect's credits_increase already
-    // drive rating.
-    const { data: skill, error: skillError } = await supabase
-      .from('fighter_skills')
-      .insert({
-        fighter_id: fighterId,
-        skill_id: grantedSkillFromEffect(effect),
-        user_id: userId,
-        credits_increase: 0,
-        xp_cost: 0,
-        is_advance: false,
-        fighter_effect_id: effect.id
-      })
-      .select('skill_id, skills!skill_id ( name )')
-      .single();
-
-    if (!skill) {
-      console.error('Failed to insert granted skill:', skillError);
-      continue;
-    }
-
-    granted.push({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' });
-  }
-
-  return granted;
+  return (skills ?? []).map((skill: any) => ({ skill_id: skill.skill_id, skill_name: skill.skills?.name ?? '' }));
 }
 
 /**
@@ -258,11 +230,7 @@ export async function insertEffectWithModifiers(
     await grantSkillsForEffects(
       supabase,
       params.fighter_id,
-      [{
-        id: newEffect.id,
-        fighter_effect_type_id: effectType.id,
-        type_specific_data: effectType.type_specific_data
-      }],
+      [{ id: newEffect.id, type_specific_data: effectType.type_specific_data }],
       params.user_id
     );
 

@@ -20,7 +20,7 @@ import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { rollD66Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
-import { requiredHatredTarget, injuryAggregationLabel } from '@/utils/injuryTarget';
+import { requiredHatredTarget, injuryAggregationLabel, type HatredTargetKind } from '@/utils/injuryTarget';
 import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
 import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
@@ -209,7 +209,7 @@ export function InjuriesList({
       const hatredKind = requiredHatredTarget(injuryData.type_specific_data);
       const hatredId = variables.hatred_target_id;
       let hatredMeta: {
-        hatred_target_kind: string;
+        hatred_target_kind: HatredTargetKind;
         hatred_target_id: string;
         hatred_target_name: string;
         hatred_target_colour: string | null;
@@ -269,15 +269,15 @@ export function InjuriesList({
         onEquipmentEffectUpdate(variables.target_equipment_id, tempInjury as any);
       }
 
-      // Optimistically add skill if injury grants one
-      const grantedSkill = injuryData?.granted_skill;
+      // Optimistically add the skills the injury grants
       // A granted skill never hides one the fighter bought, as in gang-assembly.ts
-      const existingSkill = grantedSkill ? skills[grantedSkill.name] : undefined;
-      if (onSkillsUpdate && grantedSkill && (!existingSkill || existingSkill.fighter_injury_id)) {
-        const updatedSkills = {
-          ...skills,
-          [grantedSkill.name]: {
-            id: `optimistic-skill-${Date.now()}`,
+      const grantedSkills: Array<{ name: string }> = (injuryData?.granted_skills ?? [])
+        .filter((skill: { name: string }) => !skills[skill.name] || skills[skill.name].fighter_injury_id);
+      if (onSkillsUpdate && grantedSkills.length > 0) {
+        const updatedSkills = { ...skills };
+        for (const grantedSkill of grantedSkills) {
+          updatedSkills[grantedSkill.name] = {
+            id: `optimistic-skill-${grantedSkill.name}-${Date.now()}`,
             credits_increase: 0,
             xp_cost: 0,
             is_advance: false,
@@ -285,8 +285,8 @@ export function InjuriesList({
             fighter_injury_id: tempInjury.id,
             injury_name: injuryData?.effect_name,
             ...(hatredMeta ? hatredMeta : {})
-          }
-        };
+          };
+        }
         onSkillsUpdate(updatedSkills);
       }
 

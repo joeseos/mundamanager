@@ -497,6 +497,26 @@ export function applySpecialRulesModifiers(
 }
 
 // =============================================================================
+// SKILL GRANTS
+// =============================================================================
+
+/**
+ * Skills an effect grants, e.g. an Outrider Quad granting Hit & Run and
+ * Nerves of Steel. Not skill_id: on a 'skills'-category type that is the skill
+ * the effect belongs to.
+ */
+export function grantedSkillsFromEffect(
+  effect: { type_specific_data?: unknown } | null | undefined
+): string[] {
+  const tsd = effect && typeof effect.type_specific_data === 'object' && effect.type_specific_data
+    ? effect.type_specific_data as Record<string, unknown>
+    : null;
+  const skillIds = tsd?.skill_ids;
+
+  return Array.isArray(skillIds) ? skillIds : [];
+}
+
+// =============================================================================
 // SUBTYPE GRANTS
 // =============================================================================
 
@@ -508,23 +528,6 @@ export function applySpecialRulesModifiers(
  * to fighters.fighter_subtypes (see utils/fighter-subtype-grants.ts). Shared with
  * the edit modal, which uses them to mark the resulting chips read-only.
  */
-/**
- * Skill an effect grants, e.g. a bionic arm granting "Iron Jaw".
- *
- * On a 'skills'-category type the same key means the opposite — the skill the
- * effect BELONGS TO — so callers must exclude that category first.
- */
-export function grantedSkillFromEffect(
-  effect: { type_specific_data?: unknown } | null | undefined
-): string | null {
-  const tsd = effect && typeof effect.type_specific_data === 'object' && effect.type_specific_data
-    ? effect.type_specific_data as Record<string, unknown>
-    : null;
-  const skillId = tsd?.skill_id;
-
-  return typeof skillId === 'string' && skillId ? skillId : null;
-}
-
 export function subtypeGrantsFromEffects(
   effects: Array<{ type_specific_data?: TraitModificationData | string | null }> | null | undefined
 ): { add: string[]; remove: string[] } {
