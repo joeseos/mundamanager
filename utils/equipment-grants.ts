@@ -76,3 +76,19 @@ export async function insertGrantedEquipment(
     equipment: { equipment_name: string; equipment_type: string; weapon_profiles: any[] } | null;
   }>;
 }
+
+/**
+ * Purchase cost of the equipment an item granted that is still on the same fighter or vehicle.
+ * Deleting the item cascades to it, so a sale or delete has to count it too.
+ */
+export async function grantedEquipmentCost(
+  supabase: any,
+  item: { id: string; fighter_id: string | null; vehicle_id: string | null }
+): Promise<number> {
+  const { data } = await supabase
+    .from('fighter_equipment')
+    .select('purchase_cost')
+    .eq('granted_by_equipment_id', item.id)
+    .eq(item.fighter_id ? 'fighter_id' : 'vehicle_id', item.fighter_id ?? item.vehicle_id);
+  return (data ?? []).reduce((sum: number, row: { purchase_cost: number | null }) => sum + (row.purchase_cost || 0), 0);
+}

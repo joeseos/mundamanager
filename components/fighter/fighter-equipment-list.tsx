@@ -205,6 +205,11 @@ export function WeaponList({
     }
   }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate]);
 
+  // An item and the equipment it granted (e.g. an Outrider Quad's weapon), which selling or deleting it also removes
+  const withGranted = (item: Equipment) =>
+    [item, ...equipment.filter(e => e.granted_by_equipment_id === item.fighter_equipment_id)];
+  const costOf = (items: Equipment[]) => items.reduce((sum, e) => sum + (e.cost ?? 0), 0);
+
   const handleDeleteEquipment = async (fighterEquipmentId: string, equipmentId: string) => {
     // Snapshot for rollback
     const previousEquipment = [...equipment];
@@ -219,8 +224,9 @@ export function WeaponList({
       }
 
       // Optimistic UI: remove item and adjust fighter credits
-      const optimisticEquipment = equipment.filter(e => e.fighter_equipment_id !== fighterEquipmentId);
-      const optimisticFighterCredits = previousFighterCredits - (equipmentToDelete.cost ?? 0);
+      const removed = withGranted(equipmentToDelete);
+      const optimisticEquipment = equipment.filter(e => !removed.includes(e));
+      const optimisticFighterCredits = previousFighterCredits - costOf(removed);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
 
       // Execute server action
@@ -265,10 +271,9 @@ export function WeaponList({
       if (!equipmentToSell) throw new Error('Equipment not found');
 
       // Optimistic UI: remove item, adjust fighter and gang credits
-      const optimisticEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const optimisticFighterCredits = previousFighterCredits - (equipmentToSell.cost ?? 0);
+      const removed = withGranted(equipmentToSell);
+      const optimisticEquipment = equipment.filter(item => !removed.includes(item));
+      const optimisticFighterCredits = previousFighterCredits - costOf(removed);
       const optimisticGangCredits = previousGangCredits + (manualCost || 0);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, optimisticGangCredits);
 
@@ -983,7 +988,7 @@ export function WeaponList({
               ? (sellModalData.cost_resource_amount ?? 0)
               : sellModalData.beast_cost_breakdown
                 ? sellModalData.beast_cost_breakdown.base + sellModalData.beast_cost_breakdown.equipment
-                : sellModalData.cost ?? 0
+                : costOf(withGranted(sellModalData))
           }
           showD6Roll={!sellModalData.cost_resource_name}
           editionSlug={editionSlug}

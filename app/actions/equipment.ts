@@ -15,7 +15,7 @@ import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
-import { chosenGrantOptions, insertGrantedEquipment } from '@/utils/equipment-grants';
+import { chosenGrantOptions, grantedEquipmentCost, insertGrantedEquipment } from '@/utils/equipment-grants';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -1138,6 +1138,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
     // Inactive fighters are already excluded from rating calculations
     let ratingDelta = 0;
+    // Includes the equipment it granted (e.g. an Outrider Quad's weapon), which the delete cascades to
+    const itemCost = (equipmentBefore.purchase_cost || 0) + await grantedEquipmentCost(supabase, equipmentBefore);
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
     if (equipmentBefore.fighter_id) {
@@ -1157,7 +1159,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           : undefined;
 
       if (fighterIsActive) {
-        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        ratingDelta -= itemCost;
         // subtract associated effects credits if any
         const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
         ratingDelta -= effectsCredits;
@@ -1171,7 +1173,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
         .single();
 
       if (countsTowardRating(veh?.fighters as FighterStatus | null | undefined)) {
-        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        ratingDelta -= itemCost;
         const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
         ratingDelta -= effectsCredits;
       }
