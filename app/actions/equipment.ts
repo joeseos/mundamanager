@@ -15,6 +15,7 @@ import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
+import { chosenGrantOptions, grantedEquipment, insertGrantedEquipment } from '@/utils/equipment-grants';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -610,63 +611,29 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       const grantsConfig = sourceEquip?.grants_equipment as EquipmentGrants | null;
 
       if (grantsConfig && grantsConfig.options && grantsConfig.options.length > 0) {
-        // Determine which options to grant based on selection type
-        let optionsToGrant = grantsConfig.options;
-
-        if (grantsConfig.selection_type !== 'fixed') {
-          // For single_select and multiple_select, filter to only selected options
-          optionsToGrant = grantsConfig.options.filter(
-            opt => params.selected_grant_equipment_ids?.includes(opt.equipment_id)
-          );
-
-          // Validate selection counts
-          if (grantsConfig.selection_type === 'single_select' && optionsToGrant.length !== 1) {
-            throw new Error('Single select requires exactly one option to be selected');
+        const granted = await insertGrantedEquipment(
+          supabase,
+          chosenGrantOptions(grantsConfig, params.selected_grant_equipment_ids),
+          {
+            granted_by_equipment_id: newEquipmentId,
+            gang_id: params.gang_id,
+            fighter_id: params.fighter_id,
+            vehicle_id: params.vehicle_id,
+            user_id: gang.user_id
           }
-          if (grantsConfig.selection_type === 'multiple_select') {
-            const maxSelections = grantsConfig.max_selections || grantsConfig.options.length;
-            if (optionsToGrant.length === 0) {
-              throw new Error('At least one option must be selected');
-            }
-            if (optionsToGrant.length > maxSelections) {
-              throw new Error(`Cannot select more than ${maxSelections} options`);
-            }
+        );
+
+        for (const item of granted) {
+          // Add to rating delta for granted equipment (fighters and assigned vehicles)
+          if (params.fighter_id || (params.vehicle_id && vehicleAssignedFighterId)) {
+            grantsRatingDelta += item.purchase_cost;
           }
-        }
 
-        // Insert each granted equipment
-        for (const option of optionsToGrant) {
-          const { data: grantedEquip } = await supabase
-            .from('equipment')
-            .select('id, equipment_name, cost')
-            .eq('id', option.equipment_id)
-            .single();
-
-          if (grantedEquip) {
-            await supabase
-              .from('fighter_equipment')
-              .insert({
-                gang_id: params.gang_id,
-                fighter_id: params.fighter_id,
-                vehicle_id: params.vehicle_id,
-                equipment_id: grantedEquip.id,
-                original_cost: grantedEquip.cost,
-                purchase_cost: option.additional_cost,
-                granted_by_equipment_id: newEquipmentId,
-                user_id: gang.user_id
-              });
-
-            // Add to rating delta for granted equipment (fighters and assigned vehicles)
-            if (params.fighter_id || (params.vehicle_id && vehicleAssignedFighterId)) {
-              grantsRatingDelta += option.additional_cost;
-            }
-
-            // Track for logging after gang update
-            grantedEquipmentForLogging.push({
-              equipment_name: grantedEquip.equipment_name,
-              purchase_cost: option.additional_cost
-            });
-          }
+          // Track for logging after gang update
+          grantedEquipmentForLogging.push({
+            equipment_name: item.equipment?.equipment_name ?? 'Unknown',
+            purchase_cost: item.purchase_cost
+          });
         }
       }
     }
@@ -1139,6 +1106,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
     // Inactive fighters are already excluded from rating calculations
     let ratingDelta = 0;
+    // Includes the equipment it granted (e.g. an Outrider Quad's weapon), which the delete cascades to
+    const itemCost = (equipmentBefore.purchase_cost || 0) + (await grantedEquipment(supabase, equipmentBefore)).cost;
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
     if (equipmentBefore.fighter_id) {
@@ -1158,7 +1127,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
           : undefined;
 
       if (fighterIsActive) {
-        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        ratingDelta -= itemCost;
         // subtract associated effects credits if any
         const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
         ratingDelta -= effectsCredits;
@@ -1172,7 +1141,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
         .single();
 
       if (countsTowardRating(veh?.fighters as FighterStatus | null | undefined)) {
-        ratingDelta -= (equipmentBefore.purchase_cost || 0);
+        ratingDelta -= itemCost;
         const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
         ratingDelta -= effectsCredits;
       }
@@ -1395,7 +1364,8 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
-    const purchaseCost = row.purchase_cost || 0;
+    // Includes the equipment it granted, which the delete cascades to
+    const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;
 
     // Permission implicitly enforced by RLS; we still fetch to invalidate correctly
     const { error: delErr } = await supabase

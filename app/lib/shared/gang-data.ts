@@ -93,6 +93,7 @@ export interface GangStashItem {
   cost: number;
   type: 'equipment';
   cost_resource?: { name: string; amount: number } | null;
+  granted_by_equipment_id: string | null;
 }
 
 export interface GangCampaignResource {
@@ -289,7 +290,7 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
     async () => {
       const equipmentColumns = { equipment_name: true, equipment_type: true, equipment_category: true } as const;
       const items = await getAppDb().query.fighterEquipment.findMany({
-        columns: { id: true, equipment_id: true, custom_equipment_id: true, purchase_cost: true, cost_resource: true },
+        columns: { id: true, equipment_id: true, custom_equipment_id: true, purchase_cost: true, cost_resource: true, granted_by_equipment_id: true },
         extras: (item, { sql }) => ({
           created_at: sql<string | null>`to_json(${item.created_at})`.as('created_at'),
         }),
@@ -310,10 +311,11 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
         equipment_category: item.equipment?.equipment_category || item.custom_equipment?.equipment_category || 'unknown',
         cost: item.purchase_cost ?? 0,
         type: 'equipment' as const,
-        cost_resource: item.cost_resource ?? null
+        cost_resource: item.cost_resource ?? null,
+        granted_by_equipment_id: item.granted_by_equipment_id
       }));
     },
-    [`gang-stash-v2-${gangId}`],
+    [`gang-stash-v3-${gangId}`],
     {
       tags: [TAGS.gangStash(gangId)],
       revalidate: false
@@ -613,6 +615,7 @@ const EQUIPMENT_QUERY = {
     is_editable: true,
     cost_resource: true,
     fighter_skill_id: true,
+    granted_by_equipment_id: true,
   },
   with: {
     equipment: {

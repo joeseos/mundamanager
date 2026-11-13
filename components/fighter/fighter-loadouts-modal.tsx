@@ -49,13 +49,25 @@ export default function FighterLoadoutsModal({
   const [pendingDiscardAction, setPendingDiscardAction] = useState<(() => void) | null>(null);
 
   // Filter out vehicle upgrades (always shown, not part of loadouts)
-  // Apply same sorting as fighter-equipment-list.tsx
+  const filteredEquipment = useMemo(
+    () => equipment.filter(e => e.equipment_type !== 'vehicle_upgrade'),
+    [equipment]
+  );
+
+  // The equipment that granted an item (e.g. an Outrider Quad for its weapon), when listed too
+  const grantedByIdOf = useMemo(() => {
+    const ids = new Set(filteredEquipment.map(item => item.fighter_equipment_id));
+    return (item: Equipment) =>
+      item.granted_by_equipment_id && ids.has(item.granted_by_equipment_id) ? item.granted_by_equipment_id : null;
+  }, [filteredEquipment]);
+
+  // Same sorting as fighter-equipment-list.tsx; here granted items also nest under their source
   const loadoutEquipment = useMemo(() => {
-    const filtered = equipment.filter(e => e.equipment_type !== 'vehicle_upgrade');
-    
-    // Separate equipment into parent items (equipment that targets fighters/vehicles) and child items (equipment targeting other equipment)
-    const parentEquipment = filtered.filter(item => !item.target_equipment_id);
-    const childEquipment = filtered.filter(item => item.target_equipment_id);
+    // Separate equipment into parent items and child items: equipment targeting other equipment,
+    // and equipment granted by other equipment
+    const parentIdOf = (item: Equipment) => item.target_equipment_id || grantedByIdOf(item);
+    const parentEquipment = filteredEquipment.filter(item => !parentIdOf(item));
+    const childEquipment = filteredEquipment.filter(item => parentIdOf(item));
     
     // Sort parent equipment: core equipment first, then by name
     const sortedParentEquipment = [...parentEquipment].sort((a, b) => {
@@ -67,7 +79,7 @@ export default function FighterLoadoutsModal({
     // Build a tree structure: map parent equipment IDs to their child equipment
     const equipmentTree = new Map<string, Equipment[]>();
     childEquipment.forEach(child => {
-      const parentId = child.target_equipment_id!;
+      const parentId = parentIdOf(child)!;
       if (!equipmentTree.has(parentId)) {
         equipmentTree.set(parentId, []);
       }
@@ -103,7 +115,7 @@ export default function FighterLoadoutsModal({
     });
     
     return result;
-  }, [equipment]);
+  }, [filteredEquipment, grantedByIdOf]);
 
   // Get the selected loadout
   const selectedLoadout = selectedLoadoutId
@@ -138,11 +150,18 @@ export default function FighterLoadoutsModal({
 
     const currentIds = getLoadoutEquipmentIds(selectedLoadoutId);
     const newIds = new Set(currentIds);
+    // Granted equipment goes in and out of a loadout with the equipment that granted it
+    const toggledIds = [
+      equipmentId,
+      ...loadoutEquipment
+        .filter(item => item.granted_by_equipment_id === equipmentId)
+        .map(item => item.fighter_equipment_id),
+    ];
 
     if (newIds.has(equipmentId)) {
-      newIds.delete(equipmentId);
+      toggledIds.forEach(id => newIds.delete(id));
     } else {
-      newIds.add(equipmentId);
+      toggledIds.forEach(id => newIds.add(id));
     }
 
     setPendingChanges(prev => new Map(prev).set(selectedLoadoutId, newIds));
@@ -612,26 +631,30 @@ export default function FighterLoadoutsModal({
                           const equipmentIds = getLoadoutEquipmentIds(selectedLoadout.id);
                           const isInLoadout = equipmentIds.has(item.fighter_equipment_id);
                           const checkboxId = `loadout-equipment-${item.fighter_equipment_id}`;
-                          const isChild = !!item.target_equipment_id;
+                          const grantedById = grantedByIdOf(item);
+                          const isChild = !!item.target_equipment_id || !!grantedById;
+                          // Granted equipment can only be added to a loadout with the equipment that granted it
+                          const isLocked = !!grantedById && !isInLoadout && !equipmentIds.has(grantedById);
                           const mutedClass = !isInLoadout ? "text-muted-foreground" : "";
 
                           return (
                             <tr
                               key={item.fighter_equipment_id}
-                              className={`${isChild ? "border-b bg-muted/20" : "border-b"} hover:bg-muted cursor-pointer`}
-                              onClick={() => handleEquipmentToggle(item.fighter_equipment_id)}
+                              className={`${isChild ? "border-b bg-muted/20" : "border-b"} ${isLocked ? "" : "hover:bg-muted cursor-pointer"}`}
+                              onClick={() => !isLocked && handleEquipmentToggle(item.fighter_equipment_id)}
                             >
                               <td className="px-1 py-1" onClick={(e) => e.stopPropagation()}>
                                 <Checkbox
                                   id={checkboxId}
                                   checked={isInLoadout}
+                                  disabled={isLocked}
                                   onCheckedChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
                                 />
                               </td>
                               <td className="px-1 py-1">
                                 <label
                                   htmlFor={checkboxId}
-                                  className="cursor-pointer"
+                                  className={isLocked ? "" : "cursor-pointer"}
                                 >
                                   {isChild && (
                                     <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
