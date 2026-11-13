@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import { Equipment, EquipmentGrants, ResourceCost } from '@/types/equipment';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
-import { GrantOptionSelection } from '@/components/equipment/grant-option-selection';
+import { GrantOptionSelection } from '@/components/gang/fighter-add/EquipmentSelection';
 import type { GangCampaignResource } from '@/app/lib/shared/gang-data';
 import { hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { isValidTradePoints, parseTradePointsCost } from '@/utils/campaigns/resources';
