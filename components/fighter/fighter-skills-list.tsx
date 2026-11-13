@@ -17,7 +17,7 @@ import {
   type SkillAccess,
   type SkillInSet,
   type SkillTypeOption,
-} from '@/utils/api/skill-access';
+} from '@/components/fighter/edit-fighter/skill-access-modal';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 

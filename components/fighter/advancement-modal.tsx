@@ -16,7 +16,7 @@ import {
   toSkillAccess,
   type SkillAccess,
   type SkillInSet,
-} from '@/utils/api/skill-access';
+} from '@/components/fighter/edit-fighter/skill-access-modal';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
