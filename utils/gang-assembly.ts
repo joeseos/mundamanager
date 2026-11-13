@@ -3,7 +3,7 @@ import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import type { CountLimit } from '@/types/fighter-type';
-import { WeaponProfile } from '@/types/equipment';
+import { isBeastWargear, WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import { gangRulesForWeapon } from '@/utils/gang-rules';
 import type {
@@ -500,7 +500,9 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
 
     // Calculate total cost
     let totalCost = 0;
-    const isOwnedBeast = !!ownershipInfo;
+    // A beast's cost rolls into its owner, and a fighter kept in the stash by its
+    // item (no owner) is stash value, so the card itself costs nothing
+    const isGrantedByItem = !!fighter.fighter_pet_id;
 
     // Process vehicles with equipment and effects for display
     const processedVehicles = vehicles.map((vehicle: any) => {
@@ -569,10 +571,10 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
       .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
 
-    if (!isOwnedBeast) {
-      // Total cost for gang rating uses ALL equipment, skills and effects (not filtered by loadout)
-      const allEquipmentCost = processedEquipment
-        .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+    // Total cost for gang rating uses ALL equipment, skills and effects (not filtered by loadout)
+    const allEquipmentCost = processedEquipment
+      .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
+    if (!isGrantedByItem) {
       totalCost = fighter.credits + allEquipmentCost + skillCredits(Object.values(allSkills)) + unfilteredEffectsCost +
                   vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total;
     }
@@ -607,7 +609,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
     const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, gangScope);
 
     // Loadout cost for fighter card display: base cost + loadout equipment + skills + effects
-    const displayLoadoutCost = !isOwnedBeast
+    const displayLoadoutCost = !isGrantedByItem
       ? fighter.credits + loadoutEquipmentCost + skillCredits(Object.values(skills)) + effectCredits(Object.values(effects).flat()) + vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total
       : 0;
 
@@ -674,6 +676,8 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       owner_id: ownershipInfo?.owner_id,
       owner_name: ownershipInfo?.owner_name,
       beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+      // Kept in the stash by its item (no owner): what was added to it is stash value
+      stash_value: isGrantedByItem && !ownershipInfo ? allEquipmentCost + unfilteredEffectsCost : undefined,
       active_loadout_id: activeLoadoutId || undefined,
       active_loadout_name: activeLoadoutId ? (loadoutCtx?.loadoutName ?? loadoutNameMap.get(activeLoadoutId)) : undefined,
       isActiveLoadoutForPrint: loadoutCtx?.isActiveLoadout ?? true
@@ -918,9 +922,6 @@ export function selectGangFighterIndex(bundle: GangFightersBundle): GangFighterI
 // FIGHTER PAGE VIEW - the gang page's fighter plus what only the fighter page lists
 // =============================================================================
 
-// The beast-granting item's category: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26
-const BEAST_EQUIPMENT_CATEGORIES = new Set(['status items: exotic beasts', 'pets']);
-
 export interface FighterView {
   /**
    * The fighter as the gang page assembles it, with the fighter page's vehicle
@@ -995,7 +996,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     },
     equipment: equipment.map((item: any) => {
       const row = rowById.get(item.fighter_equipment_id);
-      const beastBreakdown = BEAST_EQUIPMENT_CATEGORIES.has(item.equipment_category.toLowerCase())
+      const beastBreakdown = isBeastWargear(item.equipment_category)
         ? beastCosts.byEquipmentId[item.fighter_equipment_id]
         : undefined;
       return {

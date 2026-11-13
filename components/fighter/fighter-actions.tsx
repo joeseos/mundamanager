@@ -36,6 +36,7 @@ interface Fighter {
   is_spyrer?: boolean;
   fighter_subtypes?: string[];
   owner_name?: string;
+  stash_value?: number;
   campaigns?: Array<{
     campaign_id: string;
     resources?: Array<{ resource_name: string }>;
@@ -177,6 +178,8 @@ export function FighterActions({
   const showGuilderSale = hasGuilderSales(editionSlug);
   const showRecovery = !fighter?.is_spyrer || hasSpyrerRecovery(editionSlug);
   const isOwnedExoticBeast = fighter?.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet') && !!fighter?.owner_name;
+  // A card kept in the stash by its item (the Trazior Pattern Sentry Gun) goes with that item
+  const isKeptInStash = fighter?.stash_value !== undefined;
 
   // Calculate total vehicle equipment cost
   const vehicleEquipmentCost = useMemo(() => {
@@ -365,11 +368,13 @@ export function FighterActions({
             Copy Fighter
           </Button>
 
-          {isOwnedExoticBeast ? (
+          {isOwnedExoticBeast || isKeptInStash ? (
             <span
               className="flex-1 inline-block"
               data-tooltip-id="delete-owned-beast-tooltip"
-              data-tooltip-content={`This ${beastNoun} can't be deleted as it's linked to an Owner. Delete the ${beastNoun} wargear on the owner instead. You can still apply other status to a ${beastNoun} (Retired, Killed etc.)`}
+              data-tooltip-content={isKeptInStash
+                ? `This fighter can't be deleted as it comes with an item in the gang stash. Sell or delete the item from the stash instead.`
+                : `This ${beastNoun} can't be deleted as it's linked to an Owner. Delete the ${beastNoun} wargear on the owner instead. You can still apply other status to a ${beastNoun} (Retired, Killed etc.)`}
             >
               <Button
                 variant="destructive"

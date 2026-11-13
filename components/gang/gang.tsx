@@ -347,8 +347,9 @@ export default function Gang({
     });
   }, [vehicles, fighters]);
 
-  // Calculate the total value of the Stash
-  const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0);
+  // Calculate the total value of the Stash, with the gear of the fighters its items keep there
+  const totalStashValue = stash.reduce((total, item) => total + (item.cost || 0), 0) +
+    fighters.reduce((total, fighter) => total + (fighter.stash_value || 0), 0);
 
   // Filter out killed, enslaved, or retired fighters for gang size and composition
   const activeFighters = useMemo(() => {

@@ -45,6 +45,8 @@ interface GangInventoryProps {
   title?: string;
   onStashUpdate?: (newStash: StashItem[]) => void;
   onFighterUpdate?: (updatedFighter: FighterProps, skipRatingUpdate?: boolean) => void;
+  onFighterAdd?: (newFighter: FighterProps, cost: number) => void;
+  onFighterRemove?: (fighterId: string) => void;
   onVehicleUpdate?: (updatedVehicles: VehicleProps[]) => void;
   vehicles?: VehicleProps[];
   gangTypeId?: string;
@@ -73,6 +75,8 @@ export default function GangInventory({
   title = 'Gang Stash',
   onStashUpdate,
   onFighterUpdate,
+  onFighterAdd,
+  onFighterRemove,
   onVehicleUpdate,
   vehicles = [],
   gangTypeId,
@@ -206,6 +210,19 @@ export default function GangInventory({
   const getItemName = (item: StashItem): string => {
     const baseName = item.vehicle_name || item.equipment_name || 'Unknown Item';
     return baseName;
+  };
+
+  // A moved item's cost goes where the fighter counts it: stash value for a card kept
+  // in the stash (the Trazior Pattern Sentry Gun), otherwise the fighter's cost
+  const withItemCost = (fighter: FighterProps, cost: number): FighterProps =>
+    fighter.stash_value === undefined
+      ? { ...fighter, credits: fighter.credits + cost }
+      : { ...fighter, stash_value: fighter.stash_value + cost };
+
+  // Removing an item from the stash deletes the fighter cards it kept there
+  const removeStashItemFighters = (fighterIds: string[]) => {
+    setFighters(prev => prev.filter(fighter => !fighterIds.includes(fighter.id)));
+    fighterIds.forEach(fighterId => onFighterRemove?.(fighterId));
   };
 
   const isVehicle = (item: StashItem): boolean => item.type === 'vehicle';
@@ -385,8 +402,7 @@ export default function GangInventory({
           for (const config of configurations) {
             const item = config.stashItem;
             optimisticFighter = {
-              ...optimisticFighter,
-              credits: optimisticFighter.credits + (item.cost || 0),
+              ...withItemCost(optimisticFighter, item.cost || 0),
               weapons: item.equipment_type === 'weapon'
                 ? [
                     ...(optimisticFighter.weapons || []),
@@ -530,8 +546,7 @@ export default function GangInventory({
             }
 
             finalFighter = {
-              ...finalFighter,
-              credits: finalFighter.credits + (item.cost || 0),
+              ...withItemCost(finalFighter, item.cost || 0),
               weapons: item.equipment_type === 'weapon'
                 ? [
                     ...modifiedWeapons,
@@ -1020,7 +1035,7 @@ export default function GangInventory({
           gangReputation={gangReputation}
           editionSlug={editionSlug}
           gangTradePoints={gangTradePoints}
-          onEquipmentBought={({ newGangCredits, boughtEquipment, newGangRating, newGangWealth, newGangTradePoints }) => {
+          onEquipmentBought={({ newGangCredits, boughtEquipment, newGangRating, newGangWealth, newGangTradePoints, createdFighters }) => {
             // Handle equipment bought for stash - perform optimistic updates
 
             // Create new stash item from the purchased equipment
@@ -1047,6 +1062,10 @@ export default function GangInventory({
             if (onStashUpdate) {
               onStashUpdate(newStash);
             }
+
+            // The fighter card an item keeps in the stash (the Trazior Pattern Sentry Gun)
+            setFighters(prev => [...prev, ...createdFighters]);
+            createdFighters.forEach(fighter => onFighterAdd?.(fighter, 0));
 
             // Update gang credits in parent component if provided
             if (onGangCreditsUpdate && newGangCredits !== undefined) {
@@ -1187,6 +1206,7 @@ export default function GangInventory({
                 const newStash = stash.filter((_, i) => !soldIndices.includes(i));
                 setStash(newStash);
                 onStashUpdate?.(newStash);
+                removeStashItemFighters(res.data!.removed_fighter_ids);
                 if (isResourceItem) {
                   toast.success(`Returned ${cost} ${item.cost_resource!.name}`);
                 } else {
@@ -1230,6 +1250,8 @@ export default function GangInventory({
               const newStash = stash.filter((_, i) => !deletedIndices.includes(i));
               setStash(newStash);
               onStashUpdate?.(newStash);
+              removeStashItemFighters(res.data.removed_fighter_ids);
+              if (res.data.wealth !== undefined) onGangWealthUpdate?.(res.data.wealth);
               toast.success(`Deleted ${getItemName(item)} from stash`);
             } else {
               toast.error(res.error || 'Failed to delete item');

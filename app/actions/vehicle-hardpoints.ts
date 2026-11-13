@@ -5,7 +5,7 @@ import { createClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { FighterStatus, vehicleCostTarget } from '@/utils/fighter-status';
 import { SupabaseClient } from '@supabase/supabase-js';
 
 // ============================================================================
@@ -142,24 +142,13 @@ export async function updateVehicleHardpoint(
     const uniqueArcs = Array.from(new Set(params.arcs)).filter(a => validArcs.includes(a));
     if (uniqueArcs.length === 0) return { success: false, error: 'At least one arc is required' };
 
-    // --- Load vehicle (for fighter_id and gang ownership check) ---
+    // --- Load vehicle (for fighter_id, its crew's status and gang ownership check) ---
     const { data: vehicle } = await supabase
       .from('vehicles')
-      .select('id, fighter_id, gang_id')
+      .select('id, fighter_id, gang_id, fighters (killed, retired, enslaved, captured)')
       .eq('id', params.vehicleId)
       .single();
     if (!vehicle) return { success: false, error: 'Vehicle not found' };
-
-    // --- Check if assigned fighter is active (for rating guard) ---
-    let fighterIsActive = false;
-    if (vehicle.fighter_id) {
-      const { data: fighterData } = await supabase
-        .from('fighters')
-        .select('killed, retired, enslaved, captured')
-        .eq('id', vehicle.fighter_id)
-        .single();
-      fighterIsActive = countsTowardRating(fighterData);
-    }
 
     // --- Security: verify vehicle belongs to the specified gang ---
     if (vehicle.gang_id !== params.gangId) {
@@ -224,15 +213,11 @@ export async function updateVehicleHardpoint(
 
     // --- Financial update (only after effect update succeeds) ---
     if (delta !== 0) {
-      // Assigned to active fighter → ratingDelta (vehicle cost rolls into fighter rating)
-      // Assigned to inactive fighter → no rating/stash change (fighter already excluded)
-      // Unassigned → stashValueDelta (vehicle sits in gang stash)
       const financialResult = await updateGangFinancials(supabase, {
         gangId: params.gangId,
         creditsDelta: -delta,
-        ...(vehicle.fighter_id
-          ? { ratingDelta: fighterIsActive ? delta : 0 }
-          : { stashValueDelta: delta }),
+        ratingDelta: delta,
+        costTarget: vehicleCostTarget(vehicle.fighters as FighterStatus | null)
       });
       if (!financialResult.success) {
         // Effect was updated but financial failed - log but continue

@@ -64,6 +64,12 @@ export interface WeaponProfileInput {
   sort_order: number;
 }
 
+/** Wargear that grants a beast: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26. */
+export function isBeastWargear(equipmentCategory: string | null | undefined): boolean {
+  const category = equipmentCategory?.toLowerCase();
+  return category === 'status items: exotic beasts' || category === 'pets';
+}
+
 /**
  * A blank profile for the admin equipment forms. Defined once so a new stat
  * column lands in one place rather than in every form literal.

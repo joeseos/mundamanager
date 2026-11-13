@@ -3,13 +3,13 @@
 import { invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 
-import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
+import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
-import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
-import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { fighterCostTarget, FighterCostTarget, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
+import { EquipmentGrants, ResourceCost, CostResourcePayload, isBeastWargear } from '@/types/equipment';
+import { createExoticBeastsForEquipment, GRANTED_FIGHTERS_COLUMNS, invalidateBeastOwnerCache, stashItemFighters } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
@@ -323,11 +323,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       fighter_pet_id: string | null;
     }) | null;
     // Only gear on an active fighter counts toward rating: a beast's gear rolls
-    // into its owner and a vehicle's into its assigned fighter. An inactive
-    // fighter's whole cost is added back when they return.
-    const ownerIsActive = params.fighter_id
-      ? costCountsTowardRating(fighterRow)
-      : countsTowardRating(vehicleResult.data?.fighters as FighterStatus | null | undefined);
+    // into its owner and a vehicle's into its assigned fighter, and a vehicle
+    // without crew counts toward wealth only. An inactive fighter's whole cost
+    // is added back when they return.
+    const costTarget = params.fighter_id
+      ? fighterCostTarget(fighterRow)
+      : vehicleCostTarget(vehicleResult.data?.fighters as FighterStatus | null | undefined);
     /**
      * null only when the row was actually read and says this fighter is not a
      * pet. A missing/failed read stays undefined so the helper falls back to
@@ -349,9 +350,11 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           id,
           equipment_name,
           equipment_type,
+          equipment_category,
           cost,
           trade_points,
           is_editable,
+          exotic_beasts (id),
           weapon_profiles (
             id,
             profile_name,
@@ -593,11 +596,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
     // Calculate base rating delta for the main equipment purchase
     if (!params.buy_for_gang_stash) {
-      if (params.fighter_id) {
-        ratingDelta += ratingCost;
-      } else if (params.vehicle_id && vehicleAssignedFighterId) {
-        ratingDelta += ratingCost;
-      }
+      ratingDelta += ratingCost;
     }
 
     // Handle equipment grants (equipment that automatically includes other items)
@@ -624,10 +623,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         );
 
         for (const item of granted) {
-          // Add to rating delta for granted equipment (fighters and assigned vehicles)
-          if (params.fighter_id || (params.vehicle_id && vehicleAssignedFighterId)) {
-            grantsRatingDelta += item.purchase_cost;
-          }
+          grantsRatingDelta += item.purchase_cost;
 
           // Track for logging after gang update
           grantedEquipmentForLogging.push({
@@ -684,12 +680,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
               });
 
               // Rating delta calculation
-              const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
-              if (params.fighter_id) {
-                ratingDelta += creditsIncrease;
-              } else if (params.vehicle_id && vehicleAssignedFighterId) {
-                ratingDelta += creditsIncrease;
-              }
+              ratingDelta += effectType.type_specific_data?.credits_increase || 0;
             }
           }
         }
@@ -703,15 +694,19 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // Name for beast creation — from the fighter row read in the opening batch.
     const fighterName: string | null = fighterRow?.fighter_name ?? null;
 
-    // Handle familiar creation for fighter equipment purchases
+    // Handle familiar creation. A beast needs an owner, so beast wargear creates its fighter
+    // when bought for a fighter; any other item (the Trazior Pattern Sentry Gun) in the stash.
     let createdFamiliars: any[] = [];
     let createdFamiliarsRatingDelta = 0;
+    const createsFamiliars = isBeastWargear(equipmentDetails.equipment_category)
+      ? !!params.fighter_id && !params.buy_for_gang_stash
+      : !!params.buy_for_gang_stash && equipmentDetails.exotic_beasts?.length > 0;
 
-    if (params.fighter_id && !params.buy_for_gang_stash && !params.custom_equipment_id && params.equipment_id) {
+    if (createsFamiliars && !params.custom_equipment_id && params.equipment_id) {
       try {
         const familiarResult = await createExoticBeastsForEquipment({
           equipmentId: params.equipment_id,
-          ownerFighterId: params.fighter_id,
+          ownerFighterId: params.buy_for_gang_stash ? null : params.fighter_id!,
           ownerFighterName: fighterName,
           gangId: params.gang_id,
           userId: gang.user_id,
@@ -735,7 +730,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     }
 
     // Calculate deltas for gang updates
-    const totalRatingDelta = ownerIsActive ? ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta : 0;
+    const totalRatingDelta = ratingDelta + createdFamiliarsRatingDelta + grantsRatingDelta;
     const stashValueDelta = params.buy_for_gang_stash ? ratingCost : 0;
 
     // Update gang credits, rating, wealth and Trade Points using centralized helper.
@@ -745,6 +740,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
       ratingDelta: totalRatingDelta,
+      costTarget,
       creditsDelta: isResourcePurchase ? 0 : -finalPurchaseCost - grantsRatingDelta,
       tradePointsDelta: -tradePointsCost,
       reputationDelta: isReputationPurchase ? -params.resourceCost!.amount : 0,
@@ -1102,49 +1098,38 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
       `)
       .eq('fighter_equipment_id', params.fighter_equipment_id);
 
-    // Determine rating delta prior to deletion
-    // BUT only if the fighter is active (not killed, retired, enslaved, or captured)
-    // Inactive fighters are already excluded from rating calculations
-    let ratingDelta = 0;
-    // Includes the equipment it granted (e.g. an Outrider Quad's weapon), which the delete cascades to
+    // The item, the equipment it granted (e.g. an Outrider Quad's weapon, which the delete
+    // cascades to) and its effects come off the fighter's cost; an inactive fighter's cost
+    // is already out of rating (see fighterCostTarget)
     const itemCost = (equipmentBefore.purchase_cost || 0) + (await grantedEquipment(supabase, equipmentBefore)).cost;
+    const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
+    const ratingDelta = -itemCost - effectsCredits;
+    let costTarget: FighterCostTarget = 'none';
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
     if (equipmentBefore.fighter_id) {
-      // Check if the fighter is active before applying rating delta
       const { data: fighter } = await supabase
         .from('fighters')
         .select(`fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
         .eq('id', equipmentBefore.fighter_id)
         .single();
 
-      const fighterIsActive = costCountsTowardRating(fighter);
+      costTarget = fighterCostTarget(fighter);
       // Only a hint when the row was read AND belongs to the fighter the
       // invalidation below targets; otherwise leave undefined to force a lookup.
       fighterPetId =
         fighter && equipmentBefore.fighter_id === params.fighter_id
           ? fighter.fighter_pet_id ?? null
           : undefined;
-
-      if (fighterIsActive) {
-        ratingDelta -= itemCost;
-        // subtract associated effects credits if any
-        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-        ratingDelta -= effectsCredits;
-      }
     } else if (equipmentBefore.vehicle_id) {
-      // Only count if vehicle assigned to an active fighter
+      // Follows the vehicle's crew, or counts toward wealth only without one
       const { data: veh } = await supabase
         .from('vehicles')
         .select('fighters (killed, retired, enslaved, captured)')
         .eq('id', equipmentBefore.vehicle_id)
         .single();
 
-      if (countsTowardRating(veh?.fighters as FighterStatus | null | undefined)) {
-        ratingDelta -= itemCost;
-        const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
-        ratingDelta -= effectsCredits;
-      }
+      costTarget = vehicleCostTarget(veh?.fighters as FighterStatus | null | undefined);
     }
 
     // Delete the equipment (cascade will handle fighter effects automatically)
@@ -1184,8 +1169,8 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     }
 
     // Update rating and wealth if needed
-    if (ratingDelta !== 0) {
-      await updateGangRatingSimple(supabase, params.gang_id, ratingDelta);
+    if (ratingDelta !== 0 && costTarget !== 'none') {
+      await updateGangFinancials(supabase, { gangId: params.gang_id, ratingDelta, costTarget });
     }
 
     // Get fresh fighter total cost after deletion for accurate response
@@ -1350,7 +1335,7 @@ export async function applyEquipmentEffect(params: {
   }
 }
 
-// Delete an item directly from the gang stash (no rating updates)
+// Delete an item directly from the gang stash
 export async function deleteEquipmentFromStash(params: StashDeleteParams): Promise<StashActionResult> {
   try {
     const supabase = await createClient();
@@ -1358,7 +1343,7 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
 
     const { data: row, error: fetchErr } = await supabase
       .from('fighter_equipment')
-      .select('id, gang_id, gang_stash, purchase_cost')
+      .select(`id, gang_id, gang_stash, purchase_cost, equipment:equipment_id (equipment_category), ${GRANTED_FIGHTERS_COLUMNS}`)
       .eq('id', params.stash_id)
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
@@ -1366,6 +1351,7 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
 
     // Includes the equipment it granted, which the delete cascades to
     const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;
+    const stashFighters = stashItemFighters((row as any).equipment?.equipment_category, row.granted_fighters);
 
     // Permission implicitly enforced by RLS; we still fetch to invalidate correctly
     const { error: delErr } = await supabase
@@ -1374,17 +1360,22 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       .eq('id', params.stash_id);
     if (delErr) return { success: false, error: delErr.message };
 
-    // Update wealth (stash value decreases, so wealth decreases)
-    if (purchaseCost !== 0) {
-      await updateGangFinancials(supabase, {
-        gangId: row.gang_id,
-        stashValueDelta: -purchaseCost
-      });
-    }
+    // Stash value loses the item and the gear of the fighters it kept in the stash
+    const stashValueDelta = -(purchaseCost + stashFighters.gearValue);
+    const financialResult = stashValueDelta !== 0
+      ? await updateGangFinancials(supabase, { gangId: row.gang_id, stashValueDelta })
+      : null;
 
     invalidateGangStash(row.gang_id);
     invalidateGang(row.gang_id);
-    return { success: true };
+    stashFighters.ids.forEach((fighterId) => invalidateFighter(fighterId, row.gang_id));
+    return {
+      success: true,
+      data: {
+        wealth: financialResult?.newValues?.wealth,
+        removed_fighter_ids: stashFighters.ids
+      }
+    };
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Unknown error' };
   }
@@ -1473,11 +1464,10 @@ export async function applySelfUpgradesToEquipment(params: {
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: params.credits_increase,
-          applyToRating: fighterIsActive
+          costTarget: fighterCostTarget(fighter)
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);
@@ -1549,11 +1539,10 @@ export async function deleteEquipmentEffect(
           .eq('id', params.fighter_id)
           .single();
 
-        const fighterIsActive = costCountsTowardRating(fighter);
         await updateGangFinancials(supabase, {
           gangId: params.gang_id,
           ratingDelta: -params.credits_increase,
-          applyToRating: fighterIsActive
+          costTarget: fighterCostTarget(fighter)
         });
       } catch (e) {
         console.error('Failed to update gang rating/wealth:', e);

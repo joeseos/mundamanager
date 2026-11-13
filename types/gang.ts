@@ -194,6 +194,8 @@ export interface GangFighter {
   owner_id?: string;
   owner_name?: string;
   beast_equipment_stashed?: boolean;
+  /** Set for a fighter kept in the stash by its item: its gear and effects, counted in stash value. */
+  stash_value?: number;
   active_loadout_id?: string;
   active_loadout_name?: string;
   /** When true, this entry represents the fighter's in-game active loadout (used for print filtering) */

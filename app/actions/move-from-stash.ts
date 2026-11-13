@@ -9,8 +9,9 @@ import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { grantSkillsForEffects, insertEffectWithModifiers, type GrantedSkill } from './equipment';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
-import { costCountsTowardRating, countsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { isBeastWargear } from '@/types/equipment';
 
 export interface MoveFromStashItem {
   stash_id: string;
@@ -73,7 +74,8 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         purchase_cost,
         is_master_crafted,
         granted_by_equipment_id,
-        equipment:equipment_id (equipment_category)
+        equipment:equipment_id (equipment_category),
+        granted_fighters:fighter_exotic_beasts!fk_fighter_equipment_cascade (fighter_pet_id)
       `)
       .in('id', stashIds)
       .eq('gang_stash', true);
@@ -101,7 +103,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
     // Validate target belongs to same gang and check its active status (once)
     let fighterOwnerId: string | null = null;
-    let fighterIsActive = false;
+    let costTarget: FighterCostTarget = 'none';
     let vehicleFighterId: string | null = null;
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
@@ -117,7 +119,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (fighter.gang_id !== gangId) throw new Error('Fighter does not belong to the same gang');
       fighterOwnerId = fighter.user_id;
       fighterPetId = fighter.fighter_pet_id ?? null;
-      fighterIsActive = costCountsTowardRating(fighter);
+      costTarget = fighterCostTarget(fighter);
     } else if (params.vehicle_id) {
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
@@ -128,7 +130,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (vehicleError || !vehicle) throw new Error('Vehicle not found');
       if (vehicle.gang_id !== gangId) throw new Error('Vehicle does not belong to the same gang');
       vehicleFighterId = vehicle.fighter_id;
-      fighterIsActive = countsTowardRating(vehicle.fighters as FighterStatus | null);
+      costTarget = vehicleCostTarget(vehicle.fighters as FighterStatus | null);
 
       const { data: gang, error: gangError } = await supabase
         .from('gangs')
@@ -158,7 +160,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
     // Process items and collect results
     const itemResults: MoveFromStashItemResult[] = [];
     const stashIdToRealId = new Map<string, string>();
-    let totalRatingDelta = 0;
     let totalEquipmentValue = 0;
     const allAffectedBeastIds: string[] = [];
     let hasAppliedEffects = false;
@@ -172,6 +173,10 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
       if (!stashData.equipment_id && !stashData.custom_equipment_id) {
         return { stash_id: item.stash_id, success: false, error: 'Item has neither equipment_id nor custom_equipment_id' };
+      }
+      // An item that keeps its fighter in the stash (the Trazior Pattern Sentry Gun) stays there
+      if (!isBeastWargear((stashData as any).equipment?.equipment_category) && stashData.granted_fighters.length > 0) {
+        return { stash_id: item.stash_id, success: false, error: 'This item stays in the gang stash' };
       }
 
       // Move equipment from stash
@@ -392,9 +397,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       // Beast equipment cost
       let beastEquipmentCost = 0;
       let beastOwnershipData: any[] | null = null;
-      // Beast-granting wargear: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
-      const equipmentCategory = (stashData as any).equipment?.equipment_category?.toLowerCase();
-      const isExoticBeast = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+      const isExoticBeast = isBeastWargear((stashData as any).equipment?.equipment_category);
 
       if (params.fighter_id && !isCustomEquipment && stashData.equipment_id && isExoticBeast) {
         hasExoticBeastEquipment = true;
@@ -425,9 +428,6 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
 
       // Accumulate financial deltas
       const itemPurchaseCost = stashData.purchase_cost || 0;
-      if (fighterIsActive) {
-        totalRatingDelta += itemPurchaseCost + effectsCreditsDelta + beastEquipmentCost;
-      }
       totalEquipmentValue += itemPurchaseCost + effectsCreditsDelta + beastEquipmentCost;
 
       // Beast ownership updates
@@ -491,10 +491,11 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       itemResults.push(result);
     }
 
-    // Single financial update with accumulated deltas
+    // Single financial update: the items leave stash value and join the fighter's cost
     const financialResult = await updateGangFinancials(supabase, {
       gangId,
-      ratingDelta: totalRatingDelta,
+      ratingDelta: totalEquipmentValue,
+      costTarget,
       stashValueDelta: -totalEquipmentValue
     });
 

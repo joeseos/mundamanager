@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
-import { Equipment, FighterLoadout } from '@/types/equipment';
+import { Equipment, FighterLoadout, isBeastWargear } from '@/types/equipment';
 import { AdvancementsList } from "@/components/fighter/fighter-advancement-list";
 import { PowerBoostsList } from "@/components/fighter/fighter-power-boosts";
 import { SkillsList } from "@/components/fighter/fighter-skills-list";
@@ -131,6 +131,7 @@ interface Fighter {
   weapons?: any[];
   wargear?: any[];
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  stash_value?: number; // Set for a card kept in the stash by its item: its gear and effects
   captured_by_gang_name?: string;
   captured_by_gang_id?: string | null;
   image_url?: string;
@@ -184,6 +185,13 @@ interface UIState {
   };
 }
 
+/**
+ * An exotic beast's card costs nothing (its cost rolls into its owner), nor does a
+ * card kept in the stash by its item (the Trazior Pattern Sentry Gun: stash value).
+ */
+const cardCostsNothing = (fighter: Fighter | null | undefined): boolean =>
+  !!fighter?.owner_name || fighter?.stash_value !== undefined;
+
 // Helper function to transform fighter data
 const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPageState => {
   // Transform skills
@@ -209,8 +217,7 @@ const transformFighterData = (fighterData: any, gangFighters: any[]): FighterPag
   const transformedEquipment = (fighterData.equipment || []).map((item: any) => {
     const equipmentBeastCost = item.beast_equipment_cost || 0;
     const advancementsBeastCost = item.beast_advancements_cost || 0;
-    const equipmentCategory = item.equipment_category?.toLowerCase();
-    const isBeastEquipment = equipmentCategory === 'status items: exotic beasts' || equipmentCategory === 'pets';
+    const isBeastEquipment = isBeastWargear(item.equipment_category);
     const totalCost = item.purchase_cost + equipmentBeastCost + advancementsBeastCost;
     return {
       fighter_equipment_id: item.fighter_equipment_id,
@@ -475,13 +482,13 @@ export default function FighterPage({
         });
       }
 
-      const isOwnedBeast = !!prev.fighter?.owner_name;
+      const costsNothing = cardCostsNothing(prev.fighter);
       return {
         ...prev,
         equipment: updatedEquipment,
         fighter: prev.fighter ? {
           ...prev.fighter,
-          credits: isOwnedBeast ? prev.fighter.credits : newFighterCredits,
+          credits: costsNothing ? prev.fighter.credits : newFighterCredits,
           effects: updatedEffects || prev.fighter.effects
         } : null,
         gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null
@@ -523,12 +530,12 @@ export default function FighterPage({
         }];
       }
 
-      const isOwnedBeast = !!prev.fighter?.owner_name;
+      const costsNothing = cardCostsNothing(prev.fighter);
       return {
         ...prev,
         fighter: {
           ...prev.fighter,
-          credits: isOwnedBeast ? prev.fighter.credits : newFighterCredits,
+          credits: costsNothing ? prev.fighter.credits : newFighterCredits,
           vehicles: updatedVehicles
         },
         gang: prev.gang ? { ...prev.gang, credits: newGangCredits } : null,
@@ -887,12 +894,12 @@ export default function FighterPage({
             }}
             onGangCreditsUpdate={(creditsDelta) => {
               setFighterData(prev => {
-                const isOwnedBeast = !!prev.fighter?.owner_name;
+                const costsNothing = cardCostsNothing(prev.fighter);
                 return {
                   ...prev,
                   fighter: prev.fighter ? {
                     ...prev.fighter,
-                    credits: isOwnedBeast ? prev.fighter.credits : prev.fighter.credits - creditsDelta
+                    credits: costsNothing ? prev.fighter.credits : prev.fighter.credits - creditsDelta
                   } : null,
                   gang: prev.gang ? { ...prev.gang, credits: prev.gang.credits + creditsDelta } : null
                 };
@@ -900,13 +907,13 @@ export default function FighterPage({
             }}
             onXpCreditsUpdate={(xpChange, creditsChange) => {
               setFighterData(prev => {
-                const isOwnedBeast = !!prev.fighter?.owner_name;
+                const costsNothing = cardCostsNothing(prev.fighter);
                 return {
                   ...prev,
                   fighter: prev.fighter ? {
                     ...prev.fighter,
                     xp: (prev.fighter.xp || 0) + xpChange,
-                    credits: isOwnedBeast
+                    credits: costsNothing
                       ? prev.fighter.credits
                       : (prev.fighter.credits || 0) + creditsChange
                   } : null
@@ -1014,13 +1021,13 @@ export default function FighterPage({
             }}
             onXpCreditsUpdate={(xpChange, creditsChange) => {
               setFighterData(prev => {
-                const isOwnedBeast = !!prev.fighter?.owner_name;
+                const costsNothing = cardCostsNothing(prev.fighter);
                 return {
                   ...prev,
                   fighter: prev.fighter ? {
                     ...prev.fighter,
                     xp: (prev.fighter.xp || 0) + xpChange,
-                    credits: isOwnedBeast
+                    credits: costsNothing
                       ? prev.fighter.credits
                       : (prev.fighter.credits || 0) + creditsChange
                   } : null
@@ -1332,9 +1339,10 @@ export default function FighterPage({
               base_credits: fighterData.fighter.base_credits || 0,
               base_copy_cost: fighterData.fighter.base_copy_cost || 0,
               is_spyrer: fighterData.fighter.is_spyrer,
-              // Both feed the owned-beast delete guard.
+              // These feed the delete guard for cards that come with an item.
               fighter_subtypes: fighterData.fighter?.fighter_subtypes,
               owner_name: fighterData.fighter?.owner_name,
+              stash_value: fighterData.fighter?.stash_value,
               campaigns: fighterData.fighter?.campaigns,
               vehicles: fighterData.fighter?.vehicles?.map(v => ({
                 id: v.id,
