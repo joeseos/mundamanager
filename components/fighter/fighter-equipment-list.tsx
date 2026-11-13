@@ -339,9 +339,15 @@ export function WeaponList({
     }
   };
 
-  // Separate equipment into parent items (equipment that targets fighters/vehicles) and child items (equipment targeting other equipment)
-  const parentEquipment = equipment.filter(item => !item.target_equipment_id);
-  const childEquipment = equipment.filter(item => item.target_equipment_id);
+  // Granted equipment (e.g. an Outrider Quad's weapon) nests under the item that granted it, when listed
+  const equipmentById = new Map(equipment.map(item => [item.fighter_equipment_id, item]));
+  const grantedByOf = (item: Equipment) =>
+    item.granted_by_equipment_id ? equipmentById.get(item.granted_by_equipment_id) : undefined;
+
+  // Separate equipment into parent items and child items (equipment targeting or granted by other equipment)
+  const parentIdOf = (item: Equipment) => item.target_equipment_id || grantedByOf(item)?.fighter_equipment_id;
+  const parentEquipment = equipment.filter(item => !parentIdOf(item));
+  const childEquipment = equipment.filter(item => parentIdOf(item));
 
   // Sort parent equipment: core equipment first, then by name
   const sortedParentEquipment = [...parentEquipment].sort((a, b) => {
@@ -353,7 +359,7 @@ export function WeaponList({
   // Build a tree structure: map parent equipment IDs to their child equipment
   const equipmentTree = new Map<string, Equipment[]>();
   childEquipment.forEach(child => {
-    const parentId = child.target_equipment_id!;
+    const parentId = parentIdOf(child)!;
     if (!equipmentTree.has(parentId)) {
       equipmentTree.set(parentId, []);
     }
@@ -730,6 +736,11 @@ export function WeaponList({
             // Comes with a skill: removed by deleting the skill, never sold or stashed
             <span className="text-muted-foreground text-sm italic whitespace-nowrap">
               {item.granted_by_skill_name || 'Skill'}
+            </span>
+          ) : grantedByOf(item) ? (
+            // Comes with another item: goes with it
+            <span className="text-muted-foreground text-sm italic whitespace-nowrap">
+              {grantedByOf(item)!.equipment_name}
             </span>
           ) : !item.core_equipment && (
             <>
