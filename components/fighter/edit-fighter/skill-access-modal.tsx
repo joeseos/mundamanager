@@ -9,6 +9,7 @@ import {
   saveFighterSkillAccessOverrides,
   type SkillAccessOverride
 } from '@/app/actions/fighter-skill-access';
+import { fighterSkillAccessQuery, fighterSkillTypesQuery } from '@/utils/api/skill-access';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
 
 interface SkillAccessModalProps {
@@ -41,37 +42,16 @@ export function SkillAccessModal({
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const skillSetRank = getSkillSetRank(editionSlug);
 
-  // Fetch edition-scoped skill types using TanStack Query
+  // Edition-scoped skill types
   const { data: allSkillTypes, isLoading: isLoadingSkillTypes, error: skillTypesError } = useQuery({
-    queryKey: ['skill-types', fighterId, editionSlug ?? null],
-    queryFn: async () => {
-      const params = new URLSearchParams({ fighterId });
-      if (editionSlug) params.set('edition_slug', editionSlug);
-      const response = await fetch(`/api/skill-types?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch skill types');
-      }
-      return response.json();
-    },
+    ...fighterSkillTypesQuery(fighterId, editionSlug),
     enabled: isOpen,
-    staleTime: 10 * 60 * 1000, // 10 minutes - skill types rarely change
-    gcTime: 30 * 60 * 1000,    // 30 minutes
   });
 
-  // Fetch fighter's current skill access (defaults + overrides)
+  // Fighter's current skill access (defaults + overrides)
   const { data: skillAccessData, isLoading: isLoadingSkillAccess, error: skillAccessError } = useQuery({
-    queryKey: ['fighter-skill-access', fighterId],
-    queryFn: async () => {
-      const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch skill access');
-      }
-      return response.json();
-    },
+    ...fighterSkillAccessQuery(fighterId),
     enabled: isOpen,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
   // Show error toast if data failed to load

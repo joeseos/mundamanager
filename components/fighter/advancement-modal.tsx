@@ -8,7 +8,13 @@ import { buildGroupedSkillSetComboboxOptions, formatSkillUserKindSuffix } from '
 import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } from '@/utils/skillSetRank';
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
-import { queryOptions, useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  fighterSkillAccessQuery,
+  fighterSkillTypesQuery,
+  type FighterSkillAccess as SkillAccess,
+  type SkillInSet,
+} from '@/utils/api/skill-access';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
@@ -125,13 +131,6 @@ type AvailableSkill = {
 // Type guard function
 function isStatChangeCategory(category: StatChangeCategory | SkillType): category is StatChangeCategory {
   return category.type === 'characteristic';
-}
-
-interface SkillAccess {
-  skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
-  override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
-  skill_type_name: string;
 }
 
 /**
@@ -355,56 +354,7 @@ type AdvancementCatalog = {
 const NO_CHARACTERISTICS: Record<string, CharacteristicAdvancement> = {};
 const NO_SKILL_TYPES: SkillType[] = [];
 const NO_SKILL_ACCESS: SkillAccess[] = [];
-
-type SkillInSet = { skill_id: string; skill_name: string; skill_type_id: string; available: boolean; usable?: boolean; usable_by?: string[] | null };
 const NO_SKILLS_IN_SET: SkillInSet[] = [];
-
-type SkillAccessResponse = { skill_access?: SkillAccess[]; skills?: SkillInSet[] };
-
-// Same request and key as the Skill Access modal; the raw rows are cached and mapped in select.
-// staleTime 0 refetches on every open, so custom Skill Sets created meanwhile show up.
-const fighterSkillTypesQuery = (fighterId: string, editionSlug: string | null | undefined) =>
-  queryOptions({
-    queryKey: ['skill-types', fighterId, editionSlug ?? null],
-    queryFn: async (): Promise<Omit<SkillType, 'type'>[]> => {
-      // Standard and custom skill types, including campaign-shared customs.
-      const params = new URLSearchParams({ fighterId });
-      if (editionSlug) params.set('edition_slug', editionSlug);
-      const response = await fetch(`/api/skill-types?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch skill sets');
-      return response.json();
-    },
-    select: toSkillSetCategories,
-    staleTime: 0,
-  });
-
-function toSkillSetCategories(data: Omit<SkillType, 'type'>[]): SkillType[] {
-  return data.map((cat) => ({ ...cat, type: 'skill' as const }));
-}
-
-/**
- * The fighter's skill access, or with `preview` what it would be as another fighter type
- * (and, with `skillTypeId`, that set's skills). Without `preview` it is the Skill Access
- * modal's request and key. Promotions, fighter edits and skills gained elsewhere change it,
- * so it is fetched on every open and dropped on close.
- */
-const fighterSkillAccessQuery = (
-  fighterId: string,
-  preview?: { previewFighterTypeId: string; skillTypeId?: string }
-) =>
-  queryOptions({
-    queryKey: preview ? ['fighter-skill-access', fighterId, preview] : ['fighter-skill-access', fighterId],
-    queryFn: async (): Promise<SkillAccessResponse> => {
-      const response = await fetch(`/api/fighters/skill-access?${new URLSearchParams({ fighterId, ...preview })}`);
-      if (!response.ok) throw new Error('Failed to fetch skill access');
-      return response.json();
-    },
-    staleTime: 0,
-    gcTime: 0,
-  });
-
-const selectSkillAccess = (data: SkillAccessResponse) => data.skill_access ?? NO_SKILL_ACCESS;
-const selectSkillsInSet = (data: SkillAccessResponse) => data.skills ?? NO_SKILLS_IN_SET;
 const DEFAULT_GANGER_SPECIALIST_COSTS: GangerSpecialistCosts = { xp_cost: 6, credits_increase: 20 };
 
 type AdvancementTypeValue = 'characteristic' | 'skill' | 'promotion_to_champion' | '';
@@ -529,13 +479,14 @@ export function AdvancementModal({
   const isSkillLikeAdvancementType =
     advancementType === 'skill' || advancementType === 'promotion_to_champion';
 
-  // Also the Ganger specialist promotion's skill sets.
+  // Also the Ganger specialist promotion's skill sets
   const {
     data: skillSetCategories = NO_SKILL_TYPES,
     isLoading: skillSetsLoading,
     error: skillSetsError,
   } = useQuery({
     ...fighterSkillTypesQuery(fighterId, editionSlug),
+    select: (data) => data.map((cat) => ({ ...cat, type: 'skill' as const })),
     enabled: isSkillLikeAdvancementType || gangerSelectedRow?.kind === 'specialist',
   });
 
@@ -563,10 +514,9 @@ export function AdvancementModal({
 
   // N26 needs skill access on open so row 6 can offer a Legendary Name.
   // N23 only needs it once a skill advancement is chosen.
-  // isFetching, so loading covers the refetch on open: the Skill Access modal may have left an older copy.
-  const { data: skillAccess = NO_SKILL_ACCESS, isFetching: skillAccessLoading } = useQuery({
+  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading } = useQuery({
     ...fighterSkillAccessQuery(fighterId),
-    select: selectSkillAccess,
+    select: (data) => data.skill_access ?? NO_SKILL_ACCESS,
     enabled: isCumulativeXp || advancementType === 'skill',
   });
 
@@ -577,7 +527,7 @@ export function AdvancementModal({
     isLoading: championPreviewSkillAccessLoading,
   } = useQuery({
     ...fighterSkillAccessQuery(fighterId, { previewFighterTypeId: championPromotionTypeId ?? '' }),
-    select: selectSkillAccess,
+    select: (data) => data.skill_access ?? NO_SKILL_ACCESS,
     enabled: advancementType === 'promotion_to_champion' && !!championPromotionTypeId,
   });
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
@@ -822,7 +772,7 @@ export function AdvancementModal({
     isLoading: gangerPreviewSkillAccessLoading,
   } = useQuery({
     ...fighterSkillAccessQuery(fighterId, { previewFighterTypeId: gangerPromotionTypeId ?? '' }),
-    select: selectSkillAccess,
+    select: (data) => data.skill_access ?? NO_SKILL_ACCESS,
     enabled: gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId,
   });
 
@@ -871,7 +821,7 @@ export function AdvancementModal({
       previewFighterTypeId: gangerPromotionTypeId ?? '',
       skillTypeId: gangerSelectedSkillSetId,
     }),
-    select: selectSkillsInSet,
+    select: (data) => data.skills ?? NO_SKILLS_IN_SET,
     enabled: !!gangerSelectedSkillSetId && !!gangerPromotionTypeId,
   });
 
