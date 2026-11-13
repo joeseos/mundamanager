@@ -13,7 +13,7 @@ import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import type { CostResourcePayload } from '@/types/equipment';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
-import { grantedEquipmentCost } from '@/utils/equipment-grants';
+import { grantedEquipment } from '@/utils/equipment-grants';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -143,7 +143,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Resource-purchased items: return resource, not credits
     const isResourcePurchase = equipmentData.cost_resource && equipmentData.cost_resource.name;
     // Includes the equipment it granted (e.g. an Outrider Quad's weapon), which the delete cascades to
-    const itemCost = (equipmentData.purchase_cost || 0) + await grantedEquipmentCost(supabase, equipmentData);
+    const itemCost = (equipmentData.purchase_cost || 0) + (await grantedEquipment(supabase, equipmentData)).cost;
     const sellValue = isResourcePurchase ? 0 : (params.manual_cost ?? itemCost);
 
     // Get equipment name for logging before deletion
@@ -377,7 +377,8 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const isResourcePurchaseStash = row.cost_resource && (row.cost_resource as any).name;
     const sellValue = isResourcePurchaseStash ? 0 : Math.floor(params.manual_cost || 0);
-    const purchaseCost = row.purchase_cost || 0;
+    // Includes the equipment it granted, which the delete cascades to
+    const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;
 
     // Query beast equipment cost before deletion (only for beast-granting equipment)
     const equipmentCategory = (row as any).equipment?.equipment_category?.toLowerCase();

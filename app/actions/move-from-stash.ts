@@ -72,6 +72,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         custom_equipment_id,
         purchase_cost,
         is_master_crafted,
+        granted_by_equipment_id,
         equipment:equipment_id (equipment_category)
       `)
       .in('id', stashIds)
@@ -179,7 +180,10 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         .update({
           fighter_id: params.fighter_id || null,
           vehicle_id: params.vehicle_id || null,
-          gang_stash: false
+          gang_stash: false,
+          // Granted equipment moved without the item that granted it no longer goes with it
+          ...(stashData.granted_by_equipment_id && !batchStashIds.has(stashData.granted_by_equipment_id)
+            && { granted_by_equipment_id: null })
         })
         .eq('id', item.stash_id)
         .select('id')

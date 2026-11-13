@@ -78,17 +78,24 @@ export async function insertGrantedEquipment(
 }
 
 /**
- * Purchase cost of the equipment an item granted that is still on the same fighter or vehicle.
- * Deleting the item cascades to it, so a sale or delete has to count it too.
+ * The equipment an item granted (e.g. an Outrider Quad's weapon) that is still with it: on the same
+ * fighter or vehicle, or in the stash when the item is. Deleting the item cascades to it, and moving
+ * the item takes it along.
  */
-export async function grantedEquipmentCost(
+export async function grantedEquipment(
   supabase: any,
-  item: { id: string; fighter_id: string | null; vehicle_id: string | null }
-): Promise<number> {
-  const { data } = await supabase
+  item: { id: string; fighter_id?: string | null; vehicle_id?: string | null }
+): Promise<{ ids: string[]; cost: number }> {
+  const query = supabase
     .from('fighter_equipment')
-    .select('purchase_cost')
-    .eq('granted_by_equipment_id', item.id)
-    .eq(item.fighter_id ? 'fighter_id' : 'vehicle_id', item.fighter_id ?? item.vehicle_id);
-  return (data ?? []).reduce((sum: number, row: { purchase_cost: number | null }) => sum + (row.purchase_cost || 0), 0);
+    .select('id, purchase_cost')
+    .eq('granted_by_equipment_id', item.id);
+  const { data } = await (item.fighter_id ? query.eq('fighter_id', item.fighter_id)
+    : item.vehicle_id ? query.eq('vehicle_id', item.vehicle_id)
+    : query.eq('gang_stash', true));
+  const rows: Array<{ id: string; purchase_cost: number | null }> = data ?? [];
+  return {
+    ids: rows.map(row => row.id),
+    cost: rows.reduce((sum, row) => sum + (row.purchase_cost || 0), 0),
+  };
 }

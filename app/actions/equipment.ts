@@ -15,7 +15,7 @@ import { grantedSkillFromEffect } from '@/utils/effect-modifiers';
 import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
-import { chosenGrantOptions, grantedEquipmentCost, insertGrantedEquipment } from '@/utils/equipment-grants';
+import { chosenGrantOptions, grantedEquipment, insertGrantedEquipment } from '@/utils/equipment-grants';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -1139,7 +1139,7 @@ export async function deleteEquipmentFromFighter(params: DeleteEquipmentParams):
     // Inactive fighters are already excluded from rating calculations
     let ratingDelta = 0;
     // Includes the equipment it granted (e.g. an Outrider Quad's weapon), which the delete cascades to
-    const itemCost = (equipmentBefore.purchase_cost || 0) + await grantedEquipmentCost(supabase, equipmentBefore);
+    const itemCost = (equipmentBefore.purchase_cost || 0) + (await grantedEquipment(supabase, equipmentBefore)).cost;
     /** From the fighters row below; undefined means "unknown" and falls back to a lookup. */
     let fighterPetId: string | null | undefined;
     if (equipmentBefore.fighter_id) {
@@ -1396,7 +1396,8 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
 
-    const purchaseCost = row.purchase_cost || 0;
+    // Includes the equipment it granted, which the delete cascades to
+    const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;
 
     // Permission implicitly enforced by RLS; we still fetch to invalidate correctly
     const { error: delErr } = await supabase

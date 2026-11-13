@@ -205,7 +205,7 @@ export function WeaponList({
     }
   }, [onRegisterPurchase, equipment, fighterCredits, gangCredits, onEquipmentUpdate, onGangTradePointsUpdate]);
 
-  // An item and the equipment it granted (e.g. an Outrider Quad's weapon), which selling or deleting it also removes
+  // An item and the equipment it granted (e.g. an Outrider Quad's weapon), which go together when it is sold, deleted or stashed
   const withGranted = (item: Equipment) =>
     [item, ...equipment.filter(e => e.granted_by_equipment_id === item.fighter_equipment_id)];
   const costOf = (items: Equipment[]) => items.reduce((sum, e) => sum + (e.cost ?? 0), 0);
@@ -318,10 +318,9 @@ export function WeaponList({
       }
 
       // Optimistic UI: remove item and adjust fighter credits (gang credits unchanged)
-      const optimisticEquipment = equipment.filter(
-        item => item.fighter_equipment_id !== fighterEquipmentId
-      );
-      const optimisticFighterCredits = previousFighterCredits - (equipmentToStash.cost ?? 0);
+      const removed = withGranted(equipmentToStash);
+      const optimisticEquipment = equipment.filter(item => !removed.includes(item));
+      const optimisticFighterCredits = previousFighterCredits - costOf(removed);
       onEquipmentUpdate(optimisticEquipment, optimisticFighterCredits, previousGangCredits);
 
       // Server action
