@@ -521,14 +521,22 @@ export function AdvancementModal({
     [characteristicAdvancements]
   );
 
-  const needsSkillSets = advancementType === 'skill' || advancementType === 'promotion_to_champion';
+  const gangerSelectedRow = useMemo(
+    () => GANGER_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === gangerSelectedRowId),
+    [gangerSelectedRowId]
+  );
+
+  const isSkillLikeAdvancementType =
+    advancementType === 'skill' || advancementType === 'promotion_to_champion';
+
+  // Also the Ganger specialist promotion's skill sets.
   const {
     data: skillSetCategories = NO_SKILL_TYPES,
     isLoading: skillSetsLoading,
     error: skillSetsError,
   } = useQuery({
     ...fighterSkillTypesQuery(fighterId, editionSlug),
-    enabled: needsSkillSets,
+    enabled: isSkillLikeAdvancementType || gangerSelectedRow?.kind === 'specialist',
   });
 
   const categories: (StatChangeCategory | SkillType)[] =
@@ -555,7 +563,8 @@ export function AdvancementModal({
 
   // N26 needs skill access on open so row 6 can offer a Legendary Name.
   // N23 only needs it once a skill advancement is chosen.
-  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading } = useQuery({
+  // isFetching, so loading covers the refetch on open: the Skill Access modal may have left an older copy.
+  const { data: skillAccess = NO_SKILL_ACCESS, isFetching: skillAccessLoading } = useQuery({
     ...fighterSkillAccessQuery(fighterId),
     select: selectSkillAccess,
     enabled: isCumulativeXp || advancementType === 'skill',
@@ -739,11 +748,6 @@ export function AdvancementModal({
     }
   });
 
-  const gangerSelectedRow = useMemo(
-    () => GANGER_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === gangerSelectedRowId),
-    [gangerSelectedRowId]
-  );
-
   /** Allowed, Primary, or Secondary on Legendary Names unlocks that choice on row 6. */
   const n26LegendaryNameAccess = useMemo(() => {
     if (!isCumulativeXp) return null;
@@ -822,11 +826,6 @@ export function AdvancementModal({
     enabled: gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId,
   });
 
-  const { data: gangerSpecialistSkillCategories = NO_SKILL_TYPES, isLoading: gangerSpecialistCategoriesLoading } =
-    useQuery({
-      ...fighterSkillTypesQuery(fighterId, editionSlug),
-      enabled: gangerSelectedRow?.kind === 'specialist',
-    });
 
   const [prevGangerPairDeps, setPrevGangerPairDeps] = useState({ gangerSelectedRowId, gangerSelectedRow });
   if (gangerSelectedRowId !== prevGangerPairDeps.gangerSelectedRowId || gangerSelectedRow !== prevGangerPairDeps.gangerSelectedRow) {
@@ -1485,12 +1484,12 @@ export function AdvancementModal({
   const gangerSpecialistSkillSetComboboxOptions = useMemo(
     () =>
       buildSkillSetComboboxOptions(
-        gangerSpecialistSkillCategories,
+        skillSetCategories,
         gangerPreviewSkillAccess,
         'primary',
         editionSlug
       ),
-    [gangerSpecialistSkillCategories, gangerPreviewSkillAccess, editionSlug]
+    [skillSetCategories, gangerPreviewSkillAccess, editionSlug]
   );
 
   const gangerSelectedSkillSetAccess = useMemo<'primary' | 'secondary' | 'allowed' | null>(() => {
@@ -1541,9 +1540,6 @@ export function AdvancementModal({
     }
     return options;
   }, [fighterSubtypes]);
-
-  const isSkillLikeAdvancementType =
-    advancementType === 'skill' || advancementType === 'promotion_to_champion';
 
   // Effective skill access for the currently-selected Skill Set (skill flow only).
   // Returns null when the fighter has no defined access to this set.
@@ -1931,7 +1927,7 @@ export function AdvancementModal({
       ? (characteristicsError ?? error)
       : skillFetchKey && availableSkillsError
         ? `Failed to load ${advancementType} details: ${availableSkillsError.message}`
-        : needsSkillSets && skillSetsError
+        : isSkillLikeAdvancementType && skillSetsError
           ? `Failed to load ${advancementType} categories`
           : error;
 
@@ -2310,7 +2306,7 @@ export function AdvancementModal({
                           disabled={
                             !userPermissions.canEdit ||
                             gangerPreviewSkillAccessLoading ||
-                            gangerSpecialistCategoriesLoading
+                            skillSetsLoading
                           }
                           dropdownPlacement="down"
                         />
