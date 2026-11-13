@@ -179,7 +179,9 @@ CREATE TABLE public.campaign_trade_offers (
         REFERENCES public.campaign_trade_adverts (id, campaign_id),
     CONSTRAINT campaign_trade_offers_offerer_membership_fkey
         FOREIGN KEY (offerer_campaign_gang_id, offerer_gang_id, campaign_id, offerer_user_id)
-        REFERENCES public.campaign_gangs (id, gang_id, campaign_id, user_id)
+        REFERENCES public.campaign_gangs (id, gang_id, campaign_id, user_id),
+    CONSTRAINT campaign_trade_offers_advert_id_id_key
+        UNIQUE (advert_id, id)
 );
 
 COMMENT ON TABLE public.campaign_trade_offers IS
@@ -194,9 +196,14 @@ CREATE UNIQUE INDEX campaign_trade_offers_one_pending
     ON public.campaign_trade_offers (advert_id, offerer_campaign_gang_id)
     WHERE status = 'pending';
 
+-- Composite so accepted_offer_id must belong to this advert, not another.
+-- MATCH SIMPLE: a null accepted_offer_id skips the check (open/cancelled rows).
+-- No ON DELETE SET NULL: that would also null adverts.id (PK). Deleting an
+-- accepted offer while the advert still points at it is rejected.
 ALTER TABLE public.campaign_trade_adverts
-    ADD CONSTRAINT campaign_trade_adverts_accepted_offer_id_fkey
-    FOREIGN KEY (accepted_offer_id) REFERENCES public.campaign_trade_offers(id) ON DELETE SET NULL;
+    ADD CONSTRAINT campaign_trade_adverts_accepted_offer_fkey
+    FOREIGN KEY (id, accepted_offer_id)
+    REFERENCES public.campaign_trade_offers (advert_id, id);
 
 -- 4. Live item/captive lock. One row per reserved good, sourced from either an
 --    open advert or a pending offer. Historical advert/offer FKs are not locks.
@@ -282,7 +289,7 @@ CREATE POLICY "Author, offerer, arbitrators or admin can view trade offers"
 -- Advert-sourced reservations are as public as the advert (listed item is on
 -- the advert row). Offer-sourced reservations follow offer RLS so a pending
 -- offer's item id is not visible to the rest of the campaign.
-CREATE POLICY "Campaign members, arbitrators or admin can view advert reservations"
+CREATE POLICY "Members, arbs or admin view advert reservations"
     ON public.campaign_trade_reservations FOR SELECT TO authenticated
     USING (
         advert_id IS NOT NULL
@@ -307,7 +314,7 @@ CREATE POLICY "App server can view advert trade reservations"
     ON public.campaign_trade_reservations FOR SELECT TO app_server
     USING (advert_id IS NOT NULL);
 
-CREATE POLICY "Author, offerer, arbitrators or admin can view offer reservations"
+CREATE POLICY "Author, offerer, arbs or admin view offer reservations"
     ON public.campaign_trade_reservations FOR SELECT TO authenticated
     USING (
         offer_id IS NOT NULL
