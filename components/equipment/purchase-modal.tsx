@@ -384,12 +384,7 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
 
             <div className="space-y-2">
               {grantOptions.map((option) => (
-                <label
-                  key={option.id}
-                  className={`flex items-center p-3 border rounded-lg cursor-pointer hover:bg-muted/50 ${
-                    selectedGrantIds.includes(option.id) ? 'border-primary bg-primary/5' : ''
-                  }`}
-                >
+                <label key={option.id} className="flex items-center gap-2 cursor-pointer">
                   {isMultiple ? (
                     <Checkbox
                       checked={selectedGrantIds.includes(option.id)}
@@ -403,7 +398,6 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                         }
                       }}
                       disabled={!selectedGrantIds.includes(option.id) && selectedGrantIds.length >= maxSelections}
-                      className="mr-3"
                     />
                   ) : (
                     <input
@@ -411,17 +405,15 @@ export function PurchaseModal({ item, gangCredits, onClose, onConfirm, isStashPu
                       name="grant-selection"
                       checked={selectedGrantIds.includes(option.id)}
                       onChange={() => setSelectedGrantIds([option.id])}
-                      className="mr-3"
+                      className="w-4 h-4 cursor-pointer"
                     />
                   )}
-                  <div className="flex-1">
-                    <span className="font-medium">{option.name}</span>
+                  <span>
+                    {option.name}
                     {option.additional_cost > 0 && (
-                      <span className="ml-2 text-sm text-muted-foreground">
-                        (+{option.additional_cost} credits)
-                      </span>
+                      <span className="text-muted-foreground"> (+{option.additional_cost} credits)</span>
                     )}
-                  </div>
+                  </span>
                 </label>
               ))}
             </div>
