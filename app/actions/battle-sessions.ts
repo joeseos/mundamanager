@@ -369,15 +369,17 @@ export async function cancelBattleSession(
       .single();
 
     if (!session) return { success: false, error: 'Session not found' };
-    if (!(await canManageSession(user.id, session)))
-      return { success: false, error: 'Only the session creator or an arbitrator can cancel' };
     if (session.status === 'completed')
       return { success: false, error: 'Cannot cancel a completed session' };
 
     const { data: participants } = await supabase
       .from('battle_session_participants')
-      .select('gang_id')
+      .select('gang_id, user_id')
       .eq('battle_session_id', sessionId);
+
+    const isParticipant = (participants ?? []).some((p) => p.user_id === user.id);
+    if (!isParticipant && !(await canManageSession(user.id, session)))
+      return { success: false, error: 'Only a player in the session or an arbitrator can cancel' };
 
     const { error } = await supabase
       .from('battle_sessions')
