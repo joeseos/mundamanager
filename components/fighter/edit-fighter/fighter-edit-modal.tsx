@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { Input } from "@/components/ui/input";
 import Modal from "@/components/ui/modal";
@@ -508,7 +508,6 @@ export function EditFighterModal({
   }, [selectedArchetypeId, canUseArchetypes, archetypesData]);
 
   // TanStack mutation for editing fighter details
-  const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: async (submit: {
       name: string;
@@ -649,8 +648,6 @@ export function EditFighterModal({
           : (submit.selected_archetype_id ?? null);
 
       setSelectedArchetypeId(persistedArchetypeId || '');
-      // Fighter type and archetype decide which skill sets the fighter has access to.
-      queryClient.invalidateQueries({ queryKey: ['fighter-skill-access', fighter.id] });
 
       if (result?.warning) {
         toast.error(result.warning);
