@@ -12,6 +12,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   fighterSkillAccessQuery,
   fighterSkillTypesQuery,
+  NO_SKILL_ACCESS,
+  toSkillAccess,
   type SkillAccess,
   type SkillInSet,
 } from '@/utils/api/skill-access';
@@ -353,9 +355,7 @@ type AdvancementCatalog = {
 
 const NO_CHARACTERISTICS: Record<string, CharacteristicAdvancement> = {};
 const NO_SKILL_TYPES: SkillType[] = [];
-const NO_SKILL_ACCESS: SkillAccess[] = [];
 const NO_SKILLS_IN_SET: SkillInSet[] = [];
-const toSkillAccess = (data: { skill_access?: SkillAccess[] }) => data.skill_access ?? NO_SKILL_ACCESS;
 const DEFAULT_GANGER_SPECIALIST_COSTS: GangerSpecialistCosts = { xp_cost: 6, credits_increase: 20 };
 
 type AdvancementTypeValue = 'characteristic' | 'skill' | 'promotion_to_champion' | '';

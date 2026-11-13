@@ -9,7 +9,15 @@ import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fighterSkillAccessQuery, fighterSkillTypesQuery, type SkillAccess } from '@/utils/api/skill-access';
+import {
+  fighterSkillAccessQuery,
+  fighterSkillTypesQuery,
+  NO_SKILL_ACCESS,
+  toSkillAccess,
+  type SkillAccess,
+  type SkillInSet,
+  type SkillTypeOption,
+} from '@/utils/api/skill-access';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
@@ -94,19 +102,9 @@ interface SkillModalProps {
   onGangCreditsUpdate?: (creditsDelta: number) => void;
 }
 
+type SkillData = SkillInSet & { is_custom: boolean; cost: number };
 
-interface SkillData {
-  skill_id: string;
-  skill_name: string;
-  skill_type_id: string;
-  available: boolean;
-  usable?: boolean;
-  usable_by?: string[] | null;
-  is_custom: boolean;
-  cost: number;
-}
-
-const NO_SKILL_ACCESS: SkillAccess[] = [];
+const NO_SKILL_TYPES: SkillTypeOption[] = [];
 
 // SkillModal Component
 export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
@@ -115,14 +113,12 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [editableCost, setEditableCost] = useState<number>(0);
 
-  // Standard Skill Sets first, then custom ones
-  const { data: categories = [], error: skillTypesError } = useQuery({
-    ...fighterSkillTypesQuery(fighterId, editionSlug),
-    select: (types) => [...types.filter((t) => !t.is_custom), ...types.filter((t) => t.is_custom)],
-  });
-  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading } = useQuery({
+  const { data: categories = NO_SKILL_TYPES, error: skillTypesError } = useQuery(
+    fighterSkillTypesQuery(fighterId, editionSlug)
+  );
+  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading, error: skillAccessError } = useQuery({
     ...fighterSkillAccessQuery(fighterId),
-    select: (data) => data.skill_access ?? NO_SKILL_ACCESS,
+    select: toSkillAccess,
   });
 
   const { data: availableSkills, error: availableSkillsError } = useQuery({
@@ -143,7 +139,8 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
 
   useEffect(() => {
     if (skillTypesError) toast.error('Failed to load skill sets');
-  }, [skillTypesError]);
+    if (skillAccessError) toast.error(skillAccessError.message);
+  }, [skillTypesError, skillAccessError]);
 
   useEffect(() => {
     if (availableSkillsError) toast.error('Failed to load skills');

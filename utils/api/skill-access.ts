@@ -1,5 +1,5 @@
 /**
- * Query definitions shared by the Advancements and Skill Access modals.
+ * Query definitions shared by the fighter skill modals.
  * gcTime 0: promotions, fighter edits and skills gained change this data, so it is
  * dropped once no modal uses it.
  */
@@ -11,6 +11,12 @@ export interface SkillAccess {
   access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
   override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
   skill_type_name: string;
+}
+
+export interface SkillTypeOption {
+  id: string;
+  name: string;
+  is_custom?: boolean;
 }
 
 export interface SkillInSet {
@@ -26,7 +32,7 @@ export interface SkillInSet {
 export const fighterSkillTypesQuery = (fighterId: string, editionSlug?: string | null) =>
   queryOptions({
     queryKey: ['skill-types', fighterId, editionSlug ?? null],
-    queryFn: async ({ signal }): Promise<Array<{ id: string; name: string; is_custom?: boolean }>> => {
+    queryFn: async ({ signal }): Promise<SkillTypeOption[]> => {
       const params = new URLSearchParams({ fighterId });
       if (editionSlug) params.set('edition_slug', editionSlug);
       const response = await fetch(`/api/skill-types?${params}`, { signal });
@@ -35,6 +41,9 @@ export const fighterSkillTypesQuery = (fighterId: string, editionSlug?: string |
     },
     gcTime: 0,
   });
+
+export const NO_SKILL_ACCESS: SkillAccess[] = [];
+export const toSkillAccess = (data: { skill_access?: SkillAccess[] }) => data.skill_access ?? NO_SKILL_ACCESS;
 
 /**
  * The fighter's skill access, or with `preview` what it would be as another fighter
