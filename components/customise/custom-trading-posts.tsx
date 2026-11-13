@@ -1681,13 +1681,13 @@ function AddAvailabilityRuleModal({
 
   const editionSlug = useTradingPostEdition();
   const { data: subtypes = [] } = useQuery({
-    queryKey: ['gangSubtypeTypes', editionSlug],
+    queryKey: ['gang-subtype-types'],
     queryFn: async () => {
       const res = await fetch('/api/gang-subtype-types');
       if (!res.ok) throw new Error('Failed to fetch subtypes');
-      const data = await res.json() as Array<{ id: string; subtype: string; edition_slug?: string | null }>;
-      return data.filter(v => sameEditionForDisplay(v.edition_slug, editionSlug));
+      return res.json() as Promise<Array<{ id: string; subtype: string; edition_slug?: string | null }>>;
     },
+    select: (data) => data.filter(v => sameEditionForDisplay(v.edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
   });
 
