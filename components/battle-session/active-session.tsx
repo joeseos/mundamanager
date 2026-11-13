@@ -173,8 +173,6 @@ export default function ActiveSession({
 
   const isOwner = session.created_by === userId;
   const canManage = isOwner || isArbitrator;
-  const userGangInSession = session.participants.find((p) => p.user_id === userId);
-  const canCancel = canManage || !!userGangInSession;
   const isPreBattle = session.status === 'pre_battle';
   const isPostBattle = session.status === 'post_battle';
   const battleActive = session.status === 'active';
@@ -193,6 +191,8 @@ export default function ActiveSession({
   const maxRating = ratings.length > 0 ? Math.max(...ratings) : 0;
   const minRating = ratings.length > 0 ? Math.min(...ratings) : 0;
   const ratingDiff = ratings.length >= 2 ? maxRating - minRating : 0;
+
+  const userGangInSession = session.participants.find((p) => p.user_id === userId);
 
   return (
     <>
@@ -237,7 +237,7 @@ export default function ActiveSession({
                 )}
               </>
             )}
-            {canCancel && (
+            {(canManage || userGangInSession) && (
               <Button
                 variant="destructive"
                 className="flex-1 sm:flex-none"
