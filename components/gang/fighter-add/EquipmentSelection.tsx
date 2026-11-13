@@ -3,6 +3,7 @@
 import React from 'react';
 import { EquipmentOption, DefaultEquipment, EquipmentSelectionDataModel, FighterType } from '@/types/fighter-type';
 import { Checkbox } from '@/components/ui/checkbox';
+import { GrantOptionSelection } from '@/components/equipment/grant-option-selection';
 import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
 import {
   SelectedEquipmentItem,
@@ -410,30 +411,17 @@ export function EquipmentSelection({
           <label className="block text-sm font-medium text-muted-foreground">
             {item.equipment_name} (Choose one)
           </label>
-          <div className="space-y-1">
-            {item.grants_equipment!.options.map(option => {
-              const optionId = `grant-${item.id}-${option.equipment_id}`;
-              return (
-                <div key={optionId} className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`grant-selection-${item.id}`}
-                    id={optionId}
-                    checked={grantPicks[item.id]?.includes(option.equipment_id) ?? false}
-                    onChange={() => {
-                      const nextPicks = { ...grantPicks, [item.id]: [option.equipment_id] };
-                      const costChange = grantPicksCost(fighterType, nextPicks) - grantPicksCost(fighterType, grantPicks);
-                      setGrantPicks(nextPicks);
-                      setFighterCost(prev => String(parseInt(prev || '0') + costChange));
-                    }}
-                  />
-                  <label htmlFor={optionId} className="text-sm">
-                    {option.equipment_name} +{option.additional_cost} credits
-                  </label>
-                </div>
-              );
-            })}
-          </div>
+          <GrantOptionSelection
+            name={`grant-selection-${item.id}`}
+            grants={item.grants_equipment!}
+            selectedIds={grantPicks[item.id] ?? []}
+            onChange={selectedIds => {
+              const nextPicks = { ...grantPicks, [item.id]: selectedIds };
+              const costChange = grantPicksCost(fighterType, nextPicks) - grantPicksCost(fighterType, grantPicks);
+              setGrantPicks(nextPicks);
+              setFighterCost(prev => String(parseInt(prev || '0') + costChange));
+            }}
+          />
         </div>
       ))}
     </div>
