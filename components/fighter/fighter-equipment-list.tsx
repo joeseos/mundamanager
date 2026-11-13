@@ -737,12 +737,8 @@ export function WeaponList({
             <span className="text-muted-foreground text-sm italic whitespace-nowrap">
               {item.granted_by_skill_name || 'Skill'}
             </span>
-          ) : grantedByOf(item) ? (
-            // Comes with another item: goes with it
-            <span className="text-muted-foreground text-sm italic whitespace-nowrap">
-              {grantedByOf(item)!.equipment_name}
-            </span>
-          ) : !item.core_equipment && (
+          ) : !item.core_equipment && !grantedByOf(item) && (
+            // Equipment granted by another item goes with it, so it has no buttons of its own
             <>
               {item.is_consumable && (
                 <Button
