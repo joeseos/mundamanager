@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryOptions, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { Switch } from "@/components/ui/switch";
@@ -10,6 +10,70 @@ import {
   type SkillAccessOverride
 } from '@/app/actions/fighter-skill-access';
 import { getSkillSetGroupLabel, getSkillSetRank } from "@/utils/skillSetRank";
+
+// Query definitions shared with the Advancements and Add Skill modals.
+// gcTime 0: promotions, fighter edits and skills gained change this data, so it is
+// dropped once no modal uses it.
+
+export interface SkillAccess {
+  skill_type_id: string;
+  access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
+  override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
+  skill_type_name: string;
+}
+
+export interface SkillTypeOption {
+  id: string;
+  name: string;
+  is_custom?: boolean;
+}
+
+export interface SkillInSet {
+  skill_id: string;
+  skill_name: string;
+  skill_type_id: string;
+  available: boolean;
+  usable?: boolean;
+  usable_by?: string[] | null;
+}
+
+/** Standard and custom skill types (including campaign-shared customs) for the fighter. */
+export const fighterSkillTypesQuery = (fighterId: string, editionSlug?: string | null) =>
+  queryOptions({
+    queryKey: ['skill-types', fighterId, editionSlug ?? null],
+    queryFn: async ({ signal }): Promise<SkillTypeOption[]> => {
+      const params = new URLSearchParams({ fighterId });
+      if (editionSlug) params.set('edition_slug', editionSlug);
+      const response = await fetch(`/api/skill-types?${params}`, { signal });
+      if (!response.ok) throw new Error('Failed to fetch skill types');
+      return response.json();
+    },
+    gcTime: 0,
+  });
+
+export const NO_SKILL_ACCESS: SkillAccess[] = [];
+export const toSkillAccess = (data: { skill_access?: SkillAccess[] }) => data.skill_access ?? NO_SKILL_ACCESS;
+
+/**
+ * The fighter's skill access, or with `preview` what it would be as another fighter
+ * type (with `skillTypeId`, also that set's skills).
+ */
+export const fighterSkillAccessQuery = (
+  fighterId: string,
+  preview?: { previewFighterTypeId: string; skillTypeId?: string }
+) =>
+  queryOptions({
+    queryKey: preview ? ['fighter-skill-access', fighterId, preview] : ['fighter-skill-access', fighterId],
+    queryFn: async ({ signal }): Promise<{ skill_access?: SkillAccess[]; skills?: SkillInSet[] }> => {
+      const response = await fetch(`/api/fighters/skill-access?${new URLSearchParams({ fighterId, ...preview })}`, { signal });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch skill access');
+      }
+      return response.json();
+    },
+    gcTime: 0,
+  });
 
 interface SkillAccessModalProps {
   fighterId: string;
@@ -41,37 +105,16 @@ export function SkillAccessModal({
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const skillSetRank = getSkillSetRank(editionSlug);
 
-  // Fetch edition-scoped skill types using TanStack Query
+  // Edition-scoped skill types
   const { data: allSkillTypes, isLoading: isLoadingSkillTypes, error: skillTypesError } = useQuery({
-    queryKey: ['skill-types', fighterId, editionSlug ?? null],
-    queryFn: async () => {
-      const params = new URLSearchParams({ fighterId });
-      if (editionSlug) params.set('edition_slug', editionSlug);
-      const response = await fetch(`/api/skill-types?${params}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch skill types');
-      }
-      return response.json();
-    },
+    ...fighterSkillTypesQuery(fighterId, editionSlug),
     enabled: isOpen,
-    staleTime: 10 * 60 * 1000, // 10 minutes - skill types rarely change
-    gcTime: 30 * 60 * 1000,    // 30 minutes
   });
 
-  // Fetch fighter's current skill access (defaults + overrides)
+  // Fighter's current skill access (defaults + overrides)
   const { data: skillAccessData, isLoading: isLoadingSkillAccess, error: skillAccessError } = useQuery({
-    queryKey: ['fighter-skill-access', fighterId],
-    queryFn: async () => {
-      const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch skill access');
-      }
-      return response.json();
-    },
+    ...fighterSkillAccessQuery(fighterId),
     enabled: isOpen,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000,   // 10 minutes
   });
 
   // Show error toast if data failed to load

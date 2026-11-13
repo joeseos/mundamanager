@@ -9,6 +9,15 @@ import { List } from "@/components/ui/list";
 import { Combobox } from '@/components/ui/combobox';
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  fighterSkillAccessQuery,
+  fighterSkillTypesQuery,
+  NO_SKILL_ACCESS,
+  toSkillAccess,
+  type SkillAccess,
+  type SkillInSet,
+  type SkillTypeOption,
+} from '@/components/fighter/edit-fighter/skill-access-modal';
 import { VENATOR_RANKS_INCOMPLETE_MESSAGE } from '@/utils/venatorSkillAccess';
 import { 
   addSkillAdvancement, 
@@ -93,39 +102,24 @@ interface SkillModalProps {
   onGangCreditsUpdate?: (creditsDelta: number) => void;
 }
 
-interface Category {
-  id: string;
-  name: string;
-  is_custom?: boolean;
-}
+type SkillData = SkillInSet & { is_custom: boolean; cost: number };
 
-interface SkillData {
-  skill_id: string;
-  skill_name: string;
-  skill_type_id: string;
-  available: boolean;
-  usable?: boolean;
-  usable_by?: string[] | null;
-  is_custom: boolean;
-  cost: number;
-}
-
-interface SkillAccess {
-  skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
-  override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
-  skill_type_name: string;
-}
+const NO_SKILL_TYPES: SkillTypeOption[] = [];
 
 // SkillModal Component
 export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
-  const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedSkill, setSelectedSkill] = useState<string>('');
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [editableCost, setEditableCost] = useState<number>(0);
-  const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
-  const [skillAccessLoading, setSkillAccessLoading] = useState(true);
+
+  const { data: categories = NO_SKILL_TYPES, error: skillTypesError } = useQuery(
+    fighterSkillTypesQuery(fighterId, editionSlug)
+  );
+  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading, error: skillAccessError } = useQuery({
+    ...fighterSkillAccessQuery(fighterId),
+    select: toSkillAccess,
+  });
 
   const { data: availableSkills, error: availableSkillsError } = useQuery({
     queryKey: ['fighter-available-skills', fighterId],
@@ -142,6 +136,11 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     () => availableSkills?.filter((skill) => skill.skill_type_id === selectedCategory),
     [availableSkills, selectedCategory]
   );
+
+  useEffect(() => {
+    if (skillTypesError) toast.error('Failed to load skill sets');
+    if (skillAccessError) toast.error(skillAccessError.message);
+  }, [skillTypesError, skillAccessError]);
 
   useEffect(() => {
     if (availableSkillsError) toast.error('Failed to load skills');
@@ -195,45 +194,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       toast.error(error instanceof Error ? error.message : 'Failed to add skill');
     }
   });
-
-  // Fetch categories (skill sets) and skill access
-  useEffect(() => {
-    const fetchCategoriesAndAccess = async () => {
-      try {
-        // Fetch standard and custom skill types via API (filtered server-side)
-        const response = await fetch(`/api/skill-types?fighterId=${fighterId}`);
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
-        const allTypes = await response.json();
-
-        const standard = allTypes.filter((t: any) => !t.is_custom);
-        const custom = allTypes.filter((t: any) => t.is_custom);
-        setCategories([...standard, ...custom]);
-
-        // Fetch skill access for this fighter
-        setSkillAccessLoading(true);
-        try {
-          const skillAccessResponse = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`);
-          if (skillAccessResponse.ok) {
-            const skillAccessData = await skillAccessResponse.json();
-            setSkillAccess(skillAccessData.skill_access || []);
-          } else {
-            setSkillAccess([]);
-          }
-        } catch (error) {
-          console.error('Error fetching skill access:', error);
-          setSkillAccess([]);
-        } finally {
-          setSkillAccessLoading(false);
-        }
-
-      } catch (error) {
-        console.error('Error fetching skill sets:', error);
-        toast.error('Failed to load skill sets');
-      }
-    };
-
-    fetchCategoriesAndAccess();
-  }, [fighterId]);
 
   /**
    * Skill Set combobox options grouped by rank (Custom Skill Sets first, then standard groups).

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
@@ -9,6 +9,14 @@ import { hasWyrdFighterSubtype, isLegendaryNameSkillSet, isWyrdPowerSkillSet } f
 import { characteristicRank } from "@/utils/characteristicRank";
 import { UserPermissions } from '@/types/user-permissions';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  fighterSkillAccessQuery,
+  fighterSkillTypesQuery,
+  NO_SKILL_ACCESS,
+  toSkillAccess,
+  type SkillAccess,
+  type SkillInSet,
+} from '@/components/fighter/edit-fighter/skill-access-modal';
 import { 
   addCharacteristicAdvancement, 
   addSkillAdvancement, 
@@ -125,13 +133,6 @@ type AvailableSkill = {
 // Type guard function
 function isStatChangeCategory(category: StatChangeCategory | SkillType): category is StatChangeCategory {
   return category.type === 'characteristic';
-}
-
-interface SkillAccess {
-  skill_type_id: string;
-  access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // default from fighter type
-  override_access_level: 'primary' | 'secondary' | 'allowed' | 'denied' | null; // override from archetype
-  skill_type_name: string;
 }
 
 /**
@@ -353,6 +354,8 @@ type AdvancementCatalog = {
 };
 
 const NO_CHARACTERISTICS: Record<string, CharacteristicAdvancement> = {};
+const NO_SKILL_TYPES: SkillType[] = [];
+const NO_SKILLS_IN_SET: SkillInSet[] = [];
 const DEFAULT_GANGER_SPECIALIST_COSTS: GangerSpecialistCosts = { xp_cost: 6, credits_increase: 20 };
 
 type AdvancementTypeValue = 'characteristic' | 'skill' | 'promotion_to_champion' | '';
@@ -385,12 +388,10 @@ export function AdvancementModal({
   onFighterDetailsUpdate,
 }: AdvancementModalProps) {
   
-  const [skillSetCategories, setSkillSetCategories] = useState<SkillType[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [availableAdvancements, setAvailableAdvancements] = useState<AvailableAdvancement[]>([]);
   const [selectedAdvancement, setSelectedAdvancement] = useState<AvailableAdvancement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [skillSetsLoading, setSkillSetsLoading] = useState(true);
   const [advancementType, setAdvancementType] = useState<AdvancementTypeValue>('');
   const [skillAcquisitionType, setSkillAcquisitionType] = useState<string>('');
   const [editableXpCost, setEditableXpCost] = useState<number>(0);
@@ -471,6 +472,25 @@ export function AdvancementModal({
     [characteristicAdvancements]
   );
 
+  const gangerSelectedRow = useMemo(
+    () => GANGER_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === gangerSelectedRowId),
+    [gangerSelectedRowId]
+  );
+
+  const isSkillLikeAdvancementType =
+    advancementType === 'skill' || advancementType === 'promotion_to_champion';
+
+  // Skill sets for the Skill and Champion promotion flows and the Ganger specialist promotion
+  const {
+    data: skillSetCategories = NO_SKILL_TYPES,
+    isLoading: skillSetsLoading,
+    error: skillSetsError,
+  } = useQuery({
+    ...fighterSkillTypesQuery(fighterId, editionSlug),
+    select: (data) => data.map((cat) => ({ ...cat, type: 'skill' as const })),
+    enabled: isSkillLikeAdvancementType || gangerSelectedRow?.kind === 'specialist',
+  });
+
   const categories: (StatChangeCategory | SkillType)[] =
     advancementType === 'characteristic' ? characteristicCategories : skillSetCategories;
 
@@ -484,26 +504,33 @@ export function AdvancementModal({
         : skillSetsLoading;
 
   const [gangerPairStatName, setGangerPairStatName] = useState('');
-  const [gangerPreviewSkillAccess, setGangerPreviewSkillAccess] = useState<SkillAccess[]>([]);
-  const [gangerPreviewSkillAccessLoading, setGangerPreviewSkillAccessLoading] = useState(false);
-  const [gangerSpecialistSkillCategories, setGangerSpecialistSkillCategories] = useState<SkillType[]>([]);
-  const [gangerSpecialistCategoriesLoading, setGangerSpecialistCategoriesLoading] = useState(false);
   const [gangerSelectedSkillSetId, setGangerSelectedSkillSetId] = useState('');
-  const [gangerSkillsInSet, setGangerSkillsInSet] = useState<
-    { skill_id: string; skill_name: string; skill_type_id: string; available: boolean; usable?: boolean; usable_by?: string[] | null }[]
-  >([]);
-  const [gangerSkillsInSetLoading, setGangerSkillsInSetLoading] = useState(false);
   const [gangerSkillPickRoll, setGangerSkillPickRoll] = useState<number | null>(null);
   const [gangerSelectedSkillIndex, setGangerSelectedSkillIndex] = useState<number | null>(null);
   const [gangerPromotionOpen, setGangerPromotionOpen] = useState(false);
   const [gangerPendingPromotion, setGangerPendingPromotion] = useState<FighterPromotionResult | null>(null);
   const [championPromotionOpen, setChampionPromotionOpen] = useState(false);
   const [championPendingPromotion, setChampionPendingPromotion] = useState<ChampionPendingPromotion | null>(null);
-  const [championPreviewSkillAccess, setChampionPreviewSkillAccess] = useState<SkillAccess[]>([]);
-  const [championPreviewSkillAccessLoading, setChampionPreviewSkillAccessLoading] = useState(false);
   const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
-  const [skillAccess, setSkillAccess] = useState<SkillAccess[]>([]);
-  const [skillAccessLoading, setSkillAccessLoading] = useState(false);
+
+  // N26 needs skill access on open so row 6 can offer a Legendary Name.
+  // N23 only needs it once a skill advancement is chosen.
+  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading } = useQuery({
+    ...fighterSkillAccessQuery(fighterId),
+    select: toSkillAccess,
+    enabled: isCumulativeXp || advancementType === 'skill',
+  });
+
+  // Preview skill access for the target Champion type after promotion is confirmed
+  const championPromotionTypeId = championPendingPromotion?.fighter_type_id;
+  const {
+    data: championPreviewSkillAccess = NO_SKILL_ACCESS,
+    isLoading: championPreviewSkillAccessLoading,
+  } = useQuery({
+    ...fighterSkillAccessQuery(fighterId, { previewFighterTypeId: championPromotionTypeId ?? '' }),
+    select: toSkillAccess,
+    enabled: advancementType === 'promotion_to_champion' && !!championPromotionTypeId,
+  });
   // Roll-for-skill UI for non-Ganger fighters when a Random acquisition type is selected
   const [skillRollResult, setSkillRollResult] = useState<{ roll: number; skillName: string } | null>(null);
   // No client-side invalidations; rely on server tag revalidation
@@ -672,11 +699,6 @@ export function AdvancementModal({
     }
   });
 
-  const gangerSelectedRow = useMemo(
-    () => GANGER_ADVANCEMENT_COMBO_OPTIONS.find((r) => r.id === gangerSelectedRowId),
-    [gangerSelectedRowId]
-  );
-
   /** Allowed, Primary, or Secondary on Legendary Names unlocks that choice on row 6. */
   const n26LegendaryNameAccess = useMemo(() => {
     if (!isCumulativeXp) return null;
@@ -746,89 +768,14 @@ export function AdvancementModal({
   });
 
   const gangerPromotionTypeId = gangerPendingPromotion?.fighter_type_id;
-  const shouldFetchPreviewSkillAccess = gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId;
-  const [prevShouldFetchPreview, setPrevShouldFetchPreview] = useState(shouldFetchPreviewSkillAccess);
-  if (shouldFetchPreviewSkillAccess !== prevShouldFetchPreview) {
-    setPrevShouldFetchPreview(shouldFetchPreviewSkillAccess);
-    if (!shouldFetchPreviewSkillAccess) {
-      setGangerPreviewSkillAccess([]);
-      setGangerPreviewSkillAccessLoading(false);
-    } else {
-      setGangerPreviewSkillAccessLoading(true);
-    }
-  }
-
-  useEffect(() => {
-    if (!shouldFetchPreviewSkillAccess) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const res = await fetch(
-          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(gangerPromotionTypeId!)}`
-        );
-        if (!res.ok || cancelled) {
-          if (!cancelled) setGangerPreviewSkillAccess([]);
-          return;
-        }
-        const data = await res.json();
-        const access = (data.skill_access || []) as SkillAccess[];
-        if (!cancelled) setGangerPreviewSkillAccess(access);
-      } catch {
-        if (!cancelled) setGangerPreviewSkillAccess([]);
-      } finally {
-        if (!cancelled) setGangerPreviewSkillAccessLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-      setGangerPreviewSkillAccessLoading(false);
-    };
-  }, [fighterId, shouldFetchPreviewSkillAccess, gangerPromotionTypeId]);
-
-  const shouldFetchSpecialistCategories = gangerSelectedRow?.kind === 'specialist';
-  const [prevShouldFetchCategories, setPrevShouldFetchCategories] = useState(shouldFetchSpecialistCategories);
-  if (shouldFetchSpecialistCategories !== prevShouldFetchCategories) {
-    setPrevShouldFetchCategories(shouldFetchSpecialistCategories);
-    if (!shouldFetchSpecialistCategories) {
-      setGangerSpecialistSkillCategories([]);
-      setGangerSpecialistCategoriesLoading(false);
-    } else {
-      setGangerSpecialistCategoriesLoading(true);
-    }
-  }
-
-  useEffect(() => {
-    if (!shouldFetchSpecialistCategories) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
-        if (!response.ok || cancelled) {
-          if (!cancelled) setGangerSpecialistSkillCategories([]);
-          return;
-        }
-        const data = await response.json();
-        if (!cancelled) {
-          setGangerSpecialistSkillCategories(
-            (data as Array<{ id: string; name: string; is_custom?: boolean }>).map((cat) => ({
-              ...cat,
-              type: 'skill' as const
-            }))
-          );
-        }
-      } catch {
-        if (!cancelled) setGangerSpecialistSkillCategories([]);
-      } finally {
-        if (!cancelled) setGangerSpecialistCategoriesLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-      setGangerSpecialistCategoriesLoading(false);
-    };
-  }, [fighterId, shouldFetchSpecialistCategories]);
+  const {
+    data: gangerPreviewSkillAccess = NO_SKILL_ACCESS,
+    isLoading: gangerPreviewSkillAccessLoading,
+  } = useQuery({
+    ...fighterSkillAccessQuery(fighterId, { previewFighterTypeId: gangerPromotionTypeId ?? '' }),
+    select: toSkillAccess,
+    enabled: gangerSelectedRow?.kind === 'specialist' && !!gangerPromotionTypeId,
+  });
 
   const [prevGangerPairDeps, setPrevGangerPairDeps] = useState({ gangerSelectedRowId, gangerSelectedRow });
   if (gangerSelectedRowId !== prevGangerPairDeps.gangerSelectedRowId || gangerSelectedRow !== prevGangerPairDeps.gangerSelectedRow) {
@@ -869,47 +816,14 @@ export function AdvancementModal({
     setAvailableAdvancements([]);
   }
 
-  const shouldFetchGangerSkillsInSet = !!gangerSelectedSkillSetId && !!gangerPromotionTypeId;
-  const [prevShouldFetchSkillsInSet, setPrevShouldFetchSkillsInSet] = useState(shouldFetchGangerSkillsInSet);
-  if (shouldFetchGangerSkillsInSet !== prevShouldFetchSkillsInSet) {
-    setPrevShouldFetchSkillsInSet(shouldFetchGangerSkillsInSet);
-    if (!shouldFetchGangerSkillsInSet) {
-      setGangerSkillsInSet([]);
-      setGangerSkillsInSetLoading(false);
-    } else {
-      setGangerSkillsInSetLoading(true);
-    }
-  }
-
-  useEffect(() => {
-    if (!shouldFetchGangerSkillsInSet) return;
-    const typeId = gangerSelectedSkillSetId;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const res = await fetch(
-          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&skillTypeId=${encodeURIComponent(typeId)}&previewFighterTypeId=${encodeURIComponent(gangerPromotionTypeId!)}`
-        );
-        if (!res.ok || cancelled) {
-          if (!cancelled) setGangerSkillsInSet([]);
-          return;
-        }
-        const data = (await res.json()) as {
-          skills?: { skill_id: string; skill_name: string; skill_type_id: string; available: boolean; usable?: boolean; usable_by?: string[] | null }[];
-        };
-        if (!cancelled) setGangerSkillsInSet(data.skills ?? []);
-      } catch {
-        if (!cancelled) setGangerSkillsInSet([]);
-      } finally {
-        if (!cancelled) setGangerSkillsInSetLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-      setGangerSkillsInSetLoading(false);
-    };
-  }, [fighterId, shouldFetchGangerSkillsInSet, gangerSelectedSkillSetId, gangerPromotionTypeId]);
+  const { data: gangerSkillsInSet = NO_SKILLS_IN_SET, isLoading: gangerSkillsInSetLoading } = useQuery({
+    ...fighterSkillAccessQuery(fighterId, {
+      previewFighterTypeId: gangerPromotionTypeId ?? '',
+      skillTypeId: gangerSelectedSkillSetId,
+    }),
+    select: (data) => data.skills ?? NO_SKILLS_IN_SET,
+    enabled: !!gangerSelectedSkillSetId && !!gangerPromotionTypeId,
+  });
 
   const logAdvancementRollMutation = useMutation({
     mutationFn: async (variables: {
@@ -1520,12 +1434,12 @@ export function AdvancementModal({
   const gangerSpecialistSkillSetComboboxOptions = useMemo(
     () =>
       buildSkillSetComboboxOptions(
-        gangerSpecialistSkillCategories,
+        skillSetCategories,
         gangerPreviewSkillAccess,
         'primary',
         editionSlug
       ),
-    [gangerSpecialistSkillCategories, gangerPreviewSkillAccess, editionSlug]
+    [skillSetCategories, gangerPreviewSkillAccess, editionSlug]
   );
 
   const gangerSelectedSkillSetAccess = useMemo<'primary' | 'secondary' | 'allowed' | null>(() => {
@@ -1576,9 +1490,6 @@ export function AdvancementModal({
     }
     return options;
   }, [fighterSubtypes]);
-
-  const isSkillLikeAdvancementType =
-    advancementType === 'skill' || advancementType === 'promotion_to_champion';
 
   // Effective skill access for the currently-selected Skill Set (skill flow only).
   // Returns null when the fighter has no defined access to this set.
@@ -1852,37 +1763,6 @@ export function AdvancementModal({
     [availableAdvancements, isCumulativeXp, n26SelectedRow]
   );
 
-  // Fetch skill sets. Characteristics need no fetch here — they are derived from
-  // the advancement RPC above.
-  useEffect(() => {
-    if (advancementType !== 'skill' && advancementType !== 'promotion_to_champion') return;
-
-    const fetchSkillSets = async () => {
-      setSkillSetsLoading(true);
-      try {
-        // Use the API route so both standard and custom skill types (including
-        // campaign-shared customs) are returned.
-        const response = await fetch(`/api/skill-types?fighterId=${encodeURIComponent(fighterId)}`);
-        if (!response.ok) throw new Error('Failed to fetch skill sets');
-        const data = await response.json();
-        const categoriesWithType = (data as Array<{ id: string; name: string; is_custom?: boolean }>).map(
-          (cat) => ({
-            ...cat,
-            type: 'skill' as const
-          })
-        );
-        setSkillSetCategories(categoriesWithType);
-      } catch (err) {
-        setError(`Failed to load ${advancementType} categories`);
-        console.error(err);
-      } finally {
-        setSkillSetsLoading(false);
-      }
-    };
-
-    fetchSkillSets();
-  }, [advancementType, fighterId]);
-
   // Costs for a claimed characteristic come from the RPC map — no extra round trip.
   const formattedCharacteristic = useMemo<AvailableAdvancement | null>(() => {
     if (advancementType !== 'characteristic' || !selectedCategory) return null;
@@ -1997,7 +1877,9 @@ export function AdvancementModal({
       ? (characteristicsError ?? error)
       : skillFetchKey && availableSkillsError
         ? `Failed to load ${advancementType} details: ${availableSkillsError.message}`
-        : error;
+        : isSkillLikeAdvancementType && skillSetsError
+          ? `Failed to load ${advancementType} categories`
+          : error;
 
   // Set initial values when an advancement/acquisition type is selected
   const [prevSelectedAdvancement, setPrevSelectedAdvancement] = useState(selectedAdvancement);
@@ -2021,35 +1903,6 @@ export function AdvancementModal({
     }
   }
 
-  // N26 needs skill access on open so row 6 can offer a Legendary Name.
-  // N23 only needs it once a skill advancement is chosen.
-  const needsSkillAccess = isCumulativeXp || advancementType === 'skill';
-  useEffect(() => {
-    if (!needsSkillAccess) return;
-    const controller = new AbortController();
-    const fetchSkillAccess = async () => {
-      setSkillAccessLoading(true);
-      try {
-        const response = await fetch(`/api/fighters/skill-access?fighterId=${fighterId}`, {
-          signal: controller.signal,
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setSkillAccess(data.skill_access || []);
-        } else {
-          setSkillAccess([]);
-        }
-      } catch (err) {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setSkillAccess([]);
-      } finally {
-        if (!controller.signal.aborted) setSkillAccessLoading(false);
-      }
-    };
-    void fetchSkillAccess();
-    return () => { controller.abort(); };
-  }, [needsSkillAccess, fighterId]);
-
   // Row 6 offers a Legendary Name only when this fighter already has that set.
   if (
     skillAcquisitionType === N26_LEGENDARY_NAME_ACQUISITION_TYPE_ID &&
@@ -2058,48 +1911,6 @@ export function AdvancementModal({
   ) {
     setSelectedCategory(n26LegendaryNameSkillTypeId);
   }
-
-  // Fetch preview skill access for the target Champion type after promotion is confirmed
-  const championPromotionTypeId = championPendingPromotion?.fighter_type_id;
-  const shouldFetchChampionPreview = advancementType === 'promotion_to_champion' && !!championPromotionTypeId;
-  const [prevShouldFetchChampionPreview, setPrevShouldFetchChampionPreview] = useState(shouldFetchChampionPreview);
-  if (shouldFetchChampionPreview !== prevShouldFetchChampionPreview) {
-    setPrevShouldFetchChampionPreview(shouldFetchChampionPreview);
-    if (!shouldFetchChampionPreview) {
-      setChampionPreviewSkillAccess([]);
-      setChampionPreviewSkillAccessLoading(false);
-    } else {
-      setChampionPreviewSkillAccessLoading(true);
-    }
-  }
-
-  useEffect(() => {
-    if (!shouldFetchChampionPreview) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const res = await fetch(
-          `/api/fighters/skill-access?fighterId=${encodeURIComponent(fighterId)}&previewFighterTypeId=${encodeURIComponent(championPromotionTypeId!)}`
-        );
-        if (!res.ok || cancelled) {
-          if (!cancelled) setChampionPreviewSkillAccess([]);
-          return;
-        }
-        const data = await res.json();
-        const access = (data.skill_access || []) as SkillAccess[];
-        if (!cancelled) setChampionPreviewSkillAccess(access);
-      } catch {
-        if (!cancelled) setChampionPreviewSkillAccess([]);
-      } finally {
-        if (!cancelled) setChampionPreviewSkillAccessLoading(false);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-      setChampionPreviewSkillAccessLoading(false);
-    };
-  }, [shouldFetchChampionPreview, fighterId, championPromotionTypeId]);
 
   const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) {
@@ -2445,7 +2256,7 @@ export function AdvancementModal({
                           disabled={
                             !userPermissions.canEdit ||
                             gangerPreviewSkillAccessLoading ||
-                            gangerSpecialistCategoriesLoading
+                            skillSetsLoading
                           }
                           dropdownPlacement="down"
                         />
