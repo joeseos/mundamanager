@@ -290,8 +290,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return canAffordCredits && tradePointsCost <= (gangTradePoints ?? 0);
   };
 
+  const allEquipment = useMemo(() => Object.values(equipment).flat(), [equipment]);
   const sliderBounds = useMemo((): SliderBounds => {
-    const allEquipment = Object.values(equipment).flat();
     if (allEquipment.length === 0) return DEFAULT_SLIDER_BOUNDS;
     const bounds = (values: number[]): [number, number] => [Math.min(...values), Math.max(...values)];
     return {
@@ -299,9 +299,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
       availability: bounds(allEquipment.map(item => availabilityLevel(item.availability))),
       tradePoints: bounds(allEquipment.map(item => parseTradePointsCost(item.trade_points))),
     };
-  }, [equipment]);
+  }, [allEquipment]);
 
-  const equipmentCount = Object.values(equipment).flat().length;
+  const equipmentCount = allEquipment.length;
   const sliderResetKey = `${equipmentQuery}:${equipmentCount > 0 ? 'loaded' : 'empty'}`;
   const [prevSliderResetKey, setPrevSliderResetKey] = useState(sliderResetKey);
   if (sliderResetKey !== prevSliderResetKey) {
