@@ -235,15 +235,17 @@ export default function ActiveSession({
                     Resume Battle
                   </Button>
                 )}
-                <Button
-                  variant="destructive"
-                  className="flex-1 sm:flex-none"
-                  onClick={() => setShowCancelModal(true)}
-                  disabled={cancelMutation.isPending}
-                >
-                  Cancel Battle
-                </Button>
               </>
+            )}
+            {(canManage || userGangInSession) && (
+              <Button
+                variant="destructive"
+                className="flex-1 sm:flex-none"
+                onClick={() => setShowCancelModal(true)}
+                disabled={cancelMutation.isPending}
+              >
+                Cancel Battle
+              </Button>
             )}
           </div>
         </div>
