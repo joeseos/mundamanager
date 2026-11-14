@@ -687,6 +687,7 @@ export const campaigns = pgTable('campaigns', {
   created_by: uuid('created_by').default(sql`auth.uid()`),
   custom_trading_posts: json('custom_trading_posts').$type<string[]>(),
   allow_join_requests: boolean('allow_join_requests').default(false).notNull(),
+  allow_trading: boolean('allow_trading').default(false).notNull(),
   current_cycle: integer('current_cycle'),
   current_phase: text('current_phase'),
   campaign_portrait_id: uuid('campaign_portrait_id'),
@@ -802,6 +803,35 @@ export const campaignGangResources = pgTable('campaign_gang_resources', {
   quantity: numeric('quantity', { mode: 'number' }).default(0).notNull(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
+export const campaignTrades = pgTable('campaign_trades', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  resolved_at: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
+  campaign_id: uuid('campaign_id').notNull(),
+  proposer_gang_id: uuid('proposer_gang_id').notNull(),
+  counterparty_gang_id: uuid('counterparty_gang_id'),
+  parent_trade_id: uuid('parent_trade_id'),
+  title: varchar('title', { length: 100 }).notNull(),
+  note: text('note'),
+  status: text('status').default('pending').notNull().$type<'pending' | 'accepted' | 'declined' | 'cancelled'>(),
+});
+
+export const campaignTradeItems = pgTable('campaign_trade_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  trade_id: uuid('trade_id').notNull(),
+  giving_gang_id: uuid('giving_gang_id').notNull(),
+  kind: text('kind').notNull().$type<'captive' | 'equipment' | 'credits' | 'reputation' | 'campaign_resource' | 'custom'>(),
+  fighter_id: uuid('fighter_id'),
+  fighter_equipment_id: uuid('fighter_equipment_id'),
+  amount: integer('amount'),
+  campaign_type_resource_id: uuid('campaign_type_resource_id'),
+  campaign_resource_id: uuid('campaign_resource_id'),
+  description: text('description'),
+  locked: boolean('locked').default(true).notNull(),
 });
 
 export const tacticsCards = pgTable('tactics_cards', {
@@ -1149,6 +1179,9 @@ export const gangsRelations = relations(gangs, ({ one, many }) => ({
   }),
   gang_skill_set_ranks: many(gangSkillSetRanks),
   campaign_gangs: many(campaignGangs),
+  proposed_campaign_trades: many(campaignTrades, { relationName: 'trade_proposer_gang' }),
+  counterparty_campaign_trades: many(campaignTrades, { relationName: 'trade_counterparty_gang' }),
+  given_campaign_trade_items: many(campaignTradeItems, { relationName: 'trade_item_giving_gang' }),
 }));
 
 export const gangOriginsRelations = relations(gangOrigins, ({ one }) => ({
@@ -1227,6 +1260,7 @@ export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   campaign_resources: many(campaignResources),
   campaign_allegiances: many(campaignAllegiances),
   campaign_gangs: many(campaignGangs),
+  campaign_trades: many(campaignTrades),
 }));
 
 export const campaignTypesRelations = relations(campaignTypes, ({ one, many }) => ({
@@ -1264,6 +1298,62 @@ export const campaignTypeResourcesRelations = relations(campaignTypeResources, (
   campaign_type: one(campaignTypes, {
     fields: [campaignTypeResources.campaign_type_id],
     references: [campaignTypes.id],
+  }),
+}));
+
+export const campaignTradesRelations = relations(campaignTrades, ({ one, many }) => ({
+  campaign: one(campaigns, {
+    fields: [campaignTrades.campaign_id],
+    references: [campaigns.id],
+  }),
+  proposer_gang: one(gangs, {
+    fields: [campaignTrades.proposer_gang_id],
+    references: [gangs.id],
+    relationName: 'trade_proposer_gang',
+  }),
+  counterparty_gang: one(gangs, {
+    fields: [campaignTrades.counterparty_gang_id],
+    references: [gangs.id],
+    relationName: 'trade_counterparty_gang',
+  }),
+  parent_trade: one(campaignTrades, {
+    fields: [campaignTrades.parent_trade_id],
+    references: [campaignTrades.id],
+    relationName: 'trade_bids',
+  }),
+  bids: many(campaignTrades, { relationName: 'trade_bids' }),
+  items: many(campaignTradeItems),
+}));
+
+export const campaignTradeItemsRelations = relations(campaignTradeItems, ({ one }) => ({
+  trade: one(campaignTrades, {
+    fields: [campaignTradeItems.trade_id],
+    references: [campaignTrades.id],
+  }),
+  giving_gang: one(gangs, {
+    fields: [campaignTradeItems.giving_gang_id],
+    references: [gangs.id],
+    relationName: 'trade_item_giving_gang',
+  }),
+  captive_fighter: one(fighters, {
+    fields: [campaignTradeItems.fighter_id],
+    references: [fighters.id],
+    relationName: 'trade_item_captive',
+  }),
+  fighter_equipment: one(fighterEquipment, {
+    fields: [campaignTradeItems.fighter_equipment_id],
+    references: [fighterEquipment.id],
+    relationName: 'trade_item_equipment',
+  }),
+  campaign_type_resource: one(campaignTypeResources, {
+    fields: [campaignTradeItems.campaign_type_resource_id],
+    references: [campaignTypeResources.id],
+    relationName: 'trade_item_type_resource',
+  }),
+  campaign_resource: one(campaignResources, {
+    fields: [campaignTradeItems.campaign_resource_id],
+    references: [campaignResources.id],
+    relationName: 'trade_item_campaign_resource',
   }),
 }));
 
