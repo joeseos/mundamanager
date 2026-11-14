@@ -8,7 +8,7 @@ To spin up a fresh local database, run `supabase start` or `supabase db reset` f
 
 | Piece | Where it lives | Applied by |
 |-------|----------------|------------|
-| `private` schema (`is_admin`, `is_arb`) | `functions/is_admin.sql`, `functions/is_arb.sql` + `bootstrap/private_schema.sql` | `[db.seed].sql_paths` in `config.toml` locally; manually on the remote |
+| `private` schema (`is_admin`, `is_arb`, `equipment_detailed_rows`) | `functions/is_admin.sql`, `functions/is_arb.sql`, `functions/get_equipment_detailed_data.sql` + `bootstrap/private_schema.sql` | `[db.seed].sql_paths` in `config.toml` locally; manually on the remote |
 | Public schema snapshot | `schema/schema.public.sql` | `[db.seed].sql_paths` in `config.toml` locally; DB dump restore on remote |
 | Grants & Triggers | `bootstrap/grants.sql`, `bootstrap/auth_trigger.sql` | `[db.seed].sql_paths` in `config.toml` locally; migrations on remote |
 | Game Reference Data | `seed.sql` | `[db.seed].sql_paths` in `config.toml` locally |

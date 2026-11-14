@@ -11,20 +11,22 @@ DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boole
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[],uuid[]);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,uuid[],uuid[]);
 
-CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
-    gang_type_id uuid DEFAULT NULL,          -- $1
-    equipment_category text DEFAULT NULL,     -- $2
-    fighter_type_id uuid DEFAULT NULL,        -- $3
-    fighter_type_equipment boolean DEFAULT NULL, -- $4
-    equipment_tradingpost boolean DEFAULT NULL,  -- $5
-    fighter_id uuid DEFAULT NULL,             -- $6
-    only_equipment_id uuid DEFAULT NULL,      -- $7
-    gang_id uuid DEFAULT NULL,               -- $8
-    campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $9
-    campaign_custom_trading_post_ids uuid[] DEFAULT NULL, -- $10
-    -- Whether fighter_id's Gang Legacy fighter type adds to the list. fighter_id is
-    -- also passed without it, so subtype rules see the fighter's own subtypes.
-    include_legacy boolean DEFAULT true       -- $11
+-- The rows behind get_equipment_detailed_data. PL/pgSQL so each call is planned for
+-- its actual arguments: as a SQL function the whole query was replanned on every
+-- call without them. Its parameters are renamed because PL/pgSQL does not allow a
+-- parameter and an output column with the same name.
+CREATE OR REPLACE FUNCTION private.equipment_detailed_rows(
+    p_gang_type_id uuid,                        -- $1
+    p_equipment_category text,                  -- $2
+    p_fighter_type_id uuid,                     -- $3
+    p_fighter_type_equipment boolean,           -- $4
+    p_equipment_tradingpost boolean,            -- $5
+    p_fighter_id uuid,                          -- $6
+    p_only_equipment_id uuid,                   -- $7
+    p_gang_id uuid,                             -- $8
+    p_campaign_trading_post_type_ids uuid[],    -- $9
+    p_campaign_custom_trading_post_ids uuid[],  -- $10
+    p_include_legacy boolean                    -- $11
 )
 RETURNS TABLE (
     id uuid,
@@ -53,11 +55,16 @@ RETURNS TABLE (
     min_count integer,
     max_count integer
 )
-LANGUAGE sql
-SECURITY DEFINER
+LANGUAGE plpgsql
 SET search_path = public
+-- A plan for the actual arguments: the generic plan can't drop the branches a
+-- tab doesn't use and runs several times slower.
+SET plan_cache_mode = force_custom_plan
 STABLE
 AS $$
+#variable_conflict use_column
+BEGIN
+    RETURN QUERY
 
     -- =======================================================================
     -- 1. GANG CONTEXT (always exactly 1 row)
@@ -271,13 +278,10 @@ AS $$
         SELECT fte.id, fte.equipment_id, fte.fighter_type_id, fte.vehicle_type_id
         FROM fighter_type_equipment fte
         CROSS JOIN gang_data gd
-        WHERE (fte.fighter_type_id = $3
-               OR fte.vehicle_type_id = $3
-               OR (gd.legacy_ft_id IS NOT NULL
-                   AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
-                   AND $4 = true)
-               OR (gd.affiliation_ft_id IS NOT NULL
-                   AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
+        -- The fighter's own type, its legacy type (fighter list only) and its affiliation
+        -- type, written as ANY so each branch can use its index.
+        WHERE (fte.fighter_type_id = ANY (ARRAY[$3, CASE WHEN $4 THEN gd.legacy_ft_id END, gd.affiliation_ft_id])
+               OR fte.vehicle_type_id = ANY (ARRAY[$3, CASE WHEN $4 THEN gd.legacy_ft_id END, gd.affiliation_ft_id])
                -- A subtype rule spanning every gang names no fighter of its own.
                -- fighter_subtype must be set, or an all-NULL row matches everything.
                OR (fte.fighter_type_id IS NULL
@@ -293,7 +297,35 @@ AS $$
     ),
 
     -- =======================================================================
-    -- 8. CUSTOM EQUIPMENT THE CALLER CAN SEE
+    -- 8. COUNT LIMIT PER EQUIPMENT
+    --    The most specific matching rule wins, id breaking ties. A pet without
+    --    rules of its own uses its fighter type's. Resolved once for the whole
+    --    table instead of scanning count_limits for every equipment row.
+    -- =======================================================================
+    limit_match AS MATERIALIZED (
+        SELECT DISTINCT ON (k.equipment_id) k.equipment_id, cl.min_count, cl.max_count
+        FROM count_limits cl
+        CROSS JOIN gang_data gd
+        CROSS JOIN LATERAL (
+            SELECT cl.equipment_id WHERE cl.equipment_id IS NOT NULL
+            UNION ALL
+            SELECT eb.equipment_id FROM exotic_beasts eb WHERE eb.fighter_type_id = cl.fighter_type_id
+        ) k (equipment_id)
+        WHERE (cl.for_fighter_type_id IS NULL OR cl.for_fighter_type_id = $3)
+          AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = $1)
+          AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = gd.gang_origin_id)
+          AND (cl.gang_subtype_id IS NULL OR gd.gang_subtypes ? cl.gang_subtype_id::text)
+        ORDER BY k.equipment_id,
+                 (cl.equipment_id IS NOT NULL) DESC,
+                 (cl.for_fighter_type_id IS NOT NULL) DESC,
+                 (cl.gang_subtype_id IS NOT NULL) DESC,
+                 (cl.gang_origin_id  IS NOT NULL) DESC,
+                 (cl.gang_type_id    IS NOT NULL) DESC,
+                 cl.id
+    ),
+
+    -- =======================================================================
+    -- 9. CUSTOM EQUIPMENT THE CALLER CAN SEE
     --    The same three sources the custom branch filters on, gathered through
     --    their indexes so the branch no longer reads every user's custom
     --    equipment.
@@ -485,13 +517,11 @@ AS $$
 
     -- Is this system equipment on the current custom fighter type's equipment list?
     -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
-    LEFT JOIN LATERAL (
-        SELECT true AS is_ftl
+    LEFT JOIN (
+        SELECT DISTINCT cfte_sys.equipment_id, true AS is_ftl
         FROM custom_fighter_type_equipment cfte_sys
-        WHERE cfte_sys.equipment_id = e.id
-          AND cfte_sys.custom_fighter_type_id = $3
-        LIMIT 1
-    ) cftl ON true
+        WHERE cfte_sys.custom_fighter_type_id = $3
+    ) cftl ON cftl.equipment_id = e.id
 
     -- Single source of truth for "is this on the fighter's equipment list?"
     -- Referenced by the output column and the fighter-list filter branches below,
@@ -539,25 +569,8 @@ AS $$
     LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
     LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
 
-    -- Count limit: the most specific matching rule wins, id breaking ties. A pet without
-    -- rules of its own uses its fighter type's.
-    LEFT JOIN LATERAL (
-        SELECT cl.min_count, cl.max_count
-        FROM count_limits cl
-        WHERE (cl.equipment_id = e.id
-               OR cl.fighter_type_id IN (SELECT eb.fighter_type_id FROM exotic_beasts eb WHERE eb.equipment_id = e.id))
-          AND (cl.for_fighter_type_id IS NULL OR cl.for_fighter_type_id = $3)
-          AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = $1)
-          AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = gd.gang_origin_id)
-          AND (cl.gang_subtype_id IS NULL OR gd.gang_subtypes ? cl.gang_subtype_id::text)
-        ORDER BY (cl.equipment_id IS NOT NULL) DESC,
-                 (cl.for_fighter_type_id IS NOT NULL) DESC,
-                 (cl.gang_subtype_id IS NOT NULL) DESC,
-                 (cl.gang_origin_id  IS NOT NULL) DESC,
-                 (cl.gang_type_id    IS NOT NULL) DESC,
-                 cl.id
-        LIMIT 1
-    ) lim ON true
+    -- Count limit (rows already resolved in limit_match)
+    LEFT JOIN limit_match lim ON lim.equipment_id = e.id
 
     WHERE
         -- Early filters (equipment category + specific ID)
@@ -742,7 +755,61 @@ AS $$
         AND (
             gd.edition_id IS NULL
             OR ce.edition_id = gd.edition_id
-        )
+        );
+END;
+$$;
+
+-- Called only through get_equipment_detailed_data, which runs as the owner.
+REVOKE ALL ON FUNCTION private.equipment_detailed_rows(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) FROM PUBLIC, anon, authenticated;
+
+CREATE OR REPLACE FUNCTION get_equipment_detailed_data(
+    gang_type_id uuid DEFAULT NULL,          -- $1
+    equipment_category text DEFAULT NULL,     -- $2
+    fighter_type_id uuid DEFAULT NULL,        -- $3
+    fighter_type_equipment boolean DEFAULT NULL, -- $4
+    equipment_tradingpost boolean DEFAULT NULL,  -- $5
+    fighter_id uuid DEFAULT NULL,             -- $6
+    only_equipment_id uuid DEFAULT NULL,      -- $7
+    gang_id uuid DEFAULT NULL,               -- $8
+    campaign_trading_post_type_ids uuid[] DEFAULT NULL, -- $9
+    campaign_custom_trading_post_ids uuid[] DEFAULT NULL, -- $10
+    -- Whether fighter_id's Gang Legacy fighter type adds to the list. fighter_id is
+    -- also passed without it, so subtype rules see the fighter's own subtypes.
+    include_legacy boolean DEFAULT true       -- $11
+)
+RETURNS TABLE (
+    id uuid,
+    equipment_name text,
+    availability text,
+    base_cost numeric,
+    adjusted_cost numeric,
+    trade_points text,
+    equipment_category text,
+    equipment_type text,
+    created_at timestamptz,
+    fighter_type_equipment boolean,
+    equipment_tradingpost boolean,
+    is_custom boolean,
+    weapon_profiles jsonb,
+    vehicle_upgrade_slot text,
+    grants_equipment jsonb,
+    is_editable boolean,
+    trading_post_names text[],
+    cost_resource_name text,
+    cost_resource_amount numeric,
+    cost_type_resource_id uuid,
+    cost_campaign_resource_id uuid,
+    banned boolean,
+    -- From count_limits; NULL is no limit
+    min_count integer,
+    max_count integer
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT * FROM private.equipment_detailed_rows($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 $$;
 
 REVOKE ALL ON FUNCTION public.get_equipment_detailed_data(UUID, TEXT, UUID, BOOLEAN, BOOLEAN, UUID, UUID, UUID, UUID[], UUID[], BOOLEAN) FROM PUBLIC;
