@@ -122,9 +122,14 @@ function groupEquipmentByCategory(data: RawEquipmentData[], markFightersList: bo
 
 const NO_EQUIPMENT: Record<string, Equipment[]> = {};
 
-interface Category {
-  id: string;
-  category_name: string;
+type EquipmentListType = "fighters-list" | "fighters-tradingpost" | "unrestricted";
+
+type SliderBounds = { cost: [number, number]; availability: [number, number]; tradePoints: [number, number] };
+const DEFAULT_SLIDER_BOUNDS: SliderBounds = { cost: [10, 160], availability: [6, 12], tradePoints: [0, 5] };
+
+/** The number in an availability such as "R12", "I9" or "S7"; 0 for "C", "E" and anything else. */
+function availabilityLevel(availability: string | null | undefined): number {
+  return availability && /^[RIS]\d+$/.test(availability) ? parseInt(availability.substring(1)) : 0;
 }
 
 const ItemModal: React.FC<ItemModalProps> = ({
@@ -160,12 +165,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [buyModalData, setBuyModalData] = useState<Equipment | null>(null);
-  const [equipmentListType, setEquipmentListType] = useState<"fighters-list" | "fighters-tradingpost" | "unrestricted">(
+  const [equipmentListType, setEquipmentListType] = useState<EquipmentListType>(
     isStashMode ? "fighters-tradingpost" : "fighters-list"
   );
-  const [costRange, setCostRange] = useState<[number, number]>([10, 160]);
-  const [availabilityRange, setAvailabilityRange] = useState<[number, number]>([6, 12]);
-  const [tradePointsRange, setTradePointsRange] = useState<[number, number]>([0, 5]);
+  const [costRange, setCostRange] = useState(DEFAULT_SLIDER_BOUNDS.cost);
+  const [availabilityRange, setAvailabilityRange] = useState(DEFAULT_SLIDER_BOUNDS.availability);
+  const [tradePointsRange, setTradePointsRange] = useState(DEFAULT_SLIDER_BOUNDS.tradePoints);
   const [includeLegacy, setIncludeLegacy] = useState<boolean>(false);
 
   // Which rarity axis this list filters on: N26 gates equipment by Trade Points where
@@ -238,9 +243,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   useEffect(() => () => queryClient.removeQueries({ queryKey: ['available-equipment', gangId] }), [queryClient, gangId]);
   const error = missingTypeError ?? equipmentError?.message ?? null;
 
-  const toggleCategory = (category: Category) => {
+  const toggleCategory = (category: string) => {
     const newSet = new Set(expandedCategories);
-    if (!newSet.delete(category.category_name)) newSet.add(category.category_name);
+    if (!newSet.delete(category)) newSet.add(category);
     setExpandedCategories(newSet);
   };
 
@@ -285,37 +290,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
     return canAffordCredits && tradePointsCost <= (gangTradePoints ?? 0);
   };
 
-  const { computedMinCost, computedMaxCost, computedMinAvailability, computedMaxAvailability, computedMinTradePoints, computedMaxTradePoints } = useMemo(() => {
+  const sliderBounds = useMemo((): SliderBounds => {
     const allEquipment = Object.values(equipment).flat();
-    if (allEquipment.length === 0) {
-      return {
-        computedMinCost: 10,
-        computedMaxCost: 160,
-        computedMinAvailability: 6,
-        computedMaxAvailability: 12,
-        computedMinTradePoints: 0,
-        computedMaxTradePoints: 5,
-      };
-    }
-
-    const costs = allEquipment.map(item => item.adjusted_cost ?? item.cost);
-    const availabilities = allEquipment
-      .map(item => {
-        const availabilityStr = item.availability || '0';
-        if (availabilityStr === 'C' || availabilityStr === 'E') return 0;
-        if (/^[RIS]\d+$/.test(availabilityStr)) return parseInt(availabilityStr.substring(1));
-        return 0;
-      })
-      .filter(val => !isNaN(val));
-    const tradePointsValues = allEquipment.map(item => parseTradePointsCost(item.trade_points));
-
+    if (allEquipment.length === 0) return DEFAULT_SLIDER_BOUNDS;
+    const bounds = (values: number[]): [number, number] => [Math.min(...values), Math.max(...values)];
     return {
-      computedMinCost: costs.length > 0 ? Math.min(...costs) : 10,
-      computedMaxCost: costs.length > 0 ? Math.max(...costs) : 160,
-      computedMinAvailability: availabilities.length > 0 ? Math.min(...availabilities) : 6,
-      computedMaxAvailability: availabilities.length > 0 ? Math.max(...availabilities) : 12,
-      computedMinTradePoints: tradePointsValues.length > 0 ? Math.min(...tradePointsValues) : 0,
-      computedMaxTradePoints: tradePointsValues.length > 0 ? Math.max(...tradePointsValues) : 5,
+      cost: bounds(allEquipment.map(item => item.adjusted_cost ?? item.cost)),
+      availability: bounds(allEquipment.map(item => availabilityLevel(item.availability))),
+      tradePoints: bounds(allEquipment.map(item => parseTradePointsCost(item.trade_points))),
     };
   }, [equipment]);
 
@@ -325,9 +307,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
   if (sliderResetKey !== prevSliderResetKey) {
     setPrevSliderResetKey(sliderResetKey);
     if (equipmentCount > 0) {
-      setCostRange([computedMinCost, computedMaxCost]);
-      setAvailabilityRange([computedMinAvailability, computedMaxAvailability]);
-      setTradePointsRange([computedMinTradePoints, computedMaxTradePoints]);
+      setCostRange(sliderBounds.cost);
+      setAvailabilityRange(sliderBounds.availability);
+      setTradePointsRange(sliderBounds.tradePoints);
     }
   }
 
@@ -335,20 +317,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   const filterEquipment = (items: Equipment[]) => {
     return items.filter(item => {
       const cost = item.adjusted_cost ?? item.cost;
-      // Parse availability - handle valid formats: "R12", "I9", "S7", "C", "E"
-      const availabilityStr = item.availability || '0';
-      let availability = 0;
-
-      if (availabilityStr === 'C' || availabilityStr === 'E') {
-        availability = 0;
-      } else if (/^[RIS]\d+$/.test(availabilityStr)) {
-        // Valid format: letter prefix followed by numbers (R12, I9, S7)
-        const numStr = availabilityStr.substring(1);
-        availability = parseInt(numStr);
-      } else {
-        // Invalid format - log warning and default to 0
-        availability = 0;
-      }
+      const availability = availabilityLevel(item.availability);
 
       const costInRange = cost >= costRange[0] && cost <= costRange[1];
       const tradePoints = parseTradePointsCost(item.trade_points);
@@ -362,30 +331,25 @@ const ItemModal: React.FC<ItemModalProps> = ({
     });
   };
 
-  const categories: Category[] = useMemo(
-    () => Object.keys(equipment).map(name => ({ id: name, category_name: name })),
-    [equipment]
-  );
-
   const useN26CategoryFormation = hasEquipmentSuperCategories(editionSlug);
 
   const visibleCategories = useMemo(() => {
-    return categories
+    return Object.keys(equipment)
       .filter(category => {
         const isVehicleAllowed = isVehicleEquipment && allowedCategories
-          ? allowedCategories.includes(category.category_name)
+          ? allowedCategories.includes(category)
           : !isVehicleEquipment;
 
         const hasMatchingEquipment = !searchQuery ||
-          (equipment[category.category_name] &&
-           filterEquipment(equipment[category.category_name]).length > 0);
+          (equipment[category] &&
+           filterEquipment(equipment[category]).length > 0);
 
         return isVehicleAllowed && hasMatchingEquipment;
       })
       .sort((a, b) => {
         if (useN26CategoryFormation) {
-          const superA = getEquipmentSuperCategoryN26(a.category_name) ?? '';
-          const superB = getEquipmentSuperCategoryN26(b.category_name) ?? '';
+          const superA = getEquipmentSuperCategoryN26(a) ?? '';
+          const superB = getEquipmentSuperCategoryN26(b) ?? '';
           const superRankA = equipmentSuperCategoryRankN26[superA.toLowerCase()];
           const superRankB = equipmentSuperCategoryRankN26[superB.toLowerCase()];
           if (superRankA !== undefined || superRankB !== undefined) {
@@ -394,10 +358,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
             if (superRankA !== superRankB) return superRankA - superRankB;
           }
         }
-        return compareEquipmentCategories(a.category_name, b.category_name, editionSlug);
+        return compareEquipmentCategories(a, b, editionSlug);
       });
   }, [
-    categories,
     isVehicleEquipment,
     allowedCategories,
     searchQuery,
@@ -415,9 +378,9 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return [{ superCategory: null as string | null, categories: visibleCategories }];
     }
 
-    const groups: { superCategory: string | null; categories: Category[] }[] = [];
+    const groups: { superCategory: string | null; categories: string[] }[] = [];
     for (const category of visibleCategories) {
-      const superCategory = getEquipmentSuperCategoryN26(category.category_name) ?? null;
+      const superCategory = getEquipmentSuperCategoryN26(category) ?? null;
       const last = groups[groups.length - 1];
       if (last && last.superCategory === superCategory) {
         last.categories.push(category);
@@ -427,6 +390,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
     }
     return groups;
   }, [useN26CategoryFormation, visibleCategories]);
+
+  const equipmentListTabs: { value: EquipmentListType; label: string }[] = [
+    // The stash has no fighter or vehicle, so it has no list of its own.
+    ...(isStashMode ? [] : [{ value: 'fighters-list' as const, label: isVehicleEquipment ? "Vehicle's List" : "Fighter's List" }]),
+    { value: 'fighters-tradingpost', label: 'Trading Post' },
+    { value: 'unrestricted', label: 'Unrestricted' },
+  ];
 
   const getCategoryDisplayName = (categoryName: string) =>
     useN26CategoryFormation
@@ -471,41 +441,19 @@ const ItemModal: React.FC<ItemModalProps> = ({
               </div>
             </div>
             <div className="flex items-center gap-3 justify-center">
-              {!isStashMode && (
-                <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
+              {equipmentListTabs.map(tab => (
+                <label key={tab.value} className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
                   <input
                     type="radio"
                     name="equipment-list"
-                    value="fighters-list"
-                    checked={equipmentListType === "fighters-list"}
-                    onChange={() => setEquipmentListType("fighters-list")}
+                    value={tab.value}
+                    checked={equipmentListType === tab.value}
+                    onChange={() => setEquipmentListType(tab.value)}
                     className="mr-1"
                   />
-                  {isVehicleEquipment ? "Vehicle's List" : "Fighter's List"}
+                  {tab.label}
                 </label>
-              )}
-              <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
-                <input
-                  type="radio"
-                  name="equipment-list"
-                  value="fighters-tradingpost"
-                  checked={equipmentListType === "fighters-tradingpost"}
-                  onChange={() => setEquipmentListType("fighters-tradingpost")}
-                  className="mr-1"
-                />
-                Trading Post
-              </label>
-              <label className="flex items-center text-sm text-muted-foreground cursor-pointer whitespace-nowrap">
-                <input
-                  type="radio"
-                  name="equipment-list"
-                  value="unrestricted"
-                  checked={equipmentListType === "unrestricted"}
-                  onChange={() => setEquipmentListType("unrestricted")}
-                  className="mr-1"
-                />
-                Unrestricted
-              </label>
+              ))}
             </div>
             <div className="mt-1 flex justify-center">
               <div className="relative w-[250px]">
@@ -533,8 +481,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                 label="Cost"
                 value={costRange}
                 onValueChange={setCostRange}
-                min={computedMinCost}
-                max={computedMaxCost}
+                min={sliderBounds.cost[0]}
+                max={sliderBounds.cost[1]}
                 step={5}
                 className="flex-1"
               />
@@ -556,8 +504,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   label="Availability"
                   value={availabilityRange}
                   onValueChange={setAvailabilityRange}
-                  min={computedMinAvailability}
-                  max={computedMaxAvailability}
+                  min={sliderBounds.availability[0]}
+                  max={sliderBounds.availability[1]}
                   step={1}
                   formatValue={(val) => `${val}`}
                   className="flex-1"
@@ -569,8 +517,8 @@ const ItemModal: React.FC<ItemModalProps> = ({
                   label="Trade Points"
                   value={tradePointsRange}
                   onValueChange={setTradePointsRange}
-                  min={computedMinTradePoints}
-                  max={computedMaxTradePoints}
+                  min={sliderBounds.tradePoints[0]}
+                  max={sliderBounds.tradePoints[1]}
                   step={1}
                   formatValue={(val) => `${val}`}
                   className="flex-1"
@@ -603,29 +551,29 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     </div>
                   )}
                   {group.categories.map((category) => (
-                  <div key={category.id}>
+                  <div key={category}>
                     <Button
                       variant="ghost"
                       className="relative flex w-full justify-between rounded-none px-4 py-4 text-base font-semibold bg-muted hover:bg-muted mb-[1px]"
                       onClick={() => toggleCategory(category)}
                     >
-                      <span>{getCategoryDisplayName(category.category_name)}</span>
+                      <span>{getCategoryDisplayName(category)}</span>
                       <LuChevronRight
                         className={`h-4 w-4 transition-transform duration-200 ${
-                          expandedCategories.has(category.category_name) ? "rotate-90" : ""
+                          expandedCategories.has(category) ? "rotate-90" : ""
                         }`}
                       />
                     </Button>
 
-                    {expandedCategories.has(category.category_name) && (
+                    {expandedCategories.has(category) && (
                       <div>
-                        {equipment[category.category_name]?.length ? (
-                          filterEquipment(equipment[category.category_name])
+                        {equipment[category]?.length ? (
+                          filterEquipment(equipment[category])
                             .map((item, itemIndex) => {
                               const affordable = canAffordEquipment(item);
                               return (
                                 <div
-                                  key={`${category.category_name}-${item.equipment_id}-${itemIndex}`}
+                                  key={`${category}-${item.equipment_id}-${itemIndex}`}
                                   className={`flex items-center justify-between w-full px-4 py-2 text-left gap-1 ${item.banned ? 'opacity-40 grayscale' : 'hover:bg-muted'}`}
                                 >
                                   <EquipmentTooltipTrigger
