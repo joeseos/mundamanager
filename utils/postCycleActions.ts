@@ -4,7 +4,7 @@
  */
 
 import type { FighterEffect } from '@/types/fighter-effect';
-import type { FighterSkills, WeaponProps } from '@/types/fighter';
+import type { FighterSkills, WargearItem, WeaponProps } from '@/types/fighter';
 import { hasGangTacticsCards } from '@/types/edition';
 import { CHOP_SHOP_COST_PER_DAMAGE } from '@/utils/dice';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -68,6 +68,8 @@ export const TRAIN_XP = 2;
 export const SUIT_EVOLUTION_KILL_COST = 4;
 export const SUIT_MAINTENANCE_COST = 100;
 export const ENHANCE_WEAPON_COST = 10;
+/** The Enhance weapon catalog item, which its upgrades are keyed to. */
+export const ENHANCE_WEAPON_EQUIPMENT_ID = '7ab2d8fd-9a6b-4638-b7dc-567fb22ea5d5';
 const REPUTATION_INCOME_PER_POINT = 10;
 
 /** Collect Income: credits equal to 10x Reputation, on top of the territory Boons. */
@@ -203,7 +205,7 @@ export const POST_CYCLE_ACTIONS: Record<PostCycleActionId, PostCycleActionDefini
   suit_evolution: {
     id: 'suit_evolution',
     label: 'Suit Evolution',
-    summary: 'Logged only',
+    summary: `${SUIT_EVOLUTION_KILL_COST} Kill Count each`,
     performer: { kind: 'subtypes', subtypes: SPYRER },
     openToSpyrers: true,
   },
@@ -277,7 +279,8 @@ export interface PostCycleFighter {
   recovery?: boolean;
   kill_count?: number;
   skills?: FighterSkills;
-  weapons?: Pick<WeaponProps, 'fighter_weapon_id'>[];
+  weapons?: Pick<WeaponProps, 'fighter_weapon_id' | 'weapon_id' | 'weapon_name'>[];
+  wargear?: Pick<WargearItem, 'fighter_weapon_id' | 'wargear_id' | 'wargear_name'>[];
   effects?: {
     injuries?: FighterEffect[];
     'lasting damages'?: FighterEffect[];
@@ -442,6 +445,17 @@ export function rigGlitchNames(glitches: FighterEffect[]): string {
     .join(', ');
 }
 
+/** A Spyrer's weapons and wargear, the items Suit Evolution can augment, each with its catalog item's id. */
+export const spyrerItems = (fighter: PostCycleFighter) => [
+  ...(fighter.weapons ?? []).map((w) => ({ id: w.fighter_weapon_id, name: w.weapon_name, equipmentId: w.weapon_id })),
+  ...(fighter.wargear ?? []).map((w) => ({ id: w.fighter_weapon_id, name: w.wargear_name, equipmentId: w.wargear_id })),
+];
+
+/** One use of Suit Evolution: clear every Rig Glitch, or put one of an item's Augmentation tiers on it. */
+export type SuitEvolutionPick =
+  | { kind: 'clear_glitches' }
+  | { kind: 'augment'; itemId: string; upgradeId: string };
+
 export type PostCycleAssignment =
   | { fighterId: string; action: 'medical_escort'; targetFighterId: string }
   | { fighterId: string; action: 'fit_bionics'; targetFighterId: string; injuryIds: string[] }
@@ -451,11 +465,18 @@ export type PostCycleAssignment =
   | { fighterId: string; action: 'visit_chop_shop'; damageIds: string[] }
   /** The fighter's weapon (fighter_equipment id) and one of Enhance weapon's upgrades. */
   | { fighterId: string; action: 'enhance_weapon'; weaponId: string; upgradeId: string }
+  /** Each pick spends SUIT_EVOLUTION_KILL_COST; the action repeats while the Kill Count allows. */
+  | { fighterId: string; action: 'suit_evolution'; picks: SuitEvolutionPick[] }
   | {
       fighterId: string;
       action: Exclude<
         PostCycleActionId,
-        'medical_escort' | 'fit_bionics' | 'develop_tactics' | 'visit_chop_shop' | 'enhance_weapon'
+        | 'medical_escort'
+        | 'fit_bionics'
+        | 'develop_tactics'
+        | 'visit_chop_shop'
+        | 'enhance_weapon'
+        | 'suit_evolution'
       >;
     };
 
@@ -532,11 +553,25 @@ export function validatePostCycleAssignment(
       }
       break;
 
-    case 'suit_evolution':
-      if ((performer.kill_count ?? 0) < SUIT_EVOLUTION_KILL_COST) {
-        issues.push(`${label} needs a Kill Count of at least ${SUIT_EVOLUTION_KILL_COST}.`);
+    case 'suit_evolution': {
+      const { picks } = assignment;
+      const kills = picks.length * SUIT_EVOLUTION_KILL_COST;
+      const items = new Set(spyrerItems(performer).map((item) => item.id));
+      if (picks.length === 0) {
+        issues.push(`Choose what ${label}'s Suit Evolution does.`);
+      } else if ((performer.kill_count ?? 0) < kills) {
+        issues.push(`${label} needs a Kill Count of at least ${kills}.`);
+      }
+      // Once cleared there is nothing left to clear.
+      const clears = picks.filter((pick) => pick.kind === 'clear_glitches').length;
+      if (clears > 1 || (clears === 1 && rigGlitchesOf(performer).length === 0)) {
+        issues.push(`${label} has no Rig Glitches to clear.`);
+      }
+      if (picks.some((pick) => pick.kind === 'augment' && !items.has(pick.itemId))) {
+        issues.push(`Choose a weapon or wargear that ${label} has.`);
       }
       break;
+    }
 
     case 'suit_maintenance':
       if (rigGlitchesOf(performer).length === 0) {

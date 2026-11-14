@@ -101,6 +101,7 @@ function effectsByCategory(rows: any[]): Record<string, any[]> {
     (effects[categoryName] ||= []).push({
       id: effectData.id,
       effect_name: effectData.effect_name,
+      fighter_effect_type_id: effectData.fighter_effect_type_id,
       fighter_equipment_id: effectData.fighter_equipment_id,
       type_specific_data: effectData.type_specific_data,
       sort_order: effectType?.sort_order ?? effectData.sort_order ?? null,
