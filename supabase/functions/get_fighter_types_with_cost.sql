@@ -148,7 +148,17 @@ BEGIN
                     'equipment_category', e.equipment_category,
                     'cost', 0,
                     'availability', e.availability,
-                    'is_editable', COALESCE(e.is_editable, false)
+                    'is_editable', COALESCE(e.is_editable, false),
+                    -- Grant options with names, so the add-fighter modal can offer a choice grant
+                    'grants_equipment', CASE
+                        WHEN e.grants_equipment->'options' IS NOT NULL THEN
+                            jsonb_set(e.grants_equipment, '{options}', COALESCE((
+                                SELECT jsonb_agg(opt || jsonb_build_object('equipment_name', COALESCE(ge.equipment_name, 'Unknown')) ORDER BY ord)
+                                FROM jsonb_array_elements(e.grants_equipment->'options') WITH ORDINALITY AS o(opt, ord)
+                                LEFT JOIN equipment ge ON ge.id = (opt->>'equipment_id')::uuid
+                            ), '[]'::jsonb))
+                        ELSE e.grants_equipment
+                    END
                 )
             ), '[]'::jsonb)
             FROM fighter_defaults fd

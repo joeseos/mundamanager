@@ -13,6 +13,7 @@ import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import type { CostResourcePayload } from '@/types/equipment';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
+import { grantedEquipment } from '@/utils/equipment-grants';
 
 interface SellEquipmentParams {
   fighter_equipment_id: string;
@@ -141,7 +142,9 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
 
     // Resource-purchased items: return resource, not credits
     const isResourcePurchase = equipmentData.cost_resource && equipmentData.cost_resource.name;
-    const sellValue = isResourcePurchase ? 0 : (params.manual_cost ?? equipmentData.purchase_cost ?? 0);
+    // Includes the equipment it granted (e.g. an Outrider Quad's weapon), which the delete cascades to
+    const itemCost = (equipmentData.purchase_cost || 0) + (await grantedEquipment(supabase, equipmentData)).cost;
+    const sellValue = isResourcePurchase ? 0 : (params.manual_cost ?? itemCost);
 
     // Get equipment name for logging before deletion
     let equipmentName = 'Unknown Equipment';
@@ -208,7 +211,7 @@ export async function sellEquipmentFromFighter(params: SellEquipmentParams): Pro
     // Inactive fighters are already excluded from rating calculations
     let ratingDelta = 0;
     if ((equipmentData.fighter_id || (equipmentData.vehicle_id && vehicleAssigned)) && fighterIsActive) {
-      ratingDelta -= (equipmentData.purchase_cost || 0);
+      ratingDelta -= itemCost;
       const effectsCredits = (associatedEffects || []).reduce((s, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0);
       ratingDelta -= effectsCredits;
       ratingDelta -= beastEquipmentCost;
@@ -374,7 +377,8 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
 
     const isResourcePurchaseStash = row.cost_resource && (row.cost_resource as any).name;
     const sellValue = isResourcePurchaseStash ? 0 : Math.floor(params.manual_cost || 0);
-    const purchaseCost = row.purchase_cost || 0;
+    // Includes the equipment it granted, which the delete cascades to
+    const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;
 
     // Query beast equipment cost before deletion (only for beast-granting equipment)
     const equipmentCategory = (row as any).equipment?.equipment_category?.toLowerCase();

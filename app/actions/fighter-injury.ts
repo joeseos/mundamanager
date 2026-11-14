@@ -13,6 +13,7 @@ import type { GangLogActionResult } from './logs/gang-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { gangEditionSlug } from '@/types/edition';
+import { grantedSkillsFromEffect } from '@/utils/effect-modifiers';
 
 export interface AddFighterInjuryParams {
   fighter_id: string;
@@ -314,8 +315,8 @@ export async function addFighterInjury(
       invalidateGang(params.captured_by_gang_id);
     }
 
-    // If injury grants a skill, invalidate skills cache
-    if (injuryData?.type_specific_data?.skill_id) {
+    // If injury grants skills, invalidate skills cache
+    if (grantedSkillsFromEffect(injuryData).length > 0) {
       revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
     }
 
@@ -395,23 +396,7 @@ export async function deleteFighterInjury(
       }
     }
 
-    // Delete any skills granted by this injury before deleting the injury
-    const { data: relatedSkills } = await supabase
-      .from('fighter_effect_skills')
-      .select('fighter_skill_id')
-      .eq('fighter_effect_id', params.injury_id);
-
-    let hasRelatedSkills = false;
-    if (relatedSkills && relatedSkills.length > 0) {
-      hasRelatedSkills = true;
-      const skillIds = relatedSkills.map(rs => rs.fighter_skill_id);
-      await supabase
-        .from('fighter_skills')
-        .delete()
-        .in('id', skillIds);
-    }
-
-    // Delete the injury (this will cascade delete the modifiers)
+    // Delete the injury (this will cascade delete the modifiers and granted skills)
     const { error: deleteError } = await supabase
       .from('fighter_effects')
       .delete()
@@ -513,13 +498,8 @@ export async function deleteFighterInjury(
       }
     }
 
-    // Invalidate fighter cache
+    // Invalidate fighter cache (granted skills are in it too)
     invalidateFighter(params.fighter_id, fighter.gang_id);
-
-    // If injury had related skills, invalidate skills cache
-    if (hasRelatedSkills) {
-      revalidateTag(TAGS.fighter(params.fighter_id), { expire: 0 });
-    }
 
     return {
       success: true,

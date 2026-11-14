@@ -15,7 +15,8 @@ import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
-import type { EquipmentGrants } from '@/types/equipment';
+import type { EquipmentGrantOption, EquipmentGrants } from '@/types/equipment';
+import { chosenGrantOptions, insertGrantedEquipment } from '@/utils/equipment-grants';
 
 interface SelectedEquipment {
   equipment_id: string;
@@ -43,6 +44,8 @@ interface AddFighterParams {
   use_delegation_cost?: boolean;
   fighter_gang_legacy_id?: string;
   selected_archetype_id?: string;
+  /** Options chosen per equipment id that grants a choice, e.g. an Outrider Quad's weapon */
+  selected_grant_equipment_ids?: Record<string, string[]>;
 }
 
 interface FighterStats {
@@ -169,7 +172,7 @@ async function applyEffectsForEquipmentOptimized(
     const { data: insertedEffects, error: effectsError } = await supabase
       .from('fighter_effects')
       .insert(effectsToInsert)
-      .select('id, fighter_effect_type_id');
+      .select('id');
 
     if (effectsError || !insertedEffects) {
       console.error('Failed to insert effects:', effectsError);
@@ -204,7 +207,6 @@ async function applyEffectsForEquipmentOptimized(
       fighterId,
       insertedEffects.map((effect: any, index: number) => ({
         id: effect.id,
-        fighter_effect_type_id: effect.fighter_effect_type_id,
         type_specific_data: effectTypes[index]?.type_specific_data
       })),
       userId
@@ -400,6 +402,99 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       adjustedBaseCost = adjustedCostData?.adjusted_cost ?? fighterTypeData.cost;
     }
 
+    // Get default skills and equipment from fighter_defaults table
+    let fighterDefaultsData: any[] = [];
+    let fighterDefaultEquipmentData: any[] = [];
+
+    // Get all defaults (skills and equipment) in a single query
+    const { data: allDefaultsData } = await supabase
+      .from('fighter_defaults')
+      .select(`
+        skill_id,
+        equipment_id,
+        custom_equipment_id,
+        skills!skill_id(
+          id,
+          name,
+          grants_equipment
+        ),
+        equipment!equipment_id(
+          id,
+          equipment_name,
+          cost,
+          equipment_type,
+          is_editable
+        ),
+        custom_equipment!custom_equipment_id(
+          id,
+          equipment_name,
+          cost,
+          equipment_type,
+          is_editable
+        )
+      `)
+      .eq(isCustomFighter ? 'custom_fighter_type_id' : 'fighter_type_id', params.fighter_type_id);
+
+    // Process results to separate skills and equipment
+    fighterDefaultsData = (allDefaultsData || []).filter(item => item.skill_id && item.skills);
+
+    fighterDefaultEquipmentData = (allDefaultsData || [])
+      .filter(item => item.equipment_id || item.custom_equipment_id)
+      .map(item => {
+        if (item.equipment_id && item.equipment) {
+          return {
+            equipment_id: item.equipment_id,
+            equipment: item.equipment,
+            is_editable: (item.equipment as any)?.is_editable || false
+          };
+        } else if (item.custom_equipment_id && item.custom_equipment) {
+          return {
+            equipment_id: `custom_${item.custom_equipment_id}`,
+            equipment: {
+              id: `custom_${item.custom_equipment_id}`,
+              equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
+              cost: (item.custom_equipment as any)?.cost || 0
+            },
+            is_editable: (item.custom_equipment as any)?.is_editable || false
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+    // Equipment grants, e.g. the weapon an Outrider Quad comes with. Resolved before the
+    // costs, because the additional cost of a chosen option is paid with the fighter.
+    const grantSourceIds = Array.from(new Set([
+      ...fighterDefaultEquipmentData.map((item: any) => item.equipment_id as string),
+      // Equipment a default skill comes with (fixed grants only, see skillGrants below)
+      ...fighterDefaultsData.flatMap((item: any) => {
+        const skillGrants = item.skills?.grants_equipment as EquipmentGrants | null;
+        return skillGrants?.selection_type === 'fixed' ? skillGrants.options.map(opt => opt.equipment_id) : [];
+      }),
+      ...(params.default_equipment ?? []).map(item => item.equipment_id),
+      ...(params.selected_equipment ?? []).map(item => item.equipment_id),
+    ].filter(id => !id.startsWith('custom_'))));
+
+    const grantOptionsByEquipmentId = new Map<string, EquipmentGrantOption[]>();
+    if (grantSourceIds.length > 0) {
+      const { data: grantSources } = await supabase
+        .from('equipment')
+        .select('id, grants_equipment')
+        .in('id', grantSourceIds)
+        .not('grants_equipment', 'is', null);
+
+      for (const source of grantSources ?? []) {
+        const grants = source.grants_equipment as EquipmentGrants;
+        if (!grants.options?.length) continue;
+        const picks = params.selected_grant_equipment_ids?.[source.id];
+        // A choice grant nobody chose from grants nothing
+        if (grants.selection_type !== 'fixed' && !picks?.length) continue;
+        grantOptionsByEquipmentId.set(source.id, chosenGrantOptions(grants, picks));
+      }
+    }
+    const grantsCost = Array.from(grantOptionsByEquipmentId.values())
+      .flat()
+      .reduce((sum, opt) => sum + opt.additional_cost, 0);
+
     // Calculate costs
     const fighterCost = params.cost ?? adjustedBaseCost;
     const baseCost = adjustedBaseCost;
@@ -413,7 +508,8 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
       ? ((params.use_delegation_cost && effectiveFighterData.delegation_cost)
           ? effectiveFighterData.delegation_cost + totalEquipmentCost
           : baseCost + totalEquipmentCost)
-      : fighterCost;
+      // The entered cost includes the grants, which their own rows carry
+      : Math.max(fighterCost - grantsCost, 0);
 
     // Check if gang has enough credits (only if fighter cost > 0)
     if (fighterCost > 0 && gangData.credits < fighterCost) {
@@ -553,64 +649,6 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
           'Fighter added but skill access save failed. Please try again via Customise Skill Set Access.';
       }
     }
-
-    // Get default skills and equipment from fighter_defaults table
-    let fighterDefaultsData: any[] = [];
-    let fighterDefaultEquipmentData: any[] = [];
-
-    // Get all defaults (skills and equipment) in a single query
-    const { data: allDefaultsData } = await supabase
-      .from('fighter_defaults')
-      .select(`
-        skill_id,
-        equipment_id,
-        custom_equipment_id,
-        skills!skill_id(
-          id,
-          name
-        ),
-        equipment!equipment_id(
-          id,
-          equipment_name,
-          cost,
-          equipment_type,
-          is_editable
-        ),
-        custom_equipment!custom_equipment_id(
-          id,
-          equipment_name,
-          cost,
-          equipment_type,
-          is_editable
-        )
-      `)
-      .eq(isCustomFighter ? 'custom_fighter_type_id' : 'fighter_type_id', params.fighter_type_id);
-
-    // Process results to separate skills and equipment
-    fighterDefaultsData = (allDefaultsData || []).filter(item => item.skill_id && item.skills);
-
-    fighterDefaultEquipmentData = (allDefaultsData || [])
-      .filter(item => item.equipment_id || item.custom_equipment_id)
-      .map(item => {
-        if (item.equipment_id && item.equipment) {
-          return {
-            equipment_id: item.equipment_id,
-            equipment: item.equipment,
-            is_editable: (item.equipment as any)?.is_editable || false
-          };
-        } else if (item.custom_equipment_id && item.custom_equipment) {
-          return {
-            equipment_id: `custom_${item.custom_equipment_id}`,
-            equipment: {
-              id: `custom_${item.custom_equipment_id}`,
-              equipment_name: (item.custom_equipment as any)?.equipment_name || 'Unknown',
-              cost: (item.custom_equipment as any)?.cost || 0
-            },
-            is_editable: (item.custom_equipment as any)?.is_editable || false
-          };
-        }
-        return null;
-      }).filter(Boolean);
 
     // Prepare equipment insertions with deduplication
     const equipmentInserts: Array<{
@@ -1015,145 +1053,30 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 };
               });
 
-              // Handle equipment grants (equipment that automatically includes other items)
-              // NOTE: Only "fixed" type grants are processed during fighter creation because:
-              // - There's no UI flow to show selection options during the add-fighter process
-              // - "single_select" and "multiple_select" grants require user interaction
-              // - For equipment with selection-based grants purchased during fighter creation,
-              //   those grants will be skipped (the equipment itself is still added)
-              // - Users can later purchase equipment with selection grants via the normal purchase flow
-              const standardEquipmentItems = insertedEquipment.filter(
-                (item: any) => item.equipment_id && !item.custom_equipment_id
-              );
-
-              if (standardEquipmentItems.length > 0) {
-                const equipmentIds = standardEquipmentItems.map((item: any) => item.equipment_id);
-
-                // Fetch equipment that grants other equipment (JSONB grants_equipment)
-                const { data: equipmentWithGrantsData } = await supabase
-                  .from('equipment')
-                  .select('id, grants_equipment')
-                  .in('id', equipmentIds)
-                  .not('grants_equipment', 'is', null);
-
-                if (equipmentWithGrantsData && equipmentWithGrantsData.length > 0) {
-                  // Collect all equipment IDs that need to be granted (only fixed type)
-                  const allGrantedEquipmentIds: string[] = [];
-                  const grantsMap: Map<string, { parentEquipId: string; additionalCost: number }[]> = new Map();
-
-                  for (const parentEquip of equipmentWithGrantsData) {
-                    const grantsConfig = parentEquip.grants_equipment as {
-                      selection_type: string;
-                      options: { equipment_id: string; additional_cost: number }[];
-                    } | null;
-
-                    // Only process fixed type grants
-                    if (grantsConfig?.selection_type === 'fixed' && grantsConfig.options?.length > 0) {
-                      for (const option of grantsConfig.options) {
-                        allGrantedEquipmentIds.push(option.equipment_id);
-                        if (!grantsMap.has(option.equipment_id)) {
-                          grantsMap.set(option.equipment_id, []);
-                        }
-                        grantsMap.get(option.equipment_id)!.push({
-                          parentEquipId: parentEquip.id,
-                          additionalCost: option.additional_cost
-                        });
-                      }
-                    }
-                  }
-
-                  if (allGrantedEquipmentIds.length > 0) {
-                    // Fetch granted equipment details
-                    const { data: grantedEquipmentDetails } = await supabase
-                      .from('equipment')
-                      .select('id, equipment_name, cost')
-                      .in('id', allGrantedEquipmentIds);
-
-                    if (grantedEquipmentDetails && grantedEquipmentDetails.length > 0) {
-                      const grantedInserts = [];
-
-                      for (const grantedEquip of grantedEquipmentDetails) {
-                        const parentInfos = grantsMap.get(grantedEquip.id) || [];
-
-                        for (const parentInfo of parentInfos) {
-                          const parentFighterEquip = standardEquipmentItems.find(
-                            (item: any) => item.equipment_id === parentInfo.parentEquipId
-                          );
-
-                          if (parentFighterEquip) {
-                            grantedInserts.push({
-                              fighter_id: fighterId,
-                              equipment_id: grantedEquip.id,
-                              original_cost: grantedEquip.cost,
-                              purchase_cost: parentInfo.additionalCost,
-                              granted_by_equipment_id: parentFighterEquip.id,
-                              gang_id: params.gang_id,
-                              user_id: gangData.user_id
-                            });
-                          }
-                        }
-                      }
-
-                      if (grantedInserts.length > 0) {
-                        const { data: insertedGrantedEquipment } = await supabase
-                          .from('fighter_equipment')
-                          .insert(grantedInserts)
-                          .select(`
-                            id,
-                            equipment_id,
-                            original_cost,
-                            purchase_cost,
-                            equipment!equipment_id(
-                              id,
-                              equipment_name,
-                              equipment_type,
-                              equipment_category_id,
-                              cost
-                            )
-                          `);
-
-                        if (insertedGrantedEquipment && insertedGrantedEquipment.length > 0) {
-                          // Fetch weapon profiles for any granted weapons
-                          const grantedWeaponIds = insertedGrantedEquipment
-                            .filter((item: any) => (item.equipment as any)?.equipment_type === 'weapon')
-                            .map((item: any) => item.equipment_id);
-
-                          let grantedWeaponProfiles: any[] = [];
-                          if (grantedWeaponIds.length > 0) {
-                            const { data: grantedProfilesData } = await supabase
-                              .from('weapon_profiles')
-                              .select('*')
-                              .in('equipment_id', grantedWeaponIds);
-                            grantedWeaponProfiles = grantedProfilesData || [];
-                          }
-
-                          // Append granted equipment to equipmentWithProfiles
-                          const grantedMapped = insertedGrantedEquipment.map((item: any) => {
-                            const equipmentType = (item.equipment as any)?.equipment_type;
-                            const itemWeaponProfiles = equipmentType === 'weapon'
-                              ? grantedWeaponProfiles.filter((wp: any) => wp.equipment_id === item.equipment_id)
-                              : [];
-
-                            return {
-                              fighter_equipment_id: item.id,
-                              equipment_id: item.equipment_id || undefined,
-                              custom_equipment_id: undefined,
-                              equipment_name: (item.equipment as any)?.equipment_name || 'Unknown',
-                              equipment_type: equipmentType || 'unknown',
-                              equipment_category: 'unknown',
-                              cost: item.purchase_cost,
-                              weapon_profiles: itemWeaponProfiles,
-                              is_editable: false
-                            };
-                          });
-
-                          equipmentWithProfiles = [...equipmentWithProfiles, ...grantedMapped];
-                        }
-                      }
-                    }
-                  }
-                }
+              // Equipment grants resolved above, linked to the first inserted row of their source
+              const grantedEquipment = [];
+              for (const [equipmentId, options] of Array.from(grantOptionsByEquipmentId)) {
+                const source = insertedEquipment.find((item: any) => item.equipment_id === equipmentId);
+                if (!source) continue;
+                grantedEquipment.push(...await insertGrantedEquipment(supabase, options, {
+                  granted_by_equipment_id: source.id,
+                  fighter_id: fighterId,
+                  gang_id: params.gang_id,
+                  user_id: gangData.user_id
+                }));
               }
+
+              equipmentWithProfiles = [...equipmentWithProfiles, ...grantedEquipment.map(item => ({
+                fighter_equipment_id: item.id,
+                equipment_id: item.equipment_id,
+                custom_equipment_id: undefined,
+                equipment_name: item.equipment?.equipment_name || 'Unknown',
+                equipment_type: item.equipment?.equipment_type || 'unknown',
+                equipment_category: 'unknown',
+                cost: item.purchase_cost,
+                weapon_profiles: item.equipment?.weapon_profiles ?? [],
+                is_editable: false
+              }))];
             } else if (queryResult.error) {
               console.warn(`Failed to insert equipment: ${queryResult.error.message}`);
             }
@@ -1177,7 +1100,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
     // Update gang credits, rating and wealth using centralized helper
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gang_id,
-      ratingDelta: ratingCost + totalFamiliarsRatingDelta,
+      ratingDelta: ratingCost + grantsCost + totalFamiliarsRatingDelta,
       creditsDelta: -fighterCost // Negative because credits were spent
     });
 
@@ -1195,7 +1118,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         fighter_id: fighterId,
         fighter_name: insertedFighter.fighter_name,
         action_type: 'fighter_added',
-        fighter_credits: ratingCost,
+        fighter_credits: ratingCost + grantsCost,
         user_id: effectiveUserId,
         oldCredits: financialResult.oldValues?.credits,
         oldRating: financialResult.oldValues?.rating,
@@ -1265,7 +1188,7 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
         free_skill: effectiveFighterData.free_skill || false,
         starting_xp: insertedFighter.starting_xp ?? null,
         cost: fighterCost,
-        rating_cost: ratingCost,
+        rating_cost: ratingCost + grantsCost,
         total_cost: fighterCost,
         // Base stats (original values before effects)
         base_stats: {

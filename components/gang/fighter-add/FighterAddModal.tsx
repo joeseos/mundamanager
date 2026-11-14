@@ -40,6 +40,8 @@ import {
   normalizeEquipmentSelection,
   getDefaultEquipmentFromSelection,
   getBaseCost,
+  defaultGrantPicks,
+  grantPicksCost,
 } from '@/utils/equipment-selection';
 import { EquipmentSelection } from './EquipmentSelection';
 
@@ -166,6 +168,8 @@ export default function FighterAddModal({
   const [fighterCost, setFighterCost] = useState('');
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<SelectedEquipmentItem[]>([]);
+  // Picked options per default equipment id, for default equipment with a choice grant
+  const [grantPicks, setGrantPicks] = useState<Record<string, string[]>>({});
   const [useBaseCostForRating, setUseBaseCostForRating] = useState(true);
   const [useDelegationCost, setUseDelegationCost] = useState(false);
   const [includeCustomFighters, setIncludeCustomFighters] = useState(false);
@@ -292,7 +296,9 @@ export default function FighterAddModal({
   const applyDefaultEquipmentAndCost = (typeId: string, delegation: boolean) => {
     const selectedType = fighterTypes.find(t => t.id === typeId);
     if (!selectedType) return;
-    const baseCost = getBaseCost(selectedType, delegation);
+    const picks = defaultGrantPicks(selectedType);
+    setGrantPicks(picks);
+    const baseCost = getBaseCost(selectedType, delegation) + grantPicksCost(selectedType, picks);
     if (selectedType.equipment_selection) {
       const defaultEquipment = getDefaultEquipmentFromSelection(selectedType.equipment_selection);
       setSelectedEquipment(defaultEquipment);
@@ -313,6 +319,7 @@ export default function FighterAddModal({
     setSelectedArchetypeId('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);
+    setGrantPicks({});
     setUseDelegationCost(false);
 
     if (!typeId) {
@@ -375,7 +382,8 @@ export default function FighterAddModal({
     const enteredCost = parseInt(fighterCost);
     const actualBaseCost = getBaseCost(selectedType, useDelegationCost);
 
-    const totalEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0);
+    const totalEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0)
+      + grantPicksCost(selectedType, grantPicks);
     const displayCost = useBaseCostForRating ? (actualBaseCost + totalEquipmentCost) : enteredCost;
 
     const defaultEquipment = selectedType?.default_equipment || [];
@@ -460,6 +468,7 @@ export default function FighterAddModal({
       use_delegation_cost: boolean;
       fighter_gang_legacy_id?: string;
       selected_archetype_id?: string;
+      selected_grant_equipment_ids?: Record<string, string[]>;
     }) => {
       const result = await addFighterToGang(params);
       if (!result.success) {
@@ -481,7 +490,8 @@ export default function FighterAddModal({
 
       const selectedType = fighterTypes.find(t => t.id === variables.fighter_type_id);
       const actualBaseCost = getBaseCost(selectedType, variables.use_delegation_cost);
-      const totalEquipmentCost = variables.selected_equipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0);
+      const totalEquipmentCost = variables.selected_equipment.reduce((sum, item) => sum + item.cost * (item.quantity || 1), 0)
+        + grantPicksCost(selectedType, variables.selected_grant_equipment_ids ?? {});
       const ratingCost = variables.use_base_cost_for_rating
         ? (actualBaseCost + totalEquipmentCost)
         : variables.cost;
@@ -570,6 +580,7 @@ export default function FighterAddModal({
       use_delegation_cost: useDelegationCost,
       fighter_gang_legacy_id: selectedLegacyId || undefined,
       selected_archetype_id: canUseArchetypes ? (selectedArchetypeId || undefined) : undefined,
+      selected_grant_equipment_ids: grantPicks,
     });
 
     return true;
@@ -585,6 +596,7 @@ export default function FighterAddModal({
     setFighterCost('');
     setSelectedEquipmentIds([]);
     setSelectedEquipment([]);
+    setGrantPicks({});
     setSelectedLegacyId('');
     setSelectedArchetypeId('');
     setUseBaseCostForRating(true);
@@ -596,7 +608,8 @@ export default function FighterAddModal({
 
   const availableLegacies = currentFighterType?.available_legacies || [];
   const delegationType = fighterTypes.find(t => t.id === (selectedSpecialisationId || selectedFighterTypeId));
-  const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0);
+  const selectedEquipmentCost = selectedEquipment.reduce((sum, item) => sum + item.cost * item.quantity, 0)
+    + grantPicksCost(currentFighterType, grantPicks);
 
   // A `single` category with no default requires an explicit selection.
   const requiredSelectionMissing = (() => {
@@ -1150,6 +1163,9 @@ export default function FighterAddModal({
         setSelectedEquipment={setSelectedEquipment}
         setFighterCost={setFighterCost}
         editionSlug={currentEditionSlug}
+        fighterType={currentFighterType}
+        grantPicks={grantPicks}
+        setGrantPicks={setGrantPicks}
       />
 
       {/* Cost */}

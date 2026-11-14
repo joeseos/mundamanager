@@ -1,13 +1,16 @@
 'use client';
 
 import React from 'react';
-import { EquipmentOption, DefaultEquipment, EquipmentSelectionDataModel } from '@/types/fighter-type';
+import { EquipmentOption, DefaultEquipment, EquipmentSelectionDataModel, FighterType } from '@/types/fighter-type';
+import { EquipmentGrants } from '@/types/equipment';
 import { Checkbox } from '@/components/ui/checkbox';
 import { compareEquipmentCategories } from '@/utils/getEquipmentCategoryRank';
 import {
   SelectedEquipmentItem,
   normalizeEquipmentSelection,
   inferCategoryFromEquipmentName,
+  choiceGrantDefaults,
+  grantPicksCost,
 } from '@/utils/equipment-selection';
 
 interface EquipmentSelectionProps {
@@ -18,6 +21,11 @@ interface EquipmentSelectionProps {
   setSelectedEquipment: React.Dispatch<React.SetStateAction<SelectedEquipmentItem[]>>;
   setFighterCost: React.Dispatch<React.SetStateAction<string>>;
   editionSlug?: string | null;
+  /** Fighter type whose default equipment may come with a choice, e.g. an Outrider Quad's weapon */
+  fighterType?: FighterType;
+  /** Picked options per default equipment id */
+  grantPicks: Record<string, string[]>;
+  setGrantPicks: (picks: Record<string, string[]>) => void;
 }
 
 /**
@@ -36,12 +44,15 @@ export function EquipmentSelection({
   setSelectedEquipment,
   setFighterCost,
   editionSlug,
+  fighterType,
+  grantPicks,
+  setGrantPicks,
 }: EquipmentSelectionProps) {
-  if (!equipmentSelection) return null;
-
-  const normalizedSelection = normalizeEquipmentSelection(equipmentSelection);
-  const allCategories = Object.entries(normalizedSelection);
-  if (allCategories.length === 0) return null;
+  const allCategories = equipmentSelection
+    ? Object.entries(normalizeEquipmentSelection(equipmentSelection))
+    : [];
+  const grantDefaults = choiceGrantDefaults(fighterType);
+  if (allCategories.length === 0 && grantDefaults.length === 0) return null;
 
   return (
     <div className="space-y-4">
@@ -391,6 +402,75 @@ export function EquipmentSelection({
               </div>
             )}
           </div>
+        );
+      })}
+
+      {/* The item default equipment comes with, e.g. an Outrider Quad's weapon */}
+      {grantDefaults.map(item => (
+        <div key={item.id} className="space-y-1">
+          <label className="block text-sm font-medium text-muted-foreground">
+            {item.equipment_name} (Choose one)
+          </label>
+          <GrantOptionSelection
+            name={`grant-selection-${item.id}`}
+            grants={item.grants_equipment!}
+            selectedIds={grantPicks[item.id] ?? []}
+            onChange={selectedIds => {
+              const nextPicks = { ...grantPicks, [item.id]: selectedIds };
+              const costChange = grantPicksCost(fighterType, nextPicks) - grantPicksCost(fighterType, grantPicks);
+              setGrantPicks(nextPicks);
+              setFighterCost(prev => String(parseInt(prev || '0') + costChange));
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface GrantOptionSelectionProps {
+  /** Radio group name, unique per granting item */
+  name: string;
+  grants: EquipmentGrants;
+  selectedIds: string[];
+  onChange: (selectedIds: string[]) => void;
+}
+
+/** The equipment an item comes with, e.g. an Outrider Quad's weapon: radios for one pick, checkboxes for several */
+export function GrantOptionSelection({ name, grants, selectedIds, onChange }: GrantOptionSelectionProps) {
+  const isMultiple = grants.selection_type === 'multiple_select';
+  const maxSelections = grants.max_selections || grants.options.length;
+
+  return (
+    <div className="space-y-1">
+      {grants.options.map(option => {
+        const isSelected = selectedIds.includes(option.equipment_id);
+        return (
+          <label key={option.equipment_id} className="flex items-center gap-2 text-sm cursor-pointer">
+            {isMultiple ? (
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={checked => onChange(checked
+                  ? [...selectedIds, option.equipment_id]
+                  : selectedIds.filter(id => id !== option.equipment_id))}
+                disabled={!isSelected && selectedIds.length >= maxSelections}
+              />
+            ) : (
+              <input
+                type="radio"
+                name={name}
+                checked={isSelected}
+                onChange={() => onChange([option.equipment_id])}
+                className="w-4 h-4 cursor-pointer"
+              />
+            )}
+            <span>
+              {option.equipment_name || 'Unknown'}
+              {option.additional_cost > 0 && (
+                <span className="text-muted-foreground"> (+{option.additional_cost} credits)</span>
+              )}
+            </span>
+          </label>
         );
       })}
     </div>

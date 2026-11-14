@@ -192,3 +192,32 @@ export function getBaseCost(type: Pick<FighterType, 'total_cost' | 'delegation_c
   if (useDelegationCost && type.delegation_cost != null) return type.delegation_cost;
   return type.total_cost || 0;
 }
+
+/** Default equipment that comes with a choice of items, e.g. an Outrider Quad and its weapon. */
+export function choiceGrantDefaults(type?: FighterType): DefaultEquipment[] {
+  // One pick per equipment id, as the server grants it once per equipment id
+  return (type?.default_equipment ?? []).filter((item, index, all) =>
+    all.findIndex(other => other.id === item.id) === index &&
+    item.grants_equipment?.selection_type === 'single_select' &&
+    item.grants_equipment.options.length > 0
+  );
+}
+
+/** Each choice starts on its cheapest option, the standard one (e.g. the harpoon launcher). */
+export function defaultGrantPicks(type?: FighterType): Record<string, string[]> {
+  return Object.fromEntries(choiceGrantDefaults(type).map(item => {
+    const cheapest = item.grants_equipment!.options.reduce((min, opt) =>
+      opt.additional_cost < min.additional_cost ? opt : min
+    );
+    return [item.id, [cheapest.equipment_id]];
+  }));
+}
+
+/** Additional cost of the picked options */
+export function grantPicksCost(type: FighterType | undefined, picks: Record<string, string[]>): number {
+  return choiceGrantDefaults(type).reduce((sum, item) =>
+    sum + item.grants_equipment!.options
+      .filter(opt => picks[item.id]?.includes(opt.equipment_id))
+      .reduce((optSum, opt) => optSum + opt.additional_cost, 0),
+  0);
+}
