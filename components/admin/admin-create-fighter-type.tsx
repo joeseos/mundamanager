@@ -40,8 +40,6 @@ interface Skill {
 
 interface EquipmentWithId extends Equipment {
   id: string;
-  equipment_id: string;
-  fighter_equipment_id: string;
   equipment_name: string;
   equipment_type: 'weapon' | 'wargear' | 'vehicle_upgrade';
   cost: number;
@@ -135,12 +133,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     queryFn: async () => {
       const response = await fetch('/api/admin/equipment');
       if (!response.ok) throw new Error('Failed to fetch equipment');
-      const data = await response.json();
-      return data.map((item: any) => ({
-        ...item,
-        id: item.id,
-        equipment_id: item.id,
-      })) as EquipmentWithId[];
+      return response.json();
     },
     staleTime: 5 * 60 * 1000,
   });

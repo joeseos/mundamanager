@@ -121,18 +121,22 @@ export default function CreateBattleModal({
     : myGangs.find((g) => g.id === selectedMyGangId)?.name;
 
   const { data: selectedUserGangs, isLoading: loadingGangs } = useQuery({
-    queryKey: ['user-gangs', selectedUser?.id],
+    queryKey: ['user', selectedUser?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/users/${selectedUser!.id}`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data.gangs || []) as {
-        id: string;
-        name: string;
-        rating: number;
-        edition_slug?: string | null;
-      }[];
+      const response = await fetch(`/api/users/${selectedUser!.id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+      return response.json() as Promise<{
+        gangs: {
+          id: string;
+          name: string;
+          rating: number;
+          edition_slug?: string | null;
+        }[];
+      }>;
     },
+    select: (data) => data.gangs,
     enabled: !!selectedUser,
     // Opponents' gang lists change outside this client; refetch on every modal open
     staleTime: 0,

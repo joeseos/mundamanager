@@ -430,7 +430,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
   });
 
   const { data: gangSubtypeList = [] } = useQuery<Array<{id: string, subtype: string, edition_id?: string | null, edition_slug?: string | null}>>({
-    queryKey: ['admin-gang-subtypes'],
+    queryKey: ['gang-subtype-types'],
     queryFn: async () => {
       const response = await fetch('/api/gang-subtype-types');
       if (!response.ok) throw new Error('Failed to fetch gang subtypes');
@@ -757,7 +757,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
         queryClient.invalidateQueries({ queryKey: ['admin-weapons'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
-        queryClient.invalidateQueries({ queryKey: ['admin-gang-subtypes'] }),
+        queryClient.invalidateQueries({ queryKey: ['gang-subtype-types'] }),
       ]);
     } catch (error) {
       console.error('Error updating equipment:', error);
