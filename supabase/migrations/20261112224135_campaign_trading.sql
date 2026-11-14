@@ -1,21 +1,13 @@
--- Campaign trading: gangs in the same campaign advertise goods, captives or
--- arrangements; another gang submits an offer; the advert author accepts to
--- complete the trade. Slice 1 is plumbing only — flag, tables, SELECT RLS.
--- Mutations (create / offer / accept) arrive as SECURITY DEFINER RPCs in a
--- later slice; this migration grants SELECT, not writes.
+-- Campaign trading, RAW-first (N17–N23 Trading Captive Models, N26 ransom,
+-- guild ransoms). Equipment uses the same rows. Slice 1 is plumbing only —
+-- flag, tables, SELECT RLS. Mutations arrive later as a single accept action
+-- (and create/decline/cancel). This migration grants SELECT, not writes.
 --
--- pending_offer_count lives on the advert so the campaign list can show it
--- without reading offer rows. The server reader (app_server) inherits
--- authenticated with auth.uid() NULL, so a tight offers SELECT would otherwise
--- hide every offer from getCampaignTrades. Slice 2 RPCs maintain the counter.
---
--- Item/captive locks live on campaign_trade_reservations, not on per-table
--- unique indexes, so the same good cannot sit on an open advert and a pending
--- offer at once. Slice 2 RPCs insert/delete those rows (FOR UPDATE on the
--- reservation) when listing, offering, completing, refusing, withdrawing or
--- cancelling.
---
--- accepted_offer_id is added after campaign_trade_offers exists (circular FK).
+-- Two tables: a trade (direct deal, open listing, or bid) and the items each
+-- gang gives. A bid is a trade whose parent_trade_id points at the listing.
+-- There is no reservations table: campaign_trade_items.locked plus partial
+-- unique indexes are the live lock. FKs to fighters and fighter_equipment
+-- CASCADE so deleting a gang, fighter or account is never blocked.
 
 BEGIN;
 
@@ -25,320 +17,190 @@ ALTER TABLE public.campaigns
     ADD COLUMN IF NOT EXISTS allow_trading boolean NOT NULL DEFAULT false;
 
 COMMENT ON COLUMN public.campaigns.allow_trading IS
-  'When true, owners of gangs in this campaign can advertise and trade. A trade completes only when the advert author accepts an offer.';
+  'When true, owners of gangs in this campaign can propose and accept trades. A trade completes only when the counterparty (or listing author) accepts.';
 
--- Composite FK target so advert/offer denormalised gang, campaign and user
--- ids must match the campaign_gangs row they claim to be.
-ALTER TABLE public.campaign_gangs
-    ADD CONSTRAINT campaign_gangs_id_gang_id_campaign_id_user_id_key
-    UNIQUE (id, gang_id, campaign_id, user_id);
-
--- 2. Adverts. accepted_offer_id is added after the offers table exists.
---    Subject and payment CHECKs apply only while open so completed/cancelled
---    history can SET NULL item, captive and resource FKs when those rows go.
-CREATE TABLE public.campaign_trade_adverts (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at timestamp with time zone NOT NULL DEFAULT now(),
-    updated_at timestamp with time zone,
-    completed_at timestamp with time zone,
-    campaign_id uuid NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
-    author_campaign_gang_id uuid NOT NULL REFERENCES public.campaign_gangs(id) ON DELETE CASCADE,
-    author_gang_id uuid NOT NULL REFERENCES public.gangs(id) ON DELETE CASCADE,
-    author_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    kind text NOT NULL,
-    title varchar(100) NOT NULL,
-    description text,
-    fighter_equipment_id uuid REFERENCES public.fighter_equipment(id) ON DELETE SET NULL,
-    captive_fighter_id uuid REFERENCES public.fighters(id) ON DELETE SET NULL,
-    payment_kind text NOT NULL,
-    payment_campaign_type_resource_id uuid REFERENCES public.campaign_type_resources(id) ON DELETE SET NULL,
-    payment_campaign_resource_id uuid REFERENCES public.campaign_resources(id) ON DELETE SET NULL,
-    payment_amount integer NOT NULL,
-    status text NOT NULL DEFAULT 'open',
-    accepted_offer_id uuid,
-    pending_offer_count integer NOT NULL DEFAULT 0,
-    CONSTRAINT campaign_trade_adverts_kind_check
-        CHECK (kind IN ('selling', 'buying')),
-    CONSTRAINT campaign_trade_adverts_status_check
-        CHECK (status IN ('open', 'completed', 'cancelled')),
-    CONSTRAINT campaign_trade_adverts_payment_kind_check
-        CHECK (payment_kind IN ('credits', 'reputation', 'campaign_resource')),
-    CONSTRAINT campaign_trade_adverts_title_length
-        CHECK (char_length(btrim(title)) BETWEEN 1 AND 100),
-    CONSTRAINT campaign_trade_adverts_payment_amount_check
-        CHECK (payment_amount >= 0),
-    CONSTRAINT campaign_trade_adverts_pending_offer_count_check
-        CHECK (pending_offer_count >= 0),
-    CONSTRAINT campaign_trade_adverts_subject_check
-        CHECK (
-            status <> 'open'
-            OR (kind = 'buying'
-                AND fighter_equipment_id IS NULL
-                AND captive_fighter_id IS NULL
-                AND char_length(btrim(COALESCE(description, ''))) >= 1)
-            OR (kind = 'selling'
-                AND num_nonnulls(fighter_equipment_id, captive_fighter_id) <= 1
-                AND (
-                    fighter_equipment_id IS NOT NULL
-                    OR captive_fighter_id IS NOT NULL
-                    OR char_length(btrim(COALESCE(description, ''))) >= 1
-                )
-                AND (
-                    fighter_equipment_id IS NULL
-                    AND captive_fighter_id IS NULL
-                    OR char_length(btrim(COALESCE(description, ''))) = 0
-                ))
-        ),
-    CONSTRAINT campaign_trade_adverts_payment_resource_check
-        CHECK (
-            status <> 'open'
-            OR (payment_kind IN ('credits', 'reputation')
-                AND payment_campaign_type_resource_id IS NULL
-                AND payment_campaign_resource_id IS NULL)
-            OR (payment_kind = 'campaign_resource'
-                AND num_nonnulls(payment_campaign_type_resource_id, payment_campaign_resource_id) = 1)
-        ),
-    CONSTRAINT campaign_trade_adverts_id_campaign_id_key
-        UNIQUE (id, campaign_id),
-    CONSTRAINT campaign_trade_adverts_author_membership_fkey
-        FOREIGN KEY (author_campaign_gang_id, author_gang_id, campaign_id, author_user_id)
-        REFERENCES public.campaign_gangs (id, gang_id, campaign_id, user_id)
-);
-
-COMMENT ON TABLE public.campaign_trade_adverts IS
-  'Campaign marketplace adverts. Open rows listing an item or captive are locked via campaign_trade_reservations. A trade completes only when the author accepts an offer. Historical item/captive/resource FKs SET NULL so completed rows do not pin live stash.';
-COMMENT ON COLUMN public.campaign_trade_adverts.pending_offer_count IS
-  'Count of pending offers. Maintained by trade RPCs so the public list does not need to SELECT offer rows.';
-COMMENT ON COLUMN public.campaign_trade_adverts.fighter_equipment_id IS
-  'Stash item listed on a selling advert. Null for buying adverts, free-text selling adverts, and completed/cancelled rows after the item is deleted.';
-COMMENT ON COLUMN public.campaign_trade_adverts.captive_fighter_id IS
-  'Captive listed on a selling advert. Null for buying adverts, free-text selling adverts, and completed/cancelled rows after the captive is deleted.';
-
-CREATE INDEX campaign_trade_adverts_campaign_created_idx
-    ON public.campaign_trade_adverts (campaign_id, created_at DESC);
-
--- 3. Offers. One pending offer per gang per advert. Listed goods are locked
---    on campaign_trade_reservations, not here.
-CREATE TABLE public.campaign_trade_offers (
+-- 2. Trades. parent_trade_id is null for a direct deal or an open listing;
+--    set on a bid. counterparty_gang_id is null on an open listing (any gang
+--    in the campaign can bid); set on a direct deal and on every bid.
+CREATE TABLE public.campaign_trades (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone,
     resolved_at timestamp with time zone,
-    campaign_id uuid NOT NULL,
-    advert_id uuid NOT NULL REFERENCES public.campaign_trade_adverts(id) ON DELETE CASCADE,
-    offerer_campaign_gang_id uuid NOT NULL REFERENCES public.campaign_gangs(id) ON DELETE CASCADE,
-    offerer_gang_id uuid NOT NULL REFERENCES public.gangs(id) ON DELETE CASCADE,
-    offerer_user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-    fighter_equipment_id uuid REFERENCES public.fighter_equipment(id) ON DELETE SET NULL,
-    captive_fighter_id uuid REFERENCES public.fighters(id) ON DELETE SET NULL,
-    supply_kind text,
-    supply_campaign_type_resource_id uuid REFERENCES public.campaign_type_resources(id) ON DELETE SET NULL,
-    supply_campaign_resource_id uuid REFERENCES public.campaign_resources(id) ON DELETE SET NULL,
-    supply_amount integer,
-    payment_kind text NOT NULL,
-    payment_campaign_type_resource_id uuid REFERENCES public.campaign_type_resources(id) ON DELETE SET NULL,
-    payment_campaign_resource_id uuid REFERENCES public.campaign_resources(id) ON DELETE SET NULL,
-    payment_amount integer NOT NULL,
+    campaign_id uuid NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
+    proposer_gang_id uuid NOT NULL REFERENCES public.gangs(id) ON DELETE CASCADE,
+    counterparty_gang_id uuid REFERENCES public.gangs(id) ON DELETE CASCADE,
+    parent_trade_id uuid,
+    title varchar(100) NOT NULL,
+    note text,
     status text NOT NULL DEFAULT 'pending',
-    CONSTRAINT campaign_trade_offers_status_check
-        CHECK (status IN ('pending', 'accepted', 'refused', 'withdrawn', 'closed')),
-    CONSTRAINT campaign_trade_offers_payment_kind_check
-        CHECK (payment_kind IN ('credits', 'reputation', 'campaign_resource')),
-    CONSTRAINT campaign_trade_offers_payment_amount_check
-        CHECK (payment_amount >= 0),
-    CONSTRAINT campaign_trade_offers_payment_resource_check
-        CHECK (
-            status <> 'pending'
-            OR (payment_kind IN ('credits', 'reputation')
-                AND payment_campaign_type_resource_id IS NULL
-                AND payment_campaign_resource_id IS NULL)
-            OR (payment_kind = 'campaign_resource'
-                AND num_nonnulls(payment_campaign_type_resource_id, payment_campaign_resource_id) = 1)
-        ),
-    CONSTRAINT campaign_trade_offers_supply_check
-        CHECK (
-            status <> 'pending'
-            OR (supply_kind IS NULL
-                AND supply_campaign_type_resource_id IS NULL
-                AND supply_campaign_resource_id IS NULL
-                AND supply_amount IS NULL)
-            OR (supply_kind IN ('credits', 'reputation')
-                AND supply_campaign_type_resource_id IS NULL
-                AND supply_campaign_resource_id IS NULL
-                AND supply_amount IS NOT NULL
-                AND supply_amount >= 0)
-            OR (supply_kind = 'campaign_resource'
-                AND num_nonnulls(supply_campaign_type_resource_id, supply_campaign_resource_id) = 1
-                AND supply_amount IS NOT NULL
-                AND supply_amount >= 0)
-        ),
-    CONSTRAINT campaign_trade_offers_goods_check
-        CHECK (num_nonnulls(fighter_equipment_id, captive_fighter_id, supply_kind) <= 1),
-    CONSTRAINT campaign_trade_offers_advert_campaign_fkey
-        FOREIGN KEY (advert_id, campaign_id)
-        REFERENCES public.campaign_trade_adverts (id, campaign_id),
-    CONSTRAINT campaign_trade_offers_offerer_membership_fkey
-        FOREIGN KEY (offerer_campaign_gang_id, offerer_gang_id, campaign_id, offerer_user_id)
-        REFERENCES public.campaign_gangs (id, gang_id, campaign_id, user_id),
-    CONSTRAINT campaign_trade_offers_advert_id_id_key
-        UNIQUE (advert_id, id)
+    CONSTRAINT campaign_trades_status_check
+        CHECK (status IN ('pending', 'accepted', 'declined', 'cancelled')),
+    CONSTRAINT campaign_trades_title_length
+        CHECK (char_length(btrim(title)) BETWEEN 1 AND 100),
+    CONSTRAINT campaign_trades_not_self
+        CHECK (parent_trade_id IS DISTINCT FROM id),
+    CONSTRAINT campaign_trades_not_own_counterparty
+        CHECK (counterparty_gang_id IS NULL OR proposer_gang_id <> counterparty_gang_id),
+    CONSTRAINT campaign_trades_bid_has_counterparty
+        CHECK (parent_trade_id IS NULL OR counterparty_gang_id IS NOT NULL),
+    CONSTRAINT campaign_trades_id_campaign_id_key
+        UNIQUE (id, campaign_id),
+    CONSTRAINT campaign_trades_parent_campaign_fkey
+        FOREIGN KEY (parent_trade_id, campaign_id)
+        REFERENCES public.campaign_trades (id, campaign_id)
+        ON DELETE CASCADE
 );
 
-COMMENT ON TABLE public.campaign_trade_offers IS
-  'Offers on a campaign trade advert. Pending rows that list an item or captive are locked via campaign_trade_reservations. Accepting one offer completes the advert.';
-COMMENT ON COLUMN public.campaign_trade_offers.campaign_id IS
-  'Copied from the advert so the offerer membership composite FK can require the same campaign.';
+COMMENT ON TABLE public.campaign_trades IS
+  'A campaign trade: a direct proposal, an open listing, or a bid on a listing (parent_trade_id). Completes only when accepted.';
+COMMENT ON COLUMN public.campaign_trades.counterparty_gang_id IS
+  'The gang that must accept. Null on an open listing; any gang in the campaign can bid.';
+COMMENT ON COLUMN public.campaign_trades.parent_trade_id IS
+  'Set on a bid, pointing at the listing. Null on a direct trade or an open listing.';
 
-CREATE INDEX campaign_trade_offers_advert_id_idx
-    ON public.campaign_trade_offers (advert_id);
+CREATE INDEX campaign_trades_campaign_created_idx
+    ON public.campaign_trades (campaign_id, created_at DESC);
 
-CREATE UNIQUE INDEX campaign_trade_offers_one_pending
-    ON public.campaign_trade_offers (advert_id, offerer_campaign_gang_id)
-    WHERE status = 'pending';
+CREATE INDEX campaign_trades_parent_id_idx
+    ON public.campaign_trades (parent_trade_id);
 
--- Composite so accepted_offer_id must belong to this advert, not another.
--- MATCH SIMPLE: a null accepted_offer_id skips the check (open/cancelled rows).
--- No ON DELETE SET NULL: that would also null adverts.id (PK). Deleting an
--- accepted offer while the advert still points at it is rejected.
-ALTER TABLE public.campaign_trade_adverts
-    ADD CONSTRAINT campaign_trade_adverts_accepted_offer_fkey
-    FOREIGN KEY (id, accepted_offer_id)
-    REFERENCES public.campaign_trade_offers (advert_id, id);
+CREATE UNIQUE INDEX campaign_trades_one_pending_bid
+    ON public.campaign_trades (parent_trade_id, proposer_gang_id)
+    WHERE parent_trade_id IS NOT NULL AND status = 'pending';
 
--- 4. Live item/captive lock. One row per reserved good, sourced from either an
---    open advert or a pending offer. Historical advert/offer FKs are not locks.
-CREATE TABLE public.campaign_trade_reservations (
+-- 3. Items. One row per thing a gang gives. locked is true while the parent
+--    trade is pending; set false on accept/decline/cancel. Credits and
+--    reputation are not uniquely locked — accept re-checks balances.
+CREATE TABLE public.campaign_trade_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamp with time zone NOT NULL DEFAULT now(),
-    fighter_equipment_id uuid REFERENCES public.fighter_equipment(id) ON DELETE RESTRICT,
-    captive_fighter_id uuid REFERENCES public.fighters(id) ON DELETE RESTRICT,
-    advert_id uuid REFERENCES public.campaign_trade_adverts(id) ON DELETE CASCADE,
-    offer_id uuid REFERENCES public.campaign_trade_offers(id) ON DELETE CASCADE,
-    CONSTRAINT campaign_trade_reservations_subject_check
-        CHECK (num_nonnulls(fighter_equipment_id, captive_fighter_id) = 1),
-    CONSTRAINT campaign_trade_reservations_source_check
-        CHECK (num_nonnulls(advert_id, offer_id) = 1)
+    trade_id uuid NOT NULL REFERENCES public.campaign_trades(id) ON DELETE CASCADE,
+    giving_gang_id uuid NOT NULL REFERENCES public.gangs(id) ON DELETE CASCADE,
+    kind text NOT NULL,
+    fighter_id uuid REFERENCES public.fighters(id) ON DELETE CASCADE,
+    fighter_equipment_id uuid REFERENCES public.fighter_equipment(id) ON DELETE CASCADE,
+    amount integer,
+    campaign_type_resource_id uuid REFERENCES public.campaign_type_resources(id) ON DELETE CASCADE,
+    campaign_resource_id uuid REFERENCES public.campaign_resources(id) ON DELETE CASCADE,
+    description text,
+    locked boolean NOT NULL DEFAULT true,
+    CONSTRAINT campaign_trade_items_kind_check
+        CHECK (kind IN (
+            'captive',
+            'equipment',
+            'credits',
+            'reputation',
+            'campaign_resource',
+            'custom'
+        )),
+    CONSTRAINT campaign_trade_items_columns_check
+        CHECK (
+            (kind = 'captive'
+                AND fighter_id IS NOT NULL
+                AND fighter_equipment_id IS NULL
+                AND amount IS NULL
+                AND campaign_type_resource_id IS NULL
+                AND campaign_resource_id IS NULL
+                AND description IS NULL)
+            OR (kind = 'equipment'
+                AND fighter_equipment_id IS NOT NULL
+                AND fighter_id IS NULL
+                AND amount IS NULL
+                AND campaign_type_resource_id IS NULL
+                AND campaign_resource_id IS NULL
+                AND description IS NULL)
+            OR (kind IN ('credits', 'reputation')
+                AND amount IS NOT NULL
+                AND amount >= 0
+                AND fighter_id IS NULL
+                AND fighter_equipment_id IS NULL
+                AND campaign_type_resource_id IS NULL
+                AND campaign_resource_id IS NULL
+                AND description IS NULL)
+            OR (kind = 'campaign_resource'
+                AND amount IS NOT NULL
+                AND amount >= 0
+                AND num_nonnulls(campaign_type_resource_id, campaign_resource_id) = 1
+                AND fighter_id IS NULL
+                AND fighter_equipment_id IS NULL
+                AND description IS NULL)
+            OR (kind = 'custom'
+                AND char_length(btrim(COALESCE(description, ''))) >= 1
+                AND fighter_id IS NULL
+                AND fighter_equipment_id IS NULL
+                AND amount IS NULL
+                AND campaign_type_resource_id IS NULL
+                AND campaign_resource_id IS NULL)
+        )
 );
 
-COMMENT ON TABLE public.campaign_trade_reservations IS
-  'Live lock for a stash item or captive listed on an open advert or pending offer. Slice 2 RPCs insert on list/offer and delete on complete/cancel/refuse/withdraw. Credit and resource reservations stay as sums of pending offer rows.';
+COMMENT ON TABLE public.campaign_trade_items IS
+  'What a gang gives in a trade. Captive and equipment rows with locked=true cannot appear on two pending trades. custom is recorded only (territory, service, bounty); players settle it at the table.';
+COMMENT ON COLUMN public.campaign_trade_items.giving_gang_id IS
+  'The gang handing this over. For a captive that is the captor (captured_by_gang_id); fighters.gang_id does not change.';
+COMMENT ON COLUMN public.campaign_trade_items.locked IS
+  'True while the trade is pending. False after accept, decline or cancel. Stash and captive actions refuse when a matching locked row exists.';
+COMMENT ON COLUMN public.campaign_trade_items.kind IS
+  'captive / equipment / credits / reputation / campaign_resource / custom. A later kind is a small migration.';
 
-CREATE UNIQUE INDEX campaign_trade_reservations_item
-    ON public.campaign_trade_reservations (fighter_equipment_id)
-    WHERE fighter_equipment_id IS NOT NULL;
+CREATE INDEX campaign_trade_items_trade_id_idx
+    ON public.campaign_trade_items (trade_id);
 
-CREATE UNIQUE INDEX campaign_trade_reservations_captive
-    ON public.campaign_trade_reservations (captive_fighter_id)
-    WHERE captive_fighter_id IS NOT NULL;
+CREATE UNIQUE INDEX campaign_trade_items_equipment_locked
+    ON public.campaign_trade_items (fighter_equipment_id)
+    WHERE locked AND fighter_equipment_id IS NOT NULL;
 
-CREATE UNIQUE INDEX campaign_trade_reservations_advert
-    ON public.campaign_trade_reservations (advert_id)
-    WHERE advert_id IS NOT NULL;
+CREATE UNIQUE INDEX campaign_trade_items_captive_locked
+    ON public.campaign_trade_items (fighter_id)
+    WHERE locked AND fighter_id IS NOT NULL;
 
-CREATE UNIQUE INDEX campaign_trade_reservations_offer
-    ON public.campaign_trade_reservations (offer_id)
-    WHERE offer_id IS NOT NULL;
+-- 4. RLS: SELECT only. Writes come later.
+ALTER TABLE public.campaign_trades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.campaign_trade_items ENABLE ROW LEVEL SECURITY;
 
--- 5. RLS: SELECT only. Writes come from SECURITY DEFINER RPCs in a later slice.
-ALTER TABLE public.campaign_trade_adverts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.campaign_trade_offers ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.campaign_trade_reservations ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.campaign_trades TO authenticated;
+GRANT SELECT ON public.campaign_trade_items TO authenticated;
 
-GRANT SELECT ON public.campaign_trade_adverts TO authenticated;
-GRANT SELECT ON public.campaign_trade_offers TO authenticated;
-GRANT SELECT ON public.campaign_trade_reservations TO authenticated;
-
--- Campaign pages are server-rendered through app_server (auth.uid() NULL), so
--- that role needs an open SELECT. Direct Data API access is limited to members,
--- arbitrators and admins — unlike campaigns, whose SELECT is USING (true).
-CREATE POLICY "Campaign members, arbitrators or admin can view trade adverts"
-    ON public.campaign_trade_adverts FOR SELECT TO authenticated
+-- Campaign pages are server-rendered through app_server (auth.uid() NULL).
+-- Data API is limited to members, arbitrators and admins.
+CREATE POLICY "Members, arbs or admin can view trades"
+    ON public.campaign_trades FOR SELECT TO authenticated
     USING (
         (SELECT private.is_admin() AS is_admin)
         OR (EXISTS (
             SELECT 1
             FROM public.campaign_members cm
-            WHERE cm.campaign_id = campaign_trade_adverts.campaign_id
+            WHERE cm.campaign_id = campaign_trades.campaign_id
               AND cm.user_id = (SELECT auth.uid() AS uid)
         ))
         OR (SELECT private.is_arb(campaign_id) AS is_arb)
     );
 
-CREATE POLICY "App server can view campaign trade adverts"
-    ON public.campaign_trade_adverts FOR SELECT TO app_server
+CREATE POLICY "App server can view campaign trades"
+    ON public.campaign_trades FOR SELECT TO app_server
     USING (true);
 
--- Offer rows are the reservation detail. Only the two sides, an arbitrator of
--- that campaign, or an admin can read them. pending_offer_count on the advert
--- is what the public list shows. No app_server bypass — getCampaignTrades
--- must not SELECT this table.
-CREATE POLICY "Author, offerer, arbitrators or admin can view trade offers"
-    ON public.campaign_trade_offers FOR SELECT TO authenticated
+CREATE POLICY "Members, arbs or admin can view trade items"
+    ON public.campaign_trade_items FOR SELECT TO authenticated
     USING (
         (SELECT private.is_admin() AS is_admin)
-        OR (offerer_user_id = (SELECT auth.uid() AS uid))
         OR (EXISTS (
             SELECT 1
-            FROM public.campaign_trade_adverts a
-            WHERE a.id = campaign_trade_offers.advert_id
-              AND a.author_user_id = (SELECT auth.uid() AS uid)
+            FROM public.campaign_trades t
+            JOIN public.campaign_members cm ON cm.campaign_id = t.campaign_id
+            WHERE t.id = campaign_trade_items.trade_id
+              AND cm.user_id = (SELECT auth.uid() AS uid)
         ))
-        OR (SELECT private.is_arb(campaign_id) AS is_arb)
+        OR (SELECT private.is_arb((
+            SELECT t.campaign_id
+            FROM public.campaign_trades t
+            WHERE t.id = campaign_trade_items.trade_id
+        )) AS is_arb)
     );
 
--- Advert-sourced reservations are as public as the advert (listed item is on
--- the advert row). Offer-sourced reservations follow offer RLS so a pending
--- offer's item id is not visible to the rest of the campaign.
-CREATE POLICY "Members, arbs or admin view advert reservations"
-    ON public.campaign_trade_reservations FOR SELECT TO authenticated
-    USING (
-        advert_id IS NOT NULL
-        AND (
-            (SELECT private.is_admin() AS is_admin)
-            OR (EXISTS (
-                SELECT 1
-                FROM public.campaign_trade_adverts a
-                JOIN public.campaign_members cm ON cm.campaign_id = a.campaign_id
-                WHERE a.id = campaign_trade_reservations.advert_id
-                  AND cm.user_id = (SELECT auth.uid() AS uid)
-            ))
-            OR (SELECT private.is_arb((
-                SELECT a.campaign_id
-                FROM public.campaign_trade_adverts a
-                WHERE a.id = campaign_trade_reservations.advert_id
-            )) AS is_arb)
-        )
-    );
-
-CREATE POLICY "App server can view advert trade reservations"
-    ON public.campaign_trade_reservations FOR SELECT TO app_server
-    USING (advert_id IS NOT NULL);
-
-CREATE POLICY "Author, offerer, arbs or admin view offer reservations"
-    ON public.campaign_trade_reservations FOR SELECT TO authenticated
-    USING (
-        offer_id IS NOT NULL
-        AND (
-            (SELECT private.is_admin() AS is_admin)
-            OR (EXISTS (
-                SELECT 1
-                FROM public.campaign_trade_offers o
-                WHERE o.id = campaign_trade_reservations.offer_id
-                  AND o.offerer_user_id = (SELECT auth.uid() AS uid)
-            ))
-            OR (EXISTS (
-                SELECT 1
-                FROM public.campaign_trade_offers o
-                JOIN public.campaign_trade_adverts a ON a.id = o.advert_id
-                WHERE o.id = campaign_trade_reservations.offer_id
-                  AND a.author_user_id = (SELECT auth.uid() AS uid)
-            ))
-            OR (SELECT private.is_arb((
-                SELECT o.campaign_id
-                FROM public.campaign_trade_offers o
-                WHERE o.id = campaign_trade_reservations.offer_id
-            )) AS is_arb)
-        )
-    );
+CREATE POLICY "App server can view campaign trade items"
+    ON public.campaign_trade_items FOR SELECT TO app_server
+    USING (true);
 
 COMMIT;
