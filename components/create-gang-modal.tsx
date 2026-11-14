@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
@@ -63,6 +64,9 @@ type GangSubtype = {
   edition_slug?: string | null;
 };
 
+const NO_GANG_TYPES: GangType[] = [];
+const NO_SUBTYPES: GangSubtype[] = [];
+
 interface CreateGangModalProps {
   onClose: () => void;
 }
@@ -96,7 +100,6 @@ export function CreateGangButton() {
 // Modal component
 export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const { editionSlug, setEditionSlug } = useHomeEdition();
-  const [gangTypes, setGangTypes] = useState<GangType[]>([]);
   const [gangName, setGangName] = useState("")
   const [gangType, setGangType] = useState("")
   // Resolved catalog id used on create: null = Standard (root), string = variant child id.
@@ -106,12 +109,26 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
   const [credits, setCredits] = useState("1000")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isLoadingGangTypes, setIsLoadingGangTypes] = useState(false);
+  const { data: gangTypes = NO_GANG_TYPES, isLoading: isLoadingGangTypes, error: gangTypesError } = useQuery<GangType[]>({
+    queryKey: ['gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+  });
+  const displayedError = error ?? (gangTypesError ? 'Failed to load gang types. Please try again.' : null);
   const { portraits, status: portraitsStatus, retry: retryPortraits } = usePortraitCatalogue('gang');
   
   // Gang subtypes state
-  const [availableSubtypes, setAvailableSubtypes] = useState<GangSubtype[]>([]);
-  const [isLoadingSubtypes, setIsLoadingSubtypes] = useState(false);
+  const { data: availableSubtypes = NO_SUBTYPES } = useQuery<GangSubtype[]>({
+    queryKey: ['gang-subtype-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/gang-subtype-types');
+      if (!response.ok) throw new Error('Failed to fetch gang subtypes');
+      return response.json();
+    },
+  });
   const [selectedSubtypes, setSelectedSubtypes] = useState<GangSubtype[]>([]);
   const [showSubtypes, setShowSubtypes] = useState(false);
 
@@ -270,61 +287,6 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
       setShowSubtypes(false);
     }
   }
-
-  useEffect(() => {
-    const fetchGangTypes = async () => {
-      if (gangTypes.length === 0 && !isLoadingGangTypes) {
-        setIsLoadingGangTypes(true);
-        try {
-          const response = await fetch('/api/gang-types');
-          if (!response.ok) {
-            throw new Error('Failed to fetch gang types');
-          }
-          
-          const gangTypesData = await response.json();
-          
-          // Filter out hidden gang types if needed
-          const visibleGangTypes = gangTypesData.filter((type: GangType) => {
-            // Add logic to filter hidden types if the API doesn't handle this
-            return true; // For now, assume API handles filtering
-          });
-          
-          setGangTypes(visibleGangTypes);
-        } catch (err) {
-          console.error('Error fetching gang types:', err);
-          setError('Failed to load gang types. Please try again.');
-        } finally {
-          setIsLoadingGangTypes(false);
-        }
-      }
-    };
-
-    fetchGangTypes();
-  }, [gangTypes.length, isLoadingGangTypes]);
-
-  // Fetch gang subtypes when modal opens
-  useEffect(() => {
-    const fetchSubtypes = async () => {
-      if (availableSubtypes.length === 0 && !isLoadingSubtypes) {
-        setIsLoadingSubtypes(true);
-        try {
-          const response = await fetch('/api/gang-subtype-types');
-          if (!response.ok) {
-            throw new Error('Failed to fetch gang subtypes');
-          }
-          const subtypesData = await response.json();
-          setAvailableSubtypes(subtypesData);
-        } catch (err) {
-          console.error('Error fetching gang subtypes:', err);
-          // Don't show error toast for subtypes, just log it
-        } finally {
-          setIsLoadingSubtypes(false);
-        }
-      }
-    };
-
-    fetchSubtypes();
-  }, [availableSubtypes.length, isLoadingSubtypes]);
 
   // Clear affiliation, origin, and gang variant when gang type (root) changes
   const [prevGangType, setPrevGangType] = useState(gangType);
@@ -726,7 +688,7 @@ export function CreateGangModal({ onClose }: CreateGangModalProps) {
             />
           </div>
           
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {displayedError && <p className="text-red-500 text-sm">{displayedError}</p>}
           <SubmitButton 
             onClick={handleCreateGang} 
             className="w-full" 
