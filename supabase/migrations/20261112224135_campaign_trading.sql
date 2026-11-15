@@ -1,13 +1,15 @@
 -- Campaign trading, RAW-first (N17–N23 Trading Captive Models, N26 ransom,
--- guild ransoms). Equipment uses the same rows. Slice 1 is plumbing only —
--- flag, tables, SELECT RLS. Mutations arrive later as a single accept action
--- (and create/decline/cancel). This migration grants SELECT, not writes.
+-- guild ransoms). Equipment uses the same rows. Slice 1 is plumbing —
+-- flag, tables, SELECT for members, INSERT/UPDATE/DELETE for admins.
+-- Player mutations arrive later as a single accept action (and create /
+-- decline / cancel).
 --
 -- Two tables: a trade (direct deal, open listing, or bid) and the items each
 -- gang gives. A bid is a trade whose parent_trade_id points at the listing.
--- There is no reservations table: campaign_trade_items.locked plus partial
--- unique indexes are the live lock. FKs to fighters and fighter_equipment
--- CASCADE so deleting a gang, fighter or account is never blocked.
+-- locked plus partial unique indexes are the live lock. Item FKs SET NULL so
+-- an accepted trade keeps its row (name in description) if the captive later
+-- dies or the item is sold. While locked, the ids are still required, so a
+-- pending listing cannot lose its subject.
 
 BEGIN;
 
@@ -65,6 +67,12 @@ CREATE INDEX campaign_trades_campaign_created_idx
 CREATE INDEX campaign_trades_parent_id_idx
     ON public.campaign_trades (parent_trade_id);
 
+CREATE INDEX campaign_trades_proposer_gang_id_idx
+    ON public.campaign_trades (proposer_gang_id);
+
+CREATE INDEX campaign_trades_counterparty_gang_id_idx
+    ON public.campaign_trades (counterparty_gang_id);
+
 CREATE UNIQUE INDEX campaign_trades_one_pending_bid
     ON public.campaign_trades (parent_trade_id, proposer_gang_id)
     WHERE parent_trade_id IS NOT NULL AND status = 'pending';
@@ -72,17 +80,20 @@ CREATE UNIQUE INDEX campaign_trades_one_pending_bid
 -- 3. Items. One row per thing a gang gives. locked is true while the parent
 --    trade is pending; set false on accept/decline/cancel. Credits and
 --    reputation are not uniquely locked — accept re-checks balances.
+--    description holds the display name for captive, equipment, resource and
+--    custom rows so history survives SET NULL on the live FKs.
 CREATE TABLE public.campaign_trade_items (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     created_at timestamp with time zone NOT NULL DEFAULT now(),
+    updated_at timestamp with time zone,
     trade_id uuid NOT NULL REFERENCES public.campaign_trades(id) ON DELETE CASCADE,
     giving_gang_id uuid NOT NULL REFERENCES public.gangs(id) ON DELETE CASCADE,
     kind text NOT NULL,
-    fighter_id uuid REFERENCES public.fighters(id) ON DELETE CASCADE,
-    fighter_equipment_id uuid REFERENCES public.fighter_equipment(id) ON DELETE CASCADE,
-    amount integer,
-    campaign_type_resource_id uuid REFERENCES public.campaign_type_resources(id) ON DELETE CASCADE,
-    campaign_resource_id uuid REFERENCES public.campaign_resources(id) ON DELETE CASCADE,
+    fighter_id uuid REFERENCES public.fighters(id) ON DELETE SET NULL,
+    fighter_equipment_id uuid REFERENCES public.fighter_equipment(id) ON DELETE SET NULL,
+    amount numeric,
+    campaign_type_resource_id uuid REFERENCES public.campaign_type_resources(id) ON DELETE SET NULL,
+    campaign_resource_id uuid REFERENCES public.campaign_resources(id) ON DELETE SET NULL,
     description text,
     locked boolean NOT NULL DEFAULT true,
     CONSTRAINT campaign_trade_items_kind_check
@@ -97,19 +108,19 @@ CREATE TABLE public.campaign_trade_items (
     CONSTRAINT campaign_trade_items_columns_check
         CHECK (
             (kind = 'captive'
-                AND fighter_id IS NOT NULL
                 AND fighter_equipment_id IS NULL
                 AND amount IS NULL
                 AND campaign_type_resource_id IS NULL
                 AND campaign_resource_id IS NULL
-                AND description IS NULL)
+                AND char_length(btrim(COALESCE(description, ''))) >= 1
+                AND (NOT locked OR fighter_id IS NOT NULL))
             OR (kind = 'equipment'
-                AND fighter_equipment_id IS NOT NULL
                 AND fighter_id IS NULL
                 AND amount IS NULL
                 AND campaign_type_resource_id IS NULL
                 AND campaign_resource_id IS NULL
-                AND description IS NULL)
+                AND char_length(btrim(COALESCE(description, ''))) >= 1
+                AND (NOT locked OR fighter_equipment_id IS NOT NULL))
             OR (kind IN ('credits', 'reputation')
                 AND amount IS NOT NULL
                 AND amount >= 0
@@ -121,10 +132,11 @@ CREATE TABLE public.campaign_trade_items (
             OR (kind = 'campaign_resource'
                 AND amount IS NOT NULL
                 AND amount >= 0
-                AND num_nonnulls(campaign_type_resource_id, campaign_resource_id) = 1
                 AND fighter_id IS NULL
                 AND fighter_equipment_id IS NULL
-                AND description IS NULL)
+                AND char_length(btrim(COALESCE(description, ''))) >= 1
+                AND (NOT locked OR num_nonnulls(campaign_type_resource_id, campaign_resource_id) = 1)
+                AND num_nonnulls(campaign_type_resource_id, campaign_resource_id) <= 1)
             OR (kind = 'custom'
                 AND char_length(btrim(COALESCE(description, ''))) >= 1
                 AND fighter_id IS NULL
@@ -136,16 +148,23 @@ CREATE TABLE public.campaign_trade_items (
 );
 
 COMMENT ON TABLE public.campaign_trade_items IS
-  'What a gang gives in a trade. Captive and equipment rows with locked=true cannot appear on two pending trades. custom is recorded only (territory, service, bounty); players settle it at the table.';
+  'What a gang gives in a trade. Captive and equipment rows with locked=true cannot appear on two pending trades. description is the name snapshot (and the custom text). custom is recorded only; players settle it at the table.';
 COMMENT ON COLUMN public.campaign_trade_items.giving_gang_id IS
   'The gang handing this over. For a captive that is the captor (captured_by_gang_id); fighters.gang_id does not change.';
 COMMENT ON COLUMN public.campaign_trade_items.locked IS
   'True while the trade is pending. False after accept, decline or cancel. Stash and captive actions refuse when a matching locked row exists.';
 COMMENT ON COLUMN public.campaign_trade_items.kind IS
   'captive / equipment / credits / reputation / campaign_resource / custom. A later kind is a small migration.';
+COMMENT ON COLUMN public.campaign_trade_items.description IS
+  'Display name snapshot for captive, equipment and campaign_resource, and the free-text body for custom. Survives SET NULL on the live FKs.';
+COMMENT ON COLUMN public.campaign_trade_items.amount IS
+  'Credits, reputation or campaign resource quantity. Same numeric type as gangs.credits and campaign_gang_resources.quantity.';
 
 CREATE INDEX campaign_trade_items_trade_id_idx
     ON public.campaign_trade_items (trade_id);
+
+CREATE INDEX campaign_trade_items_giving_gang_id_idx
+    ON public.campaign_trade_items (giving_gang_id);
 
 CREATE UNIQUE INDEX campaign_trade_items_equipment_locked
     ON public.campaign_trade_items (fighter_equipment_id)
@@ -155,15 +174,17 @@ CREATE UNIQUE INDEX campaign_trade_items_captive_locked
     ON public.campaign_trade_items (fighter_id)
     WHERE locked AND fighter_id IS NOT NULL;
 
--- 4. RLS: SELECT only. Writes come later.
+-- 4. RLS. Members/arbs/admin can SELECT. Writes for now are admin-only
+--    (same pattern as other new tables); player create/accept comes later
+--    as SECURITY DEFINER RPCs.
 ALTER TABLE public.campaign_trades ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.campaign_trade_items ENABLE ROW LEVEL SECURITY;
 
-GRANT SELECT ON public.campaign_trades TO authenticated;
-GRANT SELECT ON public.campaign_trade_items TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.campaign_trades TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.campaign_trade_items TO authenticated;
 
 -- Campaign pages are server-rendered through app_server (auth.uid() NULL).
--- Data API is limited to members, arbitrators and admins.
+-- Data API SELECT is limited to members, arbitrators and admins.
 CREATE POLICY "Members, arbs or admin can view trades"
     ON public.campaign_trades FOR SELECT TO authenticated
     USING (
@@ -180,6 +201,19 @@ CREATE POLICY "Members, arbs or admin can view trades"
 CREATE POLICY "App server can view campaign trades"
     ON public.campaign_trades FOR SELECT TO app_server
     USING (true);
+
+CREATE POLICY "Admins can insert campaign trades"
+    ON public.campaign_trades FOR INSERT TO authenticated
+    WITH CHECK ((SELECT private.is_admin() AS is_admin));
+
+CREATE POLICY "Admins can update campaign trades"
+    ON public.campaign_trades FOR UPDATE TO authenticated
+    USING ((SELECT private.is_admin() AS is_admin))
+    WITH CHECK ((SELECT private.is_admin() AS is_admin));
+
+CREATE POLICY "Admins can delete campaign trades"
+    ON public.campaign_trades FOR DELETE TO authenticated
+    USING ((SELECT private.is_admin() AS is_admin));
 
 CREATE POLICY "Members, arbs or admin can view trade items"
     ON public.campaign_trade_items FOR SELECT TO authenticated
@@ -202,5 +236,18 @@ CREATE POLICY "Members, arbs or admin can view trade items"
 CREATE POLICY "App server can view campaign trade items"
     ON public.campaign_trade_items FOR SELECT TO app_server
     USING (true);
+
+CREATE POLICY "Admins can insert campaign trade items"
+    ON public.campaign_trade_items FOR INSERT TO authenticated
+    WITH CHECK ((SELECT private.is_admin() AS is_admin));
+
+CREATE POLICY "Admins can update campaign trade items"
+    ON public.campaign_trade_items FOR UPDATE TO authenticated
+    USING ((SELECT private.is_admin() AS is_admin))
+    WITH CHECK ((SELECT private.is_admin() AS is_admin));
+
+CREATE POLICY "Admins can delete campaign trade items"
+    ON public.campaign_trade_items FOR DELETE TO authenticated
+    USING ((SELECT private.is_admin() AS is_admin));
 
 COMMIT;
