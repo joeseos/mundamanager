@@ -369,8 +369,11 @@ export async function cancelBattleSession(
       .single();
 
     if (!session) return { success: false, error: 'Session not found' };
-    if (!(await canManageSession(user.id, session)))
-      return { success: false, error: 'Only the session creator or an arbitrator can cancel' };
+    if (
+      !(await canManageSession(user.id, session)) &&
+      !(await verifySessionParticipant(supabase, sessionId, user.id)).authorized
+    )
+      return { success: false, error: 'Only a player, the session creator or an arbitrator can cancel' };
     if (session.status === 'completed')
       return { success: false, error: 'Cannot cancel a completed session' };
 
