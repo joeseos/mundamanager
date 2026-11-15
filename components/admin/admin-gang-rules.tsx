@@ -89,12 +89,10 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
     queryFn: () => request(`/api/admin/gang-rules?gang_type_id=${gangTypeId}`),
   });
 
-  const { data: categoryId } = useQuery<string | undefined>({
-    queryKey: ['admin-fighter-effect-categories', CATEGORY_NAME],
-    queryFn: async () => {
-      const categories: FighterEffectCategory[] = await request('/api/admin/fighter-effects?categories=true');
-      return categories.find(c => c.category_name === CATEGORY_NAME)?.id;
-    },
+  const { data: categoryId } = useQuery({
+    queryKey: ['admin-fighter-effect-categories'],
+    queryFn: (): Promise<FighterEffectCategory[]> => request('/api/admin/fighter-effects?categories=true'),
+    select: (categories) => categories.find(c => c.category_name === CATEGORY_NAME)?.id,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -105,7 +103,7 @@ export function GangRulesSection({ gangTypeId, editionId }: GangRulesSectionProp
   });
 
   const { data: subtypes = [] } = useQuery<Array<{ id: string; subtype: string; edition_id?: string | null }>>({
-    queryKey: ['admin-gang-subtypes'],
+    queryKey: ['gang-subtype-types'],
     queryFn: () => request('/api/gang-subtype-types'),
     staleTime: 5 * 60 * 1000,
   });
