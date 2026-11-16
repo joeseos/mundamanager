@@ -509,7 +509,8 @@ export function SkillsList({
       const isKeepTypePromotionGrant =
         isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant;
 
-      // Stash refund only for normal purchased skills — not keep-type promotion grants
+      // Stash refund only for normal purchased skills — not keep-type promotion grants.
+      // Applied once the server confirms it: a free N26 Legendary Name is never refunded.
       const creditsRefunded =
         !isKeepTypePromotionGrant && !skillData.is_advance && skillData.credits_increase > 0
           ? skillData.credits_increase
@@ -523,9 +524,6 @@ export function SkillsList({
       setLocalSkills(updatedSkills);
       onSkillsUpdate(updatedSkills);
 
-      if (creditsRefunded > 0) {
-        onGangCreditsUpdate?.(creditsRefunded);
-      }
       if (ratingCreditsRemoved > 0) {
         onXpCreditsUpdate?.(0, -ratingCreditsRemoved);
       }
@@ -567,10 +565,9 @@ export function SkillsList({
       };
     },
     onSuccess: (result, _variables, context) => {
-      // The server keeps the credits of a free grant it recognises by skill set (an earned Legendary Name).
       const creditsRefunded = result.refund_stash ? (context?.creditsRefunded ?? 0) : 0;
-      if (context?.creditsRefunded && !creditsRefunded) {
-        onGangCreditsUpdate?.(-context.creditsRefunded);
+      if (creditsRefunded > 0) {
+        onGangCreditsUpdate?.(creditsRefunded);
       }
       if (result.fighter_details) {
         onFighterDetailsUpdate?.(result.fighter_details);
@@ -608,9 +605,6 @@ export function SkillsList({
         onSkillsUpdate(context.previousSkills);
       }
 
-      if (context?.creditsRefunded && context.creditsRefunded > 0) {
-        onGangCreditsUpdate?.(-context.creditsRefunded);
-      }
       if (context?.ratingCreditsRemoved && context.ratingCreditsRemoved > 0) {
         onXpCreditsUpdate?.(0, context.ratingCreditsRemoved);
       }

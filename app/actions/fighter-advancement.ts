@@ -886,7 +886,7 @@ async function resolveCatalogSkillId(
 
 async function isLegendaryNameSkill(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  skillId: string | undefined,
+  skillId: string | null | undefined,
   editionSlug: string | null | undefined
 ): Promise<boolean> {
   if (!skillId) return false;
@@ -1461,7 +1461,6 @@ export async function deleteAdvancement(
     let refundStash = false; // Whether to refund credits to gang stash (non-advancement skills)
     let newFreeSkillStatus = fighter.free_skill;
     let deletedSkillName: string = '';
-    let deletedSkillSetName = '';
     let deletedEffectName: string = '';
     let demotedFighterDetails: AdvancementResult['fighter_details'] | undefined;
 
@@ -1499,7 +1498,7 @@ export async function deleteAdvancement(
         const { data: fighterSkillData } = await supabase
           .from('fighter_skills')
           .select(`
-            skills!inner(name, skill_types(name))
+            skills!inner(name)
           `)
           .eq('id', params.advancement_id)
           .single();
@@ -1508,7 +1507,6 @@ export async function deleteAdvancement(
             ? fighterSkillData.skills
             : [fighterSkillData.skills];
           deletedSkillName = skills[0].name;
-          deletedSkillSetName = (skills[0].skill_types as unknown as { name: string } | null)?.name ?? '';
         }
       }
 
@@ -1598,7 +1596,7 @@ export async function deleteAdvancement(
         isProspectPromotionGrant ||
         isGangerChampionPromotionGrant ||
         isLeaderPromotionGrant ||
-        isLegendaryNameSkillSet(deletedSkillSetName, editionSlugForUndo)
+        (refundStash && (await isLegendaryNameSkill(supabase, skillData.skill_id, editionSlugForUndo)))
       ) {
         refundStash = false;
       }
