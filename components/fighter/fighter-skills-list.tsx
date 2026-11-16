@@ -23,7 +23,7 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
-import { LuTrash2 } from 'react-icons/lu';
+import { LuTrash2, LuTriangleAlert } from 'react-icons/lu';
 import Link from 'next/link';
 import { hatredTargetHref } from '@/utils/injuryTarget';
 import {
@@ -642,6 +642,13 @@ export function SkillsList({
     <>
       <List
         title="Skills"
+        // An empty list says it in its empty message instead.
+        description={free_skill && skillsArray.length > 0 && (
+          <p className="flex items-center gap-2 text-sm text-amber-700">
+            <LuTriangleAlert className="h-4 w-4" />
+            Starting skill missing.
+          </p>
+        )}
         items={skillsArray}
         rowClassName={(item) => (isOutOfLoadout(item) ? 'text-muted-foreground' : '')}
         columns={[
