@@ -127,8 +127,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   const [filterWinningGang, setFilterWinningGang] = useState<string>('');
   const [filterDraws, setFilterDraws] = useState<boolean>(false);
 
-  // Sorting state
-  const [sortField, setSortField] = useState<string>('date');
+  // Sorting state. Until a column is picked, challenges are in challenge order and battle logs newest first.
+  const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Standings sort state (separate from battle log sorting)
@@ -321,20 +321,22 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         typeof aValue === 'string' && typeof bValue === 'string'
           ? aValue.localeCompare(bValue)
           : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
-
-      // Slots created together tie on every column, so list them in the round's
-      // challenge order. Rounds created before it was set fall back to challenger rating.
-      if (!isPlayedBattle(a) && !isPlayedBattle(b)) {
-        if (a.challenge_order != null && b.challenge_order != null) {
-          return a.challenge_order - b.challenge_order;
-        }
-        return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
-          - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
-      }
-      return 0;
+      return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings, scenarioLabel]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, scenarioLabel]);
+
+  // Challenge order: the arbitrator's saved order, then challenges without one
+  // (added since) by challenger rating, lowest first as the rules have it.
+  const compareChallengeOrder = useCallback((a: Battle, b: Battle) => {
+    if ((a.challenge_order == null) !== (b.challenge_order == null)) {
+      return a.challenge_order == null ? 1 : -1;
+    }
+    if (a.challenge_order != null && b.challenge_order != null && a.challenge_order !== b.challenge_order) {
+      return a.challenge_order - b.challenge_order;
+    }
+    return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
+      - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
+  }, [gangRatings]);
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -375,10 +377,10 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   }
 
   // Challenges are the outstanding work and get their own table above the played battles
-  const challenges = useMemo(
-    () => sortedAndFilteredBattles.filter(battle => !isPlayedBattle(battle)),
-    [sortedAndFilteredBattles]
-  );
+  const challenges = useMemo(() => {
+    const open = sortedAndFilteredBattles.filter(battle => !isPlayedBattle(battle));
+    return sortField === null ? open.sort(compareChallengeOrder) : open;
+  }, [sortedAndFilteredBattles, sortField, compareChallengeOrder]);
   const battleLogs = useMemo(
     () => sortedAndFilteredBattles.filter(isPlayedBattle),
     [sortedAndFilteredBattles]
@@ -656,13 +658,11 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     [members]
   );
 
-  // The latest round's open challenges. A round's slots are inserted together, so they share created_at.
-  const currentRound = useMemo(() => {
-    const openChallenges = battles.filter((battle) => !isPlayedBattle(battle) && battle.challenge_order != null);
-    const latestRoundAt = openChallenges.reduce((latest, battle) => battle.created_at > latest ? battle.created_at : latest, '');
-    return openChallenges
-      .filter((battle) => battle.created_at === latestRoundAt)
-      .sort((a, b) => (a.challenge_order ?? 0) - (b.challenge_order ?? 0))
+  // Every open challenge, in challenge order, for the arbitrator to reorder.
+  const currentRound = useMemo(
+    () => battles
+      .filter((battle) => !isPlayedBattle(battle))
+      .sort(compareChallengeOrder)
       .map((battle) => {
         const gang = acceptedGangs.find((g) => g.id === battle.challenger_gang_id);
         return {
@@ -671,8 +671,9 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           secondary: gang?.secondary,
           detail: battleStatusLabels[battleStatusOf(battle)],
         };
-      });
-  }, [battles, acceptedGangs]);
+      }),
+    [battles, acceptedGangs, compareChallengeOrder]
+  );
 
   const ownsGang = useCallback((gangId: string | null | undefined): boolean => {
     if (!gangId) return false;
