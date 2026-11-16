@@ -23,7 +23,7 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
-import { LuTrash2, LuTriangleAlert } from 'react-icons/lu';
+import { LuTrash2 } from 'react-icons/lu';
 import Link from 'next/link';
 import { hatredTargetHref } from '@/utils/injuryTarget';
 import {
@@ -630,16 +630,18 @@ export function SkillsList({
     !!skill.granted_by_equipment_id &&
     !isEquipmentInActiveLoadout(skill.granted_by_equipment_id, loadouts, activeLoadoutId);
 
+  // Custom empty message based on free_skill status
+  const getEmptyMessage = () => {
+    if (free_skill) {
+      return "Starting skill missing.";
+    }
+    return "No skills yet.";
+  };
+
   return (
     <>
       <List
         title="Skills"
-        description={free_skill && (
-          <div className="flex items-center gap-2 text-sm text-amber-700">
-            <LuTriangleAlert className="h-4 w-4" />
-            Starting skill missing.
-          </div>
-        )}
         items={skillsArray}
         rowClassName={(item) => (isOutOfLoadout(item) ? 'text-muted-foreground' : '')}
         columns={[
@@ -770,7 +772,7 @@ export function SkillsList({
         onAdd={() => setIsAddSkillModalOpen(true)}
         addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
-        emptyMessage="No skills yet."
+        emptyMessage={getEmptyMessage()}
       />
 
       {skillToDelete && (
