@@ -23,6 +23,7 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
+import { Input } from '@/components/ui/input';
 import { LuTrash2 } from 'react-icons/lu';
 import { HiExclamationTriangle } from 'react-icons/hi2';
 import Link from 'next/link';
@@ -350,9 +351,9 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
                   ? 'Credits Value Increase'
                   : `Cost${gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}`}
               </label>
-              <input
-                type="text"
-                inputMode="numeric"
+              <Input
+                type="tel"
+                inputMode="url"
                 pattern="[0-9]*"
                 value={editableCost === 0 ? '' : editableCost}
                 onChange={(e) => {
@@ -362,7 +363,6 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
                   }
                 }}
                 placeholder="0"
-                className="w-full p-2 border rounded-sm"
               />
               {isEarnedLegendaryName && (
                 <p className="text-xs text-muted-foreground">
