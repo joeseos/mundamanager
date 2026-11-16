@@ -352,18 +352,23 @@ const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
 
 /**
  * Collect Income from one held Territory: its credits, or its controlled credits
- * for a gang of the house that controls it, like Toll Road's 30 for Orlocks. A
+ * for a gang of the house that controls it or one of its alternate lists, like
+ * Toll Road's 30 for Orlocks. A
  * Spyre Hunters gang takes a flat 15 from each Territory instead of its Boon.
  */
 export const territoryIncome = (
   territory: { credits: number | null; controlled_gang_type_id?: string | null; controlled_credits?: number | null },
-  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'> & { houseGangTypeId?: string | null }
+  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'> & {
+    gangTypeId?: string | null;
+    parentGangTypeId?: string | null;
+  }
 ): number => {
   if (gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE) return SPYRE_HUNTERS_TERRITORY_INCOME;
+  const controlledBy = territory.controlled_gang_type_id;
   const controlled =
     !gang.isCustomGangType &&
-    !!territory.controlled_gang_type_id &&
-    territory.controlled_gang_type_id === gang.houseGangTypeId;
+    !!controlledBy &&
+    (controlledBy === gang.gangTypeId || controlledBy === gang.parentGangTypeId);
   return (controlled ? territory.controlled_credits : null) ?? territory.credits ?? 0;
 };
 

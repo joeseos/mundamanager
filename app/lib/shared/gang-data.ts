@@ -75,8 +75,6 @@ export interface GangBasic {
   gang_portrait_url?: string | null;
   hidden: boolean;
   venator_ranks_incomplete?: boolean;
-  /** The gang's house: the parent of an alternate list, else its own gang type. */
-  house_gang_type_id?: string | null;
 }
 
 export interface Alliance {
@@ -229,7 +227,6 @@ export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
         wealth: gangRow.wealth ?? 0,
         gang_portrait_url: gangPortraitPublicUrl(gang_portrait?.storage_path) ?? null,
         venator_ranks_incomplete: venatorRanksIncomplete,
-        house_gang_type_id: gangRow.gang_types?.parent_gang_type_id ?? gangRow.gang_type_id,
       } as GangCore;
     },
     [`gang-core-v12-${gangId}`],

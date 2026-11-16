@@ -65,8 +65,8 @@ interface PostCycleActionsProps {
   }>;
   /** Gang facts the gang-specific actions and territory income depend on; see postCycleAvailability. */
   gangType?: string | null;
-  /** The gang's house, which collects a territory's controlled credits. */
-  houseGangTypeId?: string | null;
+  gangTypeId?: string | null;
+  parentGangTypeId?: string | null;
   isCustomGangType: boolean;
   gangSubtypes: Array<{ id: string; subtype: string }>;
   /** What the gang already holds, which Develop Tactics cannot pick again. */
@@ -202,7 +202,8 @@ export default function PostCycleActions({
   gangReputation,
   territories,
   gangType,
-  houseGangTypeId,
+  gangTypeId,
+  parentGangTypeId,
   isCustomGangType,
   gangSubtypes,
   tacticsCards,
@@ -322,7 +323,7 @@ export default function PostCycleActions({
   const incomeTerritories = territories
     .map((territory) => ({
       ...territory,
-      income: territoryIncome(territory, { gangType, houseGangTypeId, isCustomGangType }),
+      income: territoryIncome(territory, { gangType, gangTypeId, parentGangTypeId, isCustomGangType }),
     }))
     .filter((territory) => territory.income);
   const pickedTerritories = incomeTerritories.filter((territory) =>
