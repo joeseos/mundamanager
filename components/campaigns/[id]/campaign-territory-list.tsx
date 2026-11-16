@@ -411,6 +411,19 @@ export default function CampaignTerritoryList({
   const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang' | 'credits') =>
     sortField === field ? <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span> : null;
 
+  // Unclaimed territories with the same name, ruined status, ref, description and
+  // income are listed as one row
+  const territoryGroupKey = (territory: Territory) =>
+    [
+      territory.territory_name,
+      territory.ruined ? 'ruined' : 'normal',
+      territory.playing_card ?? '',
+      (territory.description ?? '').trim(),
+      territory.credits ?? '',
+      territory.controlled_gang_type_id ?? '',
+      territory.controlled_credits ?? '',
+    ].join('|');
+
   // Helper function to group territories for display
   const groupTerritoriesForDisplay = (territories: Territory[]) => {
     const controlledTerritories: Territory[] = [];
@@ -422,10 +435,7 @@ export default function CampaignTerritoryList({
       if (hasGang) {
         controlledTerritories.push(territory);
       } else {
-        // Group uncontrolled territories by name, ruined status, and ref
-        // so territories with different playing cards (or descriptions or credits) are listed separately.
-        const descriptionKey = (territory.description ?? '').trim();
-        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}|${territory.playing_card ?? ''}|${descriptionKey}|${territory.credits ?? ''}|${territory.controlled_gang_type_id ?? ''}|${territory.controlled_credits ?? ''}`;
+        const key = territoryGroupKey(territory);
         if (uncontrolledTerritories[key]) {
           uncontrolledTerritories[key].count++;
           uncontrolledTerritories[key].territories.push(territory);
@@ -630,7 +640,7 @@ export default function CampaignTerritoryList({
               </tr>
             ) : (
               sortedDisplayItems.map((item, index) => (
-                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}-${(item.territory.description ?? '').trim()}-${item.territory.credits ?? ''}-${item.territory.controlled_gang_type_id ?? ''}-${item.territory.controlled_credits ?? ''}`}
+                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${territoryGroupKey(item.territory)}`}
                   className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
                   <td className="w-11 min-w-[2.75rem] px-1 py-2 text-center align-middle">
                     <span className="text-gray-400 inline-block w-10 text-center">

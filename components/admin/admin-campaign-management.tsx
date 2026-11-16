@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { hasParentGangType, type GangTypeWithParent } from '@/utils/gangTypeVariants';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -35,11 +36,8 @@ interface Territory {
   edition_id?: string | null;
 }
 
-interface GangType {
-  id: string;
-  gang_type: string;
+interface GangType extends GangTypeWithParent {
   edition_id?: string | null;
-  parent_gang_type_id?: string | null;
 }
 
 interface CampaignTriumph {
@@ -214,9 +212,10 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
   });
 
   const { data: gangTypes = [] } = useQuery<GangType[]>({
-    queryKey: ['admin-gang-types'],
+    // detailed=1 carries parent_gang_type_id, so only houses are offered
+    queryKey: ['admin-gang-types', 'detailed'],
     queryFn: async () => {
-      const response = await fetch('/api/admin/gang-types');
+      const response = await fetch('/api/admin/gang-types?detailed=1');
       if (!response.ok) throw new Error('Failed to fetch gang types');
       return response.json();
     },
@@ -1198,7 +1197,7 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
                       value={territoryControlledGangTypeId}
                       onValueChange={setTerritoryControlledGangTypeId}
                       options={gangTypes
-                        .filter(gangType => !gangType.parent_gang_type_id)
+                        .filter(gangType => !hasParentGangType(gangType))
                         .filter(gangType => !territoryEditionId || gangType.edition_id === territoryEditionId)
                         .map(gangType => ({ value: gangType.id, label: gangType.gang_type }))}
                       placeholder="Select a gang type"

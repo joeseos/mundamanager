@@ -20,26 +20,15 @@ import {
   normaliseTerritoryName
 } from "@/utils/campaigns/territory-name"
 import { sameEditionForDisplay } from "@/types/edition"
+import { hasParentGangType, type GangTypeWithParent } from "@/utils/gangTypeVariants"
+import type { UpdateTerritoryStatusParams } from "@/app/actions/campaigns/[id]/campaign-territories"
 
 const TERRITORY_DESCRIPTION_CHAR_LIMIT = 1500;
 
-export interface TerritoryEditUpdates {
-  ruined: boolean;
-  default_gang_territory: boolean;
-  playing_card: string | null;
-  description: string | null;
-  /** Only included when the user may rename and the name actually changed */
-  territory_name?: string;
-  /** Only included when the user may manage territories and the credits actually changed; the same for the controlled fields */
-  credits?: number | null;
-  controlled_gang_type_id?: string | null;
-  controlled_credits?: number | null;
-}
+/** The name, credits and controlled fields are only included when the user may manage territories and they changed. */
+export type TerritoryEditUpdates = Omit<UpdateTerritoryStatusParams, 'campaignId' | 'territoryId'>;
 
-interface GangTypeRow {
-  id: string;
-  gang_type: string;
-  parent_gang_type_id: string | null;
+interface GangTypeRow extends GangTypeWithParent {
   edition_slug: string | null;
   is_custom?: boolean;
 }
@@ -143,7 +132,7 @@ export default function TerritoryEditModal({
   const gangTypeOptions = useMemo(
     () =>
       gangTypes
-        .filter((row) => !row.is_custom && !row.parent_gang_type_id && sameEditionForDisplay(row.edition_slug, editionSlug))
+        .filter((row) => !row.is_custom && !hasParentGangType(row) && sameEditionForDisplay(row.edition_slug, editionSlug))
         .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
         .map((row) => ({ value: row.id, label: row.gang_type })),
     [gangTypes, editionSlug]

@@ -317,9 +317,6 @@ export interface PostCycleAvailability {
 export interface PostCycleGang {
   editionSlug?: string | null;
   gangType?: string | null;
-  gangTypeId?: string | null;
-  /** The house an alternate list belongs to, such as House Orlock for Wrecking Crew. */
-  parentGangTypeId?: string | null;
   isCustomGangType: boolean;
   subtypeNames: readonly string[];
 }
@@ -355,19 +352,18 @@ const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
 
 /**
  * Collect Income from one held Territory: its credits, or its controlled credits
- * for the gang type that controls it (or an alternate list of that house), like
- * Toll Road's 30 for Orlocks. A Spyre Hunters gang takes a flat 15 from each
- * Territory instead of its Boon.
+ * for a gang of the house that controls it, like Toll Road's 30 for Orlocks. A
+ * Spyre Hunters gang takes a flat 15 from each Territory instead of its Boon.
  */
 export const territoryIncome = (
   territory: { credits: number | null; controlled_gang_type_id?: string | null; controlled_credits?: number | null },
-  gang: Pick<PostCycleGang, 'gangType' | 'gangTypeId' | 'parentGangTypeId' | 'isCustomGangType'>
+  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'> & { houseGangTypeId?: string | null }
 ): number => {
   if (gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE) return SPYRE_HUNTERS_TERRITORY_INCOME;
   const controlled =
     !gang.isCustomGangType &&
     !!territory.controlled_gang_type_id &&
-    [gang.gangTypeId, gang.parentGangTypeId].includes(territory.controlled_gang_type_id);
+    territory.controlled_gang_type_id === gang.houseGangTypeId;
   return (controlled ? territory.controlled_credits : null) ?? territory.credits ?? 0;
 };
 

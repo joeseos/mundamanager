@@ -20,6 +20,7 @@ import { LuSwords, LuTrophy, LuCodeXml, LuLogs, LuMail } from "react-icons/lu";
 import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
+import type { TerritoryEditUpdates } from "@/components/campaigns/[id]/campaign-territory-edit-modal";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
@@ -273,15 +274,7 @@ export default function CampaignPageContent({
     index?: number;
     gangId?: string;
     gangData?: Gang;
-    updates?: {
-      ruined?: boolean;
-      default_gang_territory?: boolean;
-      playing_card?: string | null;
-      description?: string | null;
-      territory_name?: string;
-      credits?: number | null;
-      controlled_gang_type_id?: string | null;
-      controlled_credits?: number | null;
+    updates?: Partial<TerritoryEditUpdates> & {
       map_object_id?: string | null;
       map_hex_coords?: { x: number; y: number; z: number } | null;
       show_name_on_map?: boolean;
