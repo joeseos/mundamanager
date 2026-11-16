@@ -742,8 +742,6 @@ export const campaignTerritories = pgTable('campaign_territories', {
   map_hex_coords: json('map_hex_coords'),
   show_name_on_map: boolean('show_name_on_map').default(true),
   credits: numeric('credits', { mode: 'number' }),
-  controlled_gang_type_id: uuid('controlled_gang_type_id'),
-  controlled_credits: numeric('controlled_credits', { mode: 'number' }),
 });
 
 export const tradingPostTypes = pgTable('trading_post_types', {

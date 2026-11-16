@@ -15,7 +15,7 @@ import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import Modal from "@/components/ui/modal";
 import TerritoryGangModal from "@/components/campaigns/[id]/campaign-territory-gang-modal";
-import TerritoryEditModal, { type TerritoryEditUpdates } from "@/components/campaigns/[id]/campaign-territory-edit-modal";
+import TerritoryEditModal from "@/components/campaigns/[id]/campaign-territory-edit-modal";
 import { 
   assignGangToTerritory, 
   removeGangFromTerritory, 
@@ -55,8 +55,6 @@ interface Territory {
   original_territory_name?: string | null;
   /** Credits the territory gives; null when unset */
   credits?: number | null;
-  controlled_gang_type_id?: string | null;
-  controlled_credits?: number | null;
   playing_card?: string | null;
   description?: string | null;
   gang_id: string | null;
@@ -85,7 +83,14 @@ interface TerritoryUpdate {
   territoryId: string;
   gangId?: string;
   gangData?: Gang;
-  updates?: Partial<TerritoryEditUpdates>;
+  updates?: {
+    ruined?: boolean;
+    default_gang_territory?: boolean;
+    playing_card?: string | null;
+    description?: string | null;
+    territory_name?: string;
+    credits?: number | null;
+  };
   /** For 'restore': the row as it was before a mutation that then failed. */
   territory?: Territory;
   /** For 'restore' after a delete: where the row used to sit. */
@@ -103,8 +108,6 @@ interface CampaignTerritoryListProps {
     canClaimTerritories: boolean;
   };
   onTerritoryUpdate?: (update: TerritoryUpdate) => void;
-  /** The campaign's edition, for the gang types the Edit Territory modal offers */
-  editionSlug?: string | null;
   /** Shown on the right of the Territories heading (e.g. Add territory). */
   sectionHeaderEnd?: React.ReactNode;
 }
@@ -145,7 +148,6 @@ export default function CampaignTerritoryList({
   members,
   permissions,
   onTerritoryUpdate,
-  editionSlug = null,
   sectionHeaderEnd
 }: CampaignTerritoryListProps) {
   
@@ -324,13 +326,25 @@ export default function CampaignTerritoryList({
   const updateTerritoryMutation = useMutation({
     mutationFn: async (variables: {
       territoryId: string;
-      updates: TerritoryEditUpdates;
+      ruined: boolean;
+      default_gang_territory: boolean;
+      playing_card: string | null;
+      description: string | null;
+      territory_name?: string;
+      credits?: number | null;
       displayName: string;
     }) => {
       const result = await updateTerritoryStatus({
         campaignId,
         territoryId: variables.territoryId,
-        ...variables.updates
+        ruined: variables.ruined,
+        default_gang_territory: variables.default_gang_territory,
+        playing_card: variables.playing_card,
+        description: variables.description,
+        ...(variables.territory_name !== undefined
+          ? { territory_name: variables.territory_name }
+          : {}),
+        ...(variables.credits !== undefined ? { credits: variables.credits } : {})
       });
       if (!result.success) {
         throw new Error(result.error || 'Failed to update territory');
@@ -345,7 +359,16 @@ export default function CampaignTerritoryList({
       onTerritoryUpdate?.({
         action: 'update',
         territoryId: variables.territoryId,
-        updates: variables.updates
+        updates: {
+          ruined: variables.ruined,
+          default_gang_territory: variables.default_gang_territory,
+          playing_card: variables.playing_card,
+          description: variables.description,
+          ...(variables.territory_name !== undefined
+            ? { territory_name: variables.territory_name }
+            : {}),
+          ...(variables.credits !== undefined ? { credits: variables.credits } : {})
+        }
       });
       
       return {
@@ -383,7 +406,14 @@ export default function CampaignTerritoryList({
     setShowTerritoryEditModal(true);
   };
 
-  const handleTerritoryUpdate = async (updates: TerritoryEditUpdates) => {
+  const handleTerritoryUpdate = async (updates: {
+    ruined: boolean;
+    default_gang_territory: boolean;
+    playing_card: string | null;
+    description: string | null;
+    territory_name?: string;
+    credits?: number | null;
+  }) => {
     if (!territoryToEdit) return false;
 
     const displayName =
@@ -391,7 +421,14 @@ export default function CampaignTerritoryList({
 
     updateTerritoryMutation.mutate({
       territoryId: territoryToEdit.id,
-      updates,
+      ruined: updates.ruined,
+      default_gang_territory: updates.default_gang_territory,
+      playing_card: updates.playing_card,
+      description: updates.description,
+      ...(updates.territory_name !== undefined
+        ? { territory_name: updates.territory_name }
+        : {}),
+      ...(updates.credits !== undefined ? { credits: updates.credits } : {}),
       displayName
     });
     
@@ -411,19 +448,6 @@ export default function CampaignTerritoryList({
   const sortIndicator = (field: 'ref' | 'territory' | 'controllingGang' | 'credits') =>
     sortField === field ? <span className="ml-1">{sortDirection === 'asc' ? '↑' : '↓'}</span> : null;
 
-  // Unclaimed territories with the same name, ruined status, ref, description and
-  // income are listed as one row
-  const territoryGroupKey = (territory: Territory) =>
-    [
-      territory.territory_name,
-      territory.ruined ? 'ruined' : 'normal',
-      territory.playing_card ?? '',
-      (territory.description ?? '').trim(),
-      territory.credits ?? '',
-      territory.controlled_gang_type_id ?? '',
-      territory.controlled_credits ?? '',
-    ].join('|');
-
   // Helper function to group territories for display
   const groupTerritoriesForDisplay = (territories: Territory[]) => {
     const controlledTerritories: Territory[] = [];
@@ -435,7 +459,10 @@ export default function CampaignTerritoryList({
       if (hasGang) {
         controlledTerritories.push(territory);
       } else {
-        const key = territoryGroupKey(territory);
+        // Group uncontrolled territories by name, ruined status, and ref
+        // so territories with different playing cards (or descriptions or credits) are listed separately.
+        const descriptionKey = (territory.description ?? '').trim();
+        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}|${territory.playing_card ?? ''}|${descriptionKey}|${territory.credits ?? ''}`;
         if (uncontrolledTerritories[key]) {
           uncontrolledTerritories[key].count++;
           uncontrolledTerritories[key].territories.push(territory);
@@ -640,7 +667,7 @@ export default function CampaignTerritoryList({
               </tr>
             ) : (
               sortedDisplayItems.map((item, index) => (
-                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${territoryGroupKey(item.territory)}`}
+                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}-${(item.territory.description ?? '').trim()}-${item.territory.credits ?? ''}`}
                   className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
                   <td className="w-11 min-w-[2.75rem] px-1 py-2 text-center align-middle">
                     <span className="text-gray-400 inline-block w-10 text-center">
@@ -812,9 +839,6 @@ export default function CampaignTerritoryList({
           currentPlayingCard={territoryToEdit.playing_card ?? null}
           currentDescription={territoryToEdit.description ?? null}
           currentCredits={territoryToEdit.credits ?? null}
-          currentControlledGangTypeId={territoryToEdit.controlled_gang_type_id ?? null}
-          currentControlledCredits={territoryToEdit.controlled_credits ?? null}
-          editionSlug={editionSlug}
           canManage={permissions.canManageTerritories}
           groupedTerritories={editGroupTerritories}
           selectedTerritoryId={territoryToEdit.id}

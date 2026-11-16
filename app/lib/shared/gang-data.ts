@@ -398,10 +398,9 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
               ruined: true,
               default_gang_territory: true,
               credits: true,
-              controlled_gang_type_id: true,
-              controlled_credits: true,
             },
             where: (territory, { eq }) => eq(territory.gang_id, gangId),
+            with: { territory: { columns: { controlled_gang_type_id: true, controlled_credits: true } } },
           },
           campaign_type: { columns: {}, with: { campaign_type_resources: { columns: { id: true, resource_name: true } } } },
           campaign_resources: { columns: { id: true, resource_name: true } },
@@ -486,7 +485,12 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
           trading_post_names: tradingPosts.flatMap((id) => names.tradingPostNames.get(id) || []),
           custom_trading_posts: customTradingPosts,
           custom_trading_post_names: customTradingPosts.flatMap((id) => names.customTradingPostNames.get(id) || []),
-          territories: campaign.campaign_territories,
+          // Controlled income comes from the catalog territory; custom territories have none
+          territories: campaign.campaign_territories.map(({ territory, ...campaignTerritory }) => ({
+            ...campaignTerritory,
+            controlled_gang_type_id: territory?.controlled_gang_type_id ?? null,
+            controlled_credits: territory?.controlled_credits ?? null,
+          })),
           allegiance: allegiance?.allegiance_name ? { id: allegiance.id, name: allegiance.allegiance_name } : null,
           resources: [
             ...(campaign.campaign_type?.campaign_type_resources ?? []).map(resource(false)),
@@ -499,6 +503,8 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
     {
       tags: [
         TAGS.gangCampaigns(gangId),
+        // Controlled income is read from the catalog territories
+        TAGS.globalTerritories(),
         ...campaignIdsForTags.flatMap(id => [
           TAGS.campaignCore(id),
           TAGS.campaignMembers(id),

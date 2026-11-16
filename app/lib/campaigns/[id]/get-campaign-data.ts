@@ -476,7 +476,7 @@ export const getCampaignTerritories = async (campaignId: string) => {
     async () => {
       return _getCampaignTerritories(campaignId);
     },
-    [`campaign-territories-v5-${campaignId}`],
+    [`campaign-territories-v4-${campaignId}`],
     {
       tags: [
         TAGS.campaignTerritories(campaignId),

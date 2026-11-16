@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import Modal from "@/components/ui/modal"
 import { Button } from "@/components/ui/button"
@@ -19,24 +18,22 @@ import {
   TERRITORY_NAME_CHAR_LIMIT,
   normaliseTerritoryName
 } from "@/utils/campaigns/territory-name"
-import { sameEditionForDisplay } from "@/types/edition"
-import { hasParentGangType, type GangTypeWithParent } from "@/utils/gangTypeVariants"
-import type { UpdateTerritoryStatusParams } from "@/app/actions/campaigns/[id]/campaign-territories"
 
 const TERRITORY_DESCRIPTION_CHAR_LIMIT = 1500;
-
-/** The name, credits and controlled fields are only included when the user may manage territories and they changed. */
-export type TerritoryEditUpdates = Omit<UpdateTerritoryStatusParams, 'campaignId' | 'territoryId'>;
-
-interface GangTypeRow extends GangTypeWithParent {
-  edition_slug: string | null;
-  is_custom?: boolean;
-}
 
 interface TerritoryEditModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (updates: TerritoryEditUpdates) => void;
+  onConfirm: (updates: {
+    ruined: boolean;
+    default_gang_territory: boolean;
+    playing_card: string | null;
+    description: string | null;
+    /** Only included when the user may rename and the name actually changed */
+    territory_name?: string;
+    /** Only included when the user may manage territories and the credits actually changed */
+    credits?: number | null;
+  }) => void;
   territoryName: string;
   /** Catalog/template name; Reset restores this when the instance was renamed */
   originalTerritoryName?: string | null;
@@ -45,10 +42,6 @@ interface TerritoryEditModalProps {
   currentPlayingCard?: string | null;
   currentDescription?: string | null;
   currentCredits?: number | null;
-  currentControlledGangTypeId?: string | null;
-  currentControlledCredits?: number | null;
-  /** The campaign's edition, for the gang types offered as the controlling house */
-  editionSlug?: string | null;
   /** Owners/arbitrators may rename and set credits; members see both as read-only */
   canManage?: boolean;
   groupedTerritories?: Array<{
@@ -97,9 +90,6 @@ export default function TerritoryEditModal({
   currentPlayingCard,
   currentDescription,
   currentCredits = null,
-  currentControlledGangTypeId = null,
-  currentControlledCredits = null,
-  editionSlug = null,
   canManage = false,
   groupedTerritories = [],
   selectedTerritoryId,
@@ -114,29 +104,6 @@ export default function TerritoryEditModal({
   const [customPlayingCard, setCustomPlayingCard] = useState(initialPlayingCard.customPlayingCard);
   const [description, setDescription] = useState(currentDescription || '');
   const [credits, setCredits] = useState(currentCredits?.toString() ?? '');
-  const [controlledGangTypeId, setControlledGangTypeId] = useState(currentControlledGangTypeId ?? '');
-  const [controlledCredits, setControlledCredits] = useState(currentControlledCredits?.toString() ?? '');
-
-  const { data: gangTypes = [] } = useQuery<GangTypeRow[]>({
-    queryKey: ['gang-types'],
-    queryFn: async () => {
-      const response = await fetch('/api/gang-types');
-      if (!response.ok) throw new Error('Failed to fetch gang types');
-      return response.json();
-    },
-    enabled: isOpen && canManage,
-    staleTime: 5 * 60 * 1000,
-  });
-
-  // Houses only: an alternate list counts as its house when income is collected
-  const gangTypeOptions = useMemo(
-    () =>
-      gangTypes
-        .filter((row) => !row.is_custom && !hasParentGangType(row) && sameEditionForDisplay(row.edition_slug, editionSlug))
-        .sort((a, b) => a.gang_type.localeCompare(b.gang_type))
-        .map((row) => ({ value: row.id, label: row.gang_type })),
-    [gangTypes, editionSlug]
-  );
   const getCharCount = (htmlContent: string) => {
     const textContent = htmlContent.replace(/<[^>]*>/g, '');
     return textContent.length;
@@ -151,7 +118,7 @@ export default function TerritoryEditModal({
   }, [selectedRef, customPlayingCard]);
 
   const [prevResetKey, setPrevResetKey] = useState('');
-  const resetKey = `${isOpen}:${selectedTerritoryId ?? ''}:${territoryName}:${currentRuined}:${currentDefaultGangTerritory}:${currentPlayingCard}:${currentDescription}:${currentCredits}:${currentControlledGangTypeId}:${currentControlledCredits}`;
+  const resetKey = `${isOpen}:${selectedTerritoryId ?? ''}:${territoryName}:${currentRuined}:${currentDefaultGangTerritory}:${currentPlayingCard}:${currentDescription}:${currentCredits}`;
   if (resetKey !== prevResetKey) {
     setPrevResetKey(resetKey);
     if (isOpen) {
@@ -163,8 +130,6 @@ export default function TerritoryEditModal({
       setCustomPlayingCard(next.customPlayingCard);
       setDescription(currentDescription || '');
       setCredits(currentCredits?.toString() ?? '');
-      setControlledGangTypeId(currentControlledGangTypeId ?? '');
-      setControlledCredits(currentControlledCredits?.toString() ?? '');
     }
   }
 
@@ -180,16 +145,10 @@ export default function TerritoryEditModal({
 
   const parsedCredits = credits.trim() === '' ? null : Number(credits);
   const creditsChanged = canManage && parsedCredits !== currentCredits;
-  const parsedControlledGangTypeId = controlledGangTypeId || null;
-  const controlledGangTypeChanged = canManage && parsedControlledGangTypeId !== currentControlledGangTypeId;
-  const parsedControlledCredits = controlledCredits.trim() === '' ? null : Number(controlledCredits);
-  const controlledCreditsChanged = canManage && parsedControlledCredits !== currentControlledCredits;
 
   const hasChanged =
     nameChanged ||
     creditsChanged ||
-    controlledGangTypeChanged ||
-    controlledCreditsChanged ||
     ruined !== currentRuined ||
     defaultGangTerritory !== currentDefaultGangTerritory ||
     normalisePlayingCard(effectivePlayingCard ?? undefined) !== normalisePlayingCard(currentPlayingCard) ||
@@ -216,10 +175,7 @@ export default function TerritoryEditModal({
       return false;
     }
 
-    if (
-      (parsedCredits !== null && !Number.isFinite(parsedCredits)) ||
-      (parsedControlledCredits !== null && !Number.isFinite(parsedControlledCredits))
-    ) {
+    if (parsedCredits !== null && !Number.isFinite(parsedCredits)) {
       toast.error('Credits must be a number');
       return false;
     }
@@ -236,9 +192,7 @@ export default function TerritoryEditModal({
       playing_card: effectivePlayingCard,
       description: normaliseDescription(description),
       ...(nameChanged ? { territory_name: normaliseTerritoryName(name) } : {}),
-      ...(creditsChanged ? { credits: parsedCredits } : {}),
-      ...(controlledGangTypeChanged ? { controlled_gang_type_id: parsedControlledGangTypeId } : {}),
-      ...(controlledCreditsChanged ? { controlled_credits: parsedControlledCredits } : {})
+      ...(creditsChanged ? { credits: parsedCredits } : {})
     });
     return true;
   };
@@ -354,35 +308,6 @@ export default function TerritoryEditModal({
           <p className="text-sm text-foreground py-2">{currentCredits ?? '-'}</p>
         )}
       </div>
-
-      {canManage && (
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
-              Controlled by
-            </label>
-            <Combobox
-              value={controlledGangTypeId}
-              onValueChange={setControlledGangTypeId}
-              options={gangTypeOptions}
-              placeholder="Select a gang type"
-              clearable
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-1">
-              Controlled credits
-            </label>
-            <Input
-              type="number"
-              className="w-full"
-              placeholder="e.g. 30"
-              value={controlledCredits}
-              onChange={(e) => setControlledCredits(e.target.value)}
-            />
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center space-x-2">
         <Checkbox

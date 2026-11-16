@@ -49,10 +49,6 @@ export interface UpdateTerritoryStatusParams {
   territory_name?: string;
   /** When provided, sets the credits the territory gives; null clears them (owners/arbitrators only) */
   credits?: number | null;
-  /** When provided, sets which gang type collects controlled_credits instead; null clears it (owners/arbitrators only) */
-  controlled_gang_type_id?: string | null;
-  /** When provided, sets the credits the controlling gang type collects; null clears them (owners/arbitrators only) */
-  controlled_credits?: number | null;
 }
 
 /**
@@ -278,7 +274,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
           .single(),
         supabase
           .from('territories')
-          .select('territory_name, playing_card, credits, controlled_gang_type_id, controlled_credits, editions:edition_id(slug)')
+          .select('territory_name, playing_card, credits, editions:edition_id(slug)')
           .eq('id', territoryId)
           .maybeSingle(),
       ]);
@@ -308,9 +304,7 @@ export async function addTerritoryToCampaign(params: AddTerritoryParams) {
       campaign_id: campaignId,
       territory_id: territoryId,
       territory_name: templateTerritory.territory_name,
-      credits: templateTerritory.credits,
-      controlled_gang_type_id: templateTerritory.controlled_gang_type_id,
-      controlled_credits: templateTerritory.controlled_credits
+      credits: templateTerritory.credits
     };
 
     const rawCard = templateTerritory.playing_card;
@@ -483,15 +477,13 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
       playing_card,
       description,
       territory_name,
-      credits,
-      controlled_gang_type_id,
-      controlled_credits
+      credits
     } = params;
 
     // Get current territory so we can invalidate gang cache and detect renames
     const { data: territoryData, error: selectError } = await supabase
       .from('campaign_territories')
-      .select('gang_id, territory_name, credits, controlled_gang_type_id, controlled_credits')
+      .select('gang_id, territory_name, credits')
       .eq('id', territoryId)
       .eq('campaign_id', campaignId)
       .single();
@@ -514,12 +506,8 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
       normalisedName !== undefined &&
       normalisedName !== normaliseTerritoryName(territoryData.territory_name);
     const creditsChanged = credits !== undefined && credits !== territoryData.credits;
-    const controlledGangTypeChanged =
-      controlled_gang_type_id !== undefined && controlled_gang_type_id !== territoryData.controlled_gang_type_id;
-    const controlledCreditsChanged =
-      controlled_credits !== undefined && controlled_credits !== territoryData.controlled_credits;
 
-    if (renamed || creditsChanged || controlledGangTypeChanged || controlledCreditsChanged) {
+    if (renamed || creditsChanged) {
       const user = await getAuthenticatedUser(supabase);
       const hasPermission = await checkCampaignArbitrator(user.id, campaignId);
       if (!hasPermission) {
@@ -546,19 +534,6 @@ export async function updateTerritoryStatus(params: UpdateTerritoryStatusParams)
       }
 
       updatePayload.credits = normalisedCredits;
-    }
-
-    if (controlledGangTypeChanged) {
-      updatePayload.controlled_gang_type_id = controlled_gang_type_id;
-    }
-
-    if (controlledCreditsChanged) {
-      const normalisedControlledCredits = parseCredits(controlled_credits);
-      if (normalisedControlledCredits === undefined) {
-        return { success: false, error: 'Controlled credits must be a number' };
-      }
-
-      updatePayload.controlled_credits = normalisedControlledCredits;
     }
 
     const { error } = await supabase
