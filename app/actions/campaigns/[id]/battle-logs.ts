@@ -943,3 +943,43 @@ export async function generateChallengeRound(
     };
   }
 }
+
+/**
+ * Renumber a round's open challenges in `battleIds` order, the order the
+ * arbitrator set for issuing them. Played battles keep their number.
+ */
+export async function reorderChallengeRound(
+  campaignId: string,
+  battleIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    if (!(await checkCampaignArbitrator(user.id, campaignId))) {
+      return { success: false, error: 'Only the campaign arbitrator can reorder a challenge round' };
+    }
+
+    const results = await Promise.all(
+      battleIds.map((battleId, i) =>
+        supabase
+          .from('campaign_battles')
+          .update({ challenge_order: i + 1 })
+          .eq('id', battleId)
+          .eq('campaign_id', campaignId)
+          .neq('status', 'played')
+      )
+    );
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throw failed.error;
+
+    invalidateCampaignBattles(campaignId);
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering challenge round:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to reorder challenge round',
+    };
+  }
+}
