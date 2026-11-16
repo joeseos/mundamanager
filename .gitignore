@@ -46,6 +46,7 @@ claude.md
 .claude/
 tasks/
 todo.md
+/docs/
 
 # supabase
 supabase/.temp/
