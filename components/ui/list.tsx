@@ -37,6 +37,8 @@ export interface ListProps<T = any> {
   addButtonText?: string;
   addButtonDisabled?: boolean;
   emptyMessage?: string;
+  /** Full-width last row of the table, shown in place of the empty message when there are no items. */
+  footer?: React.ReactNode;
   className?: string;
   isLoading?: boolean;
   sortBy?: (a: T, b: T) => number;
@@ -55,6 +57,7 @@ export function List<T = any>({
   addButtonText = "Add",
   addButtonDisabled,
   emptyMessage = "No items yet.",
+  footer,
   className = "",
   isLoading = false,
   sortBy,
@@ -63,6 +66,7 @@ export function List<T = any>({
 }: ListProps<T>) {
   // Sort items if sortBy function is provided
   const sortedItems = sortBy ? [...items].sort(sortBy) : items;
+  const columnCount = columns.length + (actions.length > 0 ? 1 : 0);
 
   const getAlignmentClass = (align?: string) => {
     switch (align) {
@@ -132,10 +136,10 @@ export function List<T = any>({
               </thead>
             )}
             <tbody>
-              {sortedItems.length === 0 ? (
+              {sortedItems.length === 0 && !footer ? (
                 <tr>
                   <td 
-                    colSpan={columns.length + (actions.length > 0 ? 1 : 0)} 
+                    colSpan={columnCount} 
                     className="text-muted-foreground italic text-center py-4"
                   >
                     {isLoading ? "Loading..." : emptyMessage}
@@ -175,6 +179,11 @@ export function List<T = any>({
                     )}
                   </tr>
                 ))
+              )}
+              {footer && (
+                <tr className={sortedItems.length > 0 ? 'border-t' : undefined}>
+                  <td colSpan={columnCount} className="px-1 py-1">{footer}</td>
+                </tr>
               )}
             </tbody>
           </table>
