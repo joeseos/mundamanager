@@ -48,6 +48,7 @@ import { updateFighterDetails } from './edit-fighter';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import type { EquipmentGrants } from '@/types/equipment';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { isLegendaryNameSkillSet } from '@/utils/skillSetRank';
 
 // A fighter's gang type, and its edition via the gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
@@ -537,7 +538,13 @@ async function addSkillAdvancementInternal(
     };
     
     const isAdvance = params.is_advance ?? true;
-    const ratingOnly = Boolean(params.ratingOnly);
+    // N26: a Legendary Name gained for earning 5+ XP in one battle is free and not
+    // an Advancement, so its credits go on the fighter's worth, not the stash.
+    const ratingOnly =
+      Boolean(params.ratingOnly) ||
+      (!isAdvance &&
+        params.credits_increase > 0 &&
+        (await isLegendaryNameSkill(supabase, params.skill_id, gangEditionSlug(fighter.gangs))));
 
     // Set free_skill to false only for regular skills (is_advance: false) when fighter currently has free_skill: true (missing starting skill)
     // Do NOT set free_skill to false for advancement skills (is_advance: true) as those are purchased with XP, not starting skills
@@ -875,6 +882,18 @@ async function resolveCatalogSkillId(
     };
   }
   return { skillId: skillsByName[0].id };
+}
+
+async function isLegendaryNameSkill(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  skillId: string | undefined,
+  editionSlug: string | null | undefined
+): Promise<boolean> {
+  if (!skillId) return false;
+  const { data } = await supabase.from('skills').select('skill_types(name)').eq('id', skillId).single();
+  // A to-one embed, typed as an array by the generated client.
+  const setName = (data?.skill_types as unknown as { name: string } | null)?.name ?? '';
+  return isLegendaryNameSkillSet(setName, editionSlug);
 }
 
 async function fighterAlreadyHasSkill(
@@ -1442,6 +1461,7 @@ export async function deleteAdvancement(
     let refundStash = false; // Whether to refund credits to gang stash (non-advancement skills)
     let newFreeSkillStatus = fighter.free_skill;
     let deletedSkillName: string = '';
+    let deletedSkillSetName = '';
     let deletedEffectName: string = '';
     let demotedFighterDetails: AdvancementResult['fighter_details'] | undefined;
 
@@ -1479,7 +1499,7 @@ export async function deleteAdvancement(
         const { data: fighterSkillData } = await supabase
           .from('fighter_skills')
           .select(`
-            skills!inner(name)
+            skills!inner(name, skill_types(name))
           `)
           .eq('id', params.advancement_id)
           .single();
@@ -1488,6 +1508,7 @@ export async function deleteAdvancement(
             ? fighterSkillData.skills
             : [fighterSkillData.skills];
           deletedSkillName = skills[0].name;
+          deletedSkillSetName = (skills[0].skill_types as unknown as { name: string } | null)?.name ?? '';
         }
       }
 
@@ -1572,7 +1593,13 @@ export async function deleteAdvancement(
         isLeaderPromotionGrant = false;
       }
 
-      if (isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant) {
+      // A free N26 Legendary Name (5+ XP in one battle) never came from the stash, so nothing goes back.
+      if (
+        isProspectPromotionGrant ||
+        isGangerChampionPromotionGrant ||
+        isLeaderPromotionGrant ||
+        isLegendaryNameSkillSet(deletedSkillSetName, editionSlugForUndo)
+      ) {
         refundStash = false;
       }
 

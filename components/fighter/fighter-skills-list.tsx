@@ -28,6 +28,7 @@ import {
   N26_PROSPECT_PROMOTION_CREDITS,
 } from '@/utils/keepTypePromotionN26';
 import { hasProspectSpecialisationPromotion } from '@/types/edition';
+import { isLegendaryNameSkillSet } from '@/utils/skillSetRank';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -147,6 +148,12 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     if (availableSkillsError) toast.error('Failed to load skills');
   }, [availableSkillsError]);
 
+  // N26: a Legendary Name gained for earning 5+ XP in one battle adds 5 to the
+  // fighter's worth. It is free, so the server never takes the cost from the gang.
+  const isLegendaryName =
+    !isCustomSkillSelected &&
+    isLegendaryNameSkillSet(categories.find((c) => c.id === selectedCategory)?.name ?? '', editionSlug);
+
   const queryClient = useQueryClient();
 
   // TanStack Query mutation for adding skills
@@ -170,11 +177,12 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onSkillAdded(variables.skill_id || variables.custom_skill_id || '', skillName, variables.credits_increase, variables.is_advance);
 
       // Optimistically deduct gang credits for non-advancement purchases
-      if (variables.credits_increase > 0 && !variables.is_advance) {
-        onGangCreditsUpdate?.(-variables.credits_increase);
+      const creditsDeducted = !variables.is_advance && !isLegendaryName ? variables.credits_increase : 0;
+      if (creditsDeducted > 0) {
+        onGangCreditsUpdate?.(-creditsDeducted);
       }
 
-      return { skillName, creditsDeducted: (!variables.is_advance && variables.credits_increase > 0) ? variables.credits_increase : 0 };
+      return { skillName, creditsDeducted };
     },
     onSuccess: (result, variables, context) => {
       if (context?.creditsDeducted && context.creditsDeducted > 0) {
@@ -370,10 +378,12 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
           />
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
-          {(skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0 && (
+          {selectedSkill && (isLegendaryName || (skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0) && (
             <div className="space-y-1 mt-2">
               <label className="text-sm font-medium">
-                Cost{gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}
+                {isLegendaryName
+                  ? 'Credits Value Increase'
+                  : `Cost${gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}`}
               </label>
               <input
                 type="text"
@@ -389,6 +399,11 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
                 placeholder="0"
                 className="w-full p-2 border rounded-sm"
               />
+              {isLegendaryName && (
+                <p className="text-xs text-muted-foreground">
+                  5 for a Legendary Name gained by earning 5+ XP in one battle. Not taken from the gang&apos;s credits.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -404,7 +419,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
+      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (!isLegendaryName && editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
     />
   );
 }
@@ -547,6 +562,11 @@ export function SkillsList({
       };
     },
     onSuccess: (result, _variables, context) => {
+      // The server keeps the credits of a free grant it recognises by skill set (an earned Legendary Name).
+      const creditsRefunded = result.refund_stash ? (context?.creditsRefunded ?? 0) : 0;
+      if (context?.creditsRefunded && !creditsRefunded) {
+        onGangCreditsUpdate?.(-context.creditsRefunded);
+      }
       if (result.fighter_details) {
         onFighterDetailsUpdate?.(result.fighter_details);
       } else if (
@@ -571,8 +591,8 @@ export function SkillsList({
         toast.success(`${context?.skillName} removed — Champion promotion undone`);
       } else if (context?.isLeaderPromotionGrant && result.fighter_details) {
         toast.success(`${context?.skillName} removed — Leader promotion undone`);
-      } else if (context?.creditsRefunded && context.creditsRefunded > 0) {
-        toast.success(`${context?.skillName} removed, ${context.creditsRefunded} credits refunded`);
+      } else if (creditsRefunded > 0) {
+        toast.success(`${context?.skillName} removed, ${creditsRefunded} credits refunded`);
       } else {
         toast.success(`${context?.skillName} removed successfully`);
       }
