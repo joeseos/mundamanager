@@ -404,6 +404,11 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
                 placeholder="0"
                 className="w-full p-2 border rounded-sm"
               />
+              {isLegendaryName && (
+                <p className="text-xs text-muted-foreground">
+                  5 for a Legendary Name gained by earning 5+ XP in one battle.
+                </p>
+              )}
             </div>
           )}
         </div>
