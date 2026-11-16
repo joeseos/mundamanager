@@ -221,6 +221,19 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return map;
   }, [members]);
 
+  // Challenge order: the arbitrator's saved order, then challenges without one
+  // (added since) by challenger rating, lowest first as the rules have it.
+  const compareChallengeOrder = useCallback((a: Battle, b: Battle) => {
+    if ((a.challenge_order == null) !== (b.challenge_order == null)) {
+      return a.challenge_order == null ? 1 : -1;
+    }
+    if (a.challenge_order != null && b.challenge_order != null && a.challenge_order !== b.challenge_order) {
+      return a.challenge_order - b.challenge_order;
+    }
+    return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
+      - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
+  }, [gangRatings]);
+
   // Sort and filter battles
   const sortedAndFilteredBattles = useMemo(() => {
     let filtered = [...battles];
@@ -321,22 +334,11 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         typeof aValue === 'string' && typeof bValue === 'string'
           ? aValue.localeCompare(bValue)
           : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-      return sortDirection === 'asc' ? comparison : -comparison;
+      if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
+      // A round's slots tie on most columns, so keep them in challenge order.
+      return !isPlayedBattle(a) && !isPlayedBattle(b) ? compareChallengeOrder(a, b) : 0;
     });
-  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, scenarioLabel]);
-
-  // Challenge order: the arbitrator's saved order, then challenges without one
-  // (added since) by challenger rating, lowest first as the rules have it.
-  const compareChallengeOrder = useCallback((a: Battle, b: Battle) => {
-    if ((a.challenge_order == null) !== (b.challenge_order == null)) {
-      return a.challenge_order == null ? 1 : -1;
-    }
-    if (a.challenge_order != null && b.challenge_order != null && a.challenge_order !== b.challenge_order) {
-      return a.challenge_order - b.challenge_order;
-    }
-    return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
-      - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
-  }, [gangRatings]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, scenarioLabel, compareChallengeOrder]);
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -664,15 +666,15 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
       .filter((battle) => !isPlayedBattle(battle))
       .sort(compareChallengeOrder)
       .map((battle) => {
-        const gang = acceptedGangs.find((g) => g.id === battle.challenger_gang_id);
+        const gangId = battle.challenger_gang_id ?? '';
         return {
           id: battle.id,
-          name: gang?.name ?? 'Unknown',
-          secondary: gang?.secondary,
+          name: gangNameMap.get(gangId) || 'Unknown',
+          secondary: acceptedGangs.find((g) => g.id === gangId)?.secondary,
           detail: battleStatusLabels[battleStatusOf(battle)],
         };
       }),
-    [battles, acceptedGangs, compareChallengeOrder]
+    [battles, acceptedGangs, gangNameMap, compareChallengeOrder]
   );
 
   const ownsGang = useCallback((gangId: string | null | undefined): boolean => {

@@ -14,7 +14,7 @@ interface CampaignChallengeRoundModalProps {
   campaignId: string;
   /** Accepted gangs, in the order offered before the arbitrator changes it. */
   gangs: SortableRankItem[];
-  /** The latest round's open challenges, keyed by battle id, in their current order. */
+  /** Every open challenge, keyed by battle id, in challenge order. */
   currentRound: SortableRankItem[];
   defaultCycle?: number | null;
   onClose: () => void;
@@ -91,7 +91,7 @@ const CampaignChallengeRoundModal = ({
     <Modal
       title="Challenge Round"
       helper={isCurrent
-        ? "Set the order gangs issue their challenges in for the current round."
+        ? "Set the order gangs issue their open challenges in."
         : "Every gang in the campaign gets a challenge to issue, in the order set below."}
       confirmText={isCurrent ? 'Save Order' : 'Create Round'}
       confirmDisabled={isCurrent ? roundOrder.length === 0 : !cycleValid || order.length === 0}

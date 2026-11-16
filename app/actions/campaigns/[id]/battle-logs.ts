@@ -893,6 +893,19 @@ export async function generateChallengeRound(
     };
     gangIds.sort((a, b) => position(a) - position(b));
 
+    // Number the round after any open challenges, so earlier rounds stay first.
+    const { data: lastOpen, error: lastOpenError } = await supabase
+      .from('campaign_battles')
+      .select('challenge_order')
+      .eq('campaign_id', campaignId)
+      .neq('status', 'played')
+      .not('challenge_order', 'is', null)
+      .order('challenge_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastOpenError) throw lastOpenError;
+    const firstOrder = (lastOpen?.challenge_order ?? 0) + 1;
+
     const rows = gangIds.map((gangId, i) => {
       // Seeding the challenger is what lets the existing RLS UPDATE policy
       // ("any gang owner in participants") cover them filling the slot in.
@@ -907,7 +920,7 @@ export async function generateChallengeRound(
         challenger_gang_id: gangId,
         challenged_gang_id: null,
         cycle,
-        challenge_order: i + 1,
+        challenge_order: firstOrder + i,
         participants: JSON.stringify(participants),
       };
     });
@@ -945,9 +958,8 @@ export async function generateChallengeRound(
 }
 
 /**
- * Renumber a round's open challenges in `battleIds` order, the order the
- * arbitrator set for issuing them. Only open challenges are ordered, so
- * played battles keep their old number.
+ * Renumber the campaign's open challenges in `battleIds` order, the order the
+ * arbitrator set for issuing them. Played battles keep their old number.
  */
 export async function reorderChallengeRound(
   campaignId: string,
@@ -961,16 +973,16 @@ export async function reorderChallengeRound(
       return { success: false, error: 'Only the campaign arbitrator can reorder a challenge round' };
     }
 
-    // Refuse a stale order (a challenge played or deleted since the modal opened)
-    // rather than renumber only part of the round.
-    const { count, error: countError } = await supabase
+    // Refuse a stale order (a challenge added, played or deleted since the modal
+    // opened) rather than renumber only some of the open challenges.
+    const { data: open, error: openError } = await supabase
       .from('campaign_battles')
-      .select('id', { count: 'exact', head: true })
-      .in('id', battleIds)
+      .select('id')
       .eq('campaign_id', campaignId)
       .neq('status', 'played');
-    if (countError) throw countError;
-    if (count !== battleIds.length) {
+    if (openError) throw openError;
+    const openIds = new Set((open ?? []).map((battle) => battle.id));
+    if (openIds.size !== battleIds.length || !battleIds.every((id) => openIds.has(id))) {
       return { success: false, error: 'The round has changed. Reopen Challenge Round and try again.' };
     }
 
