@@ -657,17 +657,22 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   );
 
   // The latest round's open challenges. A round's slots are inserted together, so they share created_at.
-  const openChallenges = battles.filter((battle) => !isPlayedBattle(battle) && battle.challenge_order != null);
-  const latestRoundAt = openChallenges.reduce((latest, battle) => battle.created_at > latest ? battle.created_at : latest, '');
-  const currentRound = openChallenges
-    .filter((battle) => battle.created_at === latestRoundAt)
-    .sort((a, b) => (a.challenge_order ?? 0) - (b.challenge_order ?? 0))
-    .map((battle) => ({
-      id: battle.id,
-      name: getGangName(battle.challenger_gang_id ?? undefined),
-      secondary: acceptedGangs.find((g) => g.id === battle.challenger_gang_id)?.secondary,
-      detail: battleStatusLabels[battleStatusOf(battle)],
-    }));
+  const currentRound = useMemo(() => {
+    const openChallenges = battles.filter((battle) => !isPlayedBattle(battle) && battle.challenge_order != null);
+    const latestRoundAt = openChallenges.reduce((latest, battle) => battle.created_at > latest ? battle.created_at : latest, '');
+    return openChallenges
+      .filter((battle) => battle.created_at === latestRoundAt)
+      .sort((a, b) => (a.challenge_order ?? 0) - (b.challenge_order ?? 0))
+      .map((battle) => {
+        const gang = acceptedGangs.find((g) => g.id === battle.challenger_gang_id);
+        return {
+          id: battle.id,
+          name: gang?.name ?? 'Unknown',
+          secondary: gang?.secondary,
+          detail: battleStatusLabels[battleStatusOf(battle)],
+        };
+      });
+  }, [battles, acceptedGangs]);
 
   const ownsGang = useCallback((gangId: string | null | undefined): boolean => {
     if (!gangId) return false;

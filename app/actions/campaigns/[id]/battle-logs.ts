@@ -982,10 +982,16 @@ export async function reorderChallengeRound(
           .eq('id', battleId)
           .eq('campaign_id', campaignId)
           .neq('status', 'played')
+          .select('id')
       )
     );
     const failed = results.find((result) => result.error);
     if (failed?.error) throw failed.error;
+    // A challenge played between the check above and its update is skipped by the filter.
+    if (results.some((result) => result.data?.length !== 1)) {
+      invalidateCampaignBattles(campaignId);
+      return { success: false, error: 'The round changed while saving. Reopen Challenge Round and try again.' };
+    }
 
     invalidateCampaignBattles(campaignId);
     return { success: true };
