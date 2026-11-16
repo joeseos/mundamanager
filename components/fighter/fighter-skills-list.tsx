@@ -23,6 +23,7 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
+import { Input } from '@/components/ui/input';
 import { LuTrash2 } from 'react-icons/lu';
 import { HiExclamationTriangle } from 'react-icons/hi2';
 import Link from 'next/link';
@@ -38,6 +39,7 @@ import {
   N26_PROSPECT_PROMOTION_CREDITS,
 } from '@/utils/keepTypePromotionN26';
 import { hasProspectSpecialisationPromotion } from '@/types/edition';
+import { isLegendaryNameSkillSet } from '@/utils/skillSetRank';
 
 // Interface for individual skill when displayed in table
 interface Skill {
@@ -95,6 +97,8 @@ interface SkillModalProps {
   gangCredits?: number;
   venatorRanksIncomplete?: boolean;
   editionSlug?: string | null;
+  /** The fighter still has its free starting skill to pick. */
+  freeSkill?: boolean;
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
   onSkillRollback: (skillName: string) => void;
@@ -108,7 +112,7 @@ type SkillData = SkillInSet & { is_custom: boolean; cost: number };
 const NO_SKILL_TYPES: SkillTypeOption[] = [];
 
 // SkillModal Component
-export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, freeSkill, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedSkill, setSelectedSkill] = useState<string>('');
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
@@ -147,6 +151,14 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     if (availableSkillsError) toast.error('Failed to load skills');
   }, [availableSkillsError]);
 
+  // N26: a Leader or Champion picks a Legendary Name as their free starting skill (+0).
+  // After that, one gained for earning 5+ XP in one battle adds 5 to the fighter's worth.
+  // Both are free, so the server never takes the cost from the gang.
+  const inEarnedLegendaryNames =
+    !freeSkill &&
+    isLegendaryNameSkillSet(categories.find((c) => c.id === selectedCategory)?.name ?? '', editionSlug);
+  const isEarnedLegendaryName = inEarnedLegendaryNames && !isCustomSkillSelected;
+
   const queryClient = useQueryClient();
 
   // TanStack Query mutation for adding skills
@@ -170,11 +182,12 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onSkillAdded(variables.skill_id || variables.custom_skill_id || '', skillName, variables.credits_increase, variables.is_advance);
 
       // Optimistically deduct gang credits for non-advancement purchases
-      if (variables.credits_increase > 0 && !variables.is_advance) {
-        onGangCreditsUpdate?.(-variables.credits_increase);
+      const creditsDeducted = !variables.is_advance && !isEarnedLegendaryName ? variables.credits_increase : 0;
+      if (creditsDeducted > 0) {
+        onGangCreditsUpdate?.(-creditsDeducted);
       }
 
-      return { skillName, creditsDeducted: (!variables.is_advance && variables.credits_increase > 0) ? variables.credits_increase : 0 };
+      return { skillName, creditsDeducted };
     },
     onSuccess: (result, variables, context) => {
       if (context?.creditsDeducted && context.creditsDeducted > 0) {
@@ -323,7 +336,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
               const skill = skillsInSet?.find((s) => s.skill_id === v);
               setSelectedSkill(v);
               setIsCustomSkillSelected(skill?.is_custom ?? false);
-              setEditableCost(skill?.cost || 0);
+              setEditableCost(inEarnedLegendaryNames && !skill?.is_custom ? 5 : skill?.cost || 0);
             }}
             placeholder="Select a skill"
             options={skillComboboxOptions}
@@ -331,14 +344,16 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
           />
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
-          {(skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0 && (
+          {selectedSkill && (isEarnedLegendaryName || (skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0) && (
             <div className="space-y-1 mt-2">
               <label className="text-sm font-medium">
-                Cost{gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}
+                {isEarnedLegendaryName
+                  ? 'Credits Value Increase'
+                  : `Cost${gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}`}
               </label>
-              <input
-                type="text"
-                inputMode="numeric"
+              <Input
+                type="tel"
+                inputMode="url"
                 pattern="[0-9]*"
                 value={editableCost === 0 ? '' : editableCost}
                 onChange={(e) => {
@@ -348,8 +363,12 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
                   }
                 }}
                 placeholder="0"
-                className="w-full p-2 border rounded-sm"
               />
+              {isEarnedLegendaryName && (
+                <p className="text-xs text-muted-foreground">
+                  5 for a Legendary Name gained by earning 5+ XP in one battle.
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -365,7 +384,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
+      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (!isEarnedLegendaryName && editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
     />
   );
 }
@@ -450,7 +469,8 @@ export function SkillsList({
       const isKeepTypePromotionGrant =
         isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant;
 
-      // Stash refund only for normal purchased skills — not keep-type promotion grants
+      // Stash refund only for normal purchased skills — not keep-type promotion grants.
+      // Applied once the server confirms it: a free N26 Legendary Name is never refunded.
       const creditsRefunded =
         !isKeepTypePromotionGrant && !skillData.is_advance && skillData.credits_increase > 0
           ? skillData.credits_increase
@@ -464,9 +484,6 @@ export function SkillsList({
       setLocalSkills(updatedSkills);
       onSkillsUpdate(updatedSkills);
 
-      if (creditsRefunded > 0) {
-        onGangCreditsUpdate?.(creditsRefunded);
-      }
       if (ratingCreditsRemoved > 0) {
         onXpCreditsUpdate?.(0, -ratingCreditsRemoved);
       }
@@ -508,6 +525,10 @@ export function SkillsList({
       };
     },
     onSuccess: (result, _variables, context) => {
+      const creditsRefunded = result.refund_stash ? (context?.creditsRefunded ?? 0) : 0;
+      if (creditsRefunded > 0) {
+        onGangCreditsUpdate?.(creditsRefunded);
+      }
       if (result.fighter_details) {
         onFighterDetailsUpdate?.(result.fighter_details);
       } else if (
@@ -532,8 +553,8 @@ export function SkillsList({
         toast.success(`${context?.skillName} removed — Champion promotion undone`);
       } else if (context?.isLeaderPromotionGrant && result.fighter_details) {
         toast.success(`${context?.skillName} removed — Leader promotion undone`);
-      } else if (context?.creditsRefunded && context.creditsRefunded > 0) {
-        toast.success(`${context?.skillName} removed, ${context.creditsRefunded} credits refunded`);
+      } else if (creditsRefunded > 0) {
+        toast.success(`${context?.skillName} removed, ${creditsRefunded} credits refunded`);
       } else {
         toast.success(`${context?.skillName} removed successfully`);
       }
@@ -544,9 +565,6 @@ export function SkillsList({
         onSkillsUpdate(context.previousSkills);
       }
 
-      if (context?.creditsRefunded && context.creditsRefunded > 0) {
-        onGangCreditsUpdate?.(-context.creditsRefunded);
-      }
       if (context?.ratingCreditsRemoved && context.ratingCreditsRemoved > 0) {
         onXpCreditsUpdate?.(0, context.ratingCreditsRemoved);
       }
@@ -797,6 +815,7 @@ export function SkillsList({
           gangCredits={gangCredits}
           venatorRanksIncomplete={venatorRanksIncomplete}
           editionSlug={editionSlug}
+          freeSkill={free_skill}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}
           onSkillRollback={handleSkillRollback}
