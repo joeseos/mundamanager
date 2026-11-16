@@ -251,6 +251,9 @@ export async function insertEffectWithModifiers(
   }
 }
 
+const WEAPON_PROFILE_COLUMNS =
+  'id, profile_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, lethality, ammo, traits, sort_order';
+
 export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promise<EquipmentActionResult> {
   try {
     const supabase = await createClient();
@@ -352,21 +355,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
           cost,
           trade_points,
           is_editable,
-          weapon_profiles (
-            id,
-            profile_name,
-            range_short,
-            range_long,
-            acc_short,
-            acc_long,
-            strength,
-            ap,
-            damage,
-            lethality,
-            ammo,
-            traits,
-            sort_order
-          )
+          grants_equipment,
+          weapon_profiles (${WEAPON_PROFILE_COLUMNS})
         `)
         .eq('id', params.equipment_id)
         .single();
@@ -391,21 +381,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         // Custom weapon profiles (fetch even if not weapon to avoid second query)
         supabase
           .from('custom_weapon_profiles')
-          .select(`
-            id,
-            profile_name,
-            range_short,
-            range_long,
-            acc_short,
-            acc_long,
-            strength,
-            ap,
-            damage,
-            lethality,
-            ammo,
-            traits,
-            sort_order
-          `)
+          .select(WEAPON_PROFILE_COLUMNS)
           .or(`custom_equipment_id.eq.${params.custom_equipment_id},weapon_group_id.eq.${params.custom_equipment_id}`)
           .order('sort_order', { nullsFirst: false })
           .order('profile_name')
@@ -521,56 +497,30 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       : {};
 
     // Insert equipment
-    let newEquipmentId: string;
-    
-    if (params.buy_for_gang_stash) {
-      const { data: stashItem, error: stashError } = await supabase
-        .from('fighter_equipment')
-        .insert({
-          gang_id: params.gang_id,
-          fighter_id: null,
-          vehicle_id: null,
-          equipment_id: params.equipment_id,
-          custom_equipment_id: params.custom_equipment_id,
-          original_cost: baseCost,
-          purchase_cost: ratingCost,
-          gang_stash: true,
-          user_id: gang.user_id,
-          is_master_crafted: masterCrafted,
-          is_editable: equipmentDetails.is_editable || false,
-          ...costResourcePayload
-        })
-        .select('id')
-        .single();
+    const { data: insertedEquipment, error: insertError } = await supabase
+      .from('fighter_equipment')
+      .insert({
+        gang_id: params.gang_id,
+        fighter_id: params.buy_for_gang_stash ? null : params.fighter_id,
+        vehicle_id: params.buy_for_gang_stash ? null : params.vehicle_id,
+        equipment_id: params.equipment_id,
+        custom_equipment_id: params.custom_equipment_id,
+        original_cost: baseCost,
+        purchase_cost: ratingCost,
+        ...(params.buy_for_gang_stash && { gang_stash: true }),
+        user_id: gang.user_id,
+        is_master_crafted: masterCrafted,
+        is_editable: equipmentDetails.is_editable || false,
+        ...costResourcePayload
+      })
+      .select('id')
+      .single();
 
-      if (stashError) {
-        throw new Error(`Failed to add to gang stash: ${stashError.message}`);
-      }
-      newEquipmentId = stashItem.id;
-    } else {
-      const { data: fighterEquip, error: equipError } = await supabase
-        .from('fighter_equipment')
-        .insert({
-          gang_id: params.gang_id,
-          fighter_id: params.fighter_id,
-          vehicle_id: params.vehicle_id,
-          equipment_id: params.equipment_id,
-          custom_equipment_id: params.custom_equipment_id,
-          original_cost: baseCost,
-          purchase_cost: ratingCost,
-          user_id: gang.user_id,
-          is_master_crafted: masterCrafted,
-          is_editable: equipmentDetails.is_editable || false,
-          ...costResourcePayload
-        })
-        .select('id')
-        .single();
-
-      if (equipError) {
-        throw new Error(`Failed to add equipment: ${equipError.message}`);
-      }
-      newEquipmentId = fighterEquip.id;
+    if (insertError) {
+      const failure = params.buy_for_gang_stash ? 'Failed to add to gang stash' : 'Failed to add equipment';
+      throw new Error(`${failure}: ${insertError.message}`);
     }
+    const newEquipmentId: string = insertedEquipment.id;
 
     // Deduct the campaign resource after a successful insert so a failed insert never costs
     // the gang anything. Reputation is not handled here — it lives on the gangs row, so it
@@ -584,31 +534,19 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       }
     }
 
-    // Initialize rating deltas
-    let ratingDelta = 0;
+    // The item, its grants and its effects count toward rating on a fighter or a crewed vehicle
+    // (and only while that fighter is active: see ownerIsActive below).
+    const gearAddsToRating = !params.buy_for_gang_stash &&
+      (!!params.fighter_id || (!!params.vehicle_id && !!vehicleAssignedFighterId));
+    let ratingDelta = gearAddsToRating ? ratingCost : 0;
     let grantsRatingDelta = 0;
 
     // Track granted equipment for logging after gang update
     const grantedEquipmentForLogging: Array<{ equipment_name: string; purchase_cost: number }> = [];
 
-    // Calculate base rating delta for the main equipment purchase
-    if (!params.buy_for_gang_stash) {
-      if (params.fighter_id) {
-        ratingDelta += ratingCost;
-      } else if (params.vehicle_id && vehicleAssignedFighterId) {
-        ratingDelta += ratingCost;
-      }
-    }
-
     // Handle equipment grants (equipment that automatically includes other items)
     if (params.equipment_id && !params.buy_for_gang_stash) {
-      const { data: sourceEquip } = await supabase
-        .from('equipment')
-        .select('grants_equipment')
-        .eq('id', params.equipment_id)
-        .single();
-
-      const grantsConfig = sourceEquip?.grants_equipment as EquipmentGrants | null;
+      const grantsConfig = equipmentDetails.grants_equipment as EquipmentGrants | null;
 
       if (grantsConfig && grantsConfig.options && grantsConfig.options.length > 0) {
         const granted = await insertGrantedEquipment(
@@ -624,8 +562,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         );
 
         for (const item of granted) {
-          // Add to rating delta for granted equipment (fighters and assigned vehicles)
-          if (params.fighter_id || (params.vehicle_id && vehicleAssignedFighterId)) {
+          if (gearAddsToRating) {
             grantsRatingDelta += item.purchase_cost;
           }
 
@@ -683,12 +620,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                 fighter_effect_modifiers: [] // Could fetch if needed
               });
 
-              // Rating delta calculation
-              const creditsIncrease = effectType.type_specific_data?.credits_increase || 0;
-              if (params.fighter_id) {
-                ratingDelta += creditsIncrease;
-              } else if (params.vehicle_id && vehicleAssignedFighterId) {
-                ratingDelta += creditsIncrease;
+              if (gearAddsToRating) {
+                ratingDelta += effectType.type_specific_data?.credits_increase || 0;
               }
             }
           }
@@ -767,25 +700,25 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error(financialResult.error || 'Failed to update gang financials');
     }
 
-    const newGangTradePoints = financialResult.newValues?.trade_points;
-
-
     // Log equipment actions AFTER gang rating is updated (so logs show correct rating)
+    const logContext = {
+      gang_id: params.gang_id,
+      fighter_id: params.fighter_id,
+      vehicle_id: params.vehicle_id,
+      user_id: user.id,
+      oldCredits: financialResult.oldValues?.credits,
+      oldRating: financialResult.oldValues?.rating,
+      oldWealth: financialResult.oldValues?.wealth,
+      newCredits: financialResult.newValues?.credits,
+      newRating: financialResult.newValues?.rating,
+      newWealth: financialResult.newValues?.wealth
+    };
     try {
       await logEquipmentAction({
-        gang_id: params.gang_id,
-        fighter_id: params.fighter_id,
-        vehicle_id: params.vehicle_id,
+        ...logContext,
         equipment_name: equipmentDetails.equipment_name,
         purchase_cost: finalPurchaseCost,
         action_type: 'purchased',
-        user_id: user.id,
-        oldCredits: financialResult.oldValues?.credits,
-        oldRating: financialResult.oldValues?.rating,
-        oldWealth: financialResult.oldValues?.wealth,
-        newCredits: financialResult.newValues?.credits,
-        newRating: financialResult.newValues?.rating,
-        newWealth: financialResult.newValues?.wealth,
         ...(isResourcePurchase && params.resourceCost && {
           resource_cost_name: params.resourceCost.resourceName,
           resource_cost_amount: params.resourceCost.amount
@@ -799,19 +732,10 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     for (const grantedItem of grantedEquipmentForLogging) {
       try {
         await logEquipmentAction({
-          gang_id: params.gang_id,
-          fighter_id: params.fighter_id,
-          vehicle_id: params.vehicle_id,
+          ...logContext,
           equipment_name: grantedItem.equipment_name,
           purchase_cost: grantedItem.purchase_cost,
-          action_type: 'granted',
-          user_id: user.id,
-          oldCredits: financialResult.oldValues?.credits,
-          oldRating: financialResult.oldValues?.rating,
-          oldWealth: financialResult.oldValues?.wealth,
-          newCredits: financialResult.newValues?.credits,
-          newRating: financialResult.newValues?.rating,
-          newWealth: financialResult.newValues?.wealth
+          action_type: 'granted'
         });
       } catch (logError) {
         console.error('Failed to log granted equipment:', logError);
@@ -826,11 +750,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     if (params.fighter_id) {
       // Always invalidate fighter equipment/credits/rating for a purchase on a fighter
       invalidateFighter(params.fighter_id, params.gang_id);
-      (createdFamiliars.length > 0 ? createdFamiliars : undefined)?.forEach(familiar => invalidateFighter(familiar.id, params.gang_id));
-      // If effects were applied to the fighter, also invalidate effects + derived data
-      if (appliedEffects.length > 0) {
-        invalidateFighter(params.fighter_id, params.gang_id);
-      }
+      createdFamiliars.forEach(familiar => invalidateFighter(familiar.id, params.gang_id));
       // If this fighter is a beast, invalidate the owner's cache
       await invalidateBeastOwnerCache(params.fighter_id, params.gang_id, supabase, fighterPetId);
     } else if (params.vehicle_id) {
@@ -860,17 +780,23 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       is_master_crafted: masterCrafted
     };
 
+    // stashValueDelta is 0 outside the stash, so one wealth formula fits every response.
+    const gangRecord = {
+      id: params.gang_id,
+      credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
+      rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
+      wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta - finalPurchaseCost + stashValueDelta)
+    };
+    const gangRecordWithTradePoints = {
+      ...gangRecord,
+      trade_points: financialResult.newValues?.trade_points ?? gang.trade_points
+    };
+
     if (params.buy_for_gang_stash) {
       // Gang stash response format (now using fighter_equipment table)
       responseData = {
         updategangsCollection: {
-          records: [{
-            id: params.gang_id,
-            credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
-            rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
-            wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost) + stashValueDelta),
-            trade_points: newGangTradePoints ?? gang.trade_points
-          }]
+          records: [gangRecordWithTradePoints]
         },
         insertIntofighter_equipmentCollection: {
           records: [{
@@ -923,13 +849,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             }]
           },
           updategangsCollection: {
-            records: [{
-              id: params.gang_id,
-              credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
-              rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
-              wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost)),
-              trade_points: newGangTradePoints ?? gang.trade_points
-            }]
+            records: [gangRecordWithTradePoints]
           },
           insertIntofighter_equipmentCollection: {
             records: [newEquipment]
@@ -945,12 +865,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             }]
           },
           updategangsCollection: {
-            records: [{
-              id: params.gang_id,
-              credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
-              rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
-              wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta + (-finalPurchaseCost))
-            }]
+            records: [gangRecord]
           },
           insertIntofighter_equipmentCollection: {
             records: [newEquipment]
