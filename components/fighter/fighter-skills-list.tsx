@@ -24,6 +24,7 @@ import {
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
 import { LuTrash2 } from 'react-icons/lu';
+import { HiExclamationTriangle } from 'react-icons/hi2';
 import Link from 'next/link';
 import { hatredTargetHref } from '@/utils/injuryTarget';
 import {
@@ -630,14 +631,6 @@ export function SkillsList({
     !!skill.granted_by_equipment_id &&
     !isEquipmentInActiveLoadout(skill.granted_by_equipment_id, loadouts, activeLoadoutId);
 
-  // Custom empty message based on free_skill status
-  const getEmptyMessage = () => {
-    if (free_skill) {
-      return "Starting skill missing.";
-    }
-    return "No skills yet.";
-  };
-
   return (
     <>
       <List
@@ -772,7 +765,13 @@ export function SkillsList({
         onAdd={() => setIsAddSkillModalOpen(true)}
         addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
-        emptyMessage={getEmptyMessage()}
+        emptyMessage="No skills yet."
+        footer={free_skill && (
+          <div className="flex items-center justify-center gap-2 text-amber-700">
+            <HiExclamationTriangle className="h-4 w-4" />
+            Starting skill missing.
+          </div>
+        )}
       />
 
       {skillToDelete && (
