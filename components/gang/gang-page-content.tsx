@@ -54,6 +54,7 @@ interface GangDataState {
     image_url?: string;
     gang_portrait_id?: string | null;
     gang_portrait_url?: string | null;
+    parent_gang_type_id?: string | null;
     parent_gang_type_name?: string | null;
     gang_colour: string;
     credits: number;
@@ -764,6 +765,8 @@ export default function GangPageContent({
               gangReputation={gangData.processedData.reputation}
               territories={gangCampaigns.flatMap((campaign) => campaign.territories)}
               gangType={gangData.processedData.gang_type}
+              gangTypeId={gangData.processedData.gang_type_id}
+              parentGangTypeId={gangData.processedData.parent_gang_type_id}
               isCustomGangType={Boolean(gangData.processedData.custom_gang_type_id)}
               gangSubtypes={gangData.processedData.gang_subtypes || []}
               tacticsCards={gangData.processedData.tacticsCards || []}

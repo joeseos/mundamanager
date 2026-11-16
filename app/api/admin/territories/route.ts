@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('territories')
-      .select('id, territory_name, campaign_type_id, playing_card, credits, edition_id')
+      .select('id, territory_name, campaign_type_id, playing_card, credits, controlled_gang_type_id, controlled_credits, edition_id')
       .order('territory_name', { ascending: true });
 
     if (campaignTypeId) {
@@ -48,9 +48,10 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { territory_name, campaign_type_id, playing_card, credits, edition_id } = body;
+    const { territory_name, campaign_type_id, playing_card, credits, controlled_gang_type_id, controlled_credits, edition_id } = body;
     const normalisedPlayingCard = typeof playing_card === 'string' ? playing_card.trim() || null : null;
     const normalisedCredits = credits === undefined ? null : parseCredits(credits);
+    const normalisedControlledCredits = controlled_credits === undefined ? null : parseCredits(controlled_credits);
 
     if (!territory_name?.trim()) {
       return NextResponse.json(
@@ -66,7 +67,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (normalisedCredits === undefined) {
+    if (normalisedCredits === undefined || normalisedControlledCredits === undefined) {
       return NextResponse.json(
         { error: 'credits must be a number' },
         { status: 400 }
@@ -80,6 +81,8 @@ export async function POST(request: Request) {
         campaign_type_id: campaign_type_id || null,
         playing_card: normalisedPlayingCard,
         credits: normalisedCredits,
+        controlled_gang_type_id: controlled_gang_type_id || null,
+        controlled_credits: normalisedControlledCredits,
         edition_id: edition_id || null
       }])
       .select()
@@ -107,7 +110,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json();
-    const { id, territory_name, campaign_type_id, playing_card, credits, edition_id } = body;
+    const { id, territory_name, campaign_type_id, playing_card, credits, controlled_gang_type_id, controlled_credits, edition_id } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -142,6 +145,19 @@ export async function PATCH(request: Request) {
         );
       }
       updateData.credits = normalisedCredits;
+    }
+    if (controlled_gang_type_id !== undefined) {
+      updateData.controlled_gang_type_id = controlled_gang_type_id || null;
+    }
+    if (controlled_credits !== undefined) {
+      const normalisedControlledCredits = parseCredits(controlled_credits);
+      if (normalisedControlledCredits === undefined) {
+        return NextResponse.json(
+          { error: 'controlled_credits must be a number' },
+          { status: 400 }
+        );
+      }
+      updateData.controlled_credits = normalisedControlledCredits;
     }
     if (edition_id !== undefined) {
       updateData.edition_id = edition_id || null;

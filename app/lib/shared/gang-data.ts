@@ -54,6 +54,7 @@ export interface GangBasic {
   gang_types?: {
     affiliation: boolean;
     gang_origin_category_id?: string;
+    parent_gang_type_id?: string | null;
     parent_gang_type_name?: string | null;
     gang_origin_categories?: {
       category_name: string;
@@ -183,7 +184,7 @@ function gangCoreQuery(db: AppDb, gangId: string) {
         with: { gang_origin_categories: { columns: { category_name: true } } },
       },
       gang_types: {
-        columns: { affiliation: true, gang_origin_category_id: true, parent_gang_type_name: true },
+        columns: { affiliation: true, gang_origin_category_id: true, parent_gang_type_id: true, parent_gang_type_name: true },
         with: {
           gang_origin_categories: { columns: { category_name: true } },
           editions: { columns: { slug: true } },
@@ -228,7 +229,7 @@ export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
         venator_ranks_incomplete: venatorRanksIncomplete,
       } as GangCore;
     },
-    [`gang-core-v11-${gangId}`],
+    [`gang-core-v12-${gangId}`],
     {
       tags: [TAGS.gang(gangId), TAGS.globalGangTypes(), TAGS.globalGangPortraits()],
       revalidate: false
@@ -397,6 +398,8 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
               ruined: true,
               default_gang_territory: true,
               credits: true,
+              controlled_gang_type_id: true,
+              controlled_credits: true,
             },
             where: (territory, { eq }) => eq(territory.gang_id, gangId),
           },
@@ -492,7 +495,7 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
         }];
       });
     },
-    [`gang-campaigns-v4-${gangId}`],
+    [`gang-campaigns-v5-${gangId}`],
     {
       tags: [
         TAGS.gangCampaigns(gangId),

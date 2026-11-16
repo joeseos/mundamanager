@@ -19,6 +19,8 @@ export const CAMPAIGN_TERRITORY_FIELDS = {
   map_hex_coords: true,
   show_name_on_map: true,
   credits: true,
+  controlled_gang_type_id: true,
+  controlled_credits: true,
 } as const;
 
 /** Credits a territory gives: a finite number, null when left blank, undefined when invalid. */
@@ -50,6 +52,8 @@ export function shapeCampaignTerritory(
     playing_card: row.playing_card ?? null,
     description: row.description ?? null,
     credits: row.credits ?? null,
+    controlled_gang_type_id: row.controlled_gang_type_id ?? null,
+    controlled_credits: row.controlled_credits ?? null,
     is_custom: !row.territory_id,
     map_object_id: row.map_object_id ?? null,
     map_hex_coords: row.map_hex_coords ?? null,

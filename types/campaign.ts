@@ -209,6 +209,9 @@ export interface CampaignTerritoryRow {
   playing_card?: string | null;
   description?: string | null;
   credits?: number | null;
+  /** Gang type (or an alternate list of it) that collects controlled_credits instead of credits */
+  controlled_gang_type_id?: string | null;
+  controlled_credits?: number | null;
   map_object_id?: string | null;
   map_hex_coords?: { x: number; y: number; z: number } | null;
   show_name_on_map?: boolean;

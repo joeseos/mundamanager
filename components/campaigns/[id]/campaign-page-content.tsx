@@ -93,6 +93,8 @@ interface Territory {
   original_territory_name?: string | null;
   /** Credits the territory gives; null when unset */
   credits?: number | null;
+  controlled_gang_type_id?: string | null;
+  controlled_credits?: number | null;
   playing_card?: string | null;
   gang_id: string | null;
   created_at: string;
@@ -278,6 +280,8 @@ export default function CampaignPageContent({
       description?: string | null;
       territory_name?: string;
       credits?: number | null;
+      controlled_gang_type_id?: string | null;
+      controlled_credits?: number | null;
       map_object_id?: string | null;
       map_hex_coords?: { x: number; y: number; z: number } | null;
       show_name_on_map?: boolean;
@@ -869,6 +873,7 @@ export default function CampaignPageContent({
                 territories={campaignData.territories}
                 campaignId={campaignData.id}
                 members={campaignData.members}
+                editionSlug={campaignData.edition_slug ?? null}
                 permissions={{
                   canManageTerritories: safePermissions.canManageTerritories,
                   canEditTerritories: safePermissions.canEditTerritories,
