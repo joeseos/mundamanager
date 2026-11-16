@@ -41,6 +41,7 @@ const CampaignChallengeRoundModal = ({
   const cycleValue = cycle ? parseInt(cycle, 10) : null;
   const cycleValid = !cycle || (!isNaN(cycleValue as number) && (cycleValue as number) > 0);
   const isCurrent = activeTab === 'current';
+  const orderUnchanged = roundOrder.every((challenge, i) => challenge.id === currentRound[i]?.id);
 
   const generateMutation = useMutation({
     mutationFn: () => generateChallengeRound(
@@ -94,7 +95,7 @@ const CampaignChallengeRoundModal = ({
         ? "Set the order gangs issue their open challenges in."
         : "Every gang in the campaign gets a challenge to issue, in the order set below."}
       confirmText={isCurrent ? 'Save Order' : 'Create Round'}
-      confirmDisabled={isCurrent ? roundOrder.length === 0 : !cycleValid || order.length === 0}
+      confirmDisabled={isCurrent ? orderUnchanged : !cycleValid || order.length === 0}
       onClose={onClose}
       onConfirm={async () => {
         if (isCurrent) {
