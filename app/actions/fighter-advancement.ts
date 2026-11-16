@@ -48,6 +48,7 @@ import { updateFighterDetails } from './edit-fighter';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import type { EquipmentGrants } from '@/types/equipment';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { isLegendaryNameSkillSet } from '@/utils/skillSetRank';
 
 // A fighter's gang type, and its edition via the gang's (custom) gang type.
 const GANG_EDITION_EMBED = `
@@ -714,6 +715,59 @@ async function addSkillAdvancementInternal(
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
     };
   }
+}
+
+/**
+ * N26: a fighter who earns 5 or more XP in a single battle may gain a Legendary
+ * Name for free, +5 to their Credit Value. Not an Advancement, so it takes no
+ * rank slot. Leaders and Champions may hold two Legendary Names, others one.
+ */
+export async function addEarnedLegendaryName(params: {
+  fighter_id: string;
+  skill_id: string;
+}): Promise<AdvancementResult> {
+  const supabase = await createClient();
+  const [{ data: fighter }, { data: skill }, { data: heldSkills }] = await Promise.all([
+    supabase
+      .from('fighters')
+      .select(`fighter_subtypes, ${GANG_EDITION_EMBED}`)
+      .eq('id', params.fighter_id)
+      .single(),
+    supabase.from('skills').select('skill_types(name)').eq('id', params.skill_id).single(),
+    supabase
+      .from('fighter_skills')
+      .select('skills(skill_types(name)), custom_skills(skill_types(name))')
+      .eq('fighter_id', params.fighter_id),
+  ]);
+
+  if (!fighter) return { success: false, error: 'Fighter not found' };
+  const editionSlug = gangEditionSlug(fighter.gangs);
+  type SkillSetEmbed = { skill_types: { name: string } | null } | null;
+  // A to-one embed, typed as an array by the generated client.
+  const inLegendaryNames = (row: unknown) =>
+    isLegendaryNameSkillSet((row as SkillSetEmbed)?.skill_types?.name ?? '', editionSlug);
+
+  if (!inLegendaryNames(skill)) {
+    return { success: false, error: 'This skill is not a Legendary Name' };
+  }
+
+  const held = (heldSkills ?? []).filter(
+    (row) => inLegendaryNames(row.skills) || inLegendaryNames(row.custom_skills)
+  ).length;
+  const subtypes: string[] = fighter.fighter_subtypes ?? [];
+  const cap = subtypes.includes('Leader') || subtypes.includes('Champion') ? 2 : 1;
+  if (held >= cap) {
+    return { success: false, error: 'This fighter already has as many Legendary Names as they can hold' };
+  }
+
+  return addSkillAdvancementInternal({
+    fighter_id: params.fighter_id,
+    skill_id: params.skill_id,
+    xp_cost: 0,
+    credits_increase: 5,
+    is_advance: false,
+    ratingOnly: true,
+  });
 }
 
 type KeepTypePromotionFighterSnapshot = {
@@ -1442,6 +1496,7 @@ export async function deleteAdvancement(
     let refundStash = false; // Whether to refund credits to gang stash (non-advancement skills)
     let newFreeSkillStatus = fighter.free_skill;
     let deletedSkillName: string = '';
+    let deletedSkillSetName = '';
     let deletedEffectName: string = '';
     let demotedFighterDetails: AdvancementResult['fighter_details'] | undefined;
 
@@ -1479,7 +1534,7 @@ export async function deleteAdvancement(
         const { data: fighterSkillData } = await supabase
           .from('fighter_skills')
           .select(`
-            skills!inner(name)
+            skills!inner(name, skill_types(name))
           `)
           .eq('id', params.advancement_id)
           .single();
@@ -1488,6 +1543,7 @@ export async function deleteAdvancement(
             ? fighterSkillData.skills
             : [fighterSkillData.skills];
           deletedSkillName = skills[0].name;
+          deletedSkillSetName = (skills[0].skill_types as unknown as { name: string } | null)?.name ?? '';
         }
       }
 
@@ -1572,7 +1628,13 @@ export async function deleteAdvancement(
         isLeaderPromotionGrant = false;
       }
 
-      if (isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant) {
+      // An earned Legendary Name (addEarnedLegendaryName) was free, so nothing goes back to the stash.
+      if (
+        isProspectPromotionGrant ||
+        isGangerChampionPromotionGrant ||
+        isLeaderPromotionGrant ||
+        isLegendaryNameSkillSet(deletedSkillSetName, editionSlugForUndo)
+      ) {
         refundStash = false;
       }
 

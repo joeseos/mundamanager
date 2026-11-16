@@ -547,6 +547,11 @@ export function SkillsList({
       };
     },
     onSuccess: (result, _variables, context) => {
+      // The server keeps the credits of a free grant it recognises by skill set (an earned Legendary Name).
+      const creditsRefunded = result.refund_stash ? (context?.creditsRefunded ?? 0) : 0;
+      if (context?.creditsRefunded && !creditsRefunded) {
+        onGangCreditsUpdate?.(-context.creditsRefunded);
+      }
       if (result.fighter_details) {
         onFighterDetailsUpdate?.(result.fighter_details);
       } else if (
@@ -571,8 +576,8 @@ export function SkillsList({
         toast.success(`${context?.skillName} removed — Champion promotion undone`);
       } else if (context?.isLeaderPromotionGrant && result.fighter_details) {
         toast.success(`${context?.skillName} removed — Leader promotion undone`);
-      } else if (context?.creditsRefunded && context.creditsRefunded > 0) {
-        toast.success(`${context?.skillName} removed, ${context.creditsRefunded} credits refunded`);
+      } else if (creditsRefunded > 0) {
+        toast.success(`${context?.skillName} removed, ${creditsRefunded} credits refunded`);
       } else {
         toast.success(`${context?.skillName} removed successfully`);
       }

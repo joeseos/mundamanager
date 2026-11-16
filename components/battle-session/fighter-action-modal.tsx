@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { LuTrash2 } from 'react-icons/lu';
 import { Button } from '@/components/ui/button';
@@ -20,15 +21,22 @@ import {
 import { InjuriesList } from '@/components/fighter/fighter-injury-list';
 import { addSessionInjury, removeSessionInjury } from '@/app/actions/battle-sessions';
 import type { GangFighter } from '@/types/gang';
+import { isLegendaryNameSkillSet } from '@/utils/skillSetRank';
 import type { WeaponProps } from '@/types/fighter';
 import type { WeaponProfile } from '@/types/equipment';
 import type { BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
 import {
   canLeaveBattlefield,
+  hasCumulativeXp,
   hasFleshWoundCondition,
   hasN26CompositeBattleMarkers,
   isOutOfAmmoPerProfile,
 } from '@/types/edition';
+
+const LegendaryNameModal = dynamic(
+  () => import('@/components/battle-session/legendary-name-modal').then((mod) => mod.LegendaryNameModal),
+  { ssr: false }
+);
 
 const FighterXpModal = dynamic(
   () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
@@ -244,10 +252,29 @@ export default function FighterActionModal({
 }) {
   const [showXpModal, setShowXpModal] = useState(false);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
+  const [showLegendaryNameModal, setShowLegendaryNameModal] = useState(false);
   const [injuryToRemove, setInjuryToRemove] = useState<SessionInjuryRecord | null>(null);
   const sessionInjuries = fighter.session_record?.injuries ?? [];
   const [weaponConditionKey, setWeaponConditionKey] = useState<string | null>(null);
   const isSpyrer = gangFighter?.is_spyrer ?? false;
+
+  // N26 Legendary Names: offered to fighters whose type (or override) gives access to the set.
+  const { data: legendaryNameSkillTypeId } = useQuery({
+    queryKey: ['fighter-skill-access', fighter.fighter_id],
+    queryFn: async () => {
+      const res = await fetch(`/api/fighters/skill-access?fighterId=${encodeURIComponent(fighter.fighter_id)}`);
+      if (!res.ok) throw new Error('Failed to load skill access');
+      const data = (await res.json()) as {
+        skill_access?: { skill_type_id: string; skill_type_name: string; access_level: string | null; override_access_level: string | null }[];
+      };
+      const access = (data.skill_access ?? []).find((a) => {
+        const level = a.override_access_level ?? a.access_level;
+        return isLegendaryNameSkillSet(a.skill_type_name, editionSlug) && !!level && level !== 'denied';
+      });
+      return access?.skill_type_id ?? null;
+    },
+    enabled: !!gangFighter && hasCumulativeXp(editionSlug),
+  });
   const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
     fighter.session_record?.conditions ?? []
   );
@@ -362,6 +389,11 @@ export default function FighterActionModal({
               {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
             </Button>
           </div>
+          {legendaryNameSkillTypeId && (
+            <Button onClick={() => setShowLegendaryNameModal(true)} variant="outline" className="w-full">
+              Add Legendary Name
+            </Button>
+          )}
           {sessionInjuries.length > 0 && (
             <div className="space-y-2 border-t pt-3 text-left">
               <h4 className="text-sm font-medium text-neutral-500">
@@ -528,6 +560,15 @@ export default function FighterActionModal({
           selected={entriesFor(openWeaponCondition.key)}
           onClose={() => setWeaponConditionKey(null)}
           onConfirm={(targets) => setWeaponTargets(openWeaponCondition, targets)}
+        />
+      )}
+
+      {showLegendaryNameModal && gangFighter && legendaryNameSkillTypeId && (
+        <LegendaryNameModal
+          fighterId={fighter.fighter_id}
+          fighterName={gangFighter.fighter_name}
+          skillTypeId={legendaryNameSkillTypeId}
+          onClose={() => setShowLegendaryNameModal(false)}
         />
       )}
 
