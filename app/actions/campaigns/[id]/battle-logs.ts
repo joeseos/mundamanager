@@ -946,7 +946,8 @@ export async function generateChallengeRound(
 
 /**
  * Renumber a round's open challenges in `battleIds` order, the order the
- * arbitrator set for issuing them. Played battles keep their number.
+ * arbitrator set for issuing them. Only open challenges are ordered, so
+ * played battles keep their old number.
  */
 export async function reorderChallengeRound(
   campaignId: string,
@@ -958,6 +959,19 @@ export async function reorderChallengeRound(
 
     if (!(await checkCampaignArbitrator(user.id, campaignId))) {
       return { success: false, error: 'Only the campaign arbitrator can reorder a challenge round' };
+    }
+
+    // Refuse a stale order (a challenge played or deleted since the modal opened)
+    // rather than renumber only part of the round.
+    const { count, error: countError } = await supabase
+      .from('campaign_battles')
+      .select('id', { count: 'exact', head: true })
+      .in('id', battleIds)
+      .eq('campaign_id', campaignId)
+      .neq('status', 'played');
+    if (countError) throw countError;
+    if (count !== battleIds.length) {
+      return { success: false, error: 'The round has changed. Reopen Challenge Round and try again.' };
     }
 
     const results = await Promise.all(
