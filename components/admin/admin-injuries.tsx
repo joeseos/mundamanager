@@ -35,16 +35,16 @@ export function AdminInjuriesGlitchesModal({ onClose }: AdminInjuriesGlitchesMod
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fighterEffects, setFighterEffects] = useState<FighterEffectType[]>([]);
 
-  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<FighterEffectCategory[]>({
-    queryKey: ['admin-injury-categories'],
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery({
+    queryKey: ['admin-fighter-effect-categories'],
     queryFn: async () => {
       const response = await fetch('/api/admin/fighter-effects?categories=true');
       if (!response.ok) throw new Error('Failed to fetch categories');
-      const data = await response.json();
-      return data.filter(
-        (cat: FighterEffectCategory) => cat.category_name === 'injuries' || cat.category_name === 'rig-glitches'
-      );
+      return response.json() as Promise<FighterEffectCategory[]>;
     },
+    select: (data) => data.filter(
+      (cat) => cat.category_name === 'injuries' || cat.category_name === 'rig-glitches'
+    ),
     staleTime: 5 * 60 * 1000,
   });
 

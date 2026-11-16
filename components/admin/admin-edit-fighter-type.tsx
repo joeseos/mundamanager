@@ -360,7 +360,7 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
   });
 
   const { data: gangSubtypeList = [] } = useQuery<Array<{ id: string; subtype: string; edition_id?: string | null }>>({
-    queryKey: ['admin-gang-subtypes'],
+    queryKey: ['gang-subtype-types'],
     queryFn: async () => {
       const response = await fetch('/api/gang-subtype-types');
       if (!response.ok) throw new Error('Failed to fetch gang subtypes');
