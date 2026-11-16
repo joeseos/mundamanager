@@ -425,7 +425,7 @@ export default function CampaignTerritoryList({
         // Group uncontrolled territories by name, ruined status, and ref
         // so territories with different playing cards (or descriptions or credits) are listed separately.
         const descriptionKey = (territory.description ?? '').trim();
-        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}|${territory.playing_card ?? ''}|${descriptionKey}|${territory.credits ?? ''}`;
+        const key = `${territory.territory_name}|${territory.ruined ? 'ruined' : 'normal'}|${territory.playing_card ?? ''}|${descriptionKey}|${territory.credits ?? ''}|${territory.controlled_gang_type_id ?? ''}|${territory.controlled_credits ?? ''}`;
         if (uncontrolledTerritories[key]) {
           uncontrolledTerritories[key].count++;
           uncontrolledTerritories[key].territories.push(territory);
@@ -630,7 +630,7 @@ export default function CampaignTerritoryList({
               </tr>
             ) : (
               sortedDisplayItems.map((item, index) => (
-                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}-${(item.territory.description ?? '').trim()}-${item.territory.credits ?? ''}`}
+                <tr key={item.type === 'controlled' ? item.territory.id : `uncontrolled-${item.territory.territory_name}-${item.territory.ruined ? 'ruined' : 'normal'}-${item.territory.playing_card ?? ''}-${(item.territory.description ?? '').trim()}-${item.territory.credits ?? ''}-${item.territory.controlled_gang_type_id ?? ''}-${item.territory.controlled_credits ?? ''}`}
                   className={`border-b ${index === sortedDisplayItems.length - 1 ? 'last:border-0' : ''}`}>
                   <td className="w-11 min-w-[2.75rem] px-1 py-2 text-center align-middle">
                     <span className="text-gray-400 inline-block w-10 text-center">

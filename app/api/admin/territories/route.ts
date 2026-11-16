@@ -67,9 +67,16 @@ export async function POST(request: Request) {
       );
     }
 
-    if (normalisedCredits === undefined || normalisedControlledCredits === undefined) {
+    if (normalisedCredits === undefined) {
       return NextResponse.json(
         { error: 'credits must be a number' },
+        { status: 400 }
+      );
+    }
+
+    if (normalisedControlledCredits === undefined) {
+      return NextResponse.json(
+        { error: 'controlled_credits must be a number' },
         { status: 400 }
       );
     }

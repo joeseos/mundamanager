@@ -39,6 +39,7 @@ interface GangType {
   id: string;
   gang_type: string;
   edition_id?: string | null;
+  parent_gang_type_id?: string | null;
 }
 
 interface CampaignTriumph {
@@ -1197,6 +1198,7 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
                       value={territoryControlledGangTypeId}
                       onValueChange={setTerritoryControlledGangTypeId}
                       options={gangTypes
+                        .filter(gangType => !gangType.parent_gang_type_id)
                         .filter(gangType => !territoryEditionId || gangType.edition_id === territoryEditionId)
                         .map(gangType => ({ value: gangType.id, label: gangType.gang_type }))}
                       placeholder="Select a gang type"

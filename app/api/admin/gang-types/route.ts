@@ -4,7 +4,7 @@ import { checkAdmin } from "@/utils/auth";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { invalidateGangTypesCatalog } from '@/utils/cache-tags';
 
-const GANG_TYPE_LIST_COLUMNS = 'id, gang_type, edition_id';
+const GANG_TYPE_LIST_COLUMNS = 'id, gang_type, edition_id, parent_gang_type_id';
 
 const GANG_TYPE_COLUMNS =
   'id, gang_type, alignment, is_hidden, affiliation, trading_post_type_id, gang_origin_category_id, parent_gang_type_id, edition_id';

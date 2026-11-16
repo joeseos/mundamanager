@@ -128,7 +128,6 @@ export default function TerritoryEditModal({
   const [controlledGangTypeId, setControlledGangTypeId] = useState(currentControlledGangTypeId ?? '');
   const [controlledCredits, setControlledCredits] = useState(currentControlledCredits?.toString() ?? '');
 
-  // Members only need the name of the controlling gang type, managers the full list
   const { data: gangTypes = [] } = useQuery<GangTypeRow[]>({
     queryKey: ['gang-types'],
     queryFn: async () => {
@@ -136,7 +135,7 @@ export default function TerritoryEditModal({
       if (!response.ok) throw new Error('Failed to fetch gang types');
       return response.json();
     },
-    enabled: isOpen && (canManage || !!currentControlledGangTypeId),
+    enabled: isOpen && canManage,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -367,12 +366,12 @@ export default function TerritoryEditModal({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-muted-foreground mb-1">
-            Controlled by
-          </label>
-          {canManage ? (
+      {canManage && (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Controlled by
+            </label>
             <Combobox
               value={controlledGangTypeId}
               onValueChange={setControlledGangTypeId}
@@ -380,17 +379,11 @@ export default function TerritoryEditModal({
               placeholder="Select a gang type"
               clearable
             />
-          ) : (
-            <p className="text-sm text-foreground py-2">
-              {gangTypes.find((row) => row.id === currentControlledGangTypeId)?.gang_type ?? '-'}
-            </p>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-muted-foreground mb-1">
-            Controlled credits
-          </label>
-          {canManage ? (
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-muted-foreground mb-1">
+              Controlled credits
+            </label>
             <Input
               type="number"
               className="w-full"
@@ -398,11 +391,9 @@ export default function TerritoryEditModal({
               value={controlledCredits}
               onChange={(e) => setControlledCredits(e.target.value)}
             />
-          ) : (
-            <p className="text-sm text-foreground py-2">{currentControlledCredits ?? '-'}</p>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center space-x-2">
         <Checkbox
