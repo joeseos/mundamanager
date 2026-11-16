@@ -149,14 +149,13 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     if (availableSkillsError) toast.error('Failed to load skills');
   }, [availableSkillsError]);
 
-  // N26: a Leader or Champion picks a Legendary Name as their free starting skill (+0);
-  // one gained for earning 5+ XP in one battle adds 5 to the fighter's worth. Both are
-  // free, so the server never takes the cost from the gang.
-  const inLegendaryNames = isLegendaryNameSkillSet(
-    categories.find((c) => c.id === selectedCategory)?.name ?? '',
-    editionSlug
-  );
-  const isLegendaryName = inLegendaryNames && !isCustomSkillSelected;
+  // N26: a Leader or Champion picks a Legendary Name as their free starting skill (+0).
+  // After that, one gained for earning 5+ XP in one battle adds 5 to the fighter's worth.
+  // Both are free, so the server never takes the cost from the gang.
+  const inEarnedLegendaryNames =
+    !freeSkill &&
+    isLegendaryNameSkillSet(categories.find((c) => c.id === selectedCategory)?.name ?? '', editionSlug);
+  const isEarnedLegendaryName = inEarnedLegendaryNames && !isCustomSkillSelected;
 
   const queryClient = useQueryClient();
 
@@ -181,7 +180,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onSkillAdded(variables.skill_id || variables.custom_skill_id || '', skillName, variables.credits_increase, variables.is_advance);
 
       // Optimistically deduct gang credits for non-advancement purchases
-      const creditsDeducted = !variables.is_advance && !isLegendaryName ? variables.credits_increase : 0;
+      const creditsDeducted = !variables.is_advance && !isEarnedLegendaryName ? variables.credits_increase : 0;
       if (creditsDeducted > 0) {
         onGangCreditsUpdate?.(-creditsDeducted);
       }
@@ -335,7 +334,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
               const skill = skillsInSet?.find((s) => s.skill_id === v);
               setSelectedSkill(v);
               setIsCustomSkillSelected(skill?.is_custom ?? false);
-              setEditableCost(inLegendaryNames && !skill?.is_custom ? (freeSkill ? 0 : 5) : skill?.cost || 0);
+              setEditableCost(inEarnedLegendaryNames && !skill?.is_custom ? 5 : skill?.cost || 0);
             }}
             placeholder="Select a skill"
             options={skillComboboxOptions}
@@ -343,10 +342,10 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
           />
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
-          {selectedSkill && (isLegendaryName || (skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0) && (
+          {selectedSkill && (isEarnedLegendaryName || (skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0) && (
             <div className="space-y-1 mt-2">
               <label className="text-sm font-medium">
-                {isLegendaryName
+                {isEarnedLegendaryName
                   ? 'Credits Value Increase'
                   : `Cost${gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}`}
               </label>
@@ -364,7 +363,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
                 placeholder="0"
                 className="w-full p-2 border rounded-sm"
               />
-              {isLegendaryName && (
+              {isEarnedLegendaryName && (
                 <p className="text-xs text-muted-foreground">
                   5 for a Legendary Name gained by earning 5+ XP in one battle.
                 </p>
@@ -384,7 +383,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (!isLegendaryName && editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
+      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (!isEarnedLegendaryName && editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
     />
   );
 }
