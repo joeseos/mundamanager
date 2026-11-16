@@ -23,7 +23,8 @@ import {
   addSkillAdvancement, 
   deleteAdvancement 
 } from '@/app/actions/fighter-advancement';
-import { LuTrash2, LuTriangleAlert } from 'react-icons/lu';
+import { LuTrash2 } from 'react-icons/lu';
+import { HiExclamationTriangle } from 'react-icons/hi2';
 import Link from 'next/link';
 import { hatredTargetHref } from '@/utils/injuryTarget';
 import {
@@ -652,12 +653,6 @@ export function SkillsList({
     <>
       <List
         title="Skills"
-        description={free_skill && (
-          <div className="flex items-center gap-2 text-sm text-amber-700">
-            <LuTriangleAlert className="h-4 w-4" />
-            Starting skill missing.
-          </div>
-        )}
         items={skillsArray}
         rowClassName={(item) => (isOutOfLoadout(item) ? 'text-muted-foreground' : '')}
         columns={[
@@ -789,6 +784,12 @@ export function SkillsList({
         addButtonDisabled={!userPermissions.canEdit}
         addButtonText="Add"
         emptyMessage="No skills yet."
+        footer={free_skill && (
+          <div className="flex items-center justify-center gap-2 text-amber-700">
+            <HiExclamationTriangle className="h-4 w-4" />
+            Starting skill missing.
+          </div>
+        )}
       />
 
       {skillToDelete && (
