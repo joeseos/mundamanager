@@ -11,6 +11,7 @@ interface SetSkill {
   skill_id: string;
   skill_name: string;
   available: boolean;
+  usable?: boolean;
 }
 
 /** N26: a fighter who earns 5+ XP in a battle may gain a Legendary Name for free (+5 credits, not an Advancement). */
@@ -18,11 +19,13 @@ export function LegendaryNameModal({
   fighterId,
   fighterName,
   skillTypeId,
+  onAdded,
   onClose,
 }: {
   fighterId: string;
   fighterName: string;
   skillTypeId: string;
+  onAdded?: () => void;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -48,6 +51,7 @@ export function LegendaryNameModal({
     onSuccess: () => {
       toast.success(`${fighterName} gained a Legendary Name`);
       queryClient.invalidateQueries({ queryKey: ['fighter-skill-access', fighterId] });
+      onAdded?.();
       onClose();
     },
     onError: (error) => toast.error(error.message || 'Failed to add the Legendary Name'),
@@ -73,7 +77,7 @@ export function LegendaryNameModal({
         </p>
         <Combobox
           options={skills
-            .filter((s) => s.available)
+            .filter((s) => s.available && s.usable !== false)
             .sort((a, b) => a.skill_name.localeCompare(b.skill_name))
             .map((s) => ({ value: s.skill_id, label: s.skill_name }))}
           value={skillId}

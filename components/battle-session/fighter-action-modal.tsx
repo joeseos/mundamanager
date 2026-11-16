@@ -259,15 +259,18 @@ export default function FighterActionModal({
   const isSpyrer = gangFighter?.is_spyrer ?? false;
 
   // N26 Legendary Names: offered to fighters whose type (or override) gives access to the set.
+  // Same key and response as the Skill Access modal, so its edits refresh this too.
   const { data: legendaryNameSkillTypeId } = useQuery({
     queryKey: ['fighter-skill-access', fighter.fighter_id],
     queryFn: async () => {
       const res = await fetch(`/api/fighters/skill-access?fighterId=${encodeURIComponent(fighter.fighter_id)}`);
       if (!res.ok) throw new Error('Failed to load skill access');
-      const data = (await res.json()) as {
-        skill_access?: { skill_type_id: string; skill_type_name: string; access_level: string | null; override_access_level: string | null }[];
-      };
-      const access = (data.skill_access ?? []).find((a) => {
+      return res.json();
+    },
+    select: (data: {
+      skill_access?: { skill_type_id: string; skill_type_name: string; access_level: string | null; override_access_level: string | null }[];
+    }) => {
+      const access = data.skill_access?.find((a) => {
         const level = a.override_access_level ?? a.access_level;
         return isLegendaryNameSkillSet(a.skill_type_name, editionSlug) && !!level && level !== 'denied';
       });
@@ -568,6 +571,7 @@ export default function FighterActionModal({
           fighterId={fighter.fighter_id}
           fighterName={gangFighter.fighter_name}
           skillTypeId={legendaryNameSkillTypeId}
+          onAdded={onBroadcast}
           onClose={() => setShowLegendaryNameModal(false)}
         />
       )}

@@ -736,7 +736,7 @@ export async function addEarnedLegendaryName(params: {
     supabase.from('skills').select('skill_types(name)').eq('id', params.skill_id).single(),
     supabase
       .from('fighter_skills')
-      .select('skills(skill_types(name)), custom_skills(skill_types(name))')
+      .select('skill_id, skills(skill_types(name)), custom_skills(skill_types(name))')
       .eq('fighter_id', params.fighter_id),
   ]);
 
@@ -751,6 +751,9 @@ export async function addEarnedLegendaryName(params: {
     return { success: false, error: 'This skill is not a Legendary Name' };
   }
 
+  if (heldSkills?.some((row) => row.skill_id === params.skill_id)) {
+    return { success: false, error: 'This fighter already has this Legendary Name' };
+  }
   const held = (heldSkills ?? []).filter(
     (row) => inLegendaryNames(row.skills) || inLegendaryNames(row.custom_skills)
   ).length;
