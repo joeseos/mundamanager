@@ -41,8 +41,6 @@ export default function TerritoryList({
 }: TerritoryListProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
   const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
-  const [_campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
-  const [isLoading] = useState(false);
   const [isAdding, setIsAdding] = useState<string | null>(null);
   const [newTerritoryName, setNewTerritoryName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -53,12 +51,6 @@ export default function TerritoryList({
   if (campaignTypeId !== prevCampaignTypeId) {
     setPrevCampaignTypeId(campaignTypeId);
     setSelectedTypes([campaignTypeId]);
-  }
-
-  const [prevExistingTerritories, setPrevExistingTerritories] = useState(existingCampaignTerritories);
-  if (existingCampaignTerritories !== prevExistingTerritories) {
-    setPrevExistingTerritories(existingCampaignTerritories);
-    setCampaignTerritories(existingCampaignTerritories);
   }
 
   const toggle = (id: string) => (prev: string[]) =>
@@ -76,19 +68,12 @@ export default function TerritoryList({
     try {
       const result = await addTerritoryToCampaign({
         campaignId,
-        territoryId: territory.territory_id || territory.id,
+        territoryId: territory.id,
       });
 
       if (!result.success) {
         throw new Error(result.error);
       }
-
-      const newTerritory = {
-        territory_id: territory.territory_id || territory.id,
-        territory_name: territory.territory_name
-      };
-
-      setCampaignTerritories(prev => [...prev, newTerritory]);
 
       if (onTerritoryAdd && result.data) {
         onTerritoryAdd(result.data as CampaignTerritoryRow);
@@ -117,13 +102,6 @@ export default function TerritoryList({
         throw new Error(result.error);
       }
 
-      const newTerritory = {
-        territory_id: null,
-        territory_name: newTerritoryName.trim()
-      };
-
-      setCampaignTerritories(prev => [...prev, newTerritory]);
-
       if (onTerritoryAdd && result.data) {
         onTerritoryAdd(result.data as CampaignTerritoryRow);
       }
@@ -146,10 +124,7 @@ export default function TerritoryList({
       if (territory.controlled_gang_type && !selectedHouses.includes(territory.controlled_gang_type)) {
         return false;
       }
-      if (territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id)) {
-        return true;
-      }
-      return false;
+      return !!territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id);
     })
     .sort((a, b) => {
       const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name?.toLowerCase() || '';
@@ -165,20 +140,8 @@ export default function TerritoryList({
       return a.territory_name.localeCompare(b.territory_name);
     });
 
-  const allFilteredTerritories = filteredTerritories;
-
-  const getTerritoryCount = (territory: CatalogTerritory) => {
-    return existingCampaignTerritories.filter(existing => {
-      if (existing.territory_id === territory.territory_id) {
-        return true;
-      }
-      return false;
-    }).length;
-  };
-
-  if (isLoading) {
-    return <div className="text-center py-1">Loading Territories...</div>;
-  }
+  const getTerritoryCount = (territory: CatalogTerritory) =>
+    existingCampaignTerritories.filter(existing => existing.territory_id === territory.id).length;
 
   return (
     <div className="space-y-4">
@@ -262,7 +225,7 @@ export default function TerritoryList({
         </div>
       )}
 
-      {allFilteredTerritories.length > 0 ? (
+      {filteredTerritories.length > 0 ? (
         <div className="overflow-x-auto rounded-md border">
           <table className="w-full text-xs md:text-sm">
             <thead>
@@ -276,7 +239,7 @@ export default function TerritoryList({
               </tr>
             </thead>
             <tbody>
-              {allFilteredTerritories.map((territory) => {
+              {filteredTerritories.map((territory) => {
                 const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
                 const typeName = territory.campaign_type_id ? (type?.campaign_type_name ?? 'Unknown') : 'All Types';
                 const territoryCount = getTerritoryCount(territory);

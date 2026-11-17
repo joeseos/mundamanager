@@ -86,7 +86,7 @@ export const getAllTerritories = async () => {
   return unstable_cache(
     async () => {
       const territories = await getAppDb().query.territories.findMany({
-        columns: { id: true, territory_name: true, campaign_type_id: true, playing_card: true },
+        columns: { id: true, territory_name: true, campaign_type_id: true },
         orderBy: (territory, { asc }) => asc(territory.territory_name),
         with: {
           editions: { columns: { slug: true } },
@@ -95,7 +95,6 @@ export const getAllTerritories = async () => {
       });
       return territories.map(({ controlled_gang_type, ...territory }) => ({
         ...withEditionSlug(territory),
-        territory_id: territory.id,
         controlled_gang_type: controlled_gang_type?.gang_type ?? null
       }));
     },
