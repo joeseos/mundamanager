@@ -67,8 +67,9 @@ export function useCampaignGangFighterOptions(
 /**
  * The other gangs, with their fighters, across a fighter's campaigns, for the
  * captured-by and hatred target pickers. One query per campaign, under the key
- * the Add XP and OOA history modals use. Empty while not enabled, even when
- * those queries are cached.
+ * the Add XP and OOA history modals use; staleTime 0 refetches on every enable,
+ * since recruits and new campaign gangs don't invalidate it. Empty while not
+ * enabled, even when those queries are cached.
  */
 export function useOtherCampaignGangs(campaignIds: string[], gangId: string, enabled: boolean) {
   const combine = useCallback(
@@ -89,7 +90,7 @@ export function useOtherCampaignGangs(campaignIds: string[], gangId: string, ena
       queryKey: ['campaign-gangs-fighters', gangId, campaignId],
       queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId }),
       enabled,
-      staleTime: 60_000,
+      staleTime: 0,
     })),
     combine,
   });

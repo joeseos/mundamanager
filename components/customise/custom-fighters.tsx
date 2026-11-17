@@ -382,7 +382,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   // vehicles fighter types instead, so this is false there by construction.
   const isCrew = selectedFighterSubtypes.includes('Crew');
 
-  // Dropdown data for the Add and Edit modals
+  // Dropdown data for the Add and Edit modals. staleTime 0 on the lists that include
+  // the user's custom items: the other Customise sections change those without invalidating.
   const isFormOpen = isAddModalOpen || !!editModalData;
 
   const { data: gangTypes = NO_GANG_TYPES, error: gangTypesError } = useQuery({
@@ -394,6 +395,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       return data.filter(gt => sameEditionForDisplay(gt.edition_slug, editionSlug));
     },
     enabled: isFormOpen,
+    staleTime: 0,
   });
 
   const { data: fighterSubtypes = NO_FIGHTER_SUBTYPES, error: fighterSubtypesError } = useQuery<FighterSubtype[], Error, FighterSubtype[]>({
@@ -416,6 +418,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     select: (data): SkillTypeItem[] => data.map(type => ({ id: type.id, skill_type: type.name, is_custom: type.is_custom ?? false })),
     enabled: isFormOpen,
+    staleTime: 0,
   });
 
   const { data: equipment = NO_EQUIPMENT, error: equipmentError } = useQuery({
@@ -427,6 +430,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       return data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug));
     },
     enabled: isFormOpen,
+    staleTime: 0,
   });
 
   const { data: skillsInSet = NO_SKILLS, error: skillsError } = useQuery({
@@ -444,13 +448,14 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     enabled: !!selectedSkillType,
   });
 
+  // Gated on the form being open: a disabled query still returns a cached error
   useEffect(() => {
-    if (gangTypesError) toast.error('Failed to load gang types');
-  }, [gangTypesError]);
+    if (isFormOpen && gangTypesError) toast.error('Failed to load gang types');
+  }, [isFormOpen, gangTypesError]);
 
   useEffect(() => {
-    if (fighterSubtypesError || skillTypesError || equipmentError) toast.error('Failed to load some dropdown options');
-  }, [fighterSubtypesError, skillTypesError, equipmentError]);
+    if (isFormOpen && (fighterSubtypesError || skillTypesError || equipmentError)) toast.error('Failed to load some dropdown options');
+  }, [isFormOpen, fighterSubtypesError, skillTypesError, equipmentError]);
 
   useEffect(() => {
     if (skillsError) toast.error('Failed to load skills');

@@ -9,15 +9,14 @@ import { toast } from 'sonner';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
-import { useMutation, useQueries, type UseQueryResult } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
+import { useOtherCampaignGangs } from '@/utils/campaign-gang-fighter-options';
 import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
-
-type CampaignGang = { id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string };
 
 const CopyFighterModal = dynamic(() => import('@/components/fighter/copy-fighter-modal'), { ssr: false });
 
@@ -122,32 +121,7 @@ export function FighterActions({
     }
   }
 
-  // The other gangs across the fighter's campaigns, under the key the Create Battle modal uses
-  const combineCampaignGangs = useCallback(
-    (results: UseQueryResult<CampaignGang[]>[]) => {
-      const gangs = new Map<string, CampaignGang>();
-      for (const g of results.flatMap((result) => result.data ?? [])) {
-        if (g.id !== gang.id && !gangs.has(g.id)) gangs.set(g.id, g);
-      }
-      return { campaignGangs: [...gangs.values()], isFetchingGangs: results.some((result) => result.isLoading) };
-    },
-    [gang.id]
-  );
-
-  const { campaignGangs, isFetchingGangs } = useQueries({
-    queries: campaignIds.map((campaignId) => ({
-      queryKey: ['campaign-gangs', campaignId],
-      queryFn: async () => {
-        const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
-        if (!res.ok) throw new Error('Failed to fetch campaign gangs');
-        return res.json() as Promise<CampaignGang[]>;
-      },
-      enabled: shouldFetchGangs,
-      staleTime: 0,
-    })),
-    combine: combineCampaignGangs,
-  });
-
+  const { gangs: campaignGangs, isLoading: isFetchingGangs } = useOtherCampaignGangs(campaignIds, gang.id, shouldFetchGangs);
 
   const isMeatEnabled = useCallback(() => {
     return fighter?.campaigns?.some(campaign =>
@@ -547,7 +521,12 @@ export function FighterActions({
                       options={campaignGangs
                         .slice()
                         .sort((a, b) => a.name.localeCompare(b.name))
-                        .map(g => buildGangComboboxOption(g))
+                        .map(g => buildGangComboboxOption({
+                          id: g.gang_id,
+                          name: g.name,
+                          gang_colour: g.gang_colour,
+                          owner_username: g.owner_username,
+                        }))
                       }
                       value={selectedCapturingGangId}
                       onValueChange={setSelectedCapturingGangId}

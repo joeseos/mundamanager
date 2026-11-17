@@ -711,9 +711,10 @@ export function InjuriesList({
     enabled: isAddModalOpen,
   });
 
+  // Gated on the modal: a disabled query still returns a cached error
   useEffect(() => {
-    if (injuriesError) toast.error(is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types');
-  }, [injuriesError, is_spyrer]);
+    if (isAddModalOpen && injuriesError) toast.error(is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types');
+  }, [isAddModalOpen, injuriesError, is_spyrer]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
@@ -973,6 +974,7 @@ export function InjuriesList({
           buttonText="Roll D66"
           disabled={
             !userPermissions.canEdit ||
+            isLoadingInjuries ||
             logInjuryRollMutation.isPending ||
             injuryRollCooldown
           }
