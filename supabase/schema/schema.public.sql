@@ -2049,691 +2049,7 @@ CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NUL
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
-
-    -- =======================================================================
-    -- 1. GANG CONTEXT (always exactly 1 row)
-    -- =======================================================================
-    WITH gang_data AS (
-        SELECT
-            g.gang_origin_id,
-            g.gang_subtypes,
-            g.alignment,
-            g.custom_gang_type_id,
-            cg.campaign_type_allegiance_id,
-            fgl.fighter_type_id AS legacy_ft_id,
-            ga.fighter_type_id  AS affiliation_ft_id,
-            -- Empty for gang and vehicle calls, so a subtype rule matches nothing.
-            -- A fighter with no subtypes of its own ('[]', never NULL) uses its type's.
-            COALESCE(NULLIF(f.fighter_subtypes, '[]'::jsonb), ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
-            COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
-        FROM (SELECT 1) AS _dummy
-        LEFT JOIN gangs g ON g.id = $8
-        LEFT JOIN gang_types gt ON gt.id = g.gang_type_id
-        LEFT JOIN custom_gang_types cgt ON cgt.id = g.custom_gang_type_id
-        LEFT JOIN fighter_types ft_sub ON ft_sub.id = $3
-        LEFT JOIN custom_fighter_types cft_sub ON cft_sub.id = $3
-        LEFT JOIN LATERAL (
-            SELECT cg2.campaign_type_allegiance_id
-            FROM campaign_gangs cg2
-            WHERE cg2.gang_id = $8
-            LIMIT 1
-        ) cg ON true
-        LEFT JOIN fighters f ON f.id = $6 AND f.gang_id = g.id
-        LEFT JOIN fighter_gang_legacy fgl ON f.fighter_gang_legacy_id = fgl.id AND $11
-        LEFT JOIN gang_affiliation ga ON g.gang_affiliation_id = ga.id
-    ),
-
-    -- =======================================================================
-    -- 2. GANG'S OWN TRADING POST TYPE (cached once)
-    -- =======================================================================
-    gang_tp AS (
-        SELECT gt.trading_post_type_id
-        FROM gang_types gt
-        WHERE gt.id = $1
-          AND (
-              $9 IS NULL
-              OR gt.trading_post_type_id = ANY($9)
-          )
-    ),
-
-    -- =======================================================================
-    -- 3. TRADING POST ACCESS — computed once per equipment_id
-    -- =======================================================================
-    tp_access AS (
-        -- Gang's own trading post
-        SELECT tpe.equipment_id, tpt.trading_post_name
-        FROM trading_post_equipment tpe
-        JOIN gang_tp ON tpe.trading_post_type_id = gang_tp.trading_post_type_id
-        JOIN trading_post_types tpt ON tpt.id = tpe.trading_post_type_id
-
-        UNION
-
-        -- Campaign authorised trading posts
-        SELECT tpe.equipment_id, tpt.trading_post_name
-        FROM trading_post_equipment tpe
-        JOIN trading_post_types tpt ON tpt.id = tpe.trading_post_type_id
-        WHERE $9 IS NOT NULL
-          AND array_length($9, 1) > 0
-          AND tpe.trading_post_type_id = ANY($9)
-
-        UNION
-
-        -- Custom trading post equipment (official equipment only)
-        SELECT ctpe.equipment_id, ctp.custom_trading_post_name
-        FROM custom_trading_post_equipment ctpe
-        JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
-        WHERE ctpe.equipment_id IS NOT NULL
-          AND $10 IS NOT NULL AND array_length($10, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($10)
-    ),
-
-    tp_summary AS (
-        SELECT
-            ta.equipment_id,
-            true AS has_access,
-            COALESCE(
-                array_agg(DISTINCT ta.trading_post_name)
-                    FILTER (WHERE ta.trading_post_name IS NOT NULL),
-                '{}'::text[]
-            ) AS tp_names
-        FROM tp_access ta
-        -- Gang-exclusive allow-list: an item flagged "available only to this gang"
-        -- (an exclusive gang-type availability row) is hidden from the Trading Post
-        -- of gangs that are not on its allow-list. Scoped to Trading Post access
-        -- only, so the fighter's-list path is unaffected.
-        WHERE NOT EXISTS (
-                  SELECT 1 FROM equipment_availability xa
-                  WHERE xa.equipment_id = ta.equipment_id
-                    AND xa.exclusive AND xa.gang_type_id IS NOT NULL
-              )
-           OR EXISTS (
-                  SELECT 1 FROM equipment_availability xa
-                  WHERE xa.equipment_id = ta.equipment_id
-                    AND xa.exclusive AND xa.gang_type_id = $1
-              )
-        GROUP BY ta.equipment_id
-    ),
-
-    -- =======================================================================
-    -- 4. EQUIPMENT IDS WITH ORIGIN-SPECIFIC DISCOUNTS (for branching logic)
-    -- =======================================================================
-    origin_discount_equip AS (
-        SELECT DISTINCT ed.equipment_id
-        FROM equipment_discounts ed
-        CROSS JOIN gang_data gd
-        WHERE gd.gang_origin_id IS NOT NULL
-          AND ed.gang_origin_id = gd.gang_origin_id
-    ),
-
-    -- =======================================================================
-    -- 5. BEST ADJUSTED COST — computed once per equipment_id
-    --    Replaces 2 correlated subqueries for adjusted_cost.
-    -- =======================================================================
-    best_adjusted_cost AS (
-        SELECT
-            ed.equipment_id,
-            MIN(ed.adjusted_cost::numeric)
-                FILTER (WHERE ed.adjusted_cost IS NOT NULL) AS best_adjusted_cost,
-            -- Prefer any non-null trade_points override in the same discount scope.
-            -- Cheapest numerically ("E"/non-numeric → 0); text ASC as stable tie-break.
-            (ARRAY_AGG(
-                ed.trade_points
-                ORDER BY
-                    CASE
-                        WHEN upper(btrim(ed.trade_points)) = 'E' OR btrim(ed.trade_points) = '' THEN 0::numeric
-                        WHEN ed.trade_points ~ '^[0-9]+$' THEN ed.trade_points::numeric
-                        ELSE 0::numeric
-                    END ASC,
-                    ed.trade_points ASC
-            ) FILTER (WHERE ed.trade_points IS NOT NULL))[1] AS best_trade_points
-        FROM equipment_discounts ed
-        CROSS JOIN gang_data gd
-        WHERE
-            (
-                -- Origin-based path: equipment has origin-specific discounts
-                ed.equipment_id IN (SELECT equipment_id FROM origin_discount_equip)
-                AND (
-                    ed.gang_origin_id = gd.gang_origin_id
-                    OR ed.fighter_type_id = $3
-                    OR (gd.legacy_ft_id IS NOT NULL AND ed.fighter_type_id = gd.legacy_ft_id AND $4 = true)
-                    OR (gd.affiliation_ft_id IS NOT NULL AND ed.fighter_type_id = gd.affiliation_ft_id)
-                )
-            )
-            OR
-            (
-                -- Gang-type-based path: no origin-specific discounts
-                ed.equipment_id NOT IN (SELECT equipment_id FROM origin_discount_equip)
-                AND (
-                    (ed.gang_type_id = $1 AND ed.fighter_type_id IS NULL)
-                    OR ed.fighter_type_id = $3
-                    OR (gd.legacy_ft_id IS NOT NULL AND ed.fighter_type_id = gd.legacy_ft_id AND $4 = true)
-                    OR (gd.affiliation_ft_id IS NOT NULL AND ed.fighter_type_id = gd.affiliation_ft_id)
-                )
-            )
-        GROUP BY ed.equipment_id
-    ),
-
-    -- =======================================================================
-    -- 6. CUSTOM TP OVERRIDES — per official equipment_id
-    --    Resolves cost/availability overrides and adjusted cost from active
-    --    custom TPs. Custom TP values take precedence over official values.
-    --    Tiebreak: lowest sort_order, then earliest created_at.
-    -- =======================================================================
-    custom_tp_override AS (
-        SELECT
-            ctpe.equipment_id,
-            MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
-            (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
-            (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
-            (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
-            (array_agg(ctpe.cost_reputation ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_reputation))[1] AS cost_reputation,
-            (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
-            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
-            bool_or(ctpe.banned) AS banned
-        FROM custom_trading_post_equipment ctpe
-        CROSS JOIN gang_data gd
-        LEFT JOIN custom_trading_post_pricing p
-            ON p.custom_trading_post_equipment_id = ctpe.id
-            AND (p.gang_type_id IS NULL OR p.gang_type_id = $1)
-            AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
-            AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
-            AND (p.fighter_type_id IS NULL)
-        LEFT JOIN custom_trading_post_availability a
-            ON a.custom_trading_post_equipment_id = ctpe.id
-            AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
-            AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
-            AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
-            AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
-            AND (a.alignment IS NULL OR a.alignment = gd.alignment)
-        WHERE ctpe.equipment_id IS NOT NULL
-          AND $10 IS NOT NULL AND array_length($10, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($10)
-        GROUP BY ctpe.equipment_id
-    ),
-
-    -- =======================================================================
-    -- 7. FIGHTER TYPE EQUIPMENT ROWS THAT CAN MATCH THIS REQUEST
-    --    The main query's join condition, evaluated once. Joined per
-    --    equipment row instead, it fetched every fighter type's rows for each
-    --    item, which is the whole table on every call.
-    -- =======================================================================
-    fte_match AS MATERIALIZED (
-        SELECT fte.id, fte.equipment_id, fte.fighter_type_id, fte.vehicle_type_id
-        FROM fighter_type_equipment fte
-        CROSS JOIN gang_data gd
-        WHERE (fte.fighter_type_id = $3
-               OR fte.vehicle_type_id = $3
-               OR (gd.legacy_ft_id IS NOT NULL
-                   AND (fte.fighter_type_id = gd.legacy_ft_id OR fte.vehicle_type_id = gd.legacy_ft_id)
-                   AND $4 = true)
-               OR (gd.affiliation_ft_id IS NOT NULL
-                   AND (fte.fighter_type_id = gd.affiliation_ft_id OR fte.vehicle_type_id = gd.affiliation_ft_id))
-               -- A subtype rule spanning every gang names no fighter of its own.
-               -- fighter_subtype must be set, or an all-NULL row matches everything.
-               OR (fte.fighter_type_id IS NULL
-                   AND fte.vehicle_type_id IS NULL
-                   AND fte.custom_fighter_type_id IS NULL
-                   AND fte.fighter_subtype IS NOT NULL))
-          AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
-          AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
-          AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
-          AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
-          -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
-          AND NOT fte.excluded
-    ),
-
-    -- =======================================================================
-    -- 8. CUSTOM EQUIPMENT THE CALLER CAN SEE
-    --    The same three sources the custom branch filters on, gathered through
-    --    their indexes so the branch no longer reads every user's custom
-    --    equipment.
-    -- =======================================================================
-    custom_candidates AS MATERIALIZED (
-        SELECT ce.id
-        FROM custom_equipment ce
-        WHERE ce.user_id = auth.uid()
-
-        UNION
-
-        SELECT cs.custom_equipment_id
-        FROM custom_shared cs
-        JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
-        WHERE cg.gang_id = $8
-          AND cs.custom_equipment_id IS NOT NULL
-
-        UNION
-
-        SELECT ctpe.custom_equipment_id
-        FROM custom_trading_post_equipment ctpe
-        WHERE ctpe.custom_equipment_id IS NOT NULL
-          AND $10 IS NOT NULL AND array_length($10, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($10)
-    )
-
-    -- =======================================================================
-    -- MAIN QUERY — regular equipment
-    -- =======================================================================
-    SELECT DISTINCT
-        e.id,
-        e.equipment_name,
-        -- Availability: trading post mode uses base, fighter list uses overrides
-        CASE
-            WHEN $5 = true THEN COALESCE(cto.availability_override, e.availability)
-            ELSE COALESCE(
-                cto.availability_override,
-                (SELECT availability FROM equipment_availability
-                 WHERE gang_origin_id = gd.gang_origin_id AND equipment_id = e.id LIMIT 1),
-                ea_var.availability,
-                ea.availability,
-                e.availability
-            )
-        END AS availability,
-
-        CASE
-            WHEN cto.cost_type_resource_id IS NOT NULL
-              OR cto.cost_campaign_resource_id IS NOT NULL
-              OR cto.cost_reputation THEN e.cost::numeric
-            ELSE COALESCE(cto.cost_override, e.cost::numeric)
-        END AS base_cost,
-
-        -- Adjusted cost: custom TP override wins, then official discounts, then base
-        -- When paying with a resource, use original equipment cost for rating
-        CASE
-            WHEN cto.cost_type_resource_id IS NOT NULL
-              OR cto.cost_campaign_resource_id IS NOT NULL
-              OR cto.cost_reputation THEN e.cost::numeric
-            WHEN cto.adjusted_cost IS NOT NULL THEN cto.adjusted_cost
-            WHEN cto.cost_override IS NOT NULL THEN cto.cost_override
-            WHEN $5 = true THEN e.cost::numeric
-            ELSE COALESCE(bac.best_adjusted_cost, e.cost::numeric)
-        END AS adjusted_cost,
-
-        -- Trade Points: a Trading Post price, so the fighter's-list-only request pays none
-        CASE
-            WHEN $4 = true AND $5 IS NULL THEN '0'
-            ELSE COALESCE(bac.best_trade_points, e.trade_points)
-        END AS trade_points,
-
-        e.equipment_category,
-        e.equipment_type,
-        e.created_at,
-
-        -- Is in fighter's equipment list? (computed once in ftl_flag below)
-        ftl_flag.is_fighter_list AS fighter_type_equipment,
-
-        -- Has trading post access? (tp_summary is gang-exclusivity-aware)
-        COALESCE(tp.has_access, false) AS equipment_tradingpost,
-
-        false AS is_custom,
-
-        -- Weapon profiles
-        COALESCE(
-            (SELECT jsonb_agg(
-                jsonb_build_object(
-                    'id', wp.id,
-                    'profile_name', wp.profile_name,
-                    'range_short', wp.range_short,
-                    'range_long', wp.range_long,
-                    'acc_short', wp.acc_short,
-                    'acc_long', wp.acc_long,
-                    'strength', wp.strength,
-                    'ap', wp.ap,
-                    'damage', wp.damage,
-                    'lethality', wp.lethality,
-                    'ammo', wp.ammo,
-                    'traits', wp.traits,
-                    'sort_order', wp.sort_order
-                ) ORDER BY COALESCE(wp.sort_order, 999), wp.profile_name
-            ) FROM weapon_profiles wp WHERE wp.equipment_id = e.id),
-            '[]'::jsonb
-        ) AS weapon_profiles,
-
-        -- Vehicle upgrade slot
-        CASE
-            WHEN e.equipment_type = 'vehicle_upgrade' THEN (
-                SELECT CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM fighter_effect_types fet2
-                        JOIN fighter_effect_type_modifiers fetm ON fet2.id = fetm.fighter_effect_type_id
-                        WHERE fet2.type_specific_data->>'equipment_id' = e.id::text
-                          AND fetm.stat_name = 'body_slots' AND fetm.default_numeric_value > 0
-                    ) THEN 'Body'
-                    WHEN EXISTS (
-                        SELECT 1 FROM fighter_effect_types fet2
-                        JOIN fighter_effect_type_modifiers fetm ON fet2.id = fetm.fighter_effect_type_id
-                        WHERE fet2.type_specific_data->>'equipment_id' = e.id::text
-                          AND fetm.stat_name = 'drive_slots' AND fetm.default_numeric_value > 0
-                    ) THEN 'Drive'
-                    WHEN EXISTS (
-                        SELECT 1 FROM fighter_effect_types fet2
-                        JOIN fighter_effect_type_modifiers fetm ON fet2.id = fetm.fighter_effect_type_id
-                        WHERE fet2.type_specific_data->>'equipment_id' = e.id::text
-                          AND fetm.stat_name = 'engine_slots' AND fetm.default_numeric_value > 0
-                    ) THEN 'Engine'
-                    ELSE NULL
-                END
-            )
-            ELSE NULL
-        END AS vehicle_upgrade_slot,
-
-        -- Grants equipment
-        CASE
-            WHEN e.grants_equipment IS NOT NULL AND e.grants_equipment->'options' IS NOT NULL THEN
-                jsonb_set(
-                    e.grants_equipment,
-                    '{options}',
-                    COALESCE(
-                        (SELECT jsonb_agg(
-                            opt || jsonb_build_object('equipment_name', COALESCE(eq.equipment_name, 'Unknown'))
-                        )
-                        FROM jsonb_array_elements(e.grants_equipment->'options') opt
-                        LEFT JOIN equipment eq ON eq.id = (opt->>'equipment_id')::uuid),
-                        '[]'::jsonb
-                    )
-                )
-            ELSE e.grants_equipment
-        END AS grants_equipment,
-
-        COALESCE(e.is_editable, false) AS is_editable,
-
-        -- Trading post names (already aggregated in tp_summary)
-        COALESCE(tp.tp_names, '{}'::text[]) AS trading_post_names,
-
-        CASE WHEN cto.cost_reputation THEN 'Reputation'
-             ELSE COALESCE(ctr_res.resource_name, cr_res.resource_name)
-        END AS cost_resource_name,
-        CASE WHEN cto.cost_type_resource_id IS NOT NULL
-               OR cto.cost_campaign_resource_id IS NOT NULL
-               OR cto.cost_reputation
-             THEN cto.cost_resource_amount
-        END AS cost_resource_amount,
-        cto.cost_type_resource_id,
-        cto.cost_campaign_resource_id,
-
-        COALESCE(cto.banned, false) AS banned,
-
-        lim.min_count,
-        lim.max_count
-
-    FROM equipment e
-    CROSS JOIN gang_data gd
-
-    -- Equipment availability joins (unchanged)
-    LEFT JOIN equipment_availability ea
-        ON e.id = ea.equipment_id AND ea.gang_type_id = $1
-    LEFT JOIN equipment_availability ea_var
-        ON e.id = ea_var.equipment_id
-        AND ea_var.gang_subtype_id IS NOT NULL
-        AND gd.gang_subtypes ? ea_var.gang_subtype_id::text
-    LEFT JOIN equipment_availability ea_origin
-        ON e.id = ea_origin.equipment_id
-        AND ea_origin.gang_origin_id IS NOT NULL
-        AND ea_origin.gang_origin_id = gd.gang_origin_id
-
-    -- Fighter type equipment (rows already filtered in fte_match)
-    LEFT JOIN fte_match fte ON fte.equipment_id = e.id
-
-    -- Is this system equipment on the current custom fighter type's equipment list?
-    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
-    LEFT JOIN LATERAL (
-        SELECT true AS is_ftl
-        FROM custom_fighter_type_equipment cfte_sys
-        WHERE cfte_sys.equipment_id = e.id
-          AND cfte_sys.custom_fighter_type_id = $3
-        LIMIT 1
-    ) cftl ON true
-
-    -- Single source of truth for "is this on the fighter's equipment list?"
-    -- Referenced by the output column and the fighter-list filter branches below,
-    -- so the predicate lives in exactly one place.
-    LEFT JOIN LATERAL (
-        SELECT (
-            -- Any matched row counts, including a gang-wide subtype rule,
-            -- which has neither id
-            fte.id IS NOT NULL
-            OR ea_var.id IS NOT NULL
-            OR ea_origin.id IS NOT NULL
-            OR cftl.is_ftl IS NOT NULL
-        )
-        -- ...unless a deny matches. Applied to the whole flag, not just the fighter_type_equipment
-        -- branch, so it also overrides a gang-wide equipment_availability grant as its column
-        -- comment promises. No fighter identity required: a row naming only a gang scope
-        -- withholds the item from every fighter in that gang.
-        AND NOT EXISTS (
-            SELECT 1
-            FROM fighter_type_equipment d
-            WHERE d.equipment_id = e.id
-              AND d.excluded
-              -- Vehicle rows belong to the vehicle admin, which has no deny UI, so a deny
-              -- cannot cancel a grant matched through fte.vehicle_type_id.
-              AND d.vehicle_type_id IS NULL
-              -- Same identity branches as the grant join above: a fighter reaching an equipment
-              -- list through a legacy or affiliation type must be deniable through it too.
-              AND (
-                  d.fighter_type_id IS NULL
-                  OR d.fighter_type_id = $3
-                  OR (gd.legacy_ft_id IS NOT NULL AND d.fighter_type_id = gd.legacy_ft_id AND $4 = true)
-                  OR (gd.affiliation_ft_id IS NOT NULL AND d.fighter_type_id = gd.affiliation_ft_id)
-              )
-              AND (d.gang_origin_id  IS NULL OR d.gang_origin_id = gd.gang_origin_id)
-              AND (d.gang_subtype_id IS NULL OR gd.gang_subtypes ? d.gang_subtype_id::text)
-              AND (d.gang_type_id    IS NULL OR d.gang_type_id = $1)
-              AND (d.fighter_subtype IS NULL OR gd.fighter_subtypes ? d.fighter_subtype)
-        ) AS is_fighter_list
-    ) ftl_flag ON true
-
-    -- Pre-computed CTEs via simple LEFT JOINs
-    LEFT JOIN best_adjusted_cost bac ON bac.equipment_id = e.id
-    LEFT JOIN tp_summary tp ON tp.equipment_id = e.id
-    LEFT JOIN custom_tp_override cto ON cto.equipment_id = e.id
-    LEFT JOIN campaign_type_resources ctr_res ON ctr_res.id = cto.cost_type_resource_id
-    LEFT JOIN campaign_resources cr_res ON cr_res.id = cto.cost_campaign_resource_id
-
-    -- Count limit: the most specific matching rule wins, id breaking ties. A pet without
-    -- rules of its own uses its fighter type's.
-    LEFT JOIN LATERAL (
-        SELECT cl.min_count, cl.max_count
-        FROM count_limits cl
-        WHERE (cl.equipment_id = e.id
-               OR cl.fighter_type_id IN (SELECT eb.fighter_type_id FROM exotic_beasts eb WHERE eb.equipment_id = e.id))
-          AND (cl.for_fighter_type_id IS NULL OR cl.for_fighter_type_id = $3)
-          AND (cl.gang_type_id    IS NULL OR cl.gang_type_id   = $1)
-          AND (cl.gang_origin_id  IS NULL OR cl.gang_origin_id = gd.gang_origin_id)
-          AND (cl.gang_subtype_id IS NULL OR gd.gang_subtypes ? cl.gang_subtype_id::text)
-        ORDER BY (cl.equipment_id IS NOT NULL) DESC,
-                 (cl.for_fighter_type_id IS NOT NULL) DESC,
-                 (cl.gang_subtype_id IS NOT NULL) DESC,
-                 (cl.gang_origin_id  IS NOT NULL) DESC,
-                 (cl.gang_type_id    IS NOT NULL) DESC,
-                 cl.id
-        LIMIT 1
-    ) lim ON true
-
-    WHERE
-        -- Early filters (equipment category + specific ID)
-        ($2 IS NULL OR trim(both from e.equipment_category) = trim(both from $2))
-        AND ($7 IS NULL OR e.id = $7)
-        -- Core equipment gating
-        AND (
-            COALESCE(e.core_equipment, false) = false
-            OR (e.core_equipment = true AND (
-                fte.fighter_type_id IS NOT NULL
-                -- A matched gang-wide subtype rule carries no fighter id of its
-                -- own, so it needs the same allowance is_fighter_list gives it
-                OR (fte.id IS NOT NULL AND fte.fighter_type_id IS NULL AND fte.vehicle_type_id IS NULL)
-                OR cftl.is_ftl IS NOT NULL
-                OR $3 IS NULL
-            ))
-        )
-        -- Fighter list / trading post filter logic
-        AND (
-            -- No filter
-            ($4 IS NULL AND $5 IS NULL)
-            OR
-            -- Both filters: items in EITHER fighter's list OR trading post
-            ($4 IS NOT NULL AND $5 IS NOT NULL AND (
-                ftl_flag.is_fighter_list = $4
-                OR
-                COALESCE(tp.has_access, false) = $5
-            ))
-            OR
-            -- Fighter's list only
-            ($4 IS NOT NULL AND $5 IS NULL AND ftl_flag.is_fighter_list = $4)
-            OR
-            -- Trading post only
-            ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
-        )
-        -- Unrestricted: only equipment from the gang's edition
-        AND (
-            NOT ($4 IS NULL AND $5 IS NULL)
-            OR gd.edition_id IS NULL
-            OR e.edition_id = gd.edition_id
-        )
-
-    UNION ALL
-
-    -- =======================================================================
-    -- CUSTOM EQUIPMENT
-    -- =======================================================================
-    SELECT
-        ce.id,
-        ce.equipment_name,
-        COALESCE(custom_tp.availability_override, ce.availability) AS availability,
-        CASE
-            WHEN custom_tp.cost_type_resource_id IS NOT NULL
-              OR custom_tp.cost_campaign_resource_id IS NOT NULL
-              OR custom_tp.cost_reputation THEN ce.cost::numeric
-            ELSE COALESCE(custom_tp.cost_override, ce.cost::numeric)
-        END AS base_cost,
-        CASE
-            WHEN custom_tp.cost_type_resource_id IS NOT NULL
-              OR custom_tp.cost_campaign_resource_id IS NOT NULL
-              OR custom_tp.cost_reputation THEN ce.cost::numeric
-            ELSE COALESCE(custom_tp.adjusted_cost, custom_tp.cost_override, ce.cost::numeric)
-        END AS adjusted_cost,
-        CASE
-            WHEN $4 = true AND $5 IS NULL THEN '0'
-            ELSE ce.trade_points
-        END AS trade_points,
-        ce.equipment_category,
-        ce.equipment_type,
-        ce.created_at,
-        -- Custom equipment lives in the Trading Post; it is only on a fighter's
-        -- list when assigned to that fighter's custom fighter type ($3).
-        COALESCE(ftl.is_ftl, false) AS fighter_type_equipment,
-        true AS equipment_tradingpost,
-        true AS is_custom,
-        COALESCE(
-            (SELECT jsonb_agg(
-                jsonb_build_object(
-                    'id', cwp.id,
-                    'profile_name', cwp.profile_name,
-                    'range_short', cwp.range_short,
-                    'range_long', cwp.range_long,
-                    'acc_short', cwp.acc_short,
-                    'acc_long', cwp.acc_long,
-                    'strength', cwp.strength,
-                    'ap', cwp.ap,
-                    'damage', cwp.damage,
-                    'lethality', cwp.lethality,
-                    'ammo', cwp.ammo,
-                    'traits', cwp.traits,
-                    'sort_order', cwp.sort_order
-                ) ORDER BY COALESCE(cwp.sort_order, 999), cwp.profile_name
-            ) FROM custom_weapon_profiles cwp WHERE cwp.custom_equipment_id = ce.id),
-            '[]'::jsonb
-        ) AS weapon_profiles,
-        NULL AS vehicle_upgrade_slot,
-        NULL::jsonb AS grants_equipment,
-        COALESCE(ce.is_editable, false) AS is_editable,
-        COALESCE(custom_tp.tp_names, '{}'::text[]) AS trading_post_names,
-        CASE WHEN custom_tp.cost_reputation THEN 'Reputation'
-             ELSE COALESCE(ctr_res2.resource_name, cr_res2.resource_name)
-        END AS cost_resource_name,
-        CASE WHEN custom_tp.cost_type_resource_id IS NOT NULL
-               OR custom_tp.cost_campaign_resource_id IS NOT NULL
-               OR custom_tp.cost_reputation
-             THEN custom_tp.cost_resource_amount
-        END AS cost_resource_amount,
-        custom_tp.cost_type_resource_id,
-        custom_tp.cost_campaign_resource_id,
-        COALESCE(custom_tp.banned, false) AS banned,
-        NULL::integer AS min_count,
-        NULL::integer AS max_count
-    FROM custom_candidates cc
-    JOIN custom_equipment ce ON ce.id = cc.id
-    CROSS JOIN gang_data gd
-    LEFT JOIN (
-        SELECT cs.custom_equipment_id
-        FROM custom_shared cs
-        JOIN campaign_gangs cg ON cg.campaign_id = cs.campaign_id
-        WHERE cg.gang_id = $8
-    ) shared ON shared.custom_equipment_id = ce.id
-    LEFT JOIN (
-        SELECT
-            ctpe.custom_equipment_id,
-            MIN(ctpe.cost_override) FILTER (WHERE ctpe.cost_override IS NOT NULL) AS cost_override,
-            (array_agg(ctpe.cost_type_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_type_resource_id IS NOT NULL))[1] AS cost_type_resource_id,
-            (array_agg(ctpe.cost_campaign_resource_id ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_campaign_resource_id IS NOT NULL))[1] AS cost_campaign_resource_id,
-            (array_agg(ctpe.cost_resource_amount ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_resource_amount IS NOT NULL))[1] AS cost_resource_amount,
-            (array_agg(ctpe.cost_reputation ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE ctpe.cost_reputation))[1] AS cost_reputation,
-            (array_agg(COALESCE(a.availability, ctpe.availability_override) ORDER BY ctpe.cost_override NULLS LAST, COALESCE(ctpe.sort_order, 999), ctpe.created_at) FILTER (WHERE COALESCE(a.availability, ctpe.availability_override) IS NOT NULL))[1] AS availability_override,
-            MIN(p.adjusted_cost) FILTER (WHERE p.adjusted_cost IS NOT NULL) AS adjusted_cost,
-            COALESCE(
-                array_agg(DISTINCT ctp.custom_trading_post_name) FILTER (WHERE ctp.custom_trading_post_name IS NOT NULL),
-                '{}'::text[]
-            ) AS tp_names,
-            bool_or(ctpe.banned) AS banned
-        FROM custom_trading_post_equipment ctpe
-        JOIN custom_trading_posts ctp ON ctp.id = ctpe.custom_trading_post_id
-        CROSS JOIN gang_data gd
-        LEFT JOIN custom_trading_post_pricing p
-            ON p.custom_trading_post_equipment_id = ctpe.id
-            AND (p.gang_type_id IS NULL OR p.gang_type_id = $1)
-            AND (p.custom_gang_type_id IS NULL OR p.custom_gang_type_id = gd.custom_gang_type_id)
-            AND (p.gang_origin_id IS NULL OR p.gang_origin_id = gd.gang_origin_id)
-            AND (p.fighter_type_id IS NULL)
-        LEFT JOIN custom_trading_post_availability a
-            ON a.custom_trading_post_equipment_id = ctpe.id
-            AND (a.gang_type_id IS NULL OR a.gang_type_id = $1)
-            AND (a.custom_gang_type_id IS NULL OR a.custom_gang_type_id = gd.custom_gang_type_id)
-            AND (a.gang_origin_id IS NULL OR a.gang_origin_id = gd.gang_origin_id)
-            AND (a.gang_subtype_id IS NULL OR gd.gang_subtypes ? a.gang_subtype_id::text)
-            AND (a.campaign_type_allegiance_id IS NULL OR a.campaign_type_allegiance_id = gd.campaign_type_allegiance_id)
-            AND (a.alignment IS NULL OR a.alignment = gd.alignment)
-        WHERE ctpe.custom_equipment_id IS NOT NULL
-          AND $10 IS NOT NULL AND array_length($10, 1) > 0
-          AND ctpe.custom_trading_post_id = ANY($10)
-        GROUP BY ctpe.custom_equipment_id
-    ) custom_tp ON custom_tp.custom_equipment_id = ce.id
-    LEFT JOIN campaign_type_resources ctr_res2 ON ctr_res2.id = custom_tp.cost_type_resource_id
-    LEFT JOIN campaign_resources cr_res2 ON cr_res2.id = custom_tp.cost_campaign_resource_id
-    -- Is this custom equipment on the current custom fighter type's equipment list?
-    -- ($3 is a custom_fighter_types.id when the fighter is a custom fighter.)
-    LEFT JOIN LATERAL (
-        SELECT true AS is_ftl
-        FROM custom_fighter_type_equipment cfte
-        WHERE cfte.custom_equipment_id = ce.id
-          AND cfte.custom_fighter_type_id = $3
-        LIMIT 1
-    ) ftl ON true
-    WHERE
-        (ce.user_id = auth.uid() OR shared.custom_equipment_id IS NOT NULL OR custom_tp.custom_equipment_id IS NOT NULL)
-        AND ($2 IS NULL OR trim(both from ce.equipment_category) = trim(both from $2))
-        AND ($7 IS NULL OR ce.id = $7)
-        -- Fighter list / trading post filter. Custom equipment is always a
-        -- trading-post item, and a fighter-list item only when assigned to the
-        -- fighter's custom type (ftl.is_ftl).
-        AND (
-            ($4 IS NULL AND $5 IS NULL)                              -- no filter
-            OR ($4 IS NOT NULL AND COALESCE(ftl.is_ftl, false) = $4) -- fighter's list requested
-            OR ($5 IS NOT NULL AND true = $5)                        -- trading post requested
-        )
-        AND (
-            gd.edition_id IS NULL
-            OR ce.edition_id = gd.edition_id
-        )
+    SELECT * FROM private.equipment_detailed_rows($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 $_$;
 
 
@@ -5697,6 +5013,116 @@ CREATE TABLE public.campaign_territories (
 
 
 --
+-- Name: campaign_trade_items; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_trade_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    trade_id uuid NOT NULL,
+    giving_gang_id uuid NOT NULL,
+    kind text NOT NULL,
+    fighter_id uuid,
+    fighter_equipment_id uuid,
+    amount numeric,
+    campaign_type_resource_id uuid,
+    campaign_resource_id uuid,
+    description text,
+    locked boolean DEFAULT true NOT NULL,
+    CONSTRAINT campaign_trade_items_columns_check CHECK ((((kind = 'captive'::text) AND (fighter_equipment_id IS NULL) AND (amount IS NULL) AND (campaign_type_resource_id IS NULL) AND (campaign_resource_id IS NULL) AND (char_length(btrim(COALESCE(description, ''::text))) >= 1) AND ((NOT locked) OR (fighter_id IS NOT NULL))) OR ((kind = 'equipment'::text) AND (fighter_id IS NULL) AND (amount IS NULL) AND (campaign_type_resource_id IS NULL) AND (campaign_resource_id IS NULL) AND (char_length(btrim(COALESCE(description, ''::text))) >= 1) AND ((NOT locked) OR (fighter_equipment_id IS NOT NULL))) OR ((kind = ANY (ARRAY['credits'::text, 'reputation'::text])) AND (amount IS NOT NULL) AND (amount >= (0)::numeric) AND (fighter_id IS NULL) AND (fighter_equipment_id IS NULL) AND (campaign_type_resource_id IS NULL) AND (campaign_resource_id IS NULL) AND (description IS NULL)) OR ((kind = 'campaign_resource'::text) AND (amount IS NOT NULL) AND (amount >= (0)::numeric) AND (fighter_id IS NULL) AND (fighter_equipment_id IS NULL) AND (char_length(btrim(COALESCE(description, ''::text))) >= 1) AND ((NOT locked) OR (num_nonnulls(campaign_type_resource_id, campaign_resource_id) = 1)) AND (num_nonnulls(campaign_type_resource_id, campaign_resource_id) <= 1)) OR ((kind = 'custom'::text) AND (char_length(btrim(COALESCE(description, ''::text))) >= 1) AND (fighter_id IS NULL) AND (fighter_equipment_id IS NULL) AND (amount IS NULL) AND (campaign_type_resource_id IS NULL) AND (campaign_resource_id IS NULL)))),
+    CONSTRAINT campaign_trade_items_kind_check CHECK ((kind = ANY (ARRAY['captive'::text, 'equipment'::text, 'credits'::text, 'reputation'::text, 'campaign_resource'::text, 'custom'::text])))
+);
+
+
+--
+-- Name: TABLE campaign_trade_items; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.campaign_trade_items IS 'What a gang gives in a trade. Captive and equipment rows with locked=true cannot appear on two pending trades. description is the name snapshot (and the custom text). custom is recorded only; players settle it at the table.';
+
+
+--
+-- Name: COLUMN campaign_trade_items.giving_gang_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_trade_items.giving_gang_id IS 'The gang handing this over. For a captive that is the captor (captured_by_gang_id); fighters.gang_id does not change.';
+
+
+--
+-- Name: COLUMN campaign_trade_items.kind; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_trade_items.kind IS 'captive / equipment / credits / reputation / campaign_resource / custom. A later kind is a small migration.';
+
+
+--
+-- Name: COLUMN campaign_trade_items.amount; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_trade_items.amount IS 'Credits, reputation or campaign resource quantity. Same numeric type as gangs.credits and campaign_gang_resources.quantity.';
+
+
+--
+-- Name: COLUMN campaign_trade_items.description; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_trade_items.description IS 'Display name snapshot for captive, equipment and campaign_resource, and the free-text body for custom. Survives SET NULL on the live FKs.';
+
+
+--
+-- Name: COLUMN campaign_trade_items.locked; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_trade_items.locked IS 'True while the trade is pending. False after accept, decline or cancel. Stash and captive actions refuse when a matching locked row exists.';
+
+
+--
+-- Name: campaign_trades; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.campaign_trades (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone,
+    resolved_at timestamp with time zone,
+    campaign_id uuid NOT NULL,
+    proposer_gang_id uuid NOT NULL,
+    counterparty_gang_id uuid,
+    parent_trade_id uuid,
+    title character varying(100) NOT NULL,
+    note text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    CONSTRAINT campaign_trades_bid_has_counterparty CHECK (((parent_trade_id IS NULL) OR (counterparty_gang_id IS NOT NULL))),
+    CONSTRAINT campaign_trades_not_own_counterparty CHECK (((counterparty_gang_id IS NULL) OR (proposer_gang_id <> counterparty_gang_id))),
+    CONSTRAINT campaign_trades_not_self CHECK ((parent_trade_id IS DISTINCT FROM id)),
+    CONSTRAINT campaign_trades_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'declined'::text, 'cancelled'::text]))),
+    CONSTRAINT campaign_trades_title_length CHECK (((char_length(btrim((title)::text)) >= 1) AND (char_length(btrim((title)::text)) <= 100)))
+);
+
+
+--
+-- Name: TABLE campaign_trades; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON TABLE public.campaign_trades IS 'A campaign trade: a direct proposal, an open listing, or a bid on a listing (parent_trade_id). Completes only when accepted.';
+
+
+--
+-- Name: COLUMN campaign_trades.counterparty_gang_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_trades.counterparty_gang_id IS 'The gang that must accept. Null on an open listing; any gang in the campaign can bid.';
+
+
+--
+-- Name: COLUMN campaign_trades.parent_trade_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaign_trades.parent_trade_id IS 'Set on a bid, pointing at the listing. Null on a direct trade or an open listing.';
+
+
+--
 -- Name: campaign_triumphs; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -5799,6 +5225,7 @@ CREATE TABLE public.campaigns (
     campaign_portrait_id uuid,
     discord_dice_rolls boolean DEFAULT false NOT NULL,
     discord_dice_roll_channel_id text,
+    allow_trading boolean DEFAULT false NOT NULL,
     CONSTRAINT campaigns_current_cycle_positive CHECK (((current_cycle IS NULL) OR (current_cycle >= 1))),
     CONSTRAINT campaigns_current_phase_length CHECK (((current_phase IS NULL) OR ((char_length(current_phase) >= 1) AND (char_length(current_phase) <= 50))))
 );
@@ -5823,6 +5250,13 @@ COMMENT ON COLUMN public.campaigns.current_phase IS 'Free-text name of the phase
 --
 
 COMMENT ON COLUMN public.campaigns.campaign_portrait_id IS 'Selected shared portrait from campaign_portraits. Null for a custom upload, the campaign type image, or no catalogue image.';
+
+
+--
+-- Name: COLUMN campaigns.allow_trading; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.campaigns.allow_trading IS 'When true, owners of gangs in this campaign can propose and accept trades. A trade completes only when the counterparty (or listing author) accepts.';
 
 
 --
@@ -8323,6 +7757,30 @@ ALTER TABLE ONLY public.campaign_territories
 
 
 --
+-- Name: campaign_trade_items campaign_trade_items_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trade_items
+    ADD CONSTRAINT campaign_trade_items_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: campaign_trades campaign_trades_id_campaign_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trades
+    ADD CONSTRAINT campaign_trades_id_campaign_id_key UNIQUE (id, campaign_id);
+
+
+--
+-- Name: campaign_trades campaign_trades_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trades
+    ADD CONSTRAINT campaign_trades_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: campaign_triumphs campaign_triumphs_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9616,6 +9074,69 @@ CREATE INDEX campaign_territories_territory_name_idx ON public.campaign_territor
 
 
 --
+-- Name: campaign_trade_items_captive_locked; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX campaign_trade_items_captive_locked ON public.campaign_trade_items USING btree (fighter_id) WHERE (locked AND (fighter_id IS NOT NULL));
+
+
+--
+-- Name: campaign_trade_items_equipment_locked; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX campaign_trade_items_equipment_locked ON public.campaign_trade_items USING btree (fighter_equipment_id) WHERE (locked AND (fighter_equipment_id IS NOT NULL));
+
+
+--
+-- Name: campaign_trade_items_giving_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_trade_items_giving_gang_id_idx ON public.campaign_trade_items USING btree (giving_gang_id);
+
+
+--
+-- Name: campaign_trade_items_trade_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_trade_items_trade_id_idx ON public.campaign_trade_items USING btree (trade_id);
+
+
+--
+-- Name: campaign_trades_campaign_created_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_trades_campaign_created_idx ON public.campaign_trades USING btree (campaign_id, created_at DESC);
+
+
+--
+-- Name: campaign_trades_counterparty_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_trades_counterparty_gang_id_idx ON public.campaign_trades USING btree (counterparty_gang_id);
+
+
+--
+-- Name: campaign_trades_one_pending_bid; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX campaign_trades_one_pending_bid ON public.campaign_trades USING btree (parent_trade_id, proposer_gang_id) WHERE ((parent_trade_id IS NOT NULL) AND (status = 'pending'::text));
+
+
+--
+-- Name: campaign_trades_parent_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_trades_parent_id_idx ON public.campaign_trades USING btree (parent_trade_id);
+
+
+--
+-- Name: campaign_trades_proposer_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX campaign_trades_proposer_gang_id_idx ON public.campaign_trades USING btree (proposer_gang_id);
+
+
+--
 -- Name: campaign_types_edition_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10215,6 +9736,13 @@ CREATE INDEX fighter_type_equipment_fighter_subtype_idx ON public.fighter_type_e
 --
 
 CREATE INDEX fighter_type_equipment_gang_subtype_id_idx ON public.fighter_type_equipment USING btree (gang_subtype_id);
+
+
+--
+-- Name: fighter_type_equipment_vehicle_type_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_equipment_vehicle_type_id_idx ON public.fighter_type_equipment USING btree (vehicle_type_id) WHERE (vehicle_type_id IS NOT NULL);
 
 
 --
@@ -11850,6 +11378,86 @@ ALTER TABLE ONLY public.campaign_territories
 
 ALTER TABLE ONLY public.campaign_territories
     ADD CONSTRAINT campaign_territories_territory_id_fkey FOREIGN KEY (territory_id) REFERENCES public.territories(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_trade_items campaign_trade_items_campaign_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trade_items
+    ADD CONSTRAINT campaign_trade_items_campaign_resource_id_fkey FOREIGN KEY (campaign_resource_id) REFERENCES public.campaign_resources(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_trade_items campaign_trade_items_campaign_type_resource_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trade_items
+    ADD CONSTRAINT campaign_trade_items_campaign_type_resource_id_fkey FOREIGN KEY (campaign_type_resource_id) REFERENCES public.campaign_type_resources(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_trade_items campaign_trade_items_fighter_equipment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trade_items
+    ADD CONSTRAINT campaign_trade_items_fighter_equipment_id_fkey FOREIGN KEY (fighter_equipment_id) REFERENCES public.fighter_equipment(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_trade_items campaign_trade_items_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trade_items
+    ADD CONSTRAINT campaign_trade_items_fighter_id_fkey FOREIGN KEY (fighter_id) REFERENCES public.fighters(id) ON DELETE SET NULL;
+
+
+--
+-- Name: campaign_trade_items campaign_trade_items_giving_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trade_items
+    ADD CONSTRAINT campaign_trade_items_giving_gang_id_fkey FOREIGN KEY (giving_gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_trade_items campaign_trade_items_trade_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trade_items
+    ADD CONSTRAINT campaign_trade_items_trade_id_fkey FOREIGN KEY (trade_id) REFERENCES public.campaign_trades(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_trades campaign_trades_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trades
+    ADD CONSTRAINT campaign_trades_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_trades campaign_trades_counterparty_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trades
+    ADD CONSTRAINT campaign_trades_counterparty_gang_id_fkey FOREIGN KEY (counterparty_gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_trades campaign_trades_parent_campaign_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trades
+    ADD CONSTRAINT campaign_trades_parent_campaign_fkey FOREIGN KEY (parent_trade_id, campaign_id) REFERENCES public.campaign_trades(id, campaign_id) ON DELETE CASCADE;
+
+
+--
+-- Name: campaign_trades campaign_trades_proposer_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.campaign_trades
+    ADD CONSTRAINT campaign_trades_proposer_gang_id_fkey FOREIGN KEY (proposer_gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
 
 
 --
@@ -13781,18 +13389,53 @@ ALTER TABLE ONLY public.weapon_profiles
 
 
 --
+-- Name: campaign_trade_items Admins can delete campaign trade items; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can delete campaign trade items" ON public.campaign_trade_items FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_trades Admins can delete campaign trades; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can delete campaign trades" ON public.campaign_trades FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_trade_items Admins can insert campaign trade items; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can insert campaign trade items" ON public.campaign_trade_items FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_trades Admins can insert campaign trades; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can insert campaign trades" ON public.campaign_trades FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_trade_items Admins can update campaign trade items; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can update campaign trade items" ON public.campaign_trade_items FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: campaign_trades Admins can update campaign trades; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins can update campaign trades" ON public.campaign_trades FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
 -- Name: campaign_gangs Admins, arbitrators, or gang     owners can update campaign_gan; Type: POLICY; Schema: public; Owner: -
 --
 
 CREATE POLICY "Admins, arbitrators, or gang
    owners can update campaign_gan" ON public.campaign_gangs FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(campaign_gangs.campaign_id) AS is_arb) OR (user_id = ( SELECT auth.uid() AS uid)))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(campaign_gangs.campaign_id) AS is_arb) OR (user_id = ( SELECT auth.uid() AS uid))));
-
-
---
--- Name: battle_sessions Admins, arbs or creator can delete battle sessions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admins, arbs or creator can delete battle sessions" ON public.battle_sessions FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid))));
 
 
 --
@@ -13828,6 +13471,15 @@ CREATE POLICY "Admins, arbs or own participant can update fighters" ON public.ba
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
    FROM public.battle_sessions bs
   WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.battle_session_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: battle_sessions Admins, arbs, creator or participants can delete battle session; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs, creator or participants can delete battle session" ON public.battle_sessions FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.battle_session_id
    FROM public.battle_session_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
@@ -14542,6 +14194,20 @@ CREATE POLICY "Anyone can view campaign type resources" ON public.campaign_type_
 
 
 --
+-- Name: campaign_trade_items App server can view campaign trade items; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "App server can view campaign trade items" ON public.campaign_trade_items FOR SELECT TO app_server USING (true);
+
+
+--
+-- Name: campaign_trades App server can view campaign trades; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "App server can view campaign trades" ON public.campaign_trades FOR SELECT TO app_server USING (true);
+
+
+--
 -- Name: battle_sessions Authenticated users can create battle sessions; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14888,6 +14554,27 @@ CREATE POLICY "Gang owners and campaign managers can update campaign gang reso" 
 CREATE POLICY "Gang owners, admins, or arbitrators can create fighters" ON public.fighters FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (gang_id IN ( SELECT g.id
    FROM public.gangs g
   WHERE (g.user_id = ( SELECT auth.uid() AS uid)))) OR private.is_gang_arb(gang_id)));
+
+
+--
+-- Name: campaign_trade_items Members, arbs or admin can view trade items; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Members, arbs or admin can view trade items" ON public.campaign_trade_items FOR SELECT TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM (public.campaign_trades t
+     JOIN public.campaign_members cm ON ((cm.campaign_id = t.campaign_id)))
+  WHERE ((t.id = campaign_trade_items.trade_id) AND (cm.user_id = ( SELECT auth.uid() AS uid))))) OR ( SELECT private.is_arb(( SELECT t.campaign_id
+           FROM public.campaign_trades t
+          WHERE (t.id = campaign_trade_items.trade_id))) AS is_arb)));
+
+
+--
+-- Name: campaign_trades Members, arbs or admin can view trades; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Members, arbs or admin can view trades" ON public.campaign_trades FOR SELECT TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.campaign_members cm
+  WHERE ((cm.campaign_id = campaign_trades.campaign_id) AND (cm.user_id = ( SELECT auth.uid() AS uid))))) OR ( SELECT private.is_arb(campaign_trades.campaign_id) AS is_arb)));
 
 
 --
@@ -16560,6 +16247,18 @@ ALTER TABLE public.campaign_resources ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.campaign_territories ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_trade_items; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_trade_items ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: campaign_trades; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.campaign_trades ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: campaign_triumphs; Type: ROW SECURITY; Schema: public; Owner: -
