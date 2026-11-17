@@ -974,7 +974,7 @@ export function InjuriesList({
           buttonText="Roll D66"
           disabled={
             !userPermissions.canEdit ||
-            isLoadingInjuries ||
+            localAvailableInjuries.length === 0 ||
             logInjuryRollMutation.isPending ||
             injuryRollCooldown
           }
