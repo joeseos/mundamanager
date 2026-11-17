@@ -309,6 +309,7 @@ export function AdminCreateVehicleTypeModal({ onClose, onSubmit }: AdminCreateVe
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment' },
   });
 
   const { data: gangOrigins = [] } = useQuery<Array<{ id: string; origin_name: string; category_name: string }>>({

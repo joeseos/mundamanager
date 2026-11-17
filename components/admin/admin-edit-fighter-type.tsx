@@ -55,16 +55,8 @@ interface Skill {
   skill_type_id: string;
 }
 
-/**
- * Folds newly fetched skills into the ones already held, keyed by id. The
- * skills list accumulates across every fighter type opened in the modal, so
- * appending blindly repeats a skill once per fighter type that carries it as a
- * default. Later entries win, keeping the freshest copy of a skill's metadata.
- */
-function mergeSkillsById(previous: Skill[], incoming: Skill[]): Skill[] {
-  const merged = new Map([...previous, ...incoming].map(skill => [skill.id, skill]));
-  return Array.from(merged.values());
-}
+const NO_EQUIPMENT: EquipmentWithId[] = [];
+const NO_SKILLS: Skill[] = [];
 
 interface Specialisation {
   id: string;
@@ -147,11 +139,9 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
   const [isSpyrer, setIsSpyrer] = useState(false);
   const [isVehicle, setIsVehicle] = useState(false);
   const [alignment, setAlignment] = useState<string>('');
-  const [equipment, setEquipment] = useState<EquipmentWithId[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [gangTypeFilter, setGangTypeFilter] = useState('');
   const [editionId, setEditionId] = useState('');
-  const [skills, setSkills] = useState<Skill[]>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const [_selectedEquipmentType, _setSelectedEquipmentType] = useState('');
@@ -164,7 +154,6 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
   const [adjustedCostAmount, setAdjustedCostAmount] = useState('');
   const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
   const [equipmentSelection, setEquipmentSelection] = useState<EquipmentSelection>({});
-  const [, setIsEquipmentLoaded] = useState(false);
 
   // Add a new state variable to track the specialisation name
   const [variantName, setVariantName] = useState('');
@@ -210,9 +199,6 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
   const variantNameInputRef = useRef<HTMLInputElement>(null);
   const gangAdjustedCostInputRef = useRef<HTMLInputElement>(null);
   
-  // Add a ref to track if equipment categories have been loaded
-  const hasLoadedEquipmentCategoriesRef = useRef(false);
-  
   // Bumped on every type/variant selection so an in-flight details fetch cannot
   // apply after the admin has already moved on.
   const fighterTypeDetailsFetchGenRef = useRef(0);
@@ -220,9 +206,6 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
 
   // Add a ref to track if a category was manually removed
   const userRemovedCategoryRef = useRef(false);
-
-  // Track which skill IDs we've already fetched details for
-  const fetchedSkillDetailsRef = useRef<Set<string>>(new Set());
 
   // When fighter type or specialisation values change from API, update the refs
   useEffect(() => {
@@ -247,66 +230,17 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
     staleTime: 5 * 60 * 1000,
   });
 
-  // Memoize filtered skills to avoid recalculating on every render
-  const availableSkills = useMemo(() => {
-    if (!Array.isArray(skills)) return [];
-    return skills.filter(skill =>
-      skill.skill_type_id === selectedSkillType && !selectedSkills.includes(skill.id)
-    );
-  }, [skills, selectedSkills, selectedSkillType]);
-
-  const fetchEquipmentByCategory = async () => {
-    if (hasLoadedEquipmentCategoriesRef.current && equipment.length > 0) {
-      return;
-    }
-
-    try {
+  // Same request and key as the other admin fighter and vehicle type editors
+  const { data: equipment = NO_EQUIPMENT, isSuccess: equipmentLoaded } = useQuery<EquipmentWithId[]>({
+    queryKey: ['admin-equipment-list'],
+    queryFn: async () => {
       const response = await fetch('/api/admin/equipment');
-      if (!response.ok) {
-        throw new Error(`Failed to fetch equipment: ${response.status} ${response.statusText}`);
-      }
-
-      const equipmentData = await response.json();
-
-      const equipmentWithIds = equipmentData.map((item: any) => ({
-        ...item,
-        id: item.id,
-        equipment_id: item.id
-      })) as EquipmentWithId[];
-
-      setEquipment(equipmentWithIds);
-      hasLoadedEquipmentCategoriesRef.current = true;
-
-      return equipmentWithIds;
-    } catch (error) {
-      console.error('Error fetching equipment data:', error);
-      toast.error('Failed to load equipment data. Please try again.');
-      throw error;
-    }
-  };
-
-  // Preload equipment data when the component mounts
-  useEffect(() => {
-    if (hasLoadedEquipmentCategoriesRef.current) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const response = await fetch('/api/admin/equipment');
-        if (!response.ok || cancelled) return;
-        const equipmentData = await response.json();
-        if (cancelled) return;
-        const equipmentWithIds = equipmentData.map((item: any) => ({
-          ...item, id: item.id, equipment_id: item.id
-        })) as EquipmentWithId[];
-        setEquipment(equipmentWithIds);
-        hasLoadedEquipmentCategoriesRef.current = true;
-        setIsEquipmentLoaded(true);
-      } catch {
-        // Will retry when needed via fetchEquipmentByCategory
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+      if (!response.ok) throw new Error('Failed to fetch equipment');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment' },
+  });
 
   const { data: gangTypes = [] } = useQuery<GangType[]>({
     queryKey: ['admin-gang-types'],
@@ -462,7 +396,7 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
     // Keep loaded metadata for rendering saved skills, but remove any selection
     // that cannot be proved to belong to the newly selected edition.
     setSelectedSkills(prev => prev.filter(skillId => {
-      const skill = skills.find(candidate => candidate.id === skillId);
+      const skill = findSkill(skillId);
       const skillType = skillTypes.find(type => type.id === skill?.skill_type_id);
       return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
     }));
@@ -520,17 +454,20 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
       }
     }
 
-    const equipmentIds = new Set(
-      (newEditionId
-        ? equipment.filter(item => item.edition_id === newEditionId)
-        : equipment
-      ).map(item => item.id)
-    );
-    setSelectedEquipment(prev => prev.filter(id => equipmentIds.has(id)));
-    setEquipmentListSelections(prev => prev.filter(id => equipmentIds.has(id)));
-    setEquipmentDiscounts(prev => prev.filter(d => equipmentIds.has(d.equipment_id)));
-    if (selectedAdjustedCostEquipment && !equipmentIds.has(selectedAdjustedCostEquipment)) {
-      setSelectedAdjustedCostEquipment('');
+    // Pruning against an unloaded list would drop every equipment selection
+    if (equipmentLoaded) {
+      const equipmentIds = new Set(
+        (newEditionId
+          ? equipment.filter(item => item.edition_id === newEditionId)
+          : equipment
+        ).map(item => item.id)
+      );
+      setSelectedEquipment(prev => prev.filter(id => equipmentIds.has(id)));
+      setEquipmentListSelections(prev => prev.filter(id => equipmentIds.has(id)));
+      setEquipmentDiscounts(prev => prev.filter(d => equipmentIds.has(d.equipment_id)));
+      if (selectedAdjustedCostEquipment && !equipmentIds.has(selectedAdjustedCostEquipment)) {
+        setSelectedAdjustedCostEquipment('');
+      }
     }
 
     if (selectedSkillType) {
@@ -592,69 +529,43 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
     return uniqueCombinations;
   }, [fighterTypes]);
 
-  useEffect(() => {
-    const fetchSkills = async () => {
-      if (!selectedSkillType) {
-        return;
-      }
+  // Same request and key as the Create Fighter Type and Edit Skill modals
+  const { data: skillsInSet = NO_SKILLS } = useQuery({
+    queryKey: ['admin-skills', selectedSkillType, editionId],
+    queryFn: async (): Promise<{ skills: Skill[] }> => {
+      const params = new URLSearchParams({ skill_type_id: selectedSkillType });
+      if (editionId) params.set('edition_id', editionId);
+      const response = await fetch(`/api/admin/skills?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch skills');
+      return response.json();
+    },
+    select: (data) => data.skills,
+    enabled: !!selectedSkillType,
+    staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load skills' },
+  });
 
-      try {
-        const params = new URLSearchParams({ skill_type_id: selectedSkillType });
-        if (editionId) params.set('edition_id', editionId);
-        const response = await fetch(`/api/admin/skills?${params}`);
-        if (!response.ok) throw new Error('Failed to fetch skills');
-        const data = await response.json();
-        // API returns {skills: [], effect_categories: []} when filtered by skill_type_id
-        const skillsArray = Array.isArray(data) ? data : data.skills || [];
-        // Preserve metadata for saved selections while the fighter record is
-        // loading so their chips can still be rendered.
-        setSkills(previous => mergeSkillsById(previous, skillsArray));
-      } catch (error) {
-        console.error('Error fetching skills:', error);
-        toast.error('Failed to load skills');
-      }
-    };
+  const availableSkills = useMemo(
+    () => skillsInSet.filter(skill => !selectedSkills.includes(skill.id)),
+    [skillsInSet, selectedSkills]
+  );
 
-    fetchSkills();
-  }, [selectedSkillType, editionId]);
-
-  // Fetch full skill details for selected skills when loading a fighter type
-  useEffect(() => {
-    const fetchSelectedSkillDetails = async () => {
-      if (!selectedSkills.length || !selectedFighterTypeId) return;
-
-      // Check which skills we haven't fetched yet
-      const missingSkillIds = selectedSkills.filter(
-        skillId => !fetchedSkillDetailsRef.current.has(skillId)
-      );
-
-      if (missingSkillIds.length === 0) return;
-
-      try {
-        // Fetch all skills to get the names of selected skills
-        const response = await fetch('/api/admin/skills');
-        if (!response.ok) throw new Error('Failed to fetch skills');
-        const allSkills = await response.json();
-
-        // Add only the missing selected skills to our skills array
-        const missingSkills = allSkills.filter((skill: Skill) =>
-          missingSkillIds.includes(skill.id)
-        );
-
-        if (missingSkills.length > 0) {
-          setSkills(previous => mergeSkillsById(previous, missingSkills));
-        }
-
-        // Mark these skills as fetched even when the lookup returned nothing
-        // for them, so it is not retried on every selection change.
-        missingSkillIds.forEach(id => fetchedSkillDetailsRef.current.add(id));
-      } catch (error) {
-        console.error('Error fetching selected skill details:', error);
-      }
-    };
-
-    fetchSelectedSkillDetails();
-  }, [selectedSkills, selectedFighterTypeId]);
+  // Every skill, for the names of the selected ones. Same request and key as the
+  // Fighter Effects editor without an edition.
+  const { data: allSkills = NO_SKILLS } = useQuery<Skill[]>({
+    queryKey: ['admin-skills', null],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/skills');
+      if (!response.ok) throw new Error('Failed to fetch skills');
+      return response.json();
+    },
+    enabled: selectedSkills.length > 0,
+    staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load skills' },
+  });
+  // A skill just added from the open set may not be in allSkills yet
+  const findSkill = (skillId: string) =>
+    allSkills.find(skill => skill.id === skillId) ?? skillsInSet.find(skill => skill.id === skillId);
 
   const { data: fighterSpecialisations = [] } = useQuery<Specialisation[]>({
     queryKey: ['admin-fighter-specialisations'],
@@ -725,8 +636,6 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
       setAlignment(data.alignment || '');
       setSelectedEquipment(data.default_equipment || []);
       setSelectedSkills(data.default_skills || []);
-      // Reset fetched skills tracking when loading a new fighter type
-      fetchedSkillDetailsRef.current.clear();
       setEquipmentListSelections(data.equipment_list || []);
       setEquipmentDiscounts(data.equipment_discounts || []);
       // Set gang-specific costs if they exist
@@ -882,13 +791,6 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
     setIsLoading(true);
     
     try {
-      // Equipment data should already be loaded by now, but check just in case
-      if (!hasLoadedEquipmentCategoriesRef.current) {
-        console.log('Equipment data not yet loaded, loading now...');
-        await fetchEquipmentByCategory();
-        if (fighterTypeDetailsFetchGenRef.current !== generation) return;
-      }
-      
       const selectedOption = options.find(st => st.id === specialisationId);
 
       if (selectedOption) {
@@ -1940,7 +1842,7 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
 
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selectedSkills.map((skillId) => {
-                      const skill = skills.find(s => s.id === skillId);
+                      const skill = findSkill(skillId);
                       if (!skill) return null;
 
                       return (
