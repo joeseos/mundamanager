@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { toast } from 'sonner';
@@ -472,7 +472,7 @@ export function VehicleDamagesList({
   // Fetch available damages using TanStack Query - when add modal or repair modal is opened.
   // The edition is part of the key: effect_name is reused across editions, so one
   // shared cache entry would serve N23's damages to an N26 vehicle.
-  const { data: availableDamages = [], isLoading: isLoadingDamages, error: damagesError } = useQuery({
+  const { data: availableDamages = [], isLoading: isLoadingDamages } = useQuery({
     queryKey: ['vehicle-lasting-damages', editionSlug],
     queryFn: async () => {
       const query = editionSlug ? `?edition_slug=${encodeURIComponent(editionSlug)}` : '';
@@ -485,6 +485,7 @@ export function VehicleDamagesList({
     enabled: isAddModalOpen || isRepairModalOpen, // Fetch when either modal is open
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,  // 10 minutes
+    meta: { errorMessage: 'Failed to load lasting damage types' },
   });
 
   const selectedDamage = availableDamages.find((d: any) => d.id === selectedDamageId);
@@ -510,13 +511,6 @@ export function VehicleDamagesList({
   }
 
   const { gangs: campaignGangs, isLoading: isFetchingGangs } = useOtherCampaignGangs(campaignIds, gangId, needsCampaignGangPicker);
-
-  // Show error toast if damages failed to load
-  useEffect(() => {
-    if (damagesError) {
-      toast.error('Failed to load lasting damage types');
-    }
-  }, [damagesError]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);

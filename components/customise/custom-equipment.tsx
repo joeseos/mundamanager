@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomEquipment } from '@/app/lib/customise/custom-equipment';
@@ -101,7 +101,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
   const isFormOpen = createModalOpen || !!editModalData || !!viewModalData;
   // Same request and key as Custom Trading Posts
-  const { data: categories = NO_CATEGORIES, error: categoriesError } = useQuery({
+  const { data: categories = NO_CATEGORIES } = useQuery({
     queryKey: ['equipmentCategories'],
     queryFn: async () => {
       const response = await fetch('/api/equipment/categories');
@@ -110,10 +110,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     },
     enabled: isFormOpen,
     staleTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment categories' },
   });
-  useEffect(() => {
-    if (isFormOpen && categoriesError) toast.error("Error", { description: "Failed to load equipment categories" });
-  }, [isFormOpen, categoriesError]);
 
   // A category name repeats across editions (Grenades exists in both), so the form
   // holds the category id and resolves the name only for display and rules.

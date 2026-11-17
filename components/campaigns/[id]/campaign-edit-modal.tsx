@@ -136,7 +136,7 @@ export default function CampaignEditModal({
   );
 
   const guildId = campaignData.discord_guild_id;
-  const { data: discordChannels = NO_CHANNELS, isLoading: loadingChannels, error: channelsError } = useQuery({
+  const { data: discordChannels = NO_CHANNELS, isLoading: loadingChannels } = useQuery({
     queryKey: ['discord-channels', guildId],
     queryFn: async () => {
       const res = await fetch(`/api/discord/channels?guild_id=${guildId}`);
@@ -146,10 +146,8 @@ export default function CampaignEditModal({
     enabled: !!guildId,
     // Channels change on Discord, so each open reads them again
     staleTime: 0,
+    meta: { errorMessage: 'Failed to load Discord channels' },
   });
-  useEffect(() => {
-    if (channelsError) toast.error('Failed to load Discord channels');
-  }, [channelsError]);
 
   // Listen for postMessage from Discord OAuth popup
   useEffect(() => {

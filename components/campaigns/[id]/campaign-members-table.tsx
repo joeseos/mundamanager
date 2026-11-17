@@ -278,11 +278,8 @@ export default function MembersTable({
       return response.json();
     },
     enabled: showGangModal && !!selectedMember,
+    meta: { errorMessage: 'Failed to load gangs' },
   });
-
-  useEffect(() => {
-    if (userGangsError) toast.error('Failed to load gangs');
-  }, [userGangsError]);
 
   // Dropped on close, so the next open never shows stale "Already in a campaign" flags
   useEffect(() => {

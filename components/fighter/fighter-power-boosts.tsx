@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
@@ -191,7 +191,7 @@ export function PowerBoostsList({
     }
   });
 
-  const { data: availablePowerBoosts = NO_POWER_BOOSTS, isLoading: isLoadingPowerBoosts, error: powerBoostsError } = useQuery({
+  const { data: availablePowerBoosts = NO_POWER_BOOSTS, isLoading: isLoadingPowerBoosts } = useQuery({
     queryKey: ['fighter-effects', { category: 'power-boosts' }],
     queryFn: async () => {
       const response = await fetch('/api/fighter-effects?category=power-boosts');
@@ -199,12 +199,8 @@ export function PowerBoostsList({
       return response.json() as Promise<FighterEffectType[]>;
     },
     enabled: isAddModalOpen,
+    meta: { errorMessage: 'Failed to load power boost types' },
   });
-
-  // Gated on the modal: a disabled query still returns a cached error
-  useEffect(() => {
-    if (isAddModalOpen && powerBoostsError) toast.error('Failed to load power boost types');
-  }, [isAddModalOpen, powerBoostsError]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);

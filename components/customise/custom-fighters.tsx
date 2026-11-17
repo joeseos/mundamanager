@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomFighterType } from '@/types/fighter';
 import { toast } from 'sonner';
@@ -386,7 +386,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   // the user's custom items: the other Customise sections change those without invalidating.
   const isFormOpen = isAddModalOpen || !!editModalData;
 
-  const { data: gangTypes = NO_GANG_TYPES, error: gangTypesError } = useQuery({
+  const { data: gangTypes = NO_GANG_TYPES } = useQuery({
     queryKey: ['gangTypes', editionSlug],
     queryFn: async () => {
       const res = await fetch('/api/gang-types?includeAll=true');
@@ -396,9 +396,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     enabled: isFormOpen,
     staleTime: 0,
+    meta: { errorMessage: 'Failed to load gang types' },
   });
 
-  const { data: fighterSubtypes = NO_FIGHTER_SUBTYPES, error: fighterSubtypesError } = useQuery({
+  const { data: fighterSubtypes = NO_FIGHTER_SUBTYPES } = useQuery({
     queryKey: ['fighter-subtypes', editionSlug],
     queryFn: async () => {
       const response = await fetch(`/api/fighter-subtypes?${new URLSearchParams({ edition_slug: editionSlug })}`);
@@ -407,9 +408,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     select: (data) => filterAllowedFighterSubtypes(data, editionSlug),
     enabled: isFormOpen,
+    meta: { errorMessage: 'Failed to load fighter subtypes' },
   });
 
-  const { data: skillTypes = NO_SKILL_TYPES, error: skillTypesError } = useQuery({
+  const { data: skillTypes = NO_SKILL_TYPES } = useQuery({
     queryKey: ['skill-types', editionSlug],
     queryFn: async () => {
       const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}`);
@@ -419,9 +421,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     select: (data): SkillTypeItem[] => data.map(type => ({ id: type.id, skill_type: type.name, is_custom: type.is_custom ?? false })),
     enabled: isFormOpen,
     staleTime: 0,
+    meta: { errorMessage: 'Failed to load skill types' },
   });
 
-  const { data: equipment = NO_EQUIPMENT, error: equipmentError } = useQuery({
+  const { data: equipment = NO_EQUIPMENT } = useQuery({
     queryKey: ['equipment', { core_equipment: false, editionSlug }],
     queryFn: async () => {
       const res = await fetch('/api/equipment?core_equipment=false');
@@ -431,9 +434,10 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     },
     enabled: isFormOpen,
     staleTime: 0,
+    meta: { errorMessage: 'Failed to load equipment' },
   });
 
-  const { data: skillsInSet = NO_SKILLS, error: skillsError } = useQuery({
+  const { data: skillsInSet = NO_SKILLS } = useQuery({
     queryKey: ['skills', selectedSkillType],
     queryFn: async () => {
       const { createClient } = await import('@/utils/supabase/client');
@@ -446,20 +450,8 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       return data.map(skill => ({ id: skill.id, skill_name: skill.name }));
     },
     enabled: !!selectedSkillType,
+    meta: { errorMessage: 'Failed to load skills' },
   });
-
-  // Gated on the form being open: a disabled query still returns a cached error
-  useEffect(() => {
-    if (isFormOpen && gangTypesError) toast.error('Failed to load gang types');
-  }, [isFormOpen, gangTypesError]);
-
-  useEffect(() => {
-    if (isFormOpen && (fighterSubtypesError || skillTypesError || equipmentError)) toast.error('Failed to load some dropdown options');
-  }, [isFormOpen, fighterSubtypesError, skillTypesError, equipmentError]);
-
-  useEffect(() => {
-    if (skillsError) toast.error('Failed to load skills');
-  }, [skillsError]);
 
   const [prevIsCrew, setPrevIsCrew] = useState(isCrew);
   if (isCrew !== prevIsCrew) {
@@ -697,8 +689,6 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       setSelectedEquipmentList([]);
     }
     setSelectedEquipmentListCategory('');
-
-    // Fighter subtype will be set by useEffect when fighterSubtypes are loaded
   };
 
   const handleView = async (fighter: CustomFighterType) => {
