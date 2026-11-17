@@ -25,8 +25,7 @@ import {
 } from '@/app/actions/fighter-injury';
 import { requiredHatredTarget } from '@/utils/injuryTarget';
 import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
-import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
-import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
+import { useOtherCampaignGangs } from '@/utils/campaign-gang-fighter-options';
 import { hasKilledStatusFlag } from '@/utils/fighter-status';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -101,8 +100,6 @@ export function VehicleDamagesList({
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
-  const [campaignGangs, setCampaignGangs] = useState<CampaignGangWithFighters[]>([]);
-  const [isFetchingGangs, setIsFetchingGangs] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -506,56 +503,13 @@ export function VehicleDamagesList({
   if (needsCampaignGangPicker !== prevNeedsCampaignGangPicker) {
     setPrevNeedsCampaignGangPicker(needsCampaignGangPicker);
     if (!needsCampaignGangPicker) {
-      setCampaignGangs([]);
       setSelectedCapturingGangId('');
       setSelectedHatredTargetId('');
       setSelectedHatredGangId('');
-    } else {
-      setIsFetchingGangs(true);
     }
   }
 
-  useEffect(() => {
-    if (!needsCampaignGangPicker) return;
-
-    let cancelled = false;
-
-    const fetchGangs = async () => {
-      try {
-        const allGangs: CampaignGangWithFighters[] = [];
-        const seenIds = new Set<string>();
-
-        const gangResults = await Promise.all(
-          campaignIds.map(async (campaignId) => {
-            try {
-              return await fetchCampaignGangsAndFighters({ campaignId, gangId });
-            } catch {
-              return [];
-            }
-          })
-        );
-
-        for (const gangs of gangResults) {
-          for (const g of gangs) {
-            // The helper passes gangId so the vehicle's own gang comes back too
-            if (g.gang_id !== gangId && !seenIds.has(g.gang_id)) {
-              seenIds.add(g.gang_id);
-              allGangs.push(g);
-            }
-          }
-        }
-
-        if (!cancelled) setCampaignGangs(allGangs);
-      } catch (err) {
-        console.error('Failed to fetch campaign gangs:', err);
-      } finally {
-        if (!cancelled) setIsFetchingGangs(false);
-      }
-    };
-
-    fetchGangs();
-    return () => { cancelled = true; };
-  }, [needsCampaignGangPicker, campaignIds, gangId]);
+  const { gangs: campaignGangs, isLoading: isFetchingGangs } = useOtherCampaignGangs(campaignIds, gangId, needsCampaignGangPicker);
 
   // Show error toast if damages failed to load
   useEffect(() => {

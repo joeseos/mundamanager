@@ -107,6 +107,7 @@ export function CustomiseGangTypes({
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['customGangTypes'] });
       queryClient.invalidateQueries({ queryKey: ['gang-types'] });
+      queryClient.invalidateQueries({ queryKey: ['gangTypes'] });
     },
   });
 
@@ -147,6 +148,7 @@ export function CustomiseGangTypes({
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['customGangTypes'] });
       queryClient.invalidateQueries({ queryKey: ['gang-types'] });
+      queryClient.invalidateQueries({ queryKey: ['gangTypes'] });
     },
   });
 
@@ -174,6 +176,7 @@ export function CustomiseGangTypes({
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['customGangTypes'] });
       queryClient.invalidateQueries({ queryKey: ['gang-types'] });
+      queryClient.invalidateQueries({ queryKey: ['gangTypes'] });
     },
   });
 

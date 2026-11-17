@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import Modal from "@/components/ui/modal";
@@ -9,13 +9,15 @@ import { toast } from 'sonner';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
+
+type CampaignGang = { id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string };
 
 const CopyFighterModal = dynamic(() => import('@/components/fighter/copy-fighter-modal'), { ssr: false });
 
@@ -105,8 +107,6 @@ export function FighterActions({
   });
 
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
-  const [campaignGangs, setCampaignGangs] = useState<Array<{ id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string }>>([]);
-  const [isFetchingGangs, setIsFetchingGangs] = useState(false);
 
   const campaignIds = useMemo(() =>
     fighter?.campaigns?.map(c => c.campaign_id).filter(Boolean) ?? [],
@@ -118,53 +118,36 @@ export function FighterActions({
   if (shouldFetchGangs !== prevShouldFetchGangs) {
     setPrevShouldFetchGangs(shouldFetchGangs);
     if (!shouldFetchGangs) {
-      setCampaignGangs([]);
       setSelectedCapturingGangId('');
-    } else {
-      setIsFetchingGangs(true);
     }
   }
 
-  useEffect(() => {
-    if (!shouldFetchGangs) return;
-
-    let cancelled = false;
-
-    const fetchGangs = async () => {
-      try {
-        const allGangs: Array<{ id: string; name: string; gang_type: string; gang_colour?: string; owner_username?: string }> = [];
-        const seenIds = new Set<string>();
-
-        const gangResults = await Promise.all(
-          campaignIds.map(async (campaignId) => {
-            const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
-            if (!res.ok) return [];
-            return await res.json();
-          })
-        );
-
-        for (const gangs of gangResults) {
-          for (const g of gangs) {
-            if (g.id !== gang.id && !seenIds.has(g.id)) {
-              seenIds.add(g.id);
-              allGangs.push({ id: g.id, name: g.name, gang_type: g.gang_type, gang_colour: g.gang_colour, owner_username: g.owner_username });
-            }
-          }
-        }
-
-        if (!cancelled) {
-          setCampaignGangs(allGangs);
-        }
-      } catch (err) {
-        console.error('Failed to fetch campaign gangs:', err);
-      } finally {
-        if (!cancelled) setIsFetchingGangs(false);
+  // The other gangs across the fighter's campaigns, under the key the Create Battle modal uses
+  const combineCampaignGangs = useCallback(
+    (results: UseQueryResult<CampaignGang[]>[]) => {
+      const gangs = new Map<string, CampaignGang>();
+      for (const g of results.flatMap((result) => result.data ?? [])) {
+        if (g.id !== gang.id && !gangs.has(g.id)) gangs.set(g.id, g);
       }
-    };
+      return { campaignGangs: [...gangs.values()], isFetchingGangs: results.some((result) => result.isLoading) };
+    },
+    [gang.id]
+  );
 
-    fetchGangs();
-    return () => { cancelled = true; };
-  }, [shouldFetchGangs, campaignIds, gang.id]);
+  const { campaignGangs, isFetchingGangs } = useQueries({
+    queries: campaignIds.map((campaignId) => ({
+      queryKey: ['campaign-gangs', campaignId],
+      queryFn: async () => {
+        const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
+        if (!res.ok) throw new Error('Failed to fetch campaign gangs');
+        return res.json() as Promise<CampaignGang[]>;
+      },
+      enabled: shouldFetchGangs,
+      staleTime: 0,
+    })),
+    combine: combineCampaignGangs,
+  });
+
 
   const isMeatEnabled = useCallback(() => {
     return fighter?.campaigns?.some(campaign =>

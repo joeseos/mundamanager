@@ -1,5 +1,7 @@
-import { useMemo, type ReactNode } from 'react';
+import { useCallback, useMemo, type ReactNode } from 'react';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
+import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 
 export interface CampaignFighterComboboxOption {
@@ -60,4 +62,35 @@ export function useCampaignGangFighterOptions(
   }, [campaignGangs, editionSlug]);
 
   return { getFighterOptions };
+}
+
+/**
+ * The other gangs, with their fighters, across a fighter's campaigns, for the
+ * captured-by and hatred target pickers. One query per campaign, under the key
+ * the Add XP and OOA history modals use. Empty while not enabled, even when
+ * those queries are cached.
+ */
+export function useOtherCampaignGangs(campaignIds: string[], gangId: string, enabled: boolean) {
+  const combine = useCallback(
+    (results: UseQueryResult<CampaignGangWithFighters[]>[]) => {
+      const gangs = new Map<string, CampaignGangWithFighters>();
+      if (enabled) {
+        for (const gang of results.flatMap((result) => result.data ?? [])) {
+          if (gang.gang_id !== gangId && !gangs.has(gang.gang_id)) gangs.set(gang.gang_id, gang);
+        }
+      }
+      return { gangs: [...gangs.values()], isLoading: results.some((result) => result.isLoading) };
+    },
+    [gangId, enabled],
+  );
+
+  return useQueries({
+    queries: campaignIds.map((campaignId) => ({
+      queryKey: ['campaign-gangs-fighters', gangId, campaignId],
+      queryFn: () => fetchCampaignGangsAndFighters({ campaignId, gangId }),
+      enabled,
+      staleTime: 60_000,
+    })),
+    combine,
+  });
 }
