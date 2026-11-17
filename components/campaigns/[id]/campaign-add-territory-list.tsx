@@ -9,17 +9,9 @@ import { getCampaignRank } from '@/utils/campaigns/campaignRank';
 import { addTerritoryToCampaign, createCustomCampaignTerritory } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import type { CampaignType, CampaignTerritoryRow } from '@/types/campaign';
+import type { CatalogTerritory } from '@/app/lib/reference-data';
 import { sameEditionForDisplay } from '@/types/edition';
 import { TERRITORY_NAME_CHAR_LIMIT } from '@/utils/campaigns/territory-name';
-
-interface Territory {
-  id: string;
-  territory_name: string;
-  campaign_type_id: string | null;
-  territory_id?: string | null;
-  edition_slug?: string | null;
-  controlled_gang_type?: string | null;
-}
 
 interface CampaignTerritory {
   territory_id: string | null;
@@ -32,7 +24,7 @@ interface TerritoryListProps {
   campaignTypeId: string;
   editionSlug?: string | null;
   campaignTypes: CampaignType[];
-  allTerritories: Territory[];
+  allTerritories: CatalogTerritory[];
   existingCampaignTerritories: CampaignTerritory[];
   onTerritoryAdd?: (territory: CampaignTerritoryRow) => void;
 }
@@ -79,7 +71,7 @@ export default function TerritoryList({
       .flatMap(territory => territory.controlled_gang_type ?? [])
   )].sort();
 
-  const handleAddTerritory = async (territory: Territory) => {
+  const handleAddTerritory = async (territory: CatalogTerritory) => {
     setIsAdding(territory.id);
     try {
       const result = await addTerritoryToCampaign({
@@ -175,7 +167,7 @@ export default function TerritoryList({
 
   const allFilteredTerritories = filteredTerritories;
 
-  const getTerritoryCount = (territory: Territory) => {
+  const getTerritoryCount = (territory: CatalogTerritory) => {
     return existingCampaignTerritories.filter(existing => {
       if (existing.territory_id === territory.territory_id) {
         return true;

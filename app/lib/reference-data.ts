@@ -107,6 +107,8 @@ export const getAllTerritories = async () => {
   )();
 };
 
+export type CatalogTerritory = Awaited<ReturnType<typeof getAllTerritories>>[number];
+
 /**
  * Every edition's scenario tables with their entries, for the N26 battle log
  * and battle session pickers. Also tagged with gang types: a house table lists
