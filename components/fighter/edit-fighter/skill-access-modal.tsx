@@ -109,7 +109,7 @@ export function SkillAccessModal({
   const { data: allSkillTypes, isLoading: isLoadingSkillTypes, error: skillTypesError } = useQuery({
     ...fighterSkillTypesQuery(fighterId, editionSlug),
     enabled: isOpen,
-    meta: { errorMessage: 'Failed to load skill types' },
+    meta: { errorMessage: 'Failed to load skill sets' },
   });
 
   // Fighter's current skill access (defaults + overrides)
