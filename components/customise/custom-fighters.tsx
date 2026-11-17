@@ -398,12 +398,12 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     staleTime: 0,
   });
 
-  const { data: fighterSubtypes = NO_FIGHTER_SUBTYPES, error: fighterSubtypesError } = useQuery<FighterSubtype[], Error, FighterSubtype[]>({
+  const { data: fighterSubtypes = NO_FIGHTER_SUBTYPES, error: fighterSubtypesError } = useQuery({
     queryKey: ['fighter-subtypes', editionSlug],
     queryFn: async () => {
       const response = await fetch(`/api/fighter-subtypes?${new URLSearchParams({ edition_slug: editionSlug })}`);
       if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
-      return response.json();
+      return response.json() as Promise<FighterSubtype[]>;
     },
     select: (data) => filterAllowedFighterSubtypes(data, editionSlug),
     enabled: isFormOpen,

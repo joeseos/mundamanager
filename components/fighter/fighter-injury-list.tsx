@@ -737,8 +737,6 @@ export function InjuriesList({
     setIsAddModalOpen(true);
   }
 
-
-
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
       toast.error("Please select a lasting injury");

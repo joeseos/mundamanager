@@ -251,7 +251,7 @@ export default function Gang({
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [gangHasSubtypes, setGangHasSubtypes] = useState(safeGangSubtypes.length > 0);
   const [gangSubtypes, setGangSubtypes] = useState<Array<{id: string, subtype: string}>>(safeGangSubtypes);
-  const { data: availableSubtypes = NO_SUBTYPES, error: availableSubtypesError } = useQuery({
+  const { data: availableSubtypes = NO_SUBTYPES, isLoading: availableSubtypesLoading, error: availableSubtypesError } = useQuery({
     queryKey: ['gang-subtype-types'],
     queryFn: async () => {
       const response = await fetch('/api/gang-subtype-types');
@@ -1375,7 +1375,8 @@ export default function Gang({
             </div>
           </div>
 
-          {showEditModal && (
+          {/* Waits for the subtypes: the modal's Outlaw alignment sync looks them up */}
+          {showEditModal && !availableSubtypesLoading && (
             <GangEditModal
               onClose={() => setShowEditModal(false)}
               gangId={id}

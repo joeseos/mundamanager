@@ -703,7 +703,6 @@ export function VehicleDamagesList({
       <div>
         <DiceRoller
           items={availableDamages}
-          ensureItems={undefined}
           getRange={(i: FighterEffect) => {
             const range = resolveVehicleDamageRangeByNameFor((i as any).effect_name, editionSlug);
             return range ? { min: range[0], max: range[1] } : null;
