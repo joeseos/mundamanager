@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,7 @@ interface Territory {
   campaign_type_id: string | null;
   territory_id?: string | null;
   edition_slug?: string | null;
+  controlled_gang_type?: string | null;
 }
 
 interface CampaignTerritory {
@@ -163,6 +164,13 @@ export default function TerritoryList({
         return rankA - rankB;
       }
 
+      // House territories follow the shared ones, grouped by house
+      const houseA = a.controlled_gang_type ?? '';
+      const houseB = b.controlled_gang_type ?? '';
+      if (houseA !== houseB) {
+        return houseA.localeCompare(houseB);
+      }
+
       return a.territory_name.localeCompare(b.territory_name);
     });
 
@@ -261,39 +269,53 @@ export default function TerritoryList({
               </tr>
             </thead>
             <tbody>
-              {allFilteredTerritories.map((territory) => {
+              {allFilteredTerritories.map((territory, index) => {
                 const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
                 const typeName = territory.campaign_type_id ? (type?.campaign_type_name ?? 'Unknown') : 'All Types';
                 const territoryCount = getTerritoryCount(territory);
+                const previous = allFilteredTerritories[index - 1];
+                const startsHouseGroup = !!territory.controlled_gang_type && (
+                  previous?.controlled_gang_type !== territory.controlled_gang_type ||
+                  previous?.campaign_type_id !== territory.campaign_type_id
+                );
 
                 return (
-                  <tr key={territory.id} className="border-b last:border-0">
-                    <td className="w-2/4 px-2 md:px-4 py-2">
-                      <span className="font-medium">{territory.territory_name}</span>
-                    </td>
-                    <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
-                    <td className="w-1/4 px-2 py-2 text-center">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        territoryCount > 0 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-muted text-muted-foreground'
-                      }`}>
-                        {territoryCount}
-                      </span>
-                    </td>
-                    {isAdmin && (
-                      <td className="w-1/4 px-2 py-2 text-right">
-                        <Button
-                          onClick={() => handleAddTerritory(territory)}
-                          size="sm"
-                          disabled={isAdding === territory.id}
-                          className="text-xs px-1.5 h-6"
-                        >
-                          Add
-                        </Button>
-                      </td>
+                  <Fragment key={territory.id}>
+                    {startsHouseGroup && (
+                      <tr className="bg-muted/50 border-b">
+                        <td colSpan={isAdmin ? 4 : 3} className="px-2 md:px-4 py-1 text-xs font-medium text-muted-foreground">
+                          {territory.controlled_gang_type}
+                        </td>
+                      </tr>
                     )}
-                  </tr>
+                    <tr className="border-b last:border-0">
+                      <td className="w-2/4 px-2 md:px-4 py-2">
+                        <span className="font-medium">{territory.territory_name}</span>
+                      </td>
+                      <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
+                      <td className="w-1/4 px-2 py-2 text-center">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          territoryCount > 0 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {territoryCount}
+                        </span>
+                      </td>
+                      {isAdmin && (
+                        <td className="w-1/4 px-2 py-2 text-right">
+                          <Button
+                            onClick={() => handleAddTerritory(territory)}
+                            size="sm"
+                            disabled={isAdding === territory.id}
+                            className="text-xs px-1.5 h-6"
+                          >
+                            Add
+                          </Button>
+                        </td>
+                      )}
+                    </tr>
+                  </Fragment>
                 );
               })}
             </tbody>

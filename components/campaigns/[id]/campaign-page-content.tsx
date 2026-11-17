@@ -114,6 +114,7 @@ interface AllTerritory {
   campaign_type_id: string | null;
   territory_id?: string | null;
   edition_slug?: string | null;
+  controlled_gang_type?: string | null;
 }
 
 
