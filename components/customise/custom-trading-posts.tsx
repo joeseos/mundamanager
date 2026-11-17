@@ -1040,14 +1040,13 @@ function useEquipmentData() {
   const editionSlug = useTradingPostEdition();
 
   const { data: categories = [], error: categoriesError } = useQuery({
-    // Keyed on edition because the result below is edition-filtered
-    queryKey: ['equipmentCategories', editionSlug],
+    queryKey: ['equipmentCategories'],
     queryFn: async () => {
       const res = await fetch('/api/equipment/categories');
       if (!res.ok) throw new Error('Failed to fetch categories');
-      const data = await res.json() as Array<{ id: string; category_name: string; edition_slug?: string | null }>;
-      return data.filter(c => sameEditionForDisplay(c.edition_slug, editionSlug));
+      return res.json() as Promise<Array<{ id: string; category_name: string; edition_slug?: string | null }>>;
     },
+    select: (data) => data.filter(c => sameEditionForDisplay(c.edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
   });
 

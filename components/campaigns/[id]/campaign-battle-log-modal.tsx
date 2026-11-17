@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { createBattleLog, updateBattleLog, BattleLogParams } from "@/app/actions/campaigns/[id]/battle-logs";
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Battle, BattleParticipant, BattleStatus, CampaignGang, Territory as BaseTerritory, Scenario, ScenarioTableWithEntries, customPartNames, neededScenarioPart, participantSideJob } from '@/types/campaign';
 import { battleStatusLabels, battleStatusOf, challengeAnswerStatuses, isPlayedBattle } from '@/types/campaign';
 import { getClaimerGangId, getWinnerIds } from '@/utils/battle-winners';
@@ -53,6 +53,7 @@ interface CampaignBattleLogModalProps {
 }
 
 const reportCharLimit = 4096;
+const NO_SCENARIOS: Scenario[] = [];
 
 const challengeResponseOptions: { value: BattleStatus; label: string }[] = [
   { value: 'challenge_issued', label: 'Awaiting response' },
@@ -103,8 +104,6 @@ const CampaignBattleLogModal = ({
   const [namedScenario, setNamedScenario] = useState('');
   const [gangsInBattle, setGangsInBattle] = useState<GangEntry[]>([emptyGangEntry(1), emptyGangEntry(2)]);
   const [notes, setNotes] = useState('');
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [isLoadingBattleData, setIsLoadingBattleData] = useState(!!campaignId && !usesScenarioTables);
   const [selectedTerritory, setSelectedTerritory] = useState<string>('');
   const isReportOverLimit = notes.length > reportCharLimit;
 
@@ -409,55 +408,28 @@ const CampaignBattleLogModal = ({
   // Compute isSubmitting from mutation states
   const isSubmitting = createBattleMutation.isPending || updateBattleMutation.isPending;
 
-  // Load battle data when the modal opens
-  useEffect(() => {
-    let isMounted = true;
-
+  // Same request and key as the Create Battle modal
+  const { data: scenarios = NO_SCENARIOS, isLoading: isLoadingBattleData, error: battleDataError } = useQuery({
+    queryKey: ['battle-data', campaignId],
+    queryFn: async () => {
+      const res = await fetch('/api/campaigns/battles', { headers: { 'X-Campaign-Id': campaignId } });
+      if (!res.ok) throw new Error('Failed to fetch battle data');
+      return res.json() as Promise<{ scenarios: Scenario[]; scenarioTables: ScenarioTableWithEntries[] }>;
+    },
+    select: (data) => data.scenarios
+      .filter((s) => sameEditionForDisplay(s.edition_slug, editionSlug))
+      .sort((a, b) => {
+        if (a.scenario_number === null) return 1;
+        if (b.scenario_number === null) return -1;
+        return a.scenario_number - b.scenario_number;
+      }),
     // N26 picks from scenarioTables, which come with the page.
-    if (campaignId && !usesScenarioTables) {
-      const fetchData = async () => {
-        setIsLoadingBattleData(true);
-        try {
-          const response = await fetch('/api/campaigns/battles', {
-            headers: {
-              'X-Campaign-Id': campaignId
-            }
-          });
+    enabled: !!campaignId && !usesScenarioTables,
+  });
 
-          if (!response.ok) throw new Error('Failed to fetch battle data');
-
-          if (isMounted) {
-            const data = await response.json();
-            const editionScenarios = (data.scenarios as Scenario[]).filter((s) =>
-              sameEditionForDisplay(s.edition_slug, editionSlug)
-            );
-            // Sort scenarios by scenario_number
-            const sortedScenarios = [...editionScenarios].sort((a, b) => {
-              if (a.scenario_number === null) return 1;
-              if (b.scenario_number === null) return -1;
-              return a.scenario_number - b.scenario_number;
-            });
-            setScenarios(sortedScenarios);
-          }
-        } catch (error) {
-          console.error('Error loading battle data:', error);
-          if (isMounted) {
-            toast.error("Failed to load battle data");
-          }
-        } finally {
-          if (isMounted) {
-            setIsLoadingBattleData(false);
-          }
-        }
-      };
-
-      fetchData();
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [campaignId, editionSlug, usesScenarioTables]);
+  useEffect(() => {
+    if (battleDataError) toast.error("Failed to load battle data");
+  }, [battleDataError]);
 
   // Populate form when modal opens with edit data and scenarios are loaded
   const [populatedForBattle, setPopulatedForBattle] = useState<string | null>(null);
