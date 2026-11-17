@@ -264,14 +264,14 @@ export default function TerritoryList({
 
       {allFilteredTerritories.length > 0 ? (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs md:text-sm">
             <thead>
               <tr className="bg-muted border-b">
-                <th className="w-2/4 px-2 md:px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-                <th className="w-3/4 px-1 py-2 text-left font-medium whitespace-nowrap">Campaign</th>
-                <th className="w-1/4 px-0 py-2 text-center font-medium whitespace-nowrap">Count</th>
+                <th className="px-2 md:px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+                <th className="px-1 py-2 text-left font-medium whitespace-nowrap">Campaign</th>
+                <th className="px-0 py-2 text-center font-medium whitespace-nowrap">Count</th>
                 {isAdmin && (
-                  <th className="w-1/4 px-2 py-2 text-right font-medium whitespace-nowrap"></th>
+                  <th className="px-2 py-2 text-right font-medium whitespace-nowrap"></th>
                 )}
               </tr>
             </thead>
@@ -283,14 +283,14 @@ export default function TerritoryList({
 
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="w-2/4 px-2 md:px-4 py-2">
+                    <td className="px-2 md:px-4 py-2">
                       <span className="font-medium">{territory.territory_name}</span>
                       {territory.controlled_gang_type && (
                         <span className="block text-xs text-muted-foreground">{territory.controlled_gang_type}</span>
                       )}
                     </td>
-                    <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
-                    <td className="w-1/4 px-2 py-2 text-center">
+                    <td className="px-1 py-2 text-muted-foreground">{typeName}</td>
+                    <td className="px-2 py-2 text-center">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                         territoryCount > 0 
                           ? 'bg-blue-100 text-blue-800' 
@@ -300,7 +300,7 @@ export default function TerritoryList({
                       </span>
                     </td>
                     {isAdmin && (
-                      <td className="w-1/4 px-2 py-2 text-right">
+                      <td className="px-2 py-2 text-right">
                         <Button
                           onClick={() => handleAddTerritory(territory)}
                           size="sm"
