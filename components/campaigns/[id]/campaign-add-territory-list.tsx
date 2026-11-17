@@ -221,6 +221,10 @@ export default function TerritoryList({
                   </label>
                 </div>
               ))}
+          </div>
+        </div>
+        {houses.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
             {houses.map((house) => (
               <div key={house} className="flex items-center space-x-2">
                 <Checkbox
@@ -234,7 +238,7 @@ export default function TerritoryList({
               </div>
             ))}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Custom Territory creation */}
