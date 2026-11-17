@@ -7315,6 +7315,8 @@ CREATE TABLE public.skill_types (
 
 CREATE TABLE public.skills (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
+    "OLDxp_cost" bigint,
+    "OLDcredit_cost" bigint,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     name text,
