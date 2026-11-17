@@ -1,5 +1,5 @@
 -- The house that controls each N26 house territory card, so Add Territories
--- groups them by house. Only Toll Road and Amneo-vats change income: Amneo-vats'
+-- lists them only when their house is ticked. Only Toll Road and Amneo-vats change income: Amneo-vats'
 -- "Goliath Controlled: an additional 10 credits" on its 15 Income Boon.
 UPDATE public.territories t
 SET controlled_gang_type_id = gt.id

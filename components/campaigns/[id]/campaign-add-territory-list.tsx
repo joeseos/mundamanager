@@ -225,14 +225,14 @@ export default function TerritoryList({
         </div>
         {houses.length > 0 && (
           <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
-            {houses.map((house) => (
+            {houses.map((house, index) => (
               <div key={house} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`house-${house}`}
+                  id={`house-${index}`}
                   checked={selectedHouses.includes(house)}
                   onCheckedChange={() => setSelectedHouses(toggle(house))}
                 />
-                <label htmlFor={`house-${house}`} className="text-sm cursor-pointer">
+                <label htmlFor={`house-${index}`} className="text-sm cursor-pointer">
                   {house}
                 </label>
               </div>
