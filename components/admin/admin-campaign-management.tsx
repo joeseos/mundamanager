@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { hasParentGangType, type GangTypeWithParent } from '@/utils/gangTypeVariants';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,6 +31,12 @@ interface Territory {
   campaign_type_id?: string | null;
   playing_card?: string | null;
   credits?: number | null;
+  controlled_gang_type_id?: string | null;
+  controlled_credits?: number | null;
+  edition_id?: string | null;
+}
+
+interface GangType extends GangTypeWithParent {
   edition_id?: string | null;
 }
 
@@ -204,6 +211,18 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: gangTypes = [] } = useQuery<GangType[]>({
+    // detailed=1 carries parent_gang_type_id, so only houses are offered
+    queryKey: ['admin-gang-types', 'detailed'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/gang-types?detailed=1');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: selectedCategory === 'territories',
+  });
+
   const isLoading = isLoadingCampaignTypes || isLoadingTerritories || isLoadingTriumphs || isSubmitting;
   
   // Campaign Types form state
@@ -232,6 +251,8 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
   const [territoryCampaignTypeId, setTerritoryCampaignTypeId] = useState('');
   const [territoryCardValue, setTerritoryCardValue] = useState('');
   const [territoryCredits, setTerritoryCredits] = useState('');
+  const [territoryControlledGangTypeId, setTerritoryControlledGangTypeId] = useState('');
+  const [territoryControlledCredits, setTerritoryControlledCredits] = useState('');
   const [territoryEditionId, setTerritoryEditionId] = useState('');
   const [isCreateModeTerritory, setIsCreateModeTerritory] = useState(false);
   
@@ -260,6 +281,8 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
     setTerritoryCampaignTypeId('');
     setTerritoryCardValue('');
     setTerritoryCredits('');
+    setTerritoryControlledGangTypeId('');
+    setTerritoryControlledCredits('');
     setIsCreateModeTerritory(false);
 
     setSelectedTriumphId('');
@@ -320,6 +343,8 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
         setTerritoryCampaignTypeId('');
         setTerritoryCardValue('');
         setTerritoryCredits('');
+        setTerritoryControlledGangTypeId('');
+        setTerritoryControlledCredits('');
         setIsCreateModeTerritory(false);
       }
     }
@@ -511,6 +536,8 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
       setTerritoryCampaignTypeId(selected.campaign_type_id || '');
       setTerritoryCardValue(selected.playing_card || '');
       setTerritoryCredits(selected.credits?.toString() ?? '');
+      setTerritoryControlledGangTypeId(selected.controlled_gang_type_id ?? '');
+      setTerritoryControlledCredits(selected.controlled_credits?.toString() ?? '');
       setTerritoryEditionId(selected.edition_id ?? '');
     }
   };
@@ -521,6 +548,8 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
     setTerritoryCampaignTypeId('');
     setTerritoryCardValue('');
     setTerritoryCredits('');
+    setTerritoryControlledGangTypeId('');
+    setTerritoryControlledCredits('');
     setIsCreateModeTerritory(true);
   };
 
@@ -544,6 +573,8 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
             campaign_type_id: territoryCampaignTypeId || null,
             playing_card: territoryCardValue.trim() || null,
             credits: territoryCredits.trim() === '' ? null : Number(territoryCredits),
+            controlled_gang_type_id: territoryControlledGangTypeId || null,
+            controlled_credits: territoryControlledCredits.trim() === '' ? null : Number(territoryControlledCredits),
             edition_id: territoryEditionId || null
           });
           break;
@@ -555,6 +586,8 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
             campaign_type_id: territoryCampaignTypeId || null,
             playing_card: territoryCardValue.trim() || null,
             credits: territoryCredits.trim() === '' ? null : Number(territoryCredits),
+            controlled_gang_type_id: territoryControlledGangTypeId || null,
+            controlled_credits: territoryControlledCredits.trim() === '' ? null : Number(territoryControlledCredits),
             edition_id: territoryEditionId || null
           });
           break;
@@ -1153,6 +1186,38 @@ export function AdminCampaignManagementModal({ onClose }: AdminCampaignManagemen
                     className="w-full"
                     disabled={!isCreateModeTerritory && !selectedTerritoryId}
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Controlled by
+                    </label>
+                    <Combobox
+                      value={territoryControlledGangTypeId}
+                      onValueChange={setTerritoryControlledGangTypeId}
+                      options={gangTypes
+                        .filter(gangType => !hasParentGangType(gangType))
+                        .filter(gangType => !territoryEditionId || gangType.edition_id === territoryEditionId)
+                        .map(gangType => ({ value: gangType.id, label: gangType.gang_type }))}
+                      placeholder="Select a gang type"
+                      clearable
+                      disabled={!isCreateModeTerritory && !selectedTerritoryId}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
+                      Controlled credits
+                    </label>
+                    <Input
+                      type="number"
+                      value={territoryControlledCredits}
+                      onChange={(e) => setTerritoryControlledCredits(e.target.value)}
+                      placeholder="e.g. 30"
+                      className="w-full"
+                      disabled={!isCreateModeTerritory && !selectedTerritoryId}
+                    />
+                  </div>
                 </div>
 
               </>

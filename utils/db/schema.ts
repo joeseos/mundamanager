@@ -951,6 +951,8 @@ export const territories = pgTable('territories', {
   playing_card: text('playing_card'),
   edition_id: uuid('edition_id'),
   credits: numeric('credits', { mode: 'number' }),
+  controlled_gang_type_id: uuid('controlled_gang_type_id'),
+  controlled_credits: numeric('controlled_credits', { mode: 'number' }),
 });
 
 export const scenarios = pgTable('scenarios', {

@@ -766,6 +766,8 @@ async function collectIncome({
         if (!territory) return { success: false, error: 'The gang does not hold that territory' };
         const credits = territoryIncome(territory, {
           gangType: gang.gang_type,
+          gangTypeId: gang.gang_type_id,
+          parentGangTypeId: gang.gang_types?.parent_gang_type_id,
           isCustomGangType: Boolean(gang.custom_gang_type_id),
         });
         if (!credits) return { success: false, error: `${territory.territory_name} gives no credits` };
