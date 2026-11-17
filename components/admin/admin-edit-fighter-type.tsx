@@ -393,13 +393,15 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
 
-    // Keep loaded metadata for rendering saved skills, but remove any selection
-    // that cannot be proved to belong to the newly selected edition.
-    setSelectedSkills(prev => prev.filter(skillId => {
-      const skill = findSkill(skillId);
-      const skillType = skillTypes.find(type => type.id === skill?.skill_type_id);
-      return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
-    }));
+    // Remove any selection that cannot be proved to belong to the newly selected
+    // edition, once the skills are loaded to prove it
+    if (allSkillsLoaded) {
+      setSelectedSkills(prev => prev.filter(skillId => {
+        const skill = findSkill(skillId);
+        const skillType = skillTypes.find(type => type.id === skill?.skill_type_id);
+        return !!skillType && (!newEditionId || skillType.edition_id === newEditionId);
+      }));
+    }
 
     const newEditionSlug = editions.find(edition => edition.id === newEditionId)?.slug;
 
@@ -552,7 +554,7 @@ export function AdminEditFighterTypeModal({ onClose }: AdminEditFighterTypeModal
 
   // Every skill, for the names of the selected ones. Same request and key as the
   // Fighter Effects editor without an edition.
-  const { data: allSkills = NO_SKILLS } = useQuery<Skill[]>({
+  const { data: allSkills = NO_SKILLS, isSuccess: allSkillsLoaded } = useQuery<Skill[]>({
     queryKey: ['admin-skills', null],
     queryFn: async () => {
       const response = await fetch('/api/admin/skills');

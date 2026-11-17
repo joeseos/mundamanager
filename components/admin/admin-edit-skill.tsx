@@ -432,6 +432,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                     const selectedType = skillTypeList.find(t => t.id === e.target.value);
                     setSkillType(e.target.value);
                     setSkillName("");
+                    setSkillId("");
                     setSkillTypeName(selectedSkillType);
                     setEditionId(selectedType?.edition_id ?? '');
                   }
