@@ -440,8 +440,6 @@ export const skillTypes = pgTable('skill_types', {
 
 export const skills = pgTable('skills', {
   id: uuid('id').defaultRandom().primaryKey(),
-  OLDxp_cost: bigint('OLDxp_cost', { mode: 'number' }),
-  OLDcredit_cost: bigint('OLDcredit_cost', { mode: 'number' }),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   name: text('name'),
