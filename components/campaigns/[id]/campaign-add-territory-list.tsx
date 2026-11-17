@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -48,6 +48,7 @@ export default function TerritoryList({
   onTerritoryAdd 
 }: TerritoryListProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
+  const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
   const [_campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
   const [isLoading] = useState(false);
   const [isAdding, setIsAdding] = useState<string | null>(null);
@@ -68,13 +69,15 @@ export default function TerritoryList({
     setCampaignTerritories(existingCampaignTerritories);
   }
 
-  const handleTypeToggle = (typeId: string) => {
-    setSelectedTypes(prev => 
-      prev.includes(typeId) 
-        ? prev.filter(id => id !== typeId)
-        : [...prev, typeId]
-    );
-  };
+  const toggle = (id: string) => (prev: string[]) =>
+    prev.includes(id) ? prev.filter(selected => selected !== id) : [...prev, id];
+
+  // House territories (e.g. Orlock's Toll Road) show only when their house is ticked
+  const houses = [...new Set(
+    allTerritories
+      .filter(territory => sameEditionForDisplay(territory.edition_slug, editionSlug))
+      .flatMap(territory => territory.controlled_gang_type ?? [])
+  )].sort();
 
   const handleAddTerritory = async (territory: Territory) => {
     setIsAdding(territory.id);
@@ -148,6 +151,9 @@ export default function TerritoryList({
       if (!sameEditionForDisplay(territory.edition_slug, editionSlug)) {
         return false;
       }
+      if (territory.controlled_gang_type && !selectedHouses.includes(territory.controlled_gang_type)) {
+        return false;
+      }
       if (territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id)) {
         return true;
       }
@@ -162,13 +168,6 @@ export default function TerritoryList({
 
       if (rankA !== rankB) {
         return rankA - rankB;
-      }
-
-      // House territories follow the shared ones, grouped by house
-      const houseA = a.controlled_gang_type ?? '';
-      const houseB = b.controlled_gang_type ?? '';
-      if (houseA !== houseB) {
-        return houseA.localeCompare(houseB);
       }
 
       return a.territory_name.localeCompare(b.territory_name);
@@ -195,7 +194,7 @@ export default function TerritoryList({
         <h3 className="text-sm font-medium flex items-center space-x-2 text-muted-foreground mb-2">
             <span>Campaign Type Territories</span>
           <InfoTooltip ariaLabel="About campaign type territories">
-            Select the campaign types that you want to add territories for.
+            Select the campaign types and houses that you want to add territories for.
           </InfoTooltip>
         </h3>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -215,13 +214,25 @@ export default function TerritoryList({
                   <Checkbox
                     id={`type-${type.id}`}
                     checked={selectedTypes.includes(type.id)}
-                    onCheckedChange={() => handleTypeToggle(type.id)}
+                    onCheckedChange={() => setSelectedTypes(toggle(type.id))}
                   />
                   <label htmlFor={`type-${type.id}`} className="text-sm cursor-pointer">
                     {type.campaign_type_name}
                   </label>
                 </div>
               ))}
+            {houses.map((house) => (
+              <div key={house} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`house-${house}`}
+                  checked={selectedHouses.includes(house)}
+                  onCheckedChange={() => setSelectedHouses(toggle(house))}
+                />
+                <label htmlFor={`house-${house}`} className="text-sm cursor-pointer">
+                  {house}
+                </label>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -269,53 +280,39 @@ export default function TerritoryList({
               </tr>
             </thead>
             <tbody>
-              {allFilteredTerritories.map((territory, index) => {
+              {allFilteredTerritories.map((territory) => {
                 const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
                 const typeName = territory.campaign_type_id ? (type?.campaign_type_name ?? 'Unknown') : 'All Types';
                 const territoryCount = getTerritoryCount(territory);
-                const previous = allFilteredTerritories[index - 1];
-                const startsHouseGroup = !!territory.controlled_gang_type && (
-                  previous?.controlled_gang_type !== territory.controlled_gang_type ||
-                  previous?.campaign_type_id !== territory.campaign_type_id
-                );
 
                 return (
-                  <Fragment key={territory.id}>
-                    {startsHouseGroup && (
-                      <tr className="bg-muted/50 border-b">
-                        <td colSpan={isAdmin ? 4 : 3} className="px-2 md:px-4 py-1 text-xs font-medium text-muted-foreground">
-                          {territory.controlled_gang_type}
-                        </td>
-                      </tr>
+                  <tr key={territory.id} className="border-b last:border-0">
+                    <td className="w-2/4 px-2 md:px-4 py-2">
+                      <span className="font-medium">{territory.territory_name}</span>
+                    </td>
+                    <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
+                    <td className="w-1/4 px-2 py-2 text-center">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        territoryCount > 0 
+                          ? 'bg-blue-100 text-blue-800' 
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {territoryCount}
+                      </span>
+                    </td>
+                    {isAdmin && (
+                      <td className="w-1/4 px-2 py-2 text-right">
+                        <Button
+                          onClick={() => handleAddTerritory(territory)}
+                          size="sm"
+                          disabled={isAdding === territory.id}
+                          className="text-xs px-1.5 h-6"
+                        >
+                          Add
+                        </Button>
+                      </td>
                     )}
-                    <tr className="border-b last:border-0">
-                      <td className="w-2/4 px-2 md:px-4 py-2">
-                        <span className="font-medium">{territory.territory_name}</span>
-                      </td>
-                      <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
-                      <td className="w-1/4 px-2 py-2 text-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          territoryCount > 0 
-                            ? 'bg-blue-100 text-blue-800' 
-                            : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {territoryCount}
-                        </span>
-                      </td>
-                      {isAdmin && (
-                        <td className="w-1/4 px-2 py-2 text-right">
-                          <Button
-                            onClick={() => handleAddTerritory(territory)}
-                            size="sm"
-                            disabled={isAdding === territory.id}
-                            className="text-xs px-1.5 h-6"
-                          >
-                            Add
-                          </Button>
-                        </td>
-                      )}
-                    </tr>
-                  </Fragment>
+                  </tr>
                 );
               })}
             </tbody>
