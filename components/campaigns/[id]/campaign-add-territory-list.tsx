@@ -285,6 +285,9 @@ export default function TerritoryList({
                   <tr key={territory.id} className="border-b last:border-0">
                     <td className="w-2/4 px-2 md:px-4 py-2">
                       <span className="font-medium">{territory.territory_name}</span>
+                      {territory.controlled_gang_type && (
+                        <span className="block text-xs text-muted-foreground">{territory.controlled_gang_type}</span>
+                      )}
                     </td>
                     <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
                     <td className="w-1/4 px-2 py-2 text-center">
