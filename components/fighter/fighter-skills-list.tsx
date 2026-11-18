@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
 import { buildGroupedSkillSetComboboxOptions, formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
@@ -118,15 +118,17 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
   const [editableCost, setEditableCost] = useState<number>(0);
 
-  const { data: categories = NO_SKILL_TYPES, error: skillTypesError } = useQuery(
-    fighterSkillTypesQuery(fighterId, editionSlug)
-  );
-  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading, error: skillAccessError } = useQuery({
+  const { data: categories = NO_SKILL_TYPES } = useQuery({
+    ...fighterSkillTypesQuery(fighterId, editionSlug),
+    meta: { errorMessage: 'Failed to load skill sets' },
+  });
+  const { data: skillAccess = NO_SKILL_ACCESS, isLoading: skillAccessLoading } = useQuery({
     ...fighterSkillAccessQuery(fighterId),
     select: toSkillAccess,
+    meta: { errorMessage: 'Failed to load skill access' },
   });
 
-  const { data: availableSkills, error: availableSkillsError } = useQuery({
+  const { data: availableSkills } = useQuery({
     queryKey: ['fighter-available-skills', fighterId],
     queryFn: async (): Promise<SkillData[]> => {
       const response = await fetch(`/api/fighters/${fighterId}/available-skills`);
@@ -136,20 +138,12 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     enabled: !!selectedCategory,
     // Costs and `available` change with every skill or Advancement gained or lost.
     gcTime: 0,
+    meta: { errorMessage: 'Failed to load skills' },
   });
   const skillsInSet = useMemo(
     () => availableSkills?.filter((skill) => skill.skill_type_id === selectedCategory),
     [availableSkills, selectedCategory]
   );
-
-  useEffect(() => {
-    if (skillTypesError) toast.error('Failed to load skill sets');
-    if (skillAccessError) toast.error(skillAccessError.message);
-  }, [skillTypesError, skillAccessError]);
-
-  useEffect(() => {
-    if (availableSkillsError) toast.error('Failed to load skills');
-  }, [availableSkillsError]);
 
   // N26: a Leader or Champion picks a Legendary Name as their free starting skill (+0).
   // After that, one gained for earning 5+ XP in one battle adds 5 to the fighter's worth.

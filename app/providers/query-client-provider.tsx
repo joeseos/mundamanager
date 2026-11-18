@@ -1,7 +1,8 @@
 'use client'
 
 import React from 'react'
-import { QueryClient } from '@tanstack/react-query'
+import { QueryCache, QueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister'
@@ -18,10 +19,28 @@ function browserStorage() {
   }
 }
 
+declare module '@tanstack/react-query' {
+  interface Register {
+    queryMeta: {
+      persist?: boolean
+      /**
+       * Toasted when a fetch fails, after its retries. It lives on the query, so
+       * every useQuery of one key should pass the same message.
+       */
+      errorMessage?: string
+    }
+  }
+}
+
 export function QueryClientProviderWrapper({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(
     () =>
       new QueryClient({
+        queryCache: new QueryCache({
+          onError: (_error, query) => {
+            if (query.meta?.errorMessage) toast.error(query.meta.errorMessage)
+          },
+        }),
         defaultOptions: {
           queries: {
             // Without a default staleTime, every mounted query refetches on

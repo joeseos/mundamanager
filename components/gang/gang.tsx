@@ -251,7 +251,7 @@ export default function Gang({
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [gangHasSubtypes, setGangHasSubtypes] = useState(safeGangSubtypes.length > 0);
   const [gangSubtypes, setGangSubtypes] = useState<Array<{id: string, subtype: string}>>(safeGangSubtypes);
-  const { data: availableSubtypes = NO_SUBTYPES, isLoading: availableSubtypesLoading, error: availableSubtypesError } = useQuery({
+  const { data: availableSubtypes = NO_SUBTYPES, isLoading: availableSubtypesLoading } = useQuery({
     queryKey: ['gang-subtype-types'],
     queryFn: async () => {
       const response = await fetch('/api/gang-subtype-types');
@@ -260,11 +260,9 @@ export default function Gang({
     },
     select: (data) => data.map(item => ({ id: item.id, subtype: item.subtype ?? 'Unknown', edition_slug: item.edition_slug })),
     enabled: showEditModal,
+    meta: { errorMessage: 'Failed to load subtypes' },
   });
 
-  useEffect(() => {
-    if (showEditModal && availableSubtypesError) toast.error('Failed to load subtypes');
-  }, [showEditModal, availableSubtypesError]);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);

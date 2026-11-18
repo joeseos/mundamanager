@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { queryOptions, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Modal from "@/components/ui/modal";
 import { toast } from 'sonner';
@@ -109,23 +109,15 @@ export function SkillAccessModal({
   const { data: allSkillTypes, isLoading: isLoadingSkillTypes, error: skillTypesError } = useQuery({
     ...fighterSkillTypesQuery(fighterId, editionSlug),
     enabled: isOpen,
+    meta: { errorMessage: 'Failed to load skill sets' },
   });
 
   // Fighter's current skill access (defaults + overrides)
   const { data: skillAccessData, isLoading: isLoadingSkillAccess, error: skillAccessError } = useQuery({
     ...fighterSkillAccessQuery(fighterId),
     enabled: isOpen,
+    meta: { errorMessage: 'Failed to load skill access' },
   });
-
-  // Show error toast if data failed to load
-  useEffect(() => {
-    if (skillTypesError) {
-      toast.error('Failed to load skill types');
-    }
-    if (skillAccessError) {
-      toast.error(skillAccessError instanceof Error ? skillAccessError.message : 'Failed to load skill access');
-    }
-  }, [skillTypesError, skillAccessError]);
 
   // Helper to get the group label for a skill set based on its rank
   const getGroupLabel = getSkillSetGroupLabel;

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { LuPlus } from "react-icons/lu";
 import { HiX } from "react-icons/hi";
 import Modal from "@/components/ui/modal";
@@ -409,7 +409,7 @@ const CampaignBattleLogModal = ({
   const isSubmitting = createBattleMutation.isPending || updateBattleMutation.isPending;
 
   // Same request and key as the Create Battle modal
-  const { data: scenarios = NO_SCENARIOS, isLoading: isLoadingBattleData, error: battleDataError } = useQuery({
+  const { data: scenarios = NO_SCENARIOS, isLoading: isLoadingBattleData } = useQuery({
     queryKey: ['battle-data', campaignId],
     queryFn: async () => {
       const res = await fetch('/api/campaigns/battles', { headers: { 'X-Campaign-Id': campaignId } });
@@ -425,11 +425,8 @@ const CampaignBattleLogModal = ({
       }),
     // N26 picks from scenarioTables, which come with the page.
     enabled: !!campaignId && !usesScenarioTables,
+    meta: { errorMessage: 'Failed to load battle data' },
   });
-
-  useEffect(() => {
-    if (battleDataError) toast.error("Failed to load battle data");
-  }, [battleDataError]);
 
   // Populate form when modal opens with edit data and scenarios are loaded
   const [populatedForBattle, setPopulatedForBattle] = useState<string | null>(null);

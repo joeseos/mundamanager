@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomSkill } from '@/app/lib/customise/custom-skills';
@@ -69,7 +69,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   // custom types, already flagged with is_custom -- the two direct table reads
   // this replaces were unscoped and mixed both editions together.
   // Same request and key as the Custom Fighters form.
-  const { data: skillTypes = NO_SKILL_TYPES, error: skillTypesError } = useQuery({
+  const { data: skillTypes = NO_SKILL_TYPES } = useQuery({
     queryKey: ['skill-types', editionSlug],
     queryFn: async () => {
       const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}`);
@@ -78,12 +78,8 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
     },
     select: (data) => [...data.filter(t => t.is_custom), ...data.filter(t => !t.is_custom)],
     enabled: !!userId && isFormOpen,
+    meta: { errorMessage: 'Failed to load skill types' },
   });
-
-  // Gated on the form being open: a disabled query still returns a cached error
-  useEffect(() => {
-    if (isFormOpen && skillTypesError) toast.error('Failed to load skill types');
-  }, [isFormOpen, skillTypesError]);
 
   const handleAddSkill = () => {
     setCreateModalOpen(true);

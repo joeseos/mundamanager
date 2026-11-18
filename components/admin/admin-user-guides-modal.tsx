@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import type { RichTextEditorHandle } from '@/components/ui/rich-text-editor';
 import { LazyRichTextEditor } from '@/components/ui/lazy-rich-text-editor';
@@ -32,6 +33,15 @@ function guidesFromResponse(data: unknown): GuideContent {
   };
 }
 
+async function fetchGuides(): Promise<GuideContent> {
+  const response = await fetch('/api/admin/user-guides');
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to load user guides');
+  }
+  return guidesFromResponse(data);
+}
+
 function editionLabel(slug: EditionSlug): string {
   return slug === EDITION_N23 ? 'N23' : 'N26';
 }
@@ -42,58 +52,27 @@ export function AdminUserGuidesModal({ onClose }: AdminUserGuidesModalProps) {
   const activeSlugRaw = editionSlugOf(editions, editionId);
   const activeSlug = isGuideEditionSlug(activeSlugRaw) ? activeSlugRaw : null;
 
+  const queryClient = useQueryClient();
   // Server snapshot for every edition (so switching editions does not refetch).
-  const [saved, setSaved] = useState<GuideContent | null>(null);
+  // gcTime 0 reads it fresh on each open, as the draft is seeded from it.
+  const { data: saved = null, error: loadError, refetch } = useQuery({
+    queryKey: ['admin-user-guides'],
+    queryFn: fetchGuides,
+    gcTime: 0,
+  });
   // Draft for the edition currently being edited only.
   const [draft, setDraft] = useState('');
-  const [loadError, setLoadError] = useState<string | null>(null);
   // When set, a discard-confirm modal is open for switching to this edition id.
   const [pendingEditionId, setPendingEditionId] = useState<string | null>(null);
 
   const editorRef = useRef<RichTextEditorHandle | null>(null);
-  const editionsRef = useRef(editions);
-  const editionIdRef = useRef(editionId);
 
-  useEffect(() => {
-    editionsRef.current = editions;
-    editionIdRef.current = editionId;
-  }, [editions, editionId]);
-
-  const fetchGuides = useCallback(async (): Promise<GuideContent> => {
-    const response = await fetch('/api/admin/user-guides');
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to load user guides');
-    }
-    return guidesFromResponse(data);
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      try {
-        const guides = await fetchGuides();
-        if (cancelled) return;
-        setSaved(guides);
-        setLoadError(null);
-        // If EditionSelect already defaulted, seed the draft for that edition.
-        const slug = editionSlugOf(editionsRef.current, editionIdRef.current);
-        if (isGuideEditionSlug(slug)) {
-          setDraft(guides[slug]);
-        }
-      } catch (error) {
-        if (cancelled) return;
-        console.error('Failed to load user guides:', error);
-        setLoadError(error instanceof Error ? error.message : 'Failed to load user guides');
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchGuides]);
+  // Seed the draft whenever the snapshot changes (first load, or after a save)
+  const [seededFrom, setSeededFrom] = useState<GuideContent | null>(null);
+  if (saved !== seededFrom) {
+    setSeededFrom(saved);
+    if (saved && activeSlug) setDraft(saved[activeSlug]);
+  }
 
   const hasChanges =
     saved !== null && activeSlug !== null && draft !== saved[activeSlug];
@@ -154,23 +133,18 @@ export function AdminUserGuidesModal({ onClose }: AdminUserGuidesModalProps) {
         throw new Error(data.error || `Failed to save the ${label} user guide`);
       }
 
-      setSaved((prev) => ({ ...(prev ?? EMPTY_GUIDES), [activeSlug]: finalHtml }));
-      setDraft(finalHtml);
+      queryClient.setQueryData<GuideContent>(['admin-user-guides'], (prev) => ({ ...(prev ?? EMPTY_GUIDES), [activeSlug]: finalHtml }));
       toast.success(`${label} user guide updated`);
       return true;
     } catch (error) {
       console.error('Failed to save user guide:', error);
-      try {
-        const guides = await fetchGuides();
-        setSaved(guides);
-        if (activeSlug) {
-          setDraft(guides[activeSlug]);
-          editorRef.current?.setContent(guides[activeSlug]);
-        }
-      } catch (refetchError) {
-        console.error('Failed to refetch user guides after save error:', refetchError);
-      }
       toast.error(error instanceof Error ? error.message : 'Failed to save user guide');
+      // Show what the server holds now, unless that read fails too
+      const { data: guides, isError } = await refetch();
+      if (!isError && guides && activeSlug) {
+        setDraft(guides[activeSlug]);
+        editorRef.current?.setContent(guides[activeSlug]);
+      }
       return false;
     }
   };
@@ -192,8 +166,8 @@ export function AdminUserGuidesModal({ onClose }: AdminUserGuidesModalProps) {
           defaultToCurrent
         />
 
-        {loadError ? (
-          <p className="text-red-500 text-sm">{loadError}</p>
+        {loadError && saved === null ? (
+          <p className="text-red-500 text-sm">{loadError.message}</p>
         ) : saved === null || !activeSlug ? (
           <p className="text-sm text-muted-foreground text-center py-8">
             {saved === null ? 'Loading user guides...' : 'Select an edition to edit.'}

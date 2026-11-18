@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { FighterEffect, FighterSkills } from '@/types/fighter';
 import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
@@ -700,7 +700,7 @@ export function InjuriesList({
     });
   };
 
-  const { data: localAvailableInjuries = NO_INJURIES, isLoading: isLoadingInjuries, error: injuriesError } = useQuery({
+  const { data: localAvailableInjuries = NO_INJURIES, isLoading: isLoadingInjuries } = useQuery({
     queryKey: ['fighter-injuries', is_spyrer, editionSlug ?? null],
     queryFn: async () => {
       const editionQuery = editionSlug ? `&edition_slug=${encodeURIComponent(editionSlug)}` : '';
@@ -709,12 +709,8 @@ export function InjuriesList({
       return response.json() as Promise<FighterEffect[]>;
     },
     enabled: isAddModalOpen,
+    meta: { errorMessage: is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types' },
   });
-
-  // Gated on the modal: a disabled query still returns a cached error
-  useEffect(() => {
-    if (isAddModalOpen && injuriesError) toast.error(is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types');
-  }, [isAddModalOpen, injuriesError, is_spyrer]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
