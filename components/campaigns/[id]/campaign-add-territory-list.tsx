@@ -9,16 +9,9 @@ import { getCampaignRank } from '@/utils/campaigns/campaignRank';
 import { addTerritoryToCampaign, createCustomCampaignTerritory } from "@/app/actions/campaigns/[id]/campaign-territories";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import type { CampaignType, CampaignTerritoryRow } from '@/types/campaign';
+import type { CatalogTerritory } from '@/app/lib/reference-data';
 import { sameEditionForDisplay } from '@/types/edition';
 import { TERRITORY_NAME_CHAR_LIMIT } from '@/utils/campaigns/territory-name';
-
-interface Territory {
-  id: string;
-  territory_name: string;
-  campaign_type_id: string | null;
-  territory_id?: string | null;
-  edition_slug?: string | null;
-}
 
 interface CampaignTerritory {
   territory_id: string | null;
@@ -31,7 +24,7 @@ interface TerritoryListProps {
   campaignTypeId: string;
   editionSlug?: string | null;
   campaignTypes: CampaignType[];
-  allTerritories: Territory[];
+  allTerritories: CatalogTerritory[];
   existingCampaignTerritories: CampaignTerritory[];
   onTerritoryAdd?: (territory: CampaignTerritoryRow) => void;
 }
@@ -47,8 +40,7 @@ export default function TerritoryList({
   onTerritoryAdd 
 }: TerritoryListProps) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([campaignTypeId]);
-  const [_campaignTerritories, setCampaignTerritories] = useState<CampaignTerritory[]>(existingCampaignTerritories);
-  const [isLoading] = useState(false);
+  const [selectedHouses, setSelectedHouses] = useState<string[]>([]);
   const [isAdding, setIsAdding] = useState<string | null>(null);
   const [newTerritoryName, setNewTerritoryName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -61,38 +53,27 @@ export default function TerritoryList({
     setSelectedTypes([campaignTypeId]);
   }
 
-  const [prevExistingTerritories, setPrevExistingTerritories] = useState(existingCampaignTerritories);
-  if (existingCampaignTerritories !== prevExistingTerritories) {
-    setPrevExistingTerritories(existingCampaignTerritories);
-    setCampaignTerritories(existingCampaignTerritories);
-  }
+  const toggle = (id: string) => (prev: string[]) =>
+    prev.includes(id) ? prev.filter(selected => selected !== id) : [...prev, id];
 
-  const handleTypeToggle = (typeId: string) => {
-    setSelectedTypes(prev => 
-      prev.includes(typeId) 
-        ? prev.filter(id => id !== typeId)
-        : [...prev, typeId]
-    );
-  };
+  // House territories (e.g. Orlock's Toll Road) show only when their house is ticked
+  const houses = [...new Set(
+    allTerritories
+      .filter(territory => sameEditionForDisplay(territory.edition_slug, editionSlug))
+      .flatMap(territory => territory.controlled_gang_type ?? [])
+  )].sort();
 
-  const handleAddTerritory = async (territory: Territory) => {
+  const handleAddTerritory = async (territory: CatalogTerritory) => {
     setIsAdding(territory.id);
     try {
       const result = await addTerritoryToCampaign({
         campaignId,
-        territoryId: territory.territory_id || territory.id,
+        territoryId: territory.id,
       });
 
       if (!result.success) {
         throw new Error(result.error);
       }
-
-      const newTerritory = {
-        territory_id: territory.territory_id || territory.id,
-        territory_name: territory.territory_name
-      };
-
-      setCampaignTerritories(prev => [...prev, newTerritory]);
 
       if (onTerritoryAdd && result.data) {
         onTerritoryAdd(result.data as CampaignTerritoryRow);
@@ -121,13 +102,6 @@ export default function TerritoryList({
         throw new Error(result.error);
       }
 
-      const newTerritory = {
-        territory_id: null,
-        territory_name: newTerritoryName.trim()
-      };
-
-      setCampaignTerritories(prev => [...prev, newTerritory]);
-
       if (onTerritoryAdd && result.data) {
         onTerritoryAdd(result.data as CampaignTerritoryRow);
       }
@@ -147,10 +121,10 @@ export default function TerritoryList({
       if (!sameEditionForDisplay(territory.edition_slug, editionSlug)) {
         return false;
       }
-      if (territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id)) {
-        return true;
+      if (territory.controlled_gang_type && !selectedHouses.includes(territory.controlled_gang_type)) {
+        return false;
       }
-      return false;
+      return !!territory.campaign_type_id && selectedTypes.includes(territory.campaign_type_id);
     })
     .sort((a, b) => {
       const typeA = campaignTypes.find(ct => ct.id === a.campaign_type_id)?.campaign_type_name?.toLowerCase() || '';
@@ -166,20 +140,8 @@ export default function TerritoryList({
       return a.territory_name.localeCompare(b.territory_name);
     });
 
-  const allFilteredTerritories = filteredTerritories;
-
-  const getTerritoryCount = (territory: Territory) => {
-    return existingCampaignTerritories.filter(existing => {
-      if (existing.territory_id === territory.territory_id) {
-        return true;
-      }
-      return false;
-    }).length;
-  };
-
-  if (isLoading) {
-    return <div className="text-center py-1">Loading Territories...</div>;
-  }
+  const getTerritoryCount = (territory: CatalogTerritory) =>
+    existingCampaignTerritories.filter(existing => existing.territory_id === territory.id).length;
 
   return (
     <div className="space-y-4">
@@ -187,7 +149,7 @@ export default function TerritoryList({
         <h3 className="text-sm font-medium flex items-center space-x-2 text-muted-foreground mb-2">
             <span>Campaign Type Territories</span>
           <InfoTooltip ariaLabel="About campaign type territories">
-            Select the campaign types that you want to add territories for.
+            Select the campaign types and houses that you want to add territories for.
           </InfoTooltip>
         </h3>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
@@ -207,7 +169,7 @@ export default function TerritoryList({
                   <Checkbox
                     id={`type-${type.id}`}
                     checked={selectedTypes.includes(type.id)}
-                    onCheckedChange={() => handleTypeToggle(type.id)}
+                    onCheckedChange={() => setSelectedTypes(toggle(type.id))}
                   />
                   <label htmlFor={`type-${type.id}`} className="text-sm cursor-pointer">
                     {type.campaign_type_name}
@@ -216,6 +178,22 @@ export default function TerritoryList({
               ))}
           </div>
         </div>
+        {houses.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2">
+            {houses.map((house, index) => (
+              <div key={house} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`house-${index}`}
+                  checked={selectedHouses.includes(house)}
+                  onCheckedChange={() => setSelectedHouses(toggle(house))}
+                />
+                <label htmlFor={`house-${index}`} className="text-sm cursor-pointer">
+                  {house}
+                </label>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Custom Territory creation */}
@@ -247,32 +225,35 @@ export default function TerritoryList({
         </div>
       )}
 
-      {allFilteredTerritories.length > 0 ? (
+      {filteredTerritories.length > 0 ? (
         <div className="overflow-x-auto rounded-md border">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs md:text-sm">
             <thead>
               <tr className="bg-muted border-b">
-                <th className="w-2/4 px-2 md:px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
-                <th className="w-3/4 px-1 py-2 text-left font-medium whitespace-nowrap">Campaign</th>
-                <th className="w-1/4 px-0 py-2 text-center font-medium whitespace-nowrap">Count</th>
+                <th className="px-2 md:px-4 py-2 text-left font-medium whitespace-nowrap">Territory</th>
+                <th className="px-1 py-2 text-left font-medium whitespace-nowrap">Campaign</th>
+                <th className="px-0 py-2 text-center font-medium whitespace-nowrap">Count</th>
                 {isAdmin && (
-                  <th className="w-1/4 px-2 py-2 text-right font-medium whitespace-nowrap"></th>
+                  <th className="px-2 py-2 text-right font-medium whitespace-nowrap"></th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {allFilteredTerritories.map((territory) => {
+              {filteredTerritories.map((territory) => {
                 const type = campaignTypes.find(ct => ct.id === territory.campaign_type_id);
                 const typeName = territory.campaign_type_id ? (type?.campaign_type_name ?? 'Unknown') : 'All Types';
                 const territoryCount = getTerritoryCount(territory);
 
                 return (
                   <tr key={territory.id} className="border-b last:border-0">
-                    <td className="w-2/4 px-2 md:px-4 py-2">
+                    <td className="px-2 md:px-4 py-2">
                       <span className="font-medium">{territory.territory_name}</span>
+                      {territory.controlled_gang_type && (
+                        <span className="block text-xs text-muted-foreground">{territory.controlled_gang_type}</span>
+                      )}
                     </td>
-                    <td className="w-3/4 px-1 py-2 text-muted-foreground">{typeName}</td>
-                    <td className="w-1/4 px-2 py-2 text-center">
+                    <td className="px-1 py-2 text-muted-foreground">{typeName}</td>
+                    <td className="px-2 py-2 text-center">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                         territoryCount > 0 
                           ? 'bg-blue-100 text-blue-800' 
@@ -282,7 +263,7 @@ export default function TerritoryList({
                       </span>
                     </td>
                     {isAdmin && (
-                      <td className="w-1/4 px-2 py-2 text-right">
+                      <td className="px-2 py-2 text-right">
                         <Button
                           onClick={() => handleAddTerritory(territory)}
                           size="sm"

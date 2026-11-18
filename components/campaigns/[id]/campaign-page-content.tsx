@@ -26,6 +26,7 @@ import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
+import type { CatalogTerritory } from '@/app/lib/reference-data';
 import type { BattleSession } from '@/types/battle-session';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
@@ -107,16 +108,6 @@ interface Territory {
   } | null;
 }
 
-
-interface AllTerritory {
-  id: string;
-  territory_name: string;
-  campaign_type_id: string | null;
-  territory_id?: string | null;
-  edition_slug?: string | null;
-}
-
-
 interface CampaignPageContentProps {
   campaignData: {
     id: string;
@@ -170,7 +161,7 @@ interface CampaignPageContentProps {
   /** The tab to open on load, as its index in the tab bar. */
   initialTab?: number;
   campaignTypes: CampaignType[];
-  allTerritories: AllTerritory[];
+  allTerritories: CatalogTerritory[];
   tradingPostTypes?: Array<{ id: string; trading_post_name: string | null; edition_slug?: string | null }>;
   customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;

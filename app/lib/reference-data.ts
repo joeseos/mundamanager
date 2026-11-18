@@ -86,13 +86,16 @@ export const getAllTerritories = async () => {
   return unstable_cache(
     async () => {
       const territories = await getAppDb().query.territories.findMany({
-        columns: { id: true, territory_name: true, campaign_type_id: true, playing_card: true },
+        columns: { id: true, territory_name: true, campaign_type_id: true },
         orderBy: (territory, { asc }) => asc(territory.territory_name),
-        with: { editions: { columns: { slug: true } } },
+        with: {
+          editions: { columns: { slug: true } },
+          controlled_gang_type: { columns: { gang_type: true } },
+        },
       });
-      return territories.map(territory => ({
+      return territories.map(({ controlled_gang_type, ...territory }) => ({
         ...withEditionSlug(territory),
-        territory_id: territory.id
+        controlled_gang_type: controlled_gang_type?.gang_type ?? null
       }));
     },
     ['territories-list'],
@@ -102,6 +105,8 @@ export const getAllTerritories = async () => {
     }
   )();
 };
+
+export type CatalogTerritory = Awaited<ReturnType<typeof getAllTerritories>>[number];
 
 /**
  * Every edition's scenario tables with their entries, for the N26 battle log

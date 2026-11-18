@@ -1731,6 +1731,10 @@ export const territoriesRelations = relations(territories, ({ one }) => ({
     fields: [territories.edition_id],
     references: [editions.id],
   }),
+  controlled_gang_type: one(gangTypes, {
+    fields: [territories.controlled_gang_type_id],
+    references: [gangTypes.id],
+  }),
 }));
 
 export const customSharedRelations = relations(customShared, ({ one }) => ({
