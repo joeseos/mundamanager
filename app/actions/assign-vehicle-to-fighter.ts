@@ -77,6 +77,9 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       removedFromVehicle = oldVehicleData;
     }
 
+    // Read before the writes, so a failed read leaves the vehicle where it was
+    const vehicleCost = await getVehicleTotalCost(params.vehicleId);
+
     // Unassign fighter from any existing vehicle (RLS enforces authorization)
     const { error: unassignError } = await supabase
       .from('vehicles')
@@ -107,7 +110,6 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       .single();
     
     const vehicleName = vehicleData?.vehicle_name || 'Unknown Vehicle';
-    const vehicleCost = await getVehicleTotalCost(params.vehicleId);
     
     // Get fighter name for logging
     const { data: fighterData } = await supabase
