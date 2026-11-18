@@ -3,14 +3,6 @@ import { createServiceRoleClient } from '@/utils/supabase/server';
 /** A gang's image folders in users-images: the gang image and its fighters' images. */
 export const gangImageFolders = (gangId: string) => [`gangs/${gangId}/`, `gangs/${gangId}/fighters/`];
 
-/** A campaign's image folders in users-images: its image, map and Campaign Pack images. */
-export const campaignImageFolders = (campaignId: string) => [
-  `campaigns/${campaignId}/`,
-  `campaigns/${campaignId}/map/`,
-  `campaigns/${campaignId}/pack/`,
-  `campaigns/${campaignId}/pack/_draft/`,
-];
-
 /**
  * Removes the files directly inside each users-images folder. Folders are
  * virtual: a listing shows subfolders with no id, and they go once empty.

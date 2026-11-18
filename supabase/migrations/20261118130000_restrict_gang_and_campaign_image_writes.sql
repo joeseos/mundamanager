@@ -23,7 +23,8 @@ DROP POLICY IF EXISTS "Campaign images can be uploaded by campaign arbs" ON stor
 DROP POLICY IF EXISTS "Campaign images can be updated by campaign arbs" ON storage.objects;
 DROP POLICY IF EXISTS "Campaign images can be deleted by campaign arbs" ON storage.objects;
 
--- objects.name inside the subquery: a bare name would be gangs.name.
+-- objects.name inside the subquery: a bare name would be gangs.name. The
+-- UPDATE policies have no WITH CHECK, so USING also checks the new row.
 CREATE POLICY "Gang images can be uploaded by gang owners and arbs"
     ON storage.objects FOR INSERT
     TO authenticated
@@ -45,19 +46,6 @@ CREATE POLICY "Gang images can be updated by gang owners and arbs"
     ON storage.objects FOR UPDATE
     TO authenticated
     USING (
-        bucket_id = 'users-images'
-        AND SPLIT_PART(name, '/', 1) = 'gangs'
-        AND (
-            (SELECT private.is_admin())
-            OR EXISTS (
-                SELECT 1 FROM public.gangs g
-                WHERE g.id = SPLIT_PART(objects.name, '/', 2)::uuid
-                AND g.user_id = (SELECT auth.uid())
-            )
-            OR private.is_gang_arb(SPLIT_PART(name, '/', 2)::uuid)
-        )
-    )
-    WITH CHECK (
         bucket_id = 'users-images'
         AND SPLIT_PART(name, '/', 1) = 'gangs'
         AND (
@@ -101,11 +89,6 @@ CREATE POLICY "Campaign images can be updated by campaign arbs"
     ON storage.objects FOR UPDATE
     TO authenticated
     USING (
-        bucket_id = 'users-images'
-        AND SPLIT_PART(name, '/', 1) = 'campaigns'
-        AND ((SELECT private.is_admin()) OR private.is_arb(SPLIT_PART(name, '/', 2)::uuid))
-    )
-    WITH CHECK (
         bucket_id = 'users-images'
         AND SPLIT_PART(name, '/', 1) = 'campaigns'
         AND ((SELECT private.is_admin()) OR private.is_arb(SPLIT_PART(name, '/', 2)::uuid))

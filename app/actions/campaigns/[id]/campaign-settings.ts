@@ -2,7 +2,7 @@
 
 import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaignCore, invalidateCampaignAll, invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
-import { campaignImageFolders, removeStorageFolders } from '@/utils/storage-cleanup';
+import { removeStorageFolders } from '@/utils/storage-cleanup';
 
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
@@ -234,7 +234,10 @@ export async function deleteCampaign(campaignId: string) {
     // RLS deletes nothing, without an error, for a campaign the user can't delete.
     if (!deleted?.length) throw new Error("You don't have permission to delete this campaign");
 
-    await removeStorageFolders(campaignImageFolders(campaignId));
+    // Its image, map and Campaign Pack images.
+    await removeStorageFolders(
+      ['', 'map/', 'pack/', 'pack/_draft/'].map((folder) => `campaigns/${campaignId}/${folder}`)
+    );
 
     // Use comprehensive cache invalidation with proper taxonomy for deleted campaign
     invalidateCampaignAll(campaignId);
