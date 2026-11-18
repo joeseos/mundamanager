@@ -131,9 +131,7 @@ export default async function CampaignPage(props: {
       notFound();
     }
 
-    const campaignTrades = campaignBasic.allow_trading
-      ? await getCampaignTrades(params.id, 100)
-      : [];
+    const campaignTrades = await getCampaignTrades(params.id, 100);
 
     const campaignMap = campaignMapBundle.map;
     const campaignMapObjects = campaignMapBundle.objects;

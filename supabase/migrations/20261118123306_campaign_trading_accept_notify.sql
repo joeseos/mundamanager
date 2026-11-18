@@ -1,7 +1,28 @@
--- Roll back accept_campaign_trade when a later payment leg fails.
--- A PL/pgSQL RETURN commits earlier credit, reputation and resource updates
--- and leaves the trade pending. Failures after a write now raise, and the
--- handler undoes the function. Canonical copy: supabase/functions/accept_campaign_trade.sql.
+-- Player trading: accept stays a SECURITY DEFINER RPC (one transaction).
+-- Create / decline / cancel run in server actions with the service-role client.
+-- Adds campaign_trade notification type + email enqueue. Does not change
+-- notifications INSERT policy.
+-- Canonical RPC: supabase/functions/accept_campaign_trade.sql
+-- Canonical trigger: supabase/functions/enqueue_notification_email.sql
+
+BEGIN;
+
+DROP FUNCTION IF EXISTS public.create_campaign_trade_captive_ransom(uuid, uuid, uuid, text, text, uuid, numeric);
+DROP FUNCTION IF EXISTS public.create_campaign_trade_captive_ransom(uuid, uuid, uuid, text, text, uuid, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_trade_equipment(uuid, uuid, uuid, text, text, uuid, numeric);
+DROP FUNCTION IF EXISTS public.create_campaign_trade_equipment(uuid, uuid, uuid, text, text, uuid, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_equipment_trade(uuid, uuid, uuid, text, text, uuid, numeric);
+DROP FUNCTION IF EXISTS public.create_campaign_equipment_trade(uuid, uuid, uuid, text, text, uuid, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_trade_listing(uuid, uuid, text, text, uuid, uuid, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_trade_bid(uuid, uuid, text, text, uuid, uuid, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_trade_bid(uuid, uuid, text, text, uuid, uuid, text, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_bid(uuid, uuid, text, text, uuid, uuid, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_bid(uuid, uuid, text, text, uuid, uuid, text, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.create_campaign_trade_custom(uuid, uuid, uuid, text, text, text, numeric, numeric, jsonb);
+DROP FUNCTION IF EXISTS public.resolve_campaign_trade(uuid, text);
+DROP FUNCTION IF EXISTS public.notify_campaign_trade(uuid, text, uuid[]);
+DROP FUNCTION IF EXISTS private.insert_campaign_trade_payments(uuid, uuid, uuid, numeric, numeric, jsonb);
+
 -- Accept a pending trade in one transaction. Direct trades settle as before.
 -- Accepting a bid locks the listing and all pending bids in id order, moves
 -- listing goods (selling) or listing payment (buying) together with the bid
@@ -562,3 +583,48 @@ REVOKE EXECUTE ON FUNCTION public.accept_campaign_trade(uuid) FROM anon;
 GRANT EXECUTE ON FUNCTION public.accept_campaign_trade(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.accept_campaign_trade(uuid) TO service_role;
 
+-- Allow the campaign_trade notification type, sent to a gang's owner when
+-- another gang proposes, bids on, accepts, declines, or cancels a campaign
+-- trade (email-eligible, see utils/notifications.ts).
+ALTER TABLE public.notifications
+    DROP CONSTRAINT IF EXISTS notifications_type_check;
+
+ALTER TABLE public.notifications
+    ADD CONSTRAINT notifications_type_check
+    CHECK (type = ANY (ARRAY[
+        'info',
+        'warning',
+        'error',
+        'campaign_invite',
+        'friend_request',
+        'battle_invite',
+        'gang_invite',
+        'campaign_join_request',
+        'campaign_challenge',
+        'user_message',
+        'campaign_message',
+        'mm_staff_message',
+        'mm_announcement',
+        'forum_reply',
+        'forum_mention',
+        'forum_article',
+        'campaign_trade'
+    ]::text[]));
+
+CREATE OR REPLACE FUNCTION public.enqueue_notification_email()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public AS $$
+BEGIN
+   IF NEW.type IN ('campaign_invite', 'gang_invite', 'friend_request', 'campaign_join_request', 'campaign_challenge', 'campaign_message', 'mm_staff_message', 'mm_announcement', 'campaign_trade') THEN
+      INSERT INTO email_deliveries (notification_id, user_id)
+      VALUES (NEW.id, NEW.receiver_id)
+      ON CONFLICT (notification_id) DO NOTHING;
+   END IF;
+
+   RETURN NEW;
+END;
+$$;
+
+COMMIT;

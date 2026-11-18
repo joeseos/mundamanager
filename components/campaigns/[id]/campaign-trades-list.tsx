@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
@@ -15,10 +15,7 @@ import {
   cancelCampaignTrade,
   declineCampaignTrade,
 } from '@/app/actions/campaigns/[id]/campaign-trades'
-import CampaignBidModal, {
-  type BidActorGang,
-} from '@/components/campaigns/[id]/campaign-trade-bid-modal'
-import type { CampaignTradePaymentResource } from '@/components/campaigns/[id]/campaign-trade-payment-fields'
+import CampaignTradeModal from '@/components/campaigns/[id]/campaign-trade-modal'
 import {
   campaignTradeShape,
   campaignTradeShapeLabels,
@@ -90,13 +87,13 @@ function paymentFingerprint(items: CampaignTradeItem[]): string {
 type PendingTradeAction = 'accept' | 'decline' | 'cancel'
 
 interface CampaignTradesListProps {
-  trades: CampaignTrade[]
+  initialTrades?: CampaignTrade[]
   involvedGangId?: string
-  campaignId?: string
+  campaignId: string
   actorGangIds?: string[]
-  actorGangs?: BidActorGang[]
   isCampaignArb?: boolean
-  paymentResources?: CampaignTradePaymentResource[]
+  allowTrading?: boolean
+  userId?: string
 }
 
 function equipmentItem(trade: CampaignTrade) {
@@ -174,15 +171,25 @@ function confirmCopy(action: PendingTradeAction, trade: CampaignTrade, trades: C
 }
 
 export default function CampaignTradesList({
-  trades,
+  initialTrades,
   involvedGangId,
   campaignId,
   actorGangIds = [],
-  actorGangs = [],
   isCampaignArb = false,
-  paymentResources = [],
+  allowTrading = false,
+  userId,
 }: CampaignTradesListProps) {
-  const router = useRouter()
+  const queryClient = useQueryClient()
+  const { data: trades = [] } = useQuery({
+    queryKey: ['campaign-trades', campaignId],
+    queryFn: async () => {
+      const response = await fetch(`/api/campaigns/${campaignId}/trades`)
+      if (!response.ok) throw new Error('Failed to fetch trades')
+      return response.json() as Promise<CampaignTrade[]>
+    },
+    initialData: initialTrades,
+    staleTime: 0,
+  })
   const [filterStatus, setFilterStatus] = useState('')
   const [filterGang, setFilterGang] = useState(involvedGangId ?? '')
   const [filterShape, setFilterShape] = useState('')
@@ -321,9 +328,7 @@ export default function CampaignTradesList({
                 <th className="p-1 md:p-2 text-left font-medium">From</th>
                 <th className="p-1 md:p-2 text-left font-medium">To</th>
                 <th className="p-1 md:p-2 text-left font-medium">Items</th>
-                {campaignId && (
-                  <th className="p-1 md:p-2 text-left font-medium">Actions</th>
-                )}
+                <th className="p-1 md:p-2 text-left font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -334,9 +339,10 @@ export default function CampaignTradesList({
                   : undefined
                 const showCancel = trade.status === 'pending' && canActFor(trade.proposer_gang_id)
                 const showCounterparty = trade.status === 'pending' && canActFor(trade.counterparty_gang_id)
-                const showPlaceBid = trade.status === 'pending'
+                const showPlaceBid = allowTrading
+                  && trade.status === 'pending'
                   && shape === 'listing'
-                  && actorGangs.some((gang) => gang.gangId !== trade.proposer_gang_id)
+                  && actorGangIds.some((gangId) => gangId !== trade.proposer_gang_id)
                 return (
                 <tr key={trade.id} className="border-b last:border-0">
                   <td className="p-1 md:p-2 whitespace-nowrap">{formatDate(trade.created_at)}</td>
@@ -379,7 +385,6 @@ export default function CampaignTradesList({
                       ? '—'
                       : trade.items.map((item) => itemSummary(item, trade)).join(', ')}
                   </td>
-                  {campaignId && (
                     <td className="p-1 md:p-2">
                       <div className="flex flex-wrap gap-1">
                         {showCounterparty && (
@@ -420,7 +425,6 @@ export default function CampaignTradesList({
                         )}
                       </div>
                     </td>
-                  )}
                 </tr>
                 )
               })}
@@ -457,7 +461,7 @@ export default function CampaignTradesList({
         </div>
       )}
 
-      {pending && campaignId && (
+      {pending && (
         <Modal
           title={
             pending.action === 'accept'
@@ -492,7 +496,9 @@ export default function CampaignTradesList({
                   ? 'Trade declined'
                   : 'Trade cancelled'
             )
-            router.refresh()
+            await queryClient.invalidateQueries({ queryKey: ['campaign-trades', campaignId] })
+            await queryClient.invalidateQueries({ queryKey: ['gang-captives'] })
+            await queryClient.invalidateQueries({ queryKey: ['gang-tradeable-stash'] })
             return true
           }}
           content={
@@ -502,17 +508,16 @@ export default function CampaignTradesList({
           }
         />
       )}
-      {bidListing && campaignId && (
-        <CampaignBidModal
+      {bidListing && (
+        <CampaignTradeModal
           campaignId={campaignId}
+          mode="bid"
+          userId={userId}
+          isCampaignArb={isCampaignArb}
+          actorGangId={involvedGangId}
           listing={bidListing}
-          actorGangs={actorGangs}
-          paymentResources={paymentResources}
           onClose={() => setBidListing(null)}
-          onProposed={() => {
-            setBidListing(null)
-            router.refresh()
-          }}
+          onPosted={() => setBidListing(null)}
         />
       )}
     </>

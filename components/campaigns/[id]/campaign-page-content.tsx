@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +22,7 @@ import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
 import CampaignTradesList from "@/components/campaigns/[id]/campaign-trades-list";
-import CampaignSellTradeModal from "@/components/campaigns/[id]/campaign-trade-sell-modal";
-import CampaignTradeLookingForModal from "@/components/campaigns/[id]/campaign-trade-lookingfor-modal";
+import CampaignTradeModal from "@/components/campaigns/[id]/campaign-trade-modal";
 import type { CampaignTrade } from '@/types/campaign-trade';
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
@@ -223,7 +221,6 @@ export default function CampaignPageContent({
   mapData: initialMapData,
   mapObjects: initialMapObjects = []
 }: CampaignPageContentProps) {
-  const router = useRouter();
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [mapState, setMapState] = useState({
     map: initialMapData ?? null,
@@ -293,48 +290,6 @@ export default function CampaignPageContent({
           .map((gang: { id: string }) => gang.id)
       );
   }, [acceptedGangs, campaignData.members, isCampaignArb, userId]);
-
-  const holdingGangsForRansom = useMemo(
-    () => (campaignData.captives ?? [])
-      .filter((holder) => actorGangIds.includes(holder.gangId) && holder.captives.length > 0)
-      .map((holder) => ({
-        gangId: holder.gangId,
-        gangName: holder.gangName,
-        captives: holder.captives.map((captive) => ({
-          fighterId: captive.fighterId,
-          fighterName: captive.fighterName,
-          fighterType: captive.fighterType,
-          originalGangId: captive.originalGangId ?? null,
-          originalGangName: captive.originalGangName,
-          originalGangColour: captive.originalGangColour,
-          originalGangOwnerUsername: captive.originalGangOwnerUsername,
-        })),
-      })),
-    [actorGangIds, campaignData.captives]
-  );
-
-  const actorGangsForTrade = useMemo(
-    () => {
-      const ids = new Set(actorGangIds);
-      return acceptedGangs
-        .filter((gang: { id: string }) => ids.has(gang.id))
-        .map((gang: { id: string; name: string; gang_colour: string }) => ({
-          gangId: gang.id,
-          gangName: gang.name,
-          gangColour: gang.gang_colour,
-        }));
-    },
-    [acceptedGangs, actorGangIds]
-  );
-
-  const tradePaymentResources = useMemo(
-    () => campaignResources.map((resource) => ({
-      id: resource.id,
-      name: resource.resource_name,
-      isCustom: resource.is_custom,
-    })),
-    [campaignResources]
-  );
 
   // Shared handler for territory updates with optimistic updates
   interface TerritoryUpdate {
@@ -933,11 +888,11 @@ export default function CampaignPageContent({
             </div>
 
 
-            {campaignData.allow_trading && (
+            {(campaignData.allow_trading || (campaignData.trades ?? []).length > 0) && (
               <div className="mb-8">
                 <div className="flex justify-between items-center mb-4 gap-2">
                   <h2 className="text-xl md:text-2xl font-bold">Trades</h2>
-                  {actorGangsForTrade.length > 0 && (
+                  {campaignData.allow_trading && actorGangIds.length > 0 && (
                     <div className="flex gap-2">
                       <Button onClick={() => setShowSellTradeModal(true)}>
                         Selling
@@ -949,12 +904,12 @@ export default function CampaignPageContent({
                   )}
                 </div>
                 <CampaignTradesList
-                  trades={campaignData.trades ?? []}
+                  initialTrades={campaignData.trades ?? []}
                   campaignId={campaignData.id}
                   actorGangIds={actorGangIds}
-                  actorGangs={actorGangsForTrade}
                   isCampaignArb={isCampaignArb}
-                  paymentResources={tradePaymentResources}
+                  allowTrading={!!campaignData.allow_trading}
+                  userId={userId}
                 />
               </div>
             )}
@@ -1126,34 +1081,24 @@ export default function CampaignPageContent({
           )}
 
         {showSellTradeModal && (
-          <CampaignSellTradeModal
+          <CampaignTradeModal
             campaignId={campaignData.id}
-            actorGangs={actorGangsForTrade}
-            holdingGangs={holdingGangsForRansom}
-            counterparties={acceptedGangs.map((gang: {
-              id: string
-              name: string
-              gang_colour: string
-              owner_username: string
-            }) => ({
-              id: gang.id,
-              name: gang.name,
-              gangColour: gang.gang_colour,
-              ownerUsername: gang.owner_username,
-            }))}
-            paymentResources={tradePaymentResources}
+            mode="sell"
+            userId={userId}
+            isCampaignArb={isCampaignArb}
             onClose={() => setShowSellTradeModal(false)}
-            onPosted={() => router.refresh()}
+            onPosted={() => setShowSellTradeModal(false)}
           />
         )}
 
         {showLookingForModal && (
-          <CampaignTradeLookingForModal
+          <CampaignTradeModal
             campaignId={campaignData.id}
-            actorGangs={actorGangsForTrade}
-            paymentResources={tradePaymentResources}
+            mode="looking-for"
+            userId={userId}
+            isCampaignArb={isCampaignArb}
             onClose={() => setShowLookingForModal(false)}
-            onProposed={() => router.refresh()}
+            onPosted={() => setShowLookingForModal(false)}
           />
         )}
 

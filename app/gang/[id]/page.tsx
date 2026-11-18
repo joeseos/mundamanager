@@ -92,7 +92,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
     ]);
 
     const gangCampaign = campaigns.find((campaign) => campaign.status === 'ACCEPTED')
-    const campaignTrades = gangCampaign?.allow_trading
+    const campaignTrades = gangCampaign
       ? await getCampaignTrades(gangCampaign.campaign_id, 100)
       : [];
 

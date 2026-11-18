@@ -372,7 +372,7 @@ export default function CampaignEditModal({
               />
               <span className="text-sm font-medium">Allow campaign trading</span>
               <InfoTooltip ariaLabel="About campaign trading">
-                When enabled, owners of gangs in this campaign can propose and accept trades (direct deals, listings, and bids). A trade completes only when it is accepted. Turning this off hides the Trades section; pending trades stay locked until trading is enabled again.
+                When enabled, owners of gangs in this campaign can post and bid on trades (direct deals, listings, and bids). A trade completes only when it is accepted. Turning this off hides Selling and Looking for; pending trades stay on the list so they can be accepted or cancelled.
               </InfoTooltip>
             </label>
 

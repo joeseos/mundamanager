@@ -4,6 +4,11 @@ const BEAST_EQUIPMENT_CATEGORIES = new Set([
   'exotic beast',
 ]);
 
+export interface TradeableStashItem {
+  id: string;
+  equipmentName: string;
+}
+
 export function isTradeableStashEquipment(item: {
   granted_by_equipment_id?: string | null;
   equipment_category?: string | null;

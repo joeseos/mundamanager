@@ -1,10 +1,10 @@
 'use server';
 
-import { createClient } from '@/utils/supabase/server';
+import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { isUuid } from '@/utils/uuid';
 import { getGangCore, getGangStash } from '@/app/lib/shared/gang-data';
-import { canViewHiddenGang, checkPermission, isArbitrator } from '@/utils/user-permissions';
+import { checkPermission, isArbitrator } from '@/utils/user-permissions';
 import {
   invalidateCampaignCaptives,
   invalidateCampaignGang,
@@ -38,82 +38,49 @@ function mapOutcome(outcome: string | null): string | null {
   return TRADE_OUTCOME_MESSAGES[outcome ?? ''] ?? 'Something went wrong.';
 }
 
+function fail(code: keyof typeof TRADE_OUTCOME_MESSAGES): { success: false; error: string } {
+  return { success: false, error: TRADE_OUTCOME_MESSAGES[code] };
+}
+
 export interface TradePaymentResourceInput {
   campaignTypeResourceId?: string;
   campaignResourceId?: string;
   amount: number;
 }
 
-export interface CreateCaptiveRansomParams {
-  campaignId: string;
-  proposerGangId: string;
-  counterpartyGangId: string;
-  fighterId: string;
-  originalGangId: string;
-  title: string;
-  note?: string;
-  creditsAmount: number;
-  reputationAmount?: number;
-  resources?: TradePaymentResourceInput[];
-}
+export type CampaignTradeGoodsKind = 'custom' | 'equipment' | 'captive';
 
-export interface CreateEquipmentTradeParams {
-  campaignId: string;
-  proposerGangId: string;
-  counterpartyGangId: string;
-  fighterEquipmentId: string;
-  title: string;
-  note?: string;
-  creditsAmount: number;
-  reputationAmount?: number;
-  resources?: TradePaymentResourceInput[];
-}
-
-export interface TradeableStashItem {
-  id: string;
-  equipmentName: string;
-}
-
-export interface CreateListingParams {
-  campaignId: string;
-  proposerGangId: string;
-  title: string;
-  note?: string;
-  fighterId?: string | null;
-  originalGangId?: string | null;
-  fighterEquipmentId?: string | null;
-  creditsAmount: number;
-  reputationAmount?: number;
-  resources?: TradePaymentResourceInput[];
-}
-
-export interface CreateCustomTradeParams {
+export interface CreateCampaignTradeParams {
   campaignId: string;
   proposerGangId: string;
   counterpartyGangId?: string | null;
+  parentTradeId?: string | null;
   title: string;
   note?: string;
-  customDescription: string;
-  creditsAmount: number;
-  reputationAmount?: number;
-  resources?: TradePaymentResourceInput[];
-}
-
-export interface CreateBidParams {
-  campaignId: string;
-  listingId: string;
-  bidderGangId: string;
-  listingAuthorGangId: string;
-  title: string;
-  note?: string;
+  goodsKind?: CampaignTradeGoodsKind | null;
   fighterId?: string | null;
-  originalGangId?: string | null;
   fighterEquipmentId?: string | null;
   customDescription?: string | null;
   creditsAmount: number;
   reputationAmount?: number;
   resources?: TradePaymentResourceInput[];
 }
+
+type UserClient = Awaited<ReturnType<typeof createClient>>;
+type WriterClient = ReturnType<typeof createServiceRoleClient>;
+
+type TradeItemInsert = {
+  trade_id: string;
+  giving_gang_id: string;
+  kind: string;
+  fighter_id?: string | null;
+  fighter_equipment_id?: string | null;
+  amount?: number | null;
+  campaign_type_resource_id?: string | null;
+  campaign_resource_id?: string | null;
+  description?: string | null;
+  locked: boolean;
+};
 
 type TradeItemRow = {
   kind: string;
@@ -194,8 +161,12 @@ function gangName(gangs: Map<string, TradeGangInfo>, gangId: string | null | und
   return gangs.get(gangId)?.name ?? 'another gang';
 }
 
+function uniqueViolation(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: string }).code === '23505';
+}
+
 async function loadTradeGangs(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: UserClient,
   gangIds: Array<string | null | undefined>
 ): Promise<Map<string, TradeGangInfo>> {
   const ids = uniqueGangIds(gangIds);
@@ -222,7 +193,7 @@ async function loadTradeGangs(
 }
 
 async function notifyTradeOwners(params: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
+  supabase: UserClient;
   campaignId: string;
   senderUserId: string;
   receiverGangIds: Array<string | null | undefined>;
@@ -236,16 +207,24 @@ async function notifyTradeOwners(params: {
   )];
   if (receiverIds.length === 0) return;
 
-  const { error } = await params.supabase.rpc('notify_campaign_trade', {
-    p_campaign_id: params.campaignId,
-    p_text: params.text,
-    p_receiver_ids: receiverIds,
-  });
+  const text = params.text.trim().slice(0, 500);
+  if (!text) return;
+
+  const { error } = await params.supabase.from('notifications').insert(
+    receiverIds.map((receiverId) => ({
+      receiver_id: receiverId,
+      sender_id: params.senderUserId,
+      type: 'campaign_trade',
+      text,
+      link: `/campaigns/${params.campaignId}`,
+      dismissed: false,
+    }))
+  );
   if (error) console.error('Error sending campaign trade notification:', error);
 }
 
 async function loadAcceptedCampaignGangIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: UserClient,
   campaignId: string
 ): Promise<string[]> {
   const { data, error } = await supabase
@@ -289,7 +268,7 @@ async function logTradeGangs(params: {
 }
 
 async function followUpCampaignTrade(params: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
+  supabase: UserClient;
   userId: string;
   campaignId: string;
   title: string;
@@ -558,10 +537,6 @@ function invalidateTradeCaches(params: {
   }
 }
 
-function optionalUuid(value: string | null | undefined): boolean {
-  return value == null || value === '' || isUuid(value);
-}
-
 function normalizeCustomDescription(value: string | null | undefined):
   | { error: string }
   | { customDescription: string | null } {
@@ -581,488 +556,129 @@ function normalizeCustomDescription(value: string | null | undefined):
   return { customDescription };
 }
 
-export async function createCaptiveRansom(params: CreateCaptiveRansomParams) {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const {
-      campaignId,
-      proposerGangId,
-      counterpartyGangId,
-      fighterId,
-      originalGangId,
-      title,
-      note,
-      creditsAmount,
-      reputationAmount,
-      resources,
-    } = params;
-
-    const payments = normalizeTradePayments(creditsAmount, reputationAmount, resources);
-    if ('error' in payments) {
-      return { success: false, error: payments.error };
-    }
-
-    if (
-      !isUuid(campaignId)
-      || !isUuid(proposerGangId)
-      || !isUuid(counterpartyGangId)
-      || !isUuid(fighterId)
-      || !isUuid(originalGangId)
-      || typeof title !== 'string'
-    ) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    const { data: outcome, error } = await supabase.rpc('create_campaign_trade_captive_ransom', {
-      p_campaign_id: campaignId,
-      p_proposer_gang_id: proposerGangId,
-      p_counterparty_gang_id: counterpartyGangId,
-      p_title: title,
-      p_note: note ?? null,
-      p_fighter_id: fighterId,
-      p_credits_amount: payments.creditsAmount,
-      p_reputation_amount: payments.reputationAmount,
-      p_resources: payments.resources,
-    });
-
-    if (error) throw error;
-    const message = mapOutcome(outcome);
-    if (message) return { success: false, error: message };
-
-    invalidateTradeCaches({
-      campaignId,
-      proposerGangId,
-      counterpartyGangId,
-      fighterId,
-      originalGangId,
-    });
-
-    await followUpCampaignTrade({
-      supabase,
-      userId: user.id,
-      campaignId,
-      title,
-      kind: 'proposed_direct',
-      proposerGangId,
-      counterpartyGangId,
-      actorGangId: proposerGangId,
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error creating captive ransom:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to propose ransom',
-    };
-  }
+async function canActForGang(userId: string, gangId: string): Promise<boolean> {
+  const gang = await getGangCore(gangId);
+  if (!gang) return false;
+  if (gang.user_id === userId) return true;
+  return isArbitrator(await checkPermission(userId, { gangId }));
 }
 
-export async function createEquipmentTrade(params: CreateEquipmentTradeParams) {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const {
-      campaignId,
-      proposerGangId,
-      counterpartyGangId,
-      fighterEquipmentId,
-      title,
-      note,
-      creditsAmount,
-      reputationAmount,
-      resources,
-    } = params;
-
-    const payments = normalizeTradePayments(creditsAmount, reputationAmount, resources);
-    if ('error' in payments) {
-      return { success: false, error: payments.error };
-    }
-
-    if (
-      !isUuid(campaignId)
-      || !isUuid(proposerGangId)
-      || !isUuid(counterpartyGangId)
-      || !isUuid(fighterEquipmentId)
-      || typeof title !== 'string'
-    ) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    const { data: outcome, error } = await supabase.rpc('create_campaign_trade_equipment', {
-      p_campaign_id: campaignId,
-      p_proposer_gang_id: proposerGangId,
-      p_counterparty_gang_id: counterpartyGangId,
-      p_title: title,
-      p_note: note ?? null,
-      p_fighter_equipment_id: fighterEquipmentId,
-      p_credits_amount: payments.creditsAmount,
-      p_reputation_amount: payments.reputationAmount,
-      p_resources: payments.resources,
-    });
-
-    if (error) throw error;
-    const message = mapOutcome(outcome);
-    if (message) return { success: false, error: message };
-
-    invalidateTradeCaches({
-      campaignId,
-      proposerGangId,
-      counterpartyGangId,
-      stashMoved: true,
-    });
-
-    await followUpCampaignTrade({
-      supabase,
-      userId: user.id,
-      campaignId,
-      title,
-      kind: 'proposed_direct',
-      proposerGangId,
-      counterpartyGangId,
-      actorGangId: proposerGangId,
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error creating equipment trade:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to propose equipment trade',
-    };
-  }
+async function isAcceptedCampaignGang(
+  supabase: UserClient,
+  campaignId: string,
+  gangId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('campaign_gangs')
+    .select('id')
+    .eq('campaign_id', campaignId)
+    .eq('gang_id', gangId)
+    .eq('status', 'ACCEPTED')
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
 }
 
-export async function createListing(params: CreateListingParams) {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const {
-      campaignId,
-      proposerGangId,
-      title,
-      note,
-      fighterId,
-      originalGangId,
-      fighterEquipmentId,
-      creditsAmount,
-      reputationAmount,
-      resources,
-    } = params;
-
-    const payments = normalizeTradePayments(creditsAmount, reputationAmount, resources);
-    if ('error' in payments) {
-      return { success: false, error: payments.error };
-    }
-
-    const hasCaptive = typeof fighterId === 'string' && isUuid(fighterId);
-    const hasEquipment = typeof fighterEquipmentId === 'string' && isUuid(fighterEquipmentId);
-    if (hasCaptive && hasEquipment) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    if (
-      !isUuid(campaignId)
-      || !isUuid(proposerGangId)
-      || typeof title !== 'string'
-      || (fighterId != null && fighterId !== '' && !isUuid(fighterId))
-      || (fighterEquipmentId != null && fighterEquipmentId !== '' && !isUuid(fighterEquipmentId))
-      || (hasCaptive && (!originalGangId || !isUuid(originalGangId)))
-    ) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    const { data: outcome, error } = await supabase.rpc('create_campaign_trade_listing', {
-      p_campaign_id: campaignId,
-      p_proposer_gang_id: proposerGangId,
-      p_title: title,
-      p_note: note ?? null,
-      p_fighter_id: hasCaptive ? fighterId : null,
-      p_fighter_equipment_id: hasEquipment ? fighterEquipmentId : null,
-      p_credits_amount: payments.creditsAmount,
-      p_reputation_amount: payments.reputationAmount,
-      p_resources: payments.resources,
-    });
-
-    if (error) throw error;
-    const message = mapOutcome(outcome);
-    if (message) return { success: false, error: message };
-
-    invalidateTradeCaches({
-      campaignId,
-      proposerGangId,
-      fighterId: hasCaptive ? fighterId : null,
-      originalGangId: hasCaptive ? originalGangId : null,
-      stashMoved: hasEquipment,
-    });
-
-    await followUpCampaignTrade({
-      supabase,
-      userId: user.id,
-      campaignId,
-      title,
-      kind: 'proposed_listing',
-      proposerGangId,
-      actorGangId: proposerGangId,
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error creating campaign listing:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to post listing',
-    };
-  }
+async function tradingEnabled(supabase: UserClient, campaignId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select('allow_trading')
+    .eq('id', campaignId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.allow_trading === true;
 }
 
-export async function createCustomTrade(params: CreateCustomTradeParams) {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const {
-      campaignId,
-      proposerGangId,
-      counterpartyGangId,
-      title,
-      note,
-      customDescription,
-      creditsAmount,
-      reputationAmount,
-      resources,
-    } = params;
-
-    const payments = normalizeTradePayments(creditsAmount, reputationAmount, resources);
-    if ('error' in payments) {
-      return { success: false, error: payments.error };
-    }
-
-    const custom = normalizeCustomDescription(customDescription);
-    if ('error' in custom || !custom.customDescription) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    if (
-      !isUuid(campaignId)
-      || !isUuid(proposerGangId)
-      || typeof title !== 'string'
-      || !optionalUuid(counterpartyGangId)
-    ) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    const counterparty = counterpartyGangId && isUuid(counterpartyGangId) ? counterpartyGangId : null;
-    if (counterparty && counterparty === proposerGangId) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    const { data: outcome, error } = await supabase.rpc('create_campaign_trade_custom', {
-      p_campaign_id: campaignId,
-      p_proposer_gang_id: proposerGangId,
-      p_counterparty_gang_id: counterparty,
-      p_title: title,
-      p_note: note ?? null,
-      p_custom_description: custom.customDescription,
-      p_credits_amount: payments.creditsAmount,
-      p_reputation_amount: payments.reputationAmount,
-      p_resources: payments.resources,
-    });
-
+async function resourceDescription(
+  supabase: UserClient,
+  campaignId: string,
+  typeId: string | null,
+  customId: string | null
+): Promise<string | null> {
+  if (typeId) {
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select('campaign_type_id')
+      .eq('id', campaignId)
+      .maybeSingle();
     if (error) throw error;
-    const message = mapOutcome(outcome);
-    if (message) return { success: false, error: message };
-
-    invalidateTradeCaches({
-      campaignId,
-      proposerGangId,
-      counterpartyGangId: counterparty,
-    });
-
-    await followUpCampaignTrade({
-      supabase,
-      userId: user.id,
-      campaignId,
-      title,
-      kind: counterparty ? 'proposed_direct' : 'proposed_listing',
-      proposerGangId,
-      counterpartyGangId: counterparty,
-      actorGangId: proposerGangId,
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error creating custom trade:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to propose custom trade',
-    };
+    if (!data?.campaign_type_id) return null;
+    const { data: resource, error: resourceError } = await supabase
+      .from('campaign_type_resources')
+      .select('resource_name')
+      .eq('id', typeId)
+      .eq('campaign_type_id', data.campaign_type_id)
+      .maybeSingle();
+    if (resourceError) throw resourceError;
+    const name = resource?.resource_name?.trim();
+    return name && name.length > 0 ? name : null;
   }
+  if (customId) {
+    const { data, error } = await supabase
+      .from('campaign_resources')
+      .select('resource_name')
+      .eq('id', customId)
+      .eq('campaign_id', campaignId)
+      .maybeSingle();
+    if (error) throw error;
+    const name = data?.resource_name?.trim();
+    return name && name.length > 0 ? name : null;
+  }
+  return null;
 }
 
-export async function createBid(params: CreateBidParams) {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    const {
-      campaignId,
-      listingId,
-      bidderGangId,
-      listingAuthorGangId,
-      title,
-      note,
-      fighterId,
-      originalGangId,
-      fighterEquipmentId,
-      creditsAmount,
-      reputationAmount,
-      resources,
-    } = params;
-
-    const payments = normalizeTradePayments(creditsAmount, reputationAmount, resources);
-    if ('error' in payments) {
-      return { success: false, error: payments.error };
-    }
-
-    const custom = normalizeCustomDescription(params.customDescription);
-    if ('error' in custom) {
-      return { success: false, error: custom.error };
-    }
-
-    const hasCaptive = typeof fighterId === 'string' && isUuid(fighterId);
-    const hasEquipment = typeof fighterEquipmentId === 'string' && isUuid(fighterEquipmentId);
-    const hasCustom = custom.customDescription != null;
-    if ([hasCaptive, hasEquipment, hasCustom].filter(Boolean).length > 1) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    if (
-      !isUuid(campaignId)
-      || !isUuid(listingId)
-      || !isUuid(bidderGangId)
-      || !isUuid(listingAuthorGangId)
-      || typeof title !== 'string'
-      || (fighterId != null && fighterId !== '' && !isUuid(fighterId))
-      || (fighterEquipmentId != null && fighterEquipmentId !== '' && !isUuid(fighterEquipmentId))
-      || (hasCaptive && (!originalGangId || !isUuid(originalGangId)))
-    ) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    const { data: outcome, error } = await supabase.rpc('create_campaign_trade_bid', {
-      p_listing_id: listingId,
-      p_bidder_gang_id: bidderGangId,
-      p_title: title,
-      p_note: note ?? null,
-      p_fighter_id: hasCaptive ? fighterId : null,
-      p_fighter_equipment_id: hasEquipment ? fighterEquipmentId : null,
-      p_custom_description: custom.customDescription,
-      p_credits_amount: payments.creditsAmount,
-      p_reputation_amount: payments.reputationAmount,
-      p_resources: payments.resources,
-    });
-
-    if (error) throw error;
-    const message = mapOutcome(outcome);
-    if (message) return { success: false, error: message };
-
-    invalidateTradeCaches({
-      campaignId,
-      proposerGangId: bidderGangId,
-      counterpartyGangId: listingAuthorGangId,
-      fighterId: hasCaptive ? fighterId : null,
-      originalGangId: hasCaptive ? originalGangId : null,
-      stashMoved: hasEquipment,
-    });
-
-    await followUpCampaignTrade({
-      supabase,
-      userId: user.id,
-      campaignId,
-      title,
-      kind: 'bid',
-      proposerGangId: bidderGangId,
-      counterpartyGangId: listingAuthorGangId,
-      actorGangId: bidderGangId,
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error creating campaign bid:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to place bid',
-    };
-  }
+async function lockedItemExists(
+  supabase: UserClient,
+  column: 'fighter_id' | 'fighter_equipment_id',
+  id: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('campaign_trade_items')
+    .select('id')
+    .eq(column, id)
+    .eq('locked', true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
 }
 
-export async function listStashForEquipmentTrade(gangId: string): Promise<{
-  success: boolean;
-  items: TradeableStashItem[];
-  error?: string;
-}> {
-  try {
-    const supabase = await createClient();
-    const user = await getAuthenticatedUser(supabase);
-
-    if (!isUuid(gangId)) {
-      return { success: false, items: [], error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
-
-    const gang = await getGangCore(gangId);
-    if (!gang) {
-      return { success: false, items: [], error: TRADE_OUTCOME_MESSAGES.not_authorized };
-    }
-    if (!(await canViewHiddenGang(user.id, gangId, gang.user_id, gang.hidden))) {
-      return { success: false, items: [], error: TRADE_OUTCOME_MESSAGES.not_authorized };
-    }
-    const canAct = gang.user_id === user.id
-      || isArbitrator(await checkPermission(user.id, { gangId }));
-    if (!canAct) {
-      return { success: false, items: [], error: TRADE_OUTCOME_MESSAGES.not_authorized };
-    }
-
-    const stash = await getGangStash(gangId);
-    const tradeable = stash.filter(isTradeableStashEquipment);
-    if (tradeable.length === 0) {
-      return { success: true, items: [] };
-    }
-
-    const { data: lockedRows, error: lockedError } = await supabase
-      .from('campaign_trade_items')
-      .select('fighter_equipment_id')
-      .in('fighter_equipment_id', tradeable.map((item) => item.id))
-      .eq('locked', true);
-    if (lockedError) throw lockedError;
-
-    const lockedIds = new Set(
-      (lockedRows ?? [])
-        .map((row) => row.fighter_equipment_id)
-        .filter((id): id is string => typeof id === 'string')
-    );
-
-    return {
-      success: true,
-      items: tradeable
-        .filter((item) => !lockedIds.has(item.id))
-        .map((item) => ({
-          id: item.id,
-          equipmentName: item.equipment_name,
-        })),
-    };
-  } catch (error) {
-    console.error('Error listing stash for equipment trade:', error);
-    return {
-      success: false,
-      items: [],
-      error: error instanceof Error ? error.message : 'Failed to load stash',
-    };
+async function loadCaptiveGoods(
+  supabase: UserClient,
+  fighterId: string,
+  givingGangId: string
+): Promise<{ error: string } | { fighterId: string; description: string }> {
+  const { data, error } = await supabase
+    .from('fighters')
+    .select('id, fighter_name, captured, captured_by_gang_id')
+    .eq('id', fighterId)
+    .maybeSingle();
+  if (error) throw error;
+  const name = data?.fighter_name?.trim() ?? '';
+  if (
+    !data
+    || data.captured !== true
+    || data.captured_by_gang_id !== givingGangId
+    || name.length < 1
+  ) {
+    return { error: TRADE_OUTCOME_MESSAGES.captive_unavailable };
   }
+  if (await lockedItemExists(supabase, 'fighter_id', fighterId)) {
+    return { error: TRADE_OUTCOME_MESSAGES.captive_unavailable };
+  }
+  return { fighterId, description: name };
+}
+
+async function loadEquipmentGoods(
+  fighterEquipmentId: string,
+  givingGangId: string
+): Promise<{ error: string } | { fighterEquipmentId: string; description: string }> {
+  const stash = await getGangStash(givingGangId);
+  const item = stash.find((row) => row.id === fighterEquipmentId);
+  if (!item || !isTradeableStashEquipment(item) || item.equipment_name.trim().length < 1) {
+    return { error: TRADE_OUTCOME_MESSAGES.equipment_unavailable };
+  }
+  return { fighterEquipmentId, description: item.equipment_name.trim() };
 }
 
 function tradeItems(trade: TradeRow): TradeItemRow[] {
@@ -1085,10 +701,7 @@ function captiveHomeGangId(items: TradeItemRow[]): string | null {
   return row?.gang_id ?? null;
 }
 
-async function loadTradeRow(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  tradeId: string
-): Promise<TradeRow | null> {
+async function loadTradeRow(supabase: UserClient, tradeId: string): Promise<TradeRow | null> {
   const { data, error } = await supabase
     .from('campaign_trades')
     .select(TRADE_ROW_COLUMNS)
@@ -1101,9 +714,8 @@ async function loadTradeRow(
   return data as TradeRow;
 }
 
-/** Bids the resolve just declined share the listing's transaction timestamp. */
 async function declinedBidderGangIds(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: UserClient,
   listingId: string,
   resolvedAt: string | null
 ): Promise<string[]> {
@@ -1122,7 +734,7 @@ async function declinedBidderGangIds(
 }
 
 async function followResolvedTrade(params: {
-  supabase: Awaited<ReturnType<typeof createClient>>;
+  supabase: UserClient;
   userId: string;
   tradeId: string;
   action: 'accept' | 'decline' | 'cancel';
@@ -1188,6 +800,259 @@ async function followResolvedTrade(params: {
   });
 }
 
+async function insertTradeWithItems(
+  writer: WriterClient,
+  trade: {
+    campaign_id: string;
+    proposer_gang_id: string;
+    counterparty_gang_id: string | null;
+    parent_trade_id: string | null;
+    title: string;
+    note: string | null;
+  },
+  items: Omit<TradeItemInsert, 'trade_id'>[],
+  uniqueCode: keyof typeof TRADE_OUTCOME_MESSAGES
+): Promise<{ error: string } | { tradeId: string }> {
+  const { data, error } = await writer
+    .from('campaign_trades')
+    .insert({ ...trade, status: 'pending' })
+    .select('id')
+    .single();
+  if (error) {
+    if (uniqueViolation(error)) return { error: TRADE_OUTCOME_MESSAGES[uniqueCode] };
+    throw error;
+  }
+  const tradeId = data.id as string;
+  const { error: itemsError } = await writer
+    .from('campaign_trade_items')
+    .insert(items.map((item) => ({ ...item, trade_id: tradeId })));
+  if (itemsError) {
+    await writer.from('campaign_trades').delete().eq('id', tradeId);
+    if (uniqueViolation(itemsError)) return { error: TRADE_OUTCOME_MESSAGES[uniqueCode] };
+    throw itemsError;
+  }
+  return { tradeId };
+}
+
+export async function createCampaignTrade(params: CreateCampaignTradeParams) {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+    const writer = createServiceRoleClient();
+
+    const campaignId = params.campaignId;
+    const proposerGangId = params.proposerGangId;
+    const parentTradeId = params.parentTradeId || null;
+    const counterpartyGangId = params.counterpartyGangId || null;
+    const fighterId = params.fighterId || null;
+    const fighterEquipmentId = params.fighterEquipmentId || null;
+    const title = typeof params.title === 'string' ? params.title.trim() : '';
+    const note = typeof params.note === 'string' && params.note.trim() ? params.note.trim() : null;
+
+    if (!isUuid(campaignId) || !isUuid(proposerGangId) || title.length < 1 || title.length > 100) {
+      return fail('invalid');
+    }
+    if (parentTradeId && !isUuid(parentTradeId)) return fail('invalid');
+    if (counterpartyGangId && !isUuid(counterpartyGangId)) return fail('invalid');
+    if (fighterId && !isUuid(fighterId)) return fail('invalid');
+    if (fighterEquipmentId && !isUuid(fighterEquipmentId)) return fail('invalid');
+    if (counterpartyGangId && counterpartyGangId === proposerGangId) return fail('invalid');
+
+    if (!(await canActForGang(user.id, proposerGangId))) return fail('not_authorized');
+    if (!(await tradingEnabled(supabase, campaignId))) return fail('trading_disabled');
+    if (!(await isAcceptedCampaignGang(supabase, campaignId, proposerGangId))) return fail('invalid');
+
+    const payments = normalizeTradePayments(params.creditsAmount, params.reputationAmount, params.resources);
+    if ('error' in payments) return { success: false, error: payments.error };
+
+    const custom = normalizeCustomDescription(params.customDescription);
+    if ('error' in custom) return { success: false, error: custom.error };
+
+    const goodsKind = params.goodsKind ?? null;
+    const goodsCount = [fighterId, fighterEquipmentId, custom.customDescription].filter(Boolean).length;
+    if (goodsKind === 'captive' && (!fighterId || goodsCount !== 1)) return fail('invalid');
+    if (goodsKind === 'equipment' && (!fighterEquipmentId || goodsCount !== 1)) return fail('invalid');
+    if (goodsKind === 'custom' && (!custom.customDescription || goodsCount !== 1)) return fail('invalid');
+    if (!goodsKind && goodsCount !== 0) return fail('invalid');
+
+    let listingHasGoods = false;
+    let resolvedCounterparty = counterpartyGangId;
+    let resolvedParent = parentTradeId;
+    let followKind: TradeFollowUpKind;
+
+    if (parentTradeId) {
+      const { data: listing, error: listingError } = await supabase
+        .from('campaign_trades')
+        .select('id, campaign_id, proposer_gang_id, counterparty_gang_id, parent_trade_id, status')
+        .eq('id', parentTradeId)
+        .maybeSingle();
+      if (listingError) throw listingError;
+      if (!listing) return fail('not_found');
+      if (listing.campaign_id !== campaignId) return fail('invalid');
+      if (listing.status !== 'pending') return fail('not_pending');
+      if (listing.counterparty_gang_id || listing.parent_trade_id) return fail('invalid');
+      if (listing.proposer_gang_id === proposerGangId) return fail('invalid');
+
+      const { data: listingItems, error: listingItemsError } = await supabase
+        .from('campaign_trade_items')
+        .select('kind')
+        .eq('trade_id', listing.id);
+      if (listingItemsError) throw listingItemsError;
+      listingHasGoods = (listingItems ?? []).some((item) => (
+        item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom'
+      ));
+
+      if (listingHasGoods) {
+        if (goodsKind) return fail('invalid');
+      } else if (!goodsKind) {
+        return fail('invalid');
+      }
+
+      resolvedCounterparty = listing.proposer_gang_id;
+      resolvedParent = listing.id;
+      followKind = 'bid';
+    } else if (counterpartyGangId) {
+      if (!goodsKind) return fail('invalid');
+      if (!(await isAcceptedCampaignGang(supabase, campaignId, counterpartyGangId))) return fail('invalid');
+      followKind = 'proposed_direct';
+    } else {
+      followKind = 'proposed_listing';
+    }
+
+    if (resolvedCounterparty && !(await isAcceptedCampaignGang(supabase, campaignId, resolvedCounterparty))) {
+      return fail('invalid');
+    }
+
+    const goodsRows: Omit<TradeItemInsert, 'trade_id'>[] = [];
+    if (goodsKind === 'captive' && fighterId) {
+      const captive = await loadCaptiveGoods(supabase, fighterId, proposerGangId);
+      if ('error' in captive) return { success: false, error: captive.error };
+      goodsRows.push({
+        giving_gang_id: proposerGangId,
+        kind: 'captive',
+        fighter_id: captive.fighterId,
+        description: captive.description,
+        locked: true,
+      });
+    } else if (goodsKind === 'equipment' && fighterEquipmentId) {
+      if (await lockedItemExists(supabase, 'fighter_equipment_id', fighterEquipmentId)) {
+        return fail('equipment_unavailable');
+      }
+      const equipment = await loadEquipmentGoods(fighterEquipmentId, proposerGangId);
+      if ('error' in equipment) return { success: false, error: equipment.error };
+      goodsRows.push({
+        giving_gang_id: proposerGangId,
+        kind: 'equipment',
+        fighter_equipment_id: equipment.fighterEquipmentId,
+        description: equipment.description,
+        locked: true,
+      });
+    } else if (goodsKind === 'custom' && custom.customDescription) {
+      goodsRows.push({
+        giving_gang_id: proposerGangId,
+        kind: 'custom',
+        description: custom.customDescription,
+        locked: true,
+      });
+    }
+
+    const payGiver = followKind === 'proposed_direct' ? resolvedCounterparty : proposerGangId;
+    if (!payGiver) return fail('invalid');
+
+    const paymentRows: Omit<TradeItemInsert, 'trade_id'>[] = [{
+      giving_gang_id: payGiver,
+      kind: 'credits',
+      amount: payments.creditsAmount,
+      locked: true,
+    }];
+    if (payments.reputationAmount != null) {
+      paymentRows.push({
+        giving_gang_id: payGiver,
+        kind: 'reputation',
+        amount: payments.reputationAmount,
+        locked: true,
+      });
+    }
+    for (const resource of payments.resources) {
+      const description = await resourceDescription(
+        supabase,
+        campaignId,
+        resource.campaign_type_resource_id,
+        resource.campaign_resource_id
+      );
+      if (!description) return fail('invalid');
+      paymentRows.push({
+        giving_gang_id: payGiver,
+        kind: 'campaign_resource',
+        amount: resource.amount,
+        campaign_type_resource_id: resource.campaign_type_resource_id,
+        campaign_resource_id: resource.campaign_resource_id,
+        description,
+        locked: true,
+      });
+    }
+
+    const inserted = await insertTradeWithItems(
+      writer,
+      {
+        campaign_id: campaignId,
+        proposer_gang_id: proposerGangId,
+        counterparty_gang_id: resolvedCounterparty,
+        parent_trade_id: resolvedParent,
+        title,
+        note,
+      },
+      [...goodsRows, ...paymentRows],
+      followKind === 'bid'
+        ? 'bid_exists'
+        : goodsKind === 'captive'
+          ? 'captive_unavailable'
+          : goodsKind === 'equipment'
+            ? 'equipment_unavailable'
+            : 'invalid'
+    );
+    if ('error' in inserted) return { success: false, error: inserted.error };
+
+    invalidateTradeCaches({
+      campaignId,
+      proposerGangId,
+      counterpartyGangId: resolvedCounterparty,
+      fighterId: goodsKind === 'captive' ? fighterId : null,
+      originalGangId: null,
+      stashMoved: goodsKind === 'equipment',
+    });
+
+    await followUpCampaignTrade({
+      supabase,
+      userId: user.id,
+      campaignId,
+      title,
+      kind: followKind,
+      proposerGangId,
+      counterpartyGangId: resolvedCounterparty,
+      actorGangId: proposerGangId,
+    });
+
+    return { success: true, tradeId: inserted.tradeId };
+  } catch (error) {
+    console.error('Error creating campaign trade:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create trade',
+    };
+  }
+}
+
+async function unlockTradeItems(writer: WriterClient, tradeIds: string[]) {
+  if (tradeIds.length === 0) return;
+  const { error } = await writer
+    .from('campaign_trade_items')
+    .update({ locked: false, updated_at: new Date().toISOString() })
+    .in('trade_id', tradeIds)
+    .eq('locked', true);
+  if (error) throw error;
+}
+
 export async function declineCampaignTrade(tradeId: string) {
   return resolveTrade(tradeId, 'decline');
 }
@@ -1200,20 +1065,60 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
+    const writer = createServiceRoleClient();
 
-    if (!isUuid(tradeId)) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
+    if (!isUuid(tradeId)) return fail('invalid');
+
+    const { data: trade, error } = await supabase
+      .from('campaign_trades')
+      .select('id, proposer_gang_id, counterparty_gang_id, parent_trade_id, status')
+      .eq('id', tradeId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!trade) return fail('not_found');
+    if (trade.status !== 'pending') return fail('not_pending');
+
+    const isListing = !trade.parent_trade_id && !trade.counterparty_gang_id;
+    if (action === 'decline' && isListing) return fail('invalid');
+
+    const actorGangId = action === 'cancel' ? trade.proposer_gang_id : trade.counterparty_gang_id;
+    if (!actorGangId) return fail('invalid');
+    if (!(await canActForGang(user.id, actorGangId))) return fail('not_authorized');
+
+    const resolvedAt = new Date().toISOString();
+    const nextStatus = action === 'cancel' ? 'cancelled' : 'declined';
+    const relatedIds: string[] = [];
+
+    if (action === 'cancel' && isListing) {
+      const { data: bids, error: bidsError } = await writer
+        .from('campaign_trades')
+        .select('id')
+        .eq('parent_trade_id', tradeId)
+        .eq('status', 'pending');
+      if (bidsError) throw bidsError;
+      relatedIds.push(...(bids ?? []).map((bid) => bid.id));
+
+      if (relatedIds.length > 0) {
+        const { error: declineBidsError } = await writer
+          .from('campaign_trades')
+          .update({ status: 'declined', resolved_at: resolvedAt, updated_at: resolvedAt })
+          .in('id', relatedIds)
+          .eq('status', 'pending');
+        if (declineBidsError) throw declineBidsError;
+      }
     }
 
-    const { data: outcome, error } = await supabase.rpc('resolve_campaign_trade', {
-      p_trade_id: tradeId,
-      p_action: action,
-    });
+    const { data: updated, error: updateError } = await writer
+      .from('campaign_trades')
+      .update({ status: nextStatus, resolved_at: resolvedAt, updated_at: resolvedAt })
+      .eq('id', tradeId)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
+    if (updateError) throw updateError;
+    if (!updated) return fail('not_pending');
 
-    if (error) throw error;
-    const message = mapOutcome(outcome);
-    if (message) return { success: false, error: message };
-
+    await unlockTradeItems(writer, [tradeId, ...relatedIds]);
     await followResolvedTrade({ supabase, userId: user.id, tradeId, action });
     return { success: true };
   } catch (error) {
@@ -1230,9 +1135,7 @@ export async function acceptCampaignTrade(tradeId: string) {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    if (!isUuid(tradeId)) {
-      return { success: false, error: TRADE_OUTCOME_MESSAGES.invalid };
-    }
+    if (!isUuid(tradeId)) return fail('invalid');
 
     const { data: outcome, error } = await supabase.rpc('accept_campaign_trade', {
       p_trade_id: tradeId,
