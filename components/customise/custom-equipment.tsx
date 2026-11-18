@@ -127,22 +127,21 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     (createModalOpen && isAmmunition(createForm.equipment_category_id)) ||
     (editModalData !== null && isAmmunition(editForm.equipment_category_id));
 
-  const { data: availableWeapons = [] } = useQuery<AvailableWeapon[]>({
-    // editionSlug is part of the key because the result below is edition-filtered
-    queryKey: ['equipment', { equipment_type: 'weapon', core_equipment: false, editionSlug }],
+  const { data: availableWeapons = [] } = useQuery({
+    queryKey: ['equipment', { equipment_type: 'weapon', core_equipment: false }],
     queryFn: async () => {
       const response = await fetch('/api/equipment?equipment_type=weapon&core_equipment=false');
       if (!response.ok) throw new Error('Failed to fetch equipment');
-      const data: EquipmentListItem[] = await response.json();
-      return data
-        .filter(item => sameEditionForDisplay(item.edition_slug, editionSlug))
-        .map(item => ({
-          id: item.is_custom ? item.original_id! : item.id,
-          name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
-          is_custom: item.is_custom,
-          category: item.equipment_category || '',
-        }));
+      return response.json() as Promise<EquipmentListItem[]>;
     },
+    select: (data): AvailableWeapon[] => data
+      .filter(item => sameEditionForDisplay(item.edition_slug, editionSlug))
+      .map(item => ({
+        id: item.is_custom ? item.original_id! : item.id,
+        name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
+        is_custom: item.is_custom,
+        category: item.equipment_category || '',
+      })),
     enabled: needsAvailableWeapons,
   });
 
