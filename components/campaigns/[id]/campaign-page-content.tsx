@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,10 @@ import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
+import CampaignTradesList from "@/components/campaigns/[id]/campaign-trades-list";
+import CampaignSellTradeModal from "@/components/campaigns/[id]/campaign-trade-sell-modal";
+import CampaignTradeLookingForModal from "@/components/campaigns/[id]/campaign-trade-lookingfor-modal";
+import type { CampaignTrade } from '@/types/campaign-trade';
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import { formatLocalDate } from '@/utils/local-date';
@@ -136,6 +141,7 @@ interface CampaignPageContentProps {
     discord_dice_rolls?: boolean;
     discord_dice_roll_channel_id?: string | null;
     allow_join_requests?: boolean;
+    allow_trading?: boolean;
     battles: Battle[];
     battleSessions?: BattleSession[];
     triumphs: {
@@ -150,8 +156,17 @@ interface CampaignPageContentProps {
     captives?: Array<{
       gangId: string;
       gangName: string;
-      captives: Array<{ fighterId: string; fighterName: string; originalGangName: string }>;
+      captives: Array<{
+        fighterId: string;
+        fighterName: string;
+        fighterType?: string;
+        originalGangId: string | null;
+        originalGangName: string;
+        originalGangColour?: string | null;
+        originalGangOwnerUsername?: string | null;
+      }>;
     }>;
+    trades?: CampaignTrade[];
   };
   userId?: string;
   permissions: CampaignPermissions | null;
@@ -208,6 +223,7 @@ export default function CampaignPageContent({
   mapData: initialMapData,
   mapObjects: initialMapObjects = []
 }: CampaignPageContentProps) {
+  const router = useRouter();
   const [campaignData, setCampaignData] = useState(initialCampaignData);
   const [mapState, setMapState] = useState({
     map: initialMapData ?? null,
@@ -226,6 +242,8 @@ export default function CampaignPageContent({
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showPhasesCyclesModal, setShowPhasesCyclesModal] = useState(false);
+  const [showSellTradeModal, setShowSellTradeModal] = useState(false);
+  const [showLookingForModal, setShowLookingForModal] = useState(false);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -251,6 +269,72 @@ export default function CampaignPageContent({
 
   // Fix: Include app-level admin status in isAdmin check
   const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin;
+  const isCampaignArb = !!safePermissions.isArbitrator || !!safePermissions.isAdmin || !!safePermissions.isOwner;
+
+  const acceptedGangs = useMemo(
+    () => (campaignData.members ?? []).flatMap((member: Member) =>
+      (member.gangs ?? [])
+        .filter((gang) => gang.status === 'ACCEPTED')
+        .map((gang) => ({
+          ...gang,
+          owner_username: member.username || member.profile?.username || 'Unknown',
+        }))
+    ),
+    [campaignData.members]
+  );
+
+  const actorGangIds = useMemo(() => {
+    if (isCampaignArb) return acceptedGangs.map((gang: { id: string }) => gang.id);
+    return (campaignData.members ?? [])
+      .filter((member) => member.user_id === userId)
+      .flatMap((member) =>
+        (member.gangs ?? [])
+          .filter((gang: { status: string | null }) => gang.status === 'ACCEPTED')
+          .map((gang: { id: string }) => gang.id)
+      );
+  }, [acceptedGangs, campaignData.members, isCampaignArb, userId]);
+
+  const holdingGangsForRansom = useMemo(
+    () => (campaignData.captives ?? [])
+      .filter((holder) => actorGangIds.includes(holder.gangId) && holder.captives.length > 0)
+      .map((holder) => ({
+        gangId: holder.gangId,
+        gangName: holder.gangName,
+        captives: holder.captives.map((captive) => ({
+          fighterId: captive.fighterId,
+          fighterName: captive.fighterName,
+          fighterType: captive.fighterType,
+          originalGangId: captive.originalGangId ?? null,
+          originalGangName: captive.originalGangName,
+          originalGangColour: captive.originalGangColour,
+          originalGangOwnerUsername: captive.originalGangOwnerUsername,
+        })),
+      })),
+    [actorGangIds, campaignData.captives]
+  );
+
+  const actorGangsForTrade = useMemo(
+    () => {
+      const ids = new Set(actorGangIds);
+      return acceptedGangs
+        .filter((gang: { id: string }) => ids.has(gang.id))
+        .map((gang: { id: string; name: string; gang_colour: string }) => ({
+          gangId: gang.id,
+          gangName: gang.name,
+          gangColour: gang.gang_colour,
+        }));
+    },
+    [acceptedGangs, actorGangIds]
+  );
+
+  const tradePaymentResources = useMemo(
+    () => campaignResources.map((resource) => ({
+      id: resource.id,
+      name: resource.resource_name,
+      isCustom: resource.is_custom,
+    })),
+    [campaignResources]
+  );
 
   // Shared handler for territory updates with optimistic updates
   interface TerritoryUpdate {
@@ -848,6 +932,33 @@ export default function CampaignPageContent({
               />
             </div>
 
+
+            {campaignData.allow_trading && (
+              <div className="mb-8">
+                <div className="flex justify-between items-center mb-4 gap-2">
+                  <h2 className="text-xl md:text-2xl font-bold">Trades</h2>
+                  {actorGangsForTrade.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button onClick={() => setShowSellTradeModal(true)}>
+                        Selling
+                      </Button>
+                      <Button onClick={() => setShowLookingForModal(true)}>
+                        Looking for
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <CampaignTradesList
+                  trades={campaignData.trades ?? []}
+                  campaignId={campaignData.id}
+                  actorGangIds={actorGangIds}
+                  actorGangs={actorGangsForTrade}
+                  isCampaignArb={isCampaignArb}
+                  paymentResources={tradePaymentResources}
+                />
+              </div>
+            )}
+
             {/* Campaign Captured Fighters Section */}
             <div className="mb-8">
               <h2 className="text-xl md:text-2xl font-bold mb-4">Captured Fighters</h2>
@@ -1014,6 +1125,38 @@ export default function CampaignPageContent({
             </div>
           )}
 
+        {showSellTradeModal && (
+          <CampaignSellTradeModal
+            campaignId={campaignData.id}
+            actorGangs={actorGangsForTrade}
+            holdingGangs={holdingGangsForRansom}
+            counterparties={acceptedGangs.map((gang: {
+              id: string
+              name: string
+              gang_colour: string
+              owner_username: string
+            }) => ({
+              id: gang.id,
+              name: gang.name,
+              gangColour: gang.gang_colour,
+              ownerUsername: gang.owner_username,
+            }))}
+            paymentResources={tradePaymentResources}
+            onClose={() => setShowSellTradeModal(false)}
+            onPosted={() => router.refresh()}
+          />
+        )}
+
+        {showLookingForModal && (
+          <CampaignTradeLookingForModal
+            campaignId={campaignData.id}
+            actorGangs={actorGangsForTrade}
+            paymentResources={tradePaymentResources}
+            onClose={() => setShowLookingForModal(false)}
+            onProposed={() => router.refresh()}
+          />
+        )}
+
         {/* Replace the inline modal with our new component */}
         {showEditModal && (
           <CampaignEditModal
@@ -1025,6 +1168,7 @@ export default function CampaignPageContent({
               custom_trading_posts: campaignData.custom_trading_posts || [],
               status: campaignData.status,
               allow_join_requests: campaignData.allow_join_requests ?? false,
+              allow_trading: campaignData.allow_trading ?? false,
               campaign_type_name: campaignData.campaign_type_name,
               campaign_type_id: campaignData.campaign_type_id,
               edition_slug: campaignData.edition_slug ?? null,

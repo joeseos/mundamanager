@@ -29,6 +29,16 @@ import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
 import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 import { hasVehicles, hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
+import CampaignTradesList from '@/components/campaigns/[id]/campaign-trades-list';
+import CampaignSellTradeModal, {
+  type SellTradeCounterparty,
+  type RansomHoldingGang,
+} from '@/components/campaigns/[id]/campaign-trade-sell-modal';
+import CampaignTradeLookingForModal from '@/components/campaigns/[id]/campaign-trade-lookingfor-modal';
+import { isTradeableStashEquipment } from '@/utils/campaign-trade-stash';
+import type { CampaignTrade } from '@/types/campaign-trade';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 
 const FighterXpModal = dynamic(
   () => import('@/components/fighter/fighter-xp-modal').then((mod) => mod.FighterXpModal),
@@ -41,6 +51,7 @@ interface GangPageContentProps {
   gangId: string;
   userId: string;
   userPermissions: UserPermissions;
+  campaignTrades?: CampaignTrade[];
 }
 
 interface GangDataState {
@@ -96,8 +107,14 @@ interface GangDataState {
 export default function GangPageContent({ 
   initialGangData,
   gangId,
-  userPermissions
+  userPermissions,
+  campaignTrades = [],
 }: GangPageContentProps) {
+  const router = useRouter();
+  const [showSellTradeModal, setShowSellTradeModal] = useState(false);
+  const [holdingGangs, setHoldingGangs] = useState<RansomHoldingGang[]>([]);
+  const [tradeCounterparties, setTradeCounterparties] = useState<SellTradeCounterparty[]>([]);
+  const [showLookingForModal, setShowLookingForModal] = useState(false);
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
     stash: initialGangData.stash || []
@@ -655,14 +672,83 @@ export default function GangPageContent({
   );
 
   const gangCampaigns = gangData.processedData.campaigns || [];
-  const gangCampaignProps = gangCampaigns.length > 0 ? {
-    campaignTradingPostIds: gangCampaigns.find((c: any) => c.trading_posts !== undefined)?.trading_posts || [],
-    campaignTradingPostNames: gangCampaigns.find((c: any) => c.trading_posts !== undefined)?.trading_post_names || [],
-    campaignCustomTradingPostIds: gangCampaigns.find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_posts || [],
-    campaignCustomTradingPostNames: gangCampaigns.find((c: any) => c.custom_trading_posts !== undefined)?.custom_trading_post_names || [],
-    campaignGangId: gangCampaigns[0]?.campaign_gang_id as string | undefined,
-    gangCampaignResources: gangCampaigns[0]?.resources,
+  const gangCampaign = gangCampaigns.find((campaign) => campaign.status === 'ACCEPTED')
+  const campaignIdForTrades = gangCampaign?.campaign_id != null
+    ? String(gangCampaign.campaign_id)
+    : undefined;
+  const sellerGangName = String(gangData.processedData.name ?? '');
+  const gangCampaignProps = gangCampaign ? {
+    campaignTradingPostIds: gangCampaign.trading_posts || [],
+    campaignTradingPostNames: gangCampaign.trading_post_names || [],
+    campaignCustomTradingPostIds: gangCampaign.custom_trading_posts || [],
+    campaignCustomTradingPostNames: gangCampaign.custom_trading_post_names || [],
+    campaignGangId: gangCampaign.campaign_gang_id as string | undefined,
+    gangCampaignResources: gangCampaign.resources,
   } : {};
+
+  const openSellTradeModal = async () => {
+    if (!campaignIdForTrades) return;
+    try {
+      const [captivesRes, gangsRes] = await Promise.all([
+        fetch(`/api/gangs/${gangId}/captives`),
+        fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignIdForTrades}`),
+      ]);
+      if (!captivesRes.ok || !gangsRes.ok) throw new Error('Failed to load trade data');
+      const captivesJson = await captivesRes.json() as {
+        captives: Array<{
+          fighterId: string;
+          fighterName: string;
+          fighterType?: string | null;
+          originalGangId: string | null;
+          originalGangName: string;
+          originalGangColour?: string | null;
+          originalGangOwnerUsername?: string | null;
+        }>;
+      };
+      const gangsJson = await gangsRes.json() as Array<{
+        id: string
+        name: string
+        gang_colour?: string | null
+        owner_username?: string | null
+      }>;
+      setHoldingGangs(captivesJson.captives?.length
+        ? [{
+            gangId,
+            gangName: sellerGangName,
+            captives: captivesJson.captives.map((captive) => ({
+              fighterId: captive.fighterId,
+              fighterName: captive.fighterName,
+              fighterType: captive.fighterType,
+              originalGangId: captive.originalGangId,
+              originalGangName: captive.originalGangName,
+              originalGangColour: captive.originalGangColour,
+              originalGangOwnerUsername: captive.originalGangOwnerUsername,
+            })),
+          }]
+        : []);
+      setTradeCounterparties(gangsJson.map((gang) => ({
+        id: gang.id,
+        name: gang.name,
+        gangColour: gang.gang_colour,
+        ownerUsername: gang.owner_username,
+      })));
+      setShowSellTradeModal(true);
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to load trade data');
+    }
+  };
+
+  const tradeableStashItems = useMemo(
+    () => (gangData.stash ?? [])
+      .filter(isTradeableStashEquipment)
+      .map((item) => ({
+        id: item.id,
+        equipmentName: item.equipment_name ?? 'Unknown',
+      })),
+    [gangData.stash]
+  );
+
 
   // N26 vehicles are fighter types, so they live on the Gang tab rather than a roster of their own.
   const showVehicleRoster = !hasVehicles(gangData.processedData.edition_slug);
@@ -699,28 +785,66 @@ export default function GangPageContent({
       title: 'Stash',
       icon: <FaBox key="box" />,
       content: (
-        <GangInventory
-          key="stash"
-          stash={gangData.stash}
-          fighters={gangData.processedData.fighters}
-          title="Stash"
-          onStashUpdate={handleStashUpdate}
-          onFighterUpdate={handleFighterUpdate}
-          vehicles={gangData.processedData.vehicles || []}
-          gangTypeId={gangData.processedData.gang_type_id ?? undefined}
-          gangId={gangId}
-          gangCredits={gangData.processedData.credits}
-          onGangCreditsUpdate={handleGangCreditsUpdate}
-          onGangRatingUpdate={handleGangRatingUpdate}
-          onGangWealthUpdate={handleGangWealthUpdate}
-          userPermissions={userPermissions}
-          {...gangCampaignProps}
-          gangReputation={gangData.processedData.reputation}
-          editionSlug={gangData.processedData.edition_slug}
-          gangTradePoints={gangData.processedData.trade_points}
-          onGangTradePointsUpdate={handleGangTradePointsUpdate}
-          positioning={gangData.processedData.positioning}
-        />
+        <div key="stash" className="bg-card shadow-md rounded-lg p-4">
+          <GangInventory
+            stash={gangData.stash}
+            fighters={gangData.processedData.fighters}
+            title="Stash"
+            onStashUpdate={handleStashUpdate}
+            onFighterUpdate={handleFighterUpdate}
+            vehicles={gangData.processedData.vehicles || []}
+            gangTypeId={gangData.processedData.gang_type_id ?? undefined}
+            gangId={gangId}
+            gangCredits={gangData.processedData.credits}
+            onGangCreditsUpdate={handleGangCreditsUpdate}
+            onGangRatingUpdate={handleGangRatingUpdate}
+            onGangWealthUpdate={handleGangWealthUpdate}
+            userPermissions={userPermissions}
+            {...gangCampaignProps}
+            gangReputation={gangData.processedData.reputation}
+            editionSlug={gangData.processedData.edition_slug}
+            gangTradePoints={gangData.processedData.trade_points}
+            onGangTradePointsUpdate={handleGangTradePointsUpdate}
+            positioning={gangData.processedData.positioning}
+          />
+          {gangCampaign?.allow_trading && (
+            <div className="mt-8">
+              <div className="flex justify-between items-start mb-6 gap-2">
+                <h2 className="text-xl md:text-2xl font-bold">Trades</h2>
+                {userPermissions.canEdit && (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button onClick={openSellTradeModal} size="sm" className="font-medium">
+                      Selling
+                    </Button>
+                    <Button onClick={() => setShowLookingForModal(true)} size="sm" className="font-medium">
+                      Looking for
+                    </Button>
+                  </div>
+                )}
+              </div>
+              <CampaignTradesList
+                trades={campaignTrades}
+                involvedGangId={gangId}
+                campaignId={campaignIdForTrades}
+                actorGangIds={userPermissions.canEdit ? [gangId] : []}
+                actorGangs={userPermissions.canEdit ? [{
+                  gangId,
+                  gangName: gangData.processedData.name,
+                  gangColour: gangData.processedData.gang_colour,
+                }] : []}
+                paymentResources={(gangCampaign?.resources ?? []).map((resource: {
+                  resource_id: string
+                  resource_name: string
+                  is_custom: boolean
+                }) => ({
+                  id: resource.resource_id,
+                  name: resource.resource_name,
+                  isCustom: resource.is_custom,
+                }))}
+              />
+            </div>
+          )}
+        </div>
       ),
     },
     ...(showVehicleRoster ? [{
@@ -837,7 +961,7 @@ export default function GangPageContent({
           is_spyrer={xpModalFighter.is_spyrer}
           helperFighterName={xpModalFighter.fighter_name}
           gangId={gangId}
-          campaignId={gangCampaigns[0]?.campaign_id}
+          campaignId={gangCampaign?.campaign_id}
           editionSlug={gangData.processedData.edition_slug}
           onClose={() => setXpModalFighter(null)}
           onXpUpdated={(newXp, _newTotalXp, newKills, newKillCount) => {
@@ -1108,6 +1232,53 @@ export default function GangPageContent({
         {tabs.map(tab => tab.content)}
       </Tabs>
       </div>
+      {showSellTradeModal && campaignIdForTrades && (
+        <CampaignSellTradeModal
+          campaignId={campaignIdForTrades}
+          sellerGangId={gangId}
+          actorGangs={[{
+            gangId,
+            gangName: gangData.processedData.name,
+            gangColour: gangData.processedData.gang_colour,
+          }]}
+          holdingGangs={holdingGangs}
+          counterparties={tradeCounterparties}
+          items={tradeableStashItems}
+          paymentResources={(gangCampaign?.resources ?? []).map((resource: {
+            resource_id: string
+            resource_name: string
+            is_custom: boolean
+          }) => ({
+            id: resource.resource_id,
+            name: resource.resource_name,
+            isCustom: resource.is_custom,
+          }))}
+          onClose={() => setShowSellTradeModal(false)}
+          onPosted={() => router.refresh()}
+        />
+      )}
+      {showLookingForModal && campaignIdForTrades && (
+        <CampaignTradeLookingForModal
+          campaignId={campaignIdForTrades}
+          proposerGangId={gangId}
+          actorGangs={[{
+            gangId,
+            gangName: gangData.processedData.name,
+            gangColour: gangData.processedData.gang_colour,
+          }]}
+          paymentResources={(gangCampaign?.resources ?? []).map((resource: {
+            resource_id: string
+            resource_name: string
+            is_custom: boolean
+          }) => ({
+            id: resource.resource_id,
+            name: resource.resource_name,
+            isCustom: resource.is_custom,
+          }))}
+          onClose={() => setShowLookingForModal(false)}
+          onProposed={() => router.refresh()}
+        />
+      )}
     </FighterCardModalsProvider>
   );
 } 

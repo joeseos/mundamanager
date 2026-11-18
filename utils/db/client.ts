@@ -23,40 +23,50 @@ export type AppTx = Parameters<Parameters<AppDb['transaction']>[0]>[0];
 // The local Supabase stack's database has no TLS
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
 
-// One pool per server instance, reused across requests (and across dev HMR).
-const globalForDb = globalThis as unknown as { appDb?: AppDb };
+// One pool per server instance. Rebuild the drizzle wrapper when HMR replaces
+// the schema module, so new tables and columns are visible without a restart.
+const globalForDb = globalThis as unknown as {
+  appDb?: AppDb;
+  appSql?: ReturnType<typeof postgres>;
+  appDbSchema?: typeof schema;
+};
 
 export function getAppDb(): AppDb {
-  if (globalForDb.appDb) return globalForDb.appDb;
-
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error('DATABASE_URL is not set');
+  if (globalForDb.appDb && globalForDb.appDbSchema === schema) {
+    return globalForDb.appDb;
   }
 
-  const client = postgres(url, {
-    // TLS, verifying the pooler's certificate and hostname against Supabase's root CA
-    // (postgres.js connects without TLS unless asked, and 'require' skips verification).
-    ssl: LOCAL_HOSTS.has(new URL(url).hostname) ? false : { ca: SUPABASE_ROOT_CA },
-    // The transaction pooler cannot hold prepared statements across transactions.
-    prepare: false,
-    // Each serverless instance keeps a small pool; the pooler's client limit
-    // (600 on Medium compute) is shared by every instance.
-    max: 3,
-    // Close idle connections quickly so suspended instances do not hold pooler slots.
-    idle_timeout: 20,
-    // Fail fast when the pooler is unreachable.
-    connect_timeout: 5,
-    // Drizzle names nested subqueries by joining relation names, and the longest
-    // (…_custom_equipment_custom_weapon_profiles) pass Postgres's 63-character limit.
-    // Postgres truncates them with a notice each time, about 60 log lines per roster
-    // read. The truncated names stay unique, so skip only that notice.
-    onnotice: (notice) => {
-      if (notice.code !== '42622') console.log(notice);
-    },
-  });
+  if (!globalForDb.appSql) {
+    const url = process.env.DATABASE_URL;
+    if (!url) {
+      throw new Error('DATABASE_URL is not set');
+    }
 
-  globalForDb.appDb = drizzle(client, { schema });
+    globalForDb.appSql = postgres(url, {
+      // TLS, verifying the pooler's certificate and hostname against Supabase's root CA
+      // (postgres.js connects without TLS unless asked, and 'require' skips verification).
+      ssl: LOCAL_HOSTS.has(new URL(url).hostname) ? false : { ca: SUPABASE_ROOT_CA },
+      // The transaction pooler cannot hold prepared statements across transactions.
+      prepare: false,
+      // Each serverless instance keeps a small pool; the pooler's client limit
+      // (600 on Medium compute) is shared by every instance.
+      max: 3,
+      // Close idle connections quickly so suspended instances do not hold pooler slots.
+      idle_timeout: 20,
+      // Fail fast when the pooler is unreachable.
+      connect_timeout: 5,
+      // Drizzle names nested subqueries by joining relation names, and the longest
+      // (…_custom_equipment_custom_weapon_profiles) pass Postgres's 63-character limit.
+      // Postgres truncates them with a notice each time, about 60 log lines per roster
+      // read. The truncated names stay unique, so skip only that notice.
+      onnotice: (notice) => {
+        if (notice.code !== '42622') console.log(notice);
+      },
+    });
+  }
+
+  globalForDb.appDb = drizzle(globalForDb.appSql, { schema });
+  globalForDb.appDbSchema = schema;
   return globalForDb.appDb;
 }
 

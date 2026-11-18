@@ -39,6 +39,7 @@ interface SettingsFormValues {
   custom_trading_posts: string[];
   status: string;
   allow_join_requests: boolean;
+  allow_trading: boolean;
   discord_guild_id?: string | null;
   discord_channel_id?: string | null;
   discord_channel_type?: number | null;
@@ -53,6 +54,7 @@ interface EditCampaignModalProps {
     description: string | null;
     status: string | null;
     allow_join_requests?: boolean;
+    allow_trading?: boolean;
     trading_posts: string[];
     custom_trading_posts: string[];
     campaign_type_name?: string;
@@ -108,6 +110,7 @@ export default function CampaignEditModal({
     description: campaignData.description ?? '',
     status: campaignData.status || 'Active',
     allowJoinRequests: campaignData.allow_join_requests ?? false,
+    allowTrading: campaignData.allow_trading ?? false,
     tradingPosts: campaignData.trading_posts || [],
     customTradingPosts: campaignData.custom_trading_posts || [],
   });
@@ -187,6 +190,7 @@ export default function CampaignEditModal({
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
       allow_join_requests: formValues.allowJoinRequests,
+      allow_trading: formValues.allowTrading,
     };
 
     // Include discord fields if guild is connected
@@ -223,6 +227,7 @@ export default function CampaignEditModal({
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
       allow_join_requests: formValues.allowJoinRequests,
+      allow_trading: formValues.allowTrading,
       discord_guild_id: null,
       discord_channel_id: null,
       discord_channel_type: 0,
@@ -349,6 +354,25 @@ export default function CampaignEditModal({
               <span className="text-sm font-medium">Allow join requests</span>
               <InfoTooltip ariaLabel="About join requests">
                 When enabled, any logged-in user can request to join this campaign from the campaign page. Campaign owners and arbitrators receive a notification to accept or decline each request.
+              </InfoTooltip>
+            </label>
+
+            {/* Campaign Trading */}
+            <label
+              htmlFor="allow-trading"
+              className="flex items-center space-x-2 cursor-pointer"
+            >
+              <Checkbox
+                id="allow-trading"
+                checked={formValues.allowTrading}
+                onCheckedChange={(checked) => setFormValues(prev => ({
+                  ...prev,
+                  allowTrading: checked === true
+                }))}
+              />
+              <span className="text-sm font-medium">Allow campaign trading</span>
+              <InfoTooltip ariaLabel="About campaign trading">
+                When enabled, owners of gangs in this campaign can propose and accept trades (direct deals, listings, and bids). A trade completes only when it is accepted. Turning this off hides the Trades section; pending trades stay locked until trading is enabled again.
               </InfoTooltip>
             </label>
 

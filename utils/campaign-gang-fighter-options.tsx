@@ -42,6 +42,45 @@ export function buildFighterComboboxOption(fighter: {
 }
 
 /**
+ * Captive combobox option: original-gang colour dot and
+ * "{{name}} - {{type}} ({{gang}}) • {{player}}".
+ */
+export function buildCaptiveComboboxOption(captive: {
+  fighterId: string;
+  fighterName: string;
+  fighterType?: string | null;
+  originalGangName?: string | null;
+  originalGangColour?: string | null;
+  originalGangOwnerUsername?: string | null;
+}): CampaignFighterComboboxOption {
+  const name = captive.fighterName.trim() || 'Unknown';
+  const type = captive.fighterType?.trim();
+  const gang = captive.originalGangName?.trim();
+  const owner = captive.originalGangOwnerUsername?.trim();
+  const main = [name, type ? `- ${type}` : null, gang ? `(${gang})` : null]
+    .filter(Boolean)
+    .join(' ');
+  const ownerSuffix = owner ? ` \u2022 ${owner}` : '';
+  const colour = captive.originalGangColour || '#000000';
+
+  return {
+    value: captive.fighterId,
+    label: (
+      <span className="flex items-center gap-2">
+        <span
+          className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-border"
+          style={{ backgroundColor: colour }}
+          aria-hidden
+        />
+        <span>{main}</span>
+        {owner && <span className="text-xs text-muted-foreground">{ownerSuffix}</span>}
+      </span>
+    ),
+    displayValue: `${main}${ownerSuffix}`,
+  };
+}
+
+/**
  * Shared fighter Combobox option builder for campaign gang pickers used by the
  * Add XP and OOA history modals. Keeps the Crew filter and display format in
  * one place. Gang options should be built at the call site with

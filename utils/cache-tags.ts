@@ -34,6 +34,7 @@ import { revalidateTag } from 'next/cache';
  *                  per-gang resource rows        | edits
  * campaign-map-{id} map and its objects          | map editor mutations
  * campaign-captives-{id} captives held by gangs  | fighter capture/rescue
+ * campaign-trades-{id}    campaign trades        | trade mutations
  * campaign-trading-posts-{id} shared custom TPs  | custom-share mutations
  * user-{id}        profile/gang list/        | profile, list, social
  *                  campaign list/friends     | mutations
@@ -79,6 +80,7 @@ export const TAGS = {
   campaignResources: (id: string) => `campaign-resources-${id}`,
   campaignMap: (id: string) => `campaign-map-${id}`,
   campaignCaptives: (id: string) => `campaign-captives-${id}`,
+  campaignTrades: (id: string) => `campaign-trades-${id}`,
   campaignTradingPosts: (id: string) => `campaign-trading-posts-${id}`,
   user: (id: string) => `user-${id}`,
   customs: (userId: string) => `custom-${userId}`,
@@ -231,6 +233,11 @@ export const invalidateCampaignCaptives = (campaignId: string) => {
   bust(TAGS.campaignCaptives(campaignId));
 };
 
+/** Campaign trades or trade items changed. */
+export const invalidateCampaignTrades = (campaignId: string) => {
+  bust(TAGS.campaignTrades(campaignId));
+};
+
 /** The set of custom trading posts shared into the campaign changed. */
 export const invalidateCampaignTradingPosts = (campaignId: string) => {
   bust(TAGS.campaignTradingPosts(campaignId));
@@ -249,6 +256,7 @@ export const invalidateCampaignAll = (campaignId: string) => {
   bust(TAGS.campaignResources(campaignId));
   bust(TAGS.campaignMap(campaignId));
   bust(TAGS.campaignCaptives(campaignId));
+  bust(TAGS.campaignTrades(campaignId));
   bust(TAGS.campaignTradingPosts(campaignId));
 };
 

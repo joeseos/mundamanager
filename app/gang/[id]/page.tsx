@@ -18,6 +18,7 @@ import {
 import { assembleGangFighters, assembleGangVehicles } from '@/utils/gang-assembly';
 import { getGangBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { hasGangTacticsCards } from '@/types/edition';
+import { getCampaignTrades } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -90,6 +91,11 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         : Promise.resolve([])
     ]);
 
+    const gangCampaign = campaigns.find((campaign) => campaign.status === 'ACCEPTED')
+    const campaignTrades = gangCampaign?.allow_trading
+      ? await getCampaignTrades(gangCampaign.campaign_id, 100)
+      : [];
+
     const { fighters, vehicles } = roster;
 
     // Initialize positioning if needed (lazy initialization only)
@@ -152,7 +158,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       tacticsCards: tacticsCards
     };
 
-    pageProps = { gangDataForClient, userPermissions };
+    pageProps = { gangDataForClient, userPermissions, campaignTrades };
   } catch (error) {
     // notFound()/forbidden()/redirect() signal by throwing; let them through
     // untouched so they are not logged as failures.
@@ -169,6 +175,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangId={params.id}
       userId={user.id}
       userPermissions={pageProps.userPermissions}
+      campaignTrades={pageProps.campaignTrades}
     />
   );
 }

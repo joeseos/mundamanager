@@ -209,6 +209,23 @@ interface EditFighterResult {
   };
 }
 
+const FIGHTER_LOCKED_IN_TRADE = 'This fighter is listed in a pending campaign trade.';
+
+async function fighterLockedInTrade(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fighterId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('campaign_trade_items')
+    .select('id')
+    .eq('fighter_id', fighterId)
+    .eq('locked', true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
 export async function editFighterStatus(params: EditFighterStatusParams): Promise<EditFighterResult> {
   try {
     const supabase = await createClient();
@@ -890,6 +907,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           };
         }
 
+        if (await fighterLockedInTrade(supabase, params.fighter_id)) {
+          return { success: false, error: FIGHTER_LOCKED_IN_TRADE };
+        }
+
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
           .update({ 
@@ -967,6 +988,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'delete': {
+        if (await fighterLockedInTrade(supabase, params.fighter_id)) {
+          return { success: false, error: FIGHTER_LOCKED_IN_TRADE };
+        }
+
         // Calculate fighter cost before deletion (for rating delta and logging)
         // Captured fighters still count toward rating (their cost was never subtracted,
         // unlike killed/retired/enslaved which had cost subtracted at status change time)

@@ -108,6 +108,9 @@ export interface GangCampaign {
   campaign_id: string;
   campaign_gang_id: string;
   campaign_name: string;
+  allow_trading: boolean;
+  /** campaign_gangs.status. A gang has one ACCEPTED campaign. */
+  status: string | null;
   role: string;
   trading_posts?: string[] | null;
   trading_post_names?: string[];
@@ -378,12 +381,12 @@ const getGangCampaignIdsCached = async (gangId: string): Promise<string[]> => {
 /** The gang's campaign memberships with their campaign, member role, territories, resources and allegiance. */
 function gangCampaignsQuery(db: AppDb, gangId: string) {
   return db.query.campaignGangs.findMany({
-    columns: { id: true, campaign_allegiance_id: true, campaign_type_allegiance_id: true },
+    columns: { id: true, status: true, campaign_allegiance_id: true, campaign_type_allegiance_id: true },
     where: (cg, { eq }) => eq(cg.gang_id, gangId),
     with: {
       campaign_member: { columns: { role: true } },
       campaign: {
-        columns: { id: true, campaign_name: true, trading_posts: true, custom_trading_posts: true },
+        columns: { id: true, campaign_name: true, trading_posts: true, custom_trading_posts: true, allow_trading: true },
         with: {
           // This gang's territories only
           campaign_territories: {
@@ -480,6 +483,8 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
           campaign_id: campaign.id,
           campaign_gang_id: cg.id,
           campaign_name: campaign.campaign_name as string,
+          allow_trading: campaign.allow_trading,
+          status: cg.status,
           role: cg.campaign_member?.role as string,
           trading_posts: tradingPosts,
           trading_post_names: tradingPosts.flatMap((id) => names.tradingPostNames.get(id) || []),
@@ -499,7 +504,7 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
         }];
       });
     },
-    [`gang-campaigns-v5-${gangId}`],
+    [`gang-campaigns-v8-${gangId}`],
     {
       tags: [
         TAGS.gangCampaigns(gangId),

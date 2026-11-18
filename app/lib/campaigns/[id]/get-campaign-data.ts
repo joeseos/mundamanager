@@ -15,6 +15,7 @@ import { joinedParentGangTypeName } from '@/utils/gang-type-label';
 import { isUuid } from '@/utils/uuid';
 import { campaignPortraitPublicUrl } from '@/utils/campaign-image';
 import { isPlayedBattle, scenarioLabel, type Battle, type BattleParticipant, type CampaignMapBundle } from '@/types/campaign';
+import type { CampaignTrade, CampaignTradeItem, CampaignTradeItemKind, CampaignTradeStatus } from '@/types/campaign-trade';
 import { getUserGangs, type Gang } from '@/app/lib/get-user-gangs';
 import { sameEditionForDisplay } from '@/types/edition';
 
@@ -39,6 +40,7 @@ async function _getCampaignBasic(campaignId: string) {
       discord_dice_rolls: true,
       discord_dice_roll_channel_id: true,
       allow_join_requests: true,
+      allow_trading: true,
       current_cycle: true,
       current_phase: true,
     },
@@ -419,7 +421,7 @@ export const getCampaignBasic = async (campaignId: string) => {
     async () => {
       return _getCampaignBasic(campaignId);
     },
-    [`campaign-basic-v5-${campaignId}`],
+    [`campaign-basic-v8-${campaignId}`],
     {
       tags: [TAGS.campaignCore(campaignId), TAGS.globalCampaignPortraits()],
       revalidate: false
@@ -516,6 +518,94 @@ export const getCampaignBattles = async (campaignId: string, limit = 100) => {
   )();
 };
 
+async function _getCampaignTrades(campaignId: string, limit: number): Promise<CampaignTrade[]> {
+  const trades = await getAppDb().query.campaignTrades.findMany({
+    columns: {
+      id: true,
+      campaign_id: true,
+      proposer_gang_id: true,
+      counterparty_gang_id: true,
+      parent_trade_id: true,
+      title: true,
+      note: true,
+      status: true,
+    },
+    extras: (trade, { sql }) => ({
+      created_at: sql<string>`to_json(${trade.created_at})`.as('created_at'),
+      updated_at: sql<string | null>`to_json(${trade.updated_at})`.as('updated_at'),
+      resolved_at: sql<string | null>`to_json(${trade.resolved_at})`.as('resolved_at'),
+    }),
+    where: (trade, { eq }) => eq(trade.campaign_id, campaignId),
+    orderBy: (trade, { desc }) => desc(trade.created_at),
+    limit,
+    with: {
+      items: {
+        extras: (item, { sql }) => ({
+          created_at: sql<string>`to_json(${item.created_at})`.as('created_at'),
+          updated_at: sql<string | null>`to_json(${item.updated_at})`.as('updated_at'),
+        }),
+        with: { fighter: { columns: { gang_id: true } } },
+      },
+      proposer_gang: { columns: { id: true, name: true } },
+      counterparty_gang: { columns: { id: true, name: true } },
+    },
+  });
+
+  return trades.map((trade): CampaignTrade => ({
+    id: trade.id,
+    campaign_id: trade.campaign_id,
+    proposer_gang_id: trade.proposer_gang_id,
+    proposer_gang_name: trade.proposer_gang?.name ?? 'Unknown',
+    counterparty_gang_id: trade.counterparty_gang_id,
+    counterparty_gang_name: trade.counterparty_gang?.name ?? null,
+    parent_trade_id: trade.parent_trade_id,
+    title: trade.title,
+    note: trade.note,
+    status: trade.status as CampaignTradeStatus,
+    created_at: trade.created_at,
+    updated_at: trade.updated_at,
+    resolved_at: trade.resolved_at,
+    items: trade.items.map((item): CampaignTradeItem => ({
+      id: item.id,
+      trade_id: item.trade_id,
+      giving_gang_id: item.giving_gang_id,
+      kind: item.kind as CampaignTradeItemKind,
+      fighter_id: item.fighter_id,
+      original_gang_id: item.fighter?.gang_id ?? null,
+      fighter_equipment_id: item.fighter_equipment_id,
+      amount: item.amount,
+      campaign_type_resource_id: item.campaign_type_resource_id,
+      campaign_resource_id: item.campaign_resource_id,
+      description: item.description,
+      locked: item.locked,
+      created_at: item.created_at,
+      updated_at: item.updated_at,
+    })),
+  }));
+}
+
+/**
+ * Get campaign trades with persistent caching.
+ * Cache key: campaign-trades-{campaignId}-{limit}
+ * Invalidation: Server actions only via revalidateTag()
+ */
+export const getCampaignTrades = async (campaignId: string, limit = 100) => {
+  const gangIds = await getCampaignGangIds(campaignId);
+  return unstable_cache(
+    async () => {
+      return _getCampaignTrades(campaignId, limit);
+    },
+    [`campaign-trades-v2-${campaignId}-${limit}`],
+    {
+      tags: [
+        TAGS.campaignTrades(campaignId),
+        ...gangIds.map((gangId) => TAGS.gangOverview(gangId))
+      ],
+      revalidate: false
+    }
+  )();
+};
+
 /**
  * Get available allegiances for a campaign
  * Returns custom allegiances for custom campaigns, or predefined allegiances for other campaign types
@@ -547,7 +637,7 @@ export async function getCampaignCaptives(campaignId: string) {
     async () => {
       return _getCampaignCaptives(campaignId);
     },
-    [`campaign-captives-v3-${campaignId}`],
+    [`campaign-captives-v4-${campaignId}`],
     {
       tags: [
         TAGS.campaignCaptives(campaignId),
@@ -569,15 +659,28 @@ async function _getCampaignCaptives(campaignId: string) {
           captives: {
             columns: { id: true, fighter_name: true, fighter_type: true },
             where: (fighter, { eq }) => eq(fighter.captured, true),
-            with: { gang: { columns: { id: true, name: true } } },
+            with: { gang: { columns: { id: true, name: true, gang_colour: true, user_id: true } } },
           },
         },
       },
     },
   });
 
+  const ownerIds = [...new Set(
+    holders.flatMap(({ gang }) =>
+      (gang?.captives ?? []).map((f) => f.gang?.user_id).filter((id): id is string => !!id)
+    )
+  )];
+  const ownerRows = ownerIds.length > 0
+    ? await getAppDb().query.profiles.findMany({
+        columns: { id: true, username: true },
+        where: (profile, { inArray }) => inArray(profile.id, ownerIds),
+      })
+    : [];
+  const ownerById = new Map(ownerRows.map((row) => [row.id, row.username]));
+
   // Keyed by gang, so a gang listed twice in the campaign still shows once
-  const byHoldingGang = new Map<string, { gangId: string; gangName: string; captives: Array<{ fighterId: string; fighterName: string; fighterType?: string; originalGangId: string | null; originalGangName: string }> }>();
+  const byHoldingGang = new Map<string, { gangId: string; gangName: string; captives: Array<{ fighterId: string; fighterName: string; fighterType?: string; originalGangId: string | null; originalGangName: string; originalGangColour?: string | null; originalGangOwnerUsername?: string | null }> }>();
   for (const { gang_id, gang } of holders) {
     if (!gang_id || !gang?.captives.length) continue;
     byHoldingGang.set(gang_id, {
@@ -588,7 +691,9 @@ async function _getCampaignCaptives(campaignId: string) {
         fighterName: f.fighter_name ?? 'Unknown',
         fighterType: f.fighter_type ?? undefined,
         originalGangId: f.gang?.id ?? null,
-        originalGangName: f.gang?.name ?? 'Unknown'
+        originalGangName: f.gang?.name ?? 'Unknown',
+        originalGangColour: f.gang?.gang_colour ?? null,
+        originalGangOwnerUsername: f.gang?.user_id ? ownerById.get(f.gang.user_id) ?? 'Unknown' : null,
       }))
     });
   }
