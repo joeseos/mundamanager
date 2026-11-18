@@ -11,7 +11,7 @@ SET search_path = public, private
 STABLE
 AS $$
   SELECT CASE
-    WHEN folders[2] !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN false
+    WHEN folders[2] !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN false
     WHEN folders[1] = 'gangs'
       AND (cardinality(folders) = 2 OR (cardinality(folders) = 3 AND folders[3] = 'fighters'))
     THEN private.is_admin()
