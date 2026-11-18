@@ -26,6 +26,7 @@ interface GangResult {
   name: string;
   user_id: string;
   username: string;
+  edition_slug: string | null;
 }
 
 interface FighterResult {
@@ -33,6 +34,7 @@ interface FighterResult {
   fighter_name: string;
   gang_id: string;
   gang_name: string;
+  edition_slug: string | null;
 }
 
 interface CampaignResult {
@@ -40,6 +42,7 @@ interface CampaignResult {
   campaign_name: string;
   campaign_type_id: string;
   campaign_type_name: string;
+  edition_slug: string | null;
 }
 
 type ComboboxOption = {
@@ -55,17 +58,20 @@ interface AdminSupportToolsModalProps {
 
 const SEARCH_MIN_LENGTH = 2;
 
-/** A result with its owner or type muted after a bullet */
-const toOption = (id: string, name: string, detail: string): ComboboxOption => ({
-  value: id,
-  label: (
-    <span>
-      <span>{name}</span>
-      <span className="text-xs text-muted-foreground"> • {detail}</span>
-    </span>
-  ),
-  displayValue: `${name} \u2022 ${detail}`,
-});
+/** A result with its owner or type, then its edition, muted after bullets */
+const toOption = (id: string, name: string, detail: string, editionSlug: string | null): ComboboxOption => {
+  const muted = [detail, editionSlug?.toUpperCase()].filter(Boolean).join(' \u2022 ');
+  return {
+    value: id,
+    label: (
+      <span>
+        <span>{name}</span>
+        <span className="text-xs text-muted-foreground"> • {muted}</span>
+      </span>
+    ),
+    displayValue: `${name} \u2022 ${muted}`,
+  };
+};
 
 /** Search-as-you-type against one /api/admin/support search route */
 function useSupportSearch<T>(route: string) {
@@ -129,9 +135,9 @@ export function AdminSupportToolsModal({ onClose }: AdminSupportToolsModalProps)
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignResult | null>(null);
 
   const userOptions: ComboboxOption[] = userSearch.results.map(u => ({ value: u.id, label: u.username }));
-  const gangOptions = gangSearch.results.map(g => toOption(g.id, g.name, g.username));
-  const fighterOptions = fighterSearch.results.map(f => toOption(f.id, f.fighter_name, f.gang_name));
-  const campaignOptions = campaignSearch.results.map(c => toOption(c.id, c.campaign_name, c.campaign_type_name));
+  const gangOptions = gangSearch.results.map(g => toOption(g.id, g.name, g.username, g.edition_slug));
+  const fighterOptions = fighterSearch.results.map(f => toOption(f.id, f.fighter_name, f.gang_name, f.edition_slug));
+  const campaignOptions = campaignSearch.results.map(c => toOption(c.id, c.campaign_name, c.campaign_type_name, c.edition_slug));
 
   const handleGangSelect = (gangId: string) => {
     setSelectedGangId(gangId);
