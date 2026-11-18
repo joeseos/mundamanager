@@ -9,12 +9,13 @@ import { toast } from 'sonner';
 import { SellFighterModal } from "@/components/fighter/sell-fighter";
 import { UserPermissions } from '@/types/user-permissions';
 import { editFighterStatus } from "@/app/actions/edit-fighter";
-import { useMutation, useQueries, type UseQueryResult } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
-import { buildGangComboboxOption, type GangForOption } from '@/utils/gang-combobox-option';
+import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
+import { useOtherCampaignGangs } from '@/utils/campaign-gang-fighter-options';
 import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
 
 const CopyFighterModal = dynamic(() => import('@/components/fighter/copy-fighter-modal'), { ssr: false });
@@ -120,31 +121,7 @@ export function FighterActions({
     }
   }
 
-  const combineCampaignGangs = useCallback(
-    (results: UseQueryResult<GangForOption[]>[]) => {
-      const gangs = new Map<string, GangForOption>();
-      for (const campaignGang of results.flatMap((result) => result.data ?? [])) {
-        if (campaignGang.id !== gang.id) gangs.set(campaignGang.id, campaignGang);
-      }
-      return { campaignGangs: [...gangs.values()], isFetchingGangs: results.some((result) => result.isLoading) };
-    },
-    [gang.id],
-  );
-
-  const { campaignGangs, isFetchingGangs } = useQueries({
-    queries: campaignIds.map((campaignId) => ({
-      queryKey: ['campaign-gangs', campaignId],
-      queryFn: async () => {
-        const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
-        if (!res.ok) throw new Error('Failed to fetch campaign gangs');
-        return res.json() as Promise<GangForOption[]>;
-      },
-      enabled: shouldFetchGangs,
-      staleTime: 0,
-      meta: { errorMessage: 'Failed to load gangs' },
-    })),
-    combine: combineCampaignGangs,
-  });
+  const { gangs: campaignGangs, isLoading: isFetchingGangs } = useOtherCampaignGangs(campaignIds, gang.id, shouldFetchGangs);
 
   const isMeatEnabled = useCallback(() => {
     return fighter?.campaigns?.some(campaign =>
@@ -544,7 +521,12 @@ export function FighterActions({
                       options={campaignGangs
                         .slice()
                         .sort((a, b) => a.name.localeCompare(b.name))
-                        .map(g => buildGangComboboxOption(g))
+                        .map(g => buildGangComboboxOption({
+                          id: g.gang_id,
+                          name: g.name,
+                          gang_colour: g.gang_colour,
+                          owner_username: g.owner_username,
+                        }))
                       }
                       value={selectedCapturingGangId}
                       onValueChange={setSelectedCapturingGangId}
