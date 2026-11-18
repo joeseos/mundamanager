@@ -6,8 +6,6 @@ import type { ThemeProviderProps } from 'next-themes';
 // Single source for the provider and the pre-paint script. attribute "class"
 // matches Tailwind: dark mode is a `dark` class on <html>, and a missing
 // saved value uses defaultTheme (system follows prefers-color-scheme).
-// color-scheme comes from globals.css: next-themes' inline `color-scheme:
-// light` would override its `only light`.
 const themeConfig = {
   attribute: 'class',
   enableColorScheme: false,
