@@ -122,6 +122,7 @@ export function AdminFighterEffects({
     },
     enabled: !isSkill,
     staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load skills' },
   });
 
   const skillNameById = useMemo(
