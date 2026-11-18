@@ -27,7 +27,7 @@ import { Tooltip } from 'react-tooltip';
 import { formatLocalDate } from '@/utils/local-date';
 import { getFighterSubtypeSortRank } from '@/utils/fighterSubtypeRank';
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { EDITION_N23, EDITION_N26, beastSubtypeName, hasAlignment, hasTradePoints, hasVehicles } from '@/types/edition';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
@@ -35,6 +35,8 @@ import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { detailGangTypeLabel } from '@/utils/gang-type-label';
 import { N23_UNDERHIVE_OUTCASTS_GANG_TYPE_ID } from '@/utils/archetypeEligibility';
 import { withVariantGroups } from '@/utils/variantFamily';
+
+const NO_SUBTYPES: Array<{ id: string; subtype: string; edition_slug?: string | null }> = [];
 
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
@@ -249,7 +251,20 @@ export default function Gang({
   const [showGangAdditionsModal, setShowGangAdditionsModal] = useState(false);
   const [gangHasSubtypes, setGangHasSubtypes] = useState(safeGangSubtypes.length > 0);
   const [gangSubtypes, setGangSubtypes] = useState<Array<{id: string, subtype: string}>>(safeGangSubtypes);
-  const [availableSubtypes, setAvailableSubtypes] = useState<Array<{id: string, subtype: string, edition_slug?: string | null}>>([]);
+  const { data: availableSubtypes = NO_SUBTYPES, isLoading: availableSubtypesLoading, error: availableSubtypesError } = useQuery({
+    queryKey: ['gang-subtype-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/gang-subtype-types');
+      if (!response.ok) throw new Error('Failed to fetch gang subtypes');
+      return response.json() as Promise<Array<{ id: string; subtype?: string; edition_slug?: string | null }>>;
+    },
+    select: (data) => data.map(item => ({ id: item.id, subtype: item.subtype ?? 'Unknown', edition_slug: item.edition_slug })),
+    enabled: showEditModal,
+  });
+
+  useEffect(() => {
+    if (showEditModal && availableSubtypesError) toast.error('Failed to load subtypes');
+  }, [showEditModal, availableSubtypesError]);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showCopyModal, setShowCopyModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
@@ -892,27 +907,8 @@ export default function Gang({
   };
 
 
-  const handleEditModalOpen = async () => {
-    // Fetch subtypes BEFORE opening modal (like the original)
-    try {
-      const response = await fetch('/api/gang-subtype-types');
-      if (!response.ok) throw new Error('Failed to fetch subtypes');
-      const data = await response.json();
-      setAvailableSubtypes(
-        (data as Array<{ id: string; subtype?: string; edition_slug?: string | null }>).map(
-          (item) => ({
-            id: item.id,
-            subtype: item.subtype ?? 'Unknown',
-            edition_slug: item.edition_slug,
-          })
-        )
-      );
-    } catch (error) {
-      console.error('Error fetching subtypes:', error);
-      toast.error('Failed to load subtypes');
-    }
-    
-    setShowEditModal(true); // Only open AFTER subtypes are ready
+  const handleEditModalOpen = () => {
+    setShowEditModal(true);
   };
 
 
@@ -1379,7 +1375,8 @@ export default function Gang({
             </div>
           </div>
 
-          {showEditModal && (
+          {/* Waits for the subtypes: the modal's Outlaw alignment sync looks them up */}
+          {showEditModal && !availableSubtypesLoading && (
             <GangEditModal
               onClose={() => setShowEditModal(false)}
               gangId={id}

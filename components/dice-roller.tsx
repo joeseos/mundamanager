@@ -8,7 +8,6 @@ type Result<T> = { roll: number; item: T; dice: number[] };
 
 type Props<T> = {
   items: T[];
-  ensureItems?: () => Promise<void>;
   getRange: (item: T) => { min: number; max: number } | null;
   getName: (item: T) => string;
   onConfirm?: (results: Array<Result<T>>) => Promise<void> | void;
@@ -30,7 +29,6 @@ type Props<T> = {
 
 export default function DiceRoller<T>({
   items,
-  ensureItems,
   getRange,
   getName,
   onConfirm,
@@ -65,8 +63,6 @@ export default function DiceRoller<T>({
   const performRoll = React.useCallback(async () => {
     try {
       setRolling(true);
-      if (ensureItems) await ensureItems();
-
       const raw = rollFn();
       const { total, dice } = normaliseRollFnResult(raw);
       setLastOutcome({ total, dice });
@@ -87,7 +83,7 @@ export default function DiceRoller<T>({
     } finally {
       setRolling(false);
     }
-  }, [ensureItems, resolveByRoll, inline, onRolled, onRoll, rollFn]);
+  }, [resolveByRoll, inline, onRolled, onRoll, rollFn]);
 
   const handleConfirm = async () => {
     setApplying(true);

@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { toast } from 'sonner';
 import Modal from "@/components/ui/modal";
 import { FighterEffect as FighterEffectType } from '@/types/fighter';
 import { List } from "@/components/ui/list";
 import { UserPermissions } from '@/types/user-permissions';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { LuUndo2 } from 'react-icons/lu';
 import { Combobox } from '@/components/ui/combobox';
 import DiceRoller from '@/components/dice-roller';
@@ -36,6 +36,8 @@ const powerBoostRank: { [key: string]: number } = {
   "Hunting Rig Augmentation": 5,
 };
 
+const NO_POWER_BOOSTS: FighterEffectType[] = [];
+
 interface PowerBoostsListProps {
   fighterId: string;
   powerBoosts: Array<FighterEffectType>;
@@ -56,8 +58,6 @@ export function PowerBoostsList({
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [deleteModalData, setDeleteModalData] = useState<{ id: string; name: string } | null>(null);
   const [selectedPowerBoostId, setSelectedPowerBoostId] = useState<string>('');
-  const [availablePowerBoosts, setAvailablePowerBoosts] = useState<FighterEffectType[]>([]);
-  const [isLoadingPowerBoosts, setIsLoadingPowerBoosts] = useState(false);
   const [editableKillCost, setEditableKillCost] = useState<number>(4);
   const [editableCreditsIncrease, setEditableCreditsIncrease] = useState<number>(0);
   const [showEffectSelection, setShowEffectSelection] = useState(false);
@@ -191,32 +191,26 @@ export function PowerBoostsList({
     }
   });
 
-  // Fetch available power boosts from database
-  const fetchAvailablePowerBoosts = useCallback(async () => {
-    if (isLoadingPowerBoosts) return;
-
-    try {
-      setIsLoadingPowerBoosts(true);
+  const { data: availablePowerBoosts = NO_POWER_BOOSTS, isLoading: isLoadingPowerBoosts, error: powerBoostsError } = useQuery({
+    queryKey: ['fighter-effects', { category: 'power-boosts' }],
+    queryFn: async () => {
       const response = await fetch('/api/fighter-effects?category=power-boosts');
       if (!response.ok) throw new Error('Failed to fetch power boosts');
+      return response.json() as Promise<FighterEffectType[]>;
+    },
+    enabled: isAddModalOpen,
+  });
 
-      setAvailablePowerBoosts(await response.json());
-    } catch (error) {
-      console.error('Error fetching power boosts:', error);
-      toast.error('Failed to load power boost types');
-    } finally {
-      setIsLoadingPowerBoosts(false);
-    }
-  }, [isLoadingPowerBoosts]);
+  // Gated on the modal: a disabled query still returns a cached error
+  useEffect(() => {
+    if (isAddModalOpen && powerBoostsError) toast.error('Failed to load power boost types');
+  }, [isAddModalOpen, powerBoostsError]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
     setEditableKillCost(4); // Reset to default
     setEditableCreditsIncrease(0); // Reset to default
-    if (availablePowerBoosts.length === 0) {
-      fetchAvailablePowerBoosts();
-    }
-  }, [availablePowerBoosts.length, fetchAvailablePowerBoosts]);
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
@@ -469,7 +463,7 @@ export function PowerBoostsList({
               <div>
                 <DiceRoller
                   items={availablePowerBoosts}
-                  ensureItems={availablePowerBoosts.length === 0 ? fetchAvailablePowerBoosts : undefined}
+                  disabled={availablePowerBoosts.length === 0}
                   getRange={(boost: FighterEffectType) => {
                     const range = resolvePowerBoostRangeFromUtilByName(boost.effect_name);
                     return range ? { min: range[0], max: range[1] } : null;
@@ -505,7 +499,9 @@ export function PowerBoostsList({
                 </label>
                 <Combobox
                   placeholder="Select power boost"
+                  disabled={isLoadingPowerBoosts}
                   options={availablePowerBoosts
+                  .slice()
                   .sort((a, b) => {
                     const rankA = powerBoostRank[a.effect_name] ?? 999;
                     const rankB = powerBoostRank[b.effect_name] ?? 999;

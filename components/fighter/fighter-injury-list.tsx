@@ -22,14 +22,16 @@ import { rollD66Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { requiredHatredTarget, injuryAggregationLabel, type HatredTargetKind } from '@/utils/injuryTarget';
 import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
-import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
+import { useOtherCampaignGangs } from '@/utils/campaign-gang-fighter-options';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { hasKilledStatusFlag } from '@/utils/fighter-status';
 import { downtimePhaseName } from '@/types/edition';
+
+const NO_INJURIES: FighterEffect[] = [];
 
 interface InjuriesListProps {
   injuries: Array<FighterEffect>;
@@ -112,8 +114,6 @@ export function InjuriesList({
   const [clearDowntimeCreditCost, setClearDowntimeCreditCost] = useState<number>(100);
   const [selectedInjuryId, setSelectedInjuryId] = useState<string>('');
   const [selectedInjury, setSelectedInjury] = useState<FighterEffect | null>(null);
-  const [localAvailableInjuries, setLocalAvailableInjuries] = useState<FighterEffect[]>([]);
-  const [isLoadingInjuries, setIsLoadingInjuries] = useState(false);
   const [showEquipmentSelection, setShowEquipmentSelection] = useState(false);
   const [targetEquipmentId, setTargetEquipmentId] = useState<string | null>(null);
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
@@ -122,9 +122,6 @@ export function InjuriesList({
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the fighter list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
-  const [fetchedCampaignGangs, setFetchedCampaignGangs] = useState<CampaignGangWithFighters[]>([]);
-  const campaignGangs = candidateGangs ?? fetchedCampaignGangs;
-  const [isFetchingGangs, setIsFetchingGangs] = useState(false);
   const effectSelectionRef = useRef<{ handleConfirm: () => Promise<boolean>; isValid: () => boolean; getSelectedEffects: () => string[] }>(null);
 
   const campaignIds = useMemo(() =>
@@ -151,6 +148,27 @@ export function InjuriesList({
     () => requiredHatredTarget(selectedInjury?.type_specific_data),
     [selectedInjury]
   );
+
+  // Gang types are global, so an Eternal Enmity needs no campaign data at all.
+  const needsCampaignGangPicker =
+    !candidateGangs &&
+    campaignIds.length > 0 &&
+    (selectedInjuryRequiresCaptured ||
+      selectedHatredTarget === 'gang' ||
+      selectedHatredTarget === 'fighter');
+
+  const [prevNeedsCampaignGangPicker, setPrevNeedsCampaignGangPicker] = useState(needsCampaignGangPicker);
+  if (needsCampaignGangPicker !== prevNeedsCampaignGangPicker) {
+    setPrevNeedsCampaignGangPicker(needsCampaignGangPicker);
+    if (!needsCampaignGangPicker) {
+      setSelectedCapturingGangId('');
+      setSelectedHatredTargetId('');
+      setSelectedHatredGangId('');
+    }
+  }
+
+  const { gangs: fetchedCampaignGangs, isLoading: isFetchingGangs } = useOtherCampaignGangs(campaignIds, fighterGangId ?? '', needsCampaignGangPicker);
+  const campaignGangs = candidateGangs ?? fetchedCampaignGangs;
 
   // Gang types work in skirmish; the other kinds need a campaign opponent.
   const hatredTargetIsSelectable =
@@ -682,40 +700,25 @@ export function InjuriesList({
     });
   };
 
-  const fetchAvailableInjuries = useCallback(async () => {
-    if (isLoadingInjuries) return;
-
-    try {
-      setIsLoadingInjuries(true);
+  const { data: localAvailableInjuries = NO_INJURIES, isLoading: isLoadingInjuries, error: injuriesError } = useQuery({
+    queryKey: ['fighter-injuries', is_spyrer, editionSlug ?? null],
+    queryFn: async () => {
       const editionQuery = editionSlug ? `&edition_slug=${encodeURIComponent(editionSlug)}` : '';
-      const response = await fetch(
-        `/api/fighters/injuries?is_spyrer=${is_spyrer}${editionQuery}`,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        }
-      );
-
+      const response = await fetch(`/api/fighters/injuries?is_spyrer=${is_spyrer}${editionQuery}`);
       if (!response.ok) throw new Error(is_spyrer ? 'Failed to fetch rig glitches' : 'Failed to fetch lasting injuries');
-      const data: FighterEffect[] = await response.json();
+      return response.json() as Promise<FighterEffect[]>;
+    },
+    enabled: isAddModalOpen,
+  });
 
-      setLocalAvailableInjuries(data);
-    } catch (error) {
-      console.error(is_spyrer ? 'Error fetching rig glitches:' : 'Error fetching lasting injuries:', error);
-      toast.error(is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types');
-    } finally {
-      setIsLoadingInjuries(false);
-    }
-  }, [isLoadingInjuries, is_spyrer, editionSlug]);
+  // Gated on the modal: a disabled query still returns a cached error
+  useEffect(() => {
+    if (isAddModalOpen && injuriesError) toast.error(is_spyrer ? 'Failed to load rig glitch types' : 'Failed to load lasting injury types');
+  }, [isAddModalOpen, injuriesError, is_spyrer]);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
-    if (localAvailableInjuries.length === 0) {
-      fetchAvailableInjuries();
-    }
-  }, [localAvailableInjuries.length, fetchAvailableInjuries]);
+  }, []);
 
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
@@ -732,77 +735,7 @@ export function InjuriesList({
   if (shouldOpenAddModal && !prevShouldOpenAddModal) {
     setPrevShouldOpenAddModal(true);
     setIsAddModalOpen(true);
-    if (localAvailableInjuries.length === 0) {
-      fetchAvailableInjuries();
-    }
   }
-
-  // Gang types are global, so an Eternal Enmity needs no campaign data at all.
-  const needsCampaignGangPicker =
-    !candidateGangs &&
-    campaignIds.length > 0 &&
-    (selectedInjuryRequiresCaptured ||
-      selectedHatredTarget === 'gang' ||
-      selectedHatredTarget === 'fighter');
-
-  const [prevNeedsCampaignGangPicker, setPrevNeedsCampaignGangPicker] = useState(needsCampaignGangPicker);
-  if (needsCampaignGangPicker !== prevNeedsCampaignGangPicker) {
-    setPrevNeedsCampaignGangPicker(needsCampaignGangPicker);
-    if (!needsCampaignGangPicker) {
-      setFetchedCampaignGangs([]);
-      setSelectedCapturingGangId('');
-      setSelectedHatredTargetId('');
-      setSelectedHatredGangId('');
-    } else {
-      setIsFetchingGangs(true);
-    }
-  }
-
-  useEffect(() => {
-    if (!needsCampaignGangPicker) return;
-
-    let cancelled = false;
-
-    const fetchGangs = async () => {
-      try {
-        const allGangs: CampaignGangWithFighters[] = [];
-        const seenIds = new Set<string>();
-
-        // fetchCampaignGangsAndFighters also normalises the route's literal
-        // 'Unknown' owner to null, which the old inline mapping here did not.
-        const gangResults = await Promise.all(
-          campaignIds.map(async (campaignId) => {
-            try {
-              return await fetchCampaignGangsAndFighters({ campaignId, gangId: fighterGangId ?? '' });
-            } catch {
-              return [];
-            }
-          })
-        );
-
-        for (const gangs of gangResults) {
-          for (const g of gangs) {
-            // The helper passes gangId so the fighter's own gang comes back too.
-            if (g.gang_id !== fighterGangId && !seenIds.has(g.gang_id)) {
-              seenIds.add(g.gang_id);
-              allGangs.push(g);
-            }
-          }
-        }
-
-        if (!cancelled) {
-          setFetchedCampaignGangs(allGangs);
-        }
-      } catch (err) {
-        console.error('Failed to fetch campaign gangs:', err);
-      } finally {
-        if (!cancelled) setIsFetchingGangs(false);
-      }
-    };
-
-    fetchGangs();
-    return () => { cancelled = true; };
-  }, [needsCampaignGangPicker, campaignIds, fighterGangId]);
 
   const handleAddInjury = async () => {
     if (!selectedInjuryId) {
@@ -1001,7 +934,6 @@ export function InjuriesList({
       <div>
         <DiceRoller
           items={localAvailableInjuries}
-          ensureItems={localAvailableInjuries.length === 0 ? fetchAvailableInjuries : undefined}
           getRange={(i: FighterEffect) => {
             const d: any = (i as any)?.type_specific_data || {};
             if (typeof d.d66_min === 'number' && typeof d.d66_max === 'number') {
@@ -1040,6 +972,7 @@ export function InjuriesList({
           buttonText="Roll D66"
           disabled={
             !userPermissions.canEdit ||
+            localAvailableInjuries.length === 0 ||
             logInjuryRollMutation.isPending ||
             injuryRollCooldown
           }
@@ -1063,11 +996,11 @@ export function InjuriesList({
               setSelectedInjury(null);
             }
           }}
-          placeholder={isLoadingInjuries && localAvailableInjuries.length === 0
+          placeholder={isLoadingInjuries
             ? "Loading Lasting Injuries..."
             : is_spyrer ? "Select a Rig Glitch" : "Select a Lasting Injury"
           }
-          disabled={isLoadingInjuries && localAvailableInjuries.length === 0}
+          disabled={isLoadingInjuries}
           options={Object.entries(
             localAvailableInjuries
               .slice()
