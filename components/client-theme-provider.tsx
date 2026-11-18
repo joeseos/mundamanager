@@ -6,15 +6,18 @@ import type { ThemeProviderProps } from 'next-themes';
 // Single source for the provider and the pre-paint script. attribute "class"
 // matches Tailwind: dark mode is a `dark` class on <html>, and a missing
 // saved value uses defaultTheme (system follows prefers-color-scheme).
+// color-scheme comes from globals.css: next-themes' inline `color-scheme:
+// light` would override its `only light`.
 const themeConfig = {
   attribute: 'class',
+  enableColorScheme: false,
   defaultTheme: 'system',
   enableSystem: true,
   disableTransitionOnChange: true,
   storageKey: 'mundamanager-theme',
 } as const satisfies Pick<
   ThemeProviderProps,
-  'attribute' | 'defaultTheme' | 'enableSystem' | 'disableTransitionOnChange' | 'storageKey'
+  'attribute' | 'enableColorScheme' | 'defaultTheme' | 'enableSystem' | 'disableTransitionOnChange' | 'storageKey'
 >;
 
 // Runs from the server HTML before first paint. On the client, React 19
