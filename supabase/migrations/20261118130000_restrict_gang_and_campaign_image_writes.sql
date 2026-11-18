@@ -16,15 +16,15 @@ BEGIN;
 DROP POLICY IF EXISTS "Users can upload their own images to users-images" ON storage.objects;
 DROP POLICY IF EXISTS "Users can update their own images in users-images" ON storage.objects;
 DROP POLICY IF EXISTS "Users can delete their own images from users-images" ON storage.objects;
-DROP POLICY IF EXISTS "Gang images can be uploaded by gang editors" ON storage.objects;
-DROP POLICY IF EXISTS "Gang images can be updated by gang editors" ON storage.objects;
-DROP POLICY IF EXISTS "Gang images can be deleted by gang editors" ON storage.objects;
+DROP POLICY IF EXISTS "Gang images can be uploaded by gang owners and arbs" ON storage.objects;
+DROP POLICY IF EXISTS "Gang images can be updated by gang owners and arbs" ON storage.objects;
+DROP POLICY IF EXISTS "Gang images can be deleted by gang owners and arbs" ON storage.objects;
 DROP POLICY IF EXISTS "Campaign images can be uploaded by campaign arbs" ON storage.objects;
 DROP POLICY IF EXISTS "Campaign images can be updated by campaign arbs" ON storage.objects;
 DROP POLICY IF EXISTS "Campaign images can be deleted by campaign arbs" ON storage.objects;
 
 -- objects.name inside the subquery: a bare name would be gangs.name.
-CREATE POLICY "Gang images can be uploaded by gang editors"
+CREATE POLICY "Gang images can be uploaded by gang owners and arbs"
     ON storage.objects FOR INSERT
     TO authenticated
     WITH CHECK (
@@ -41,7 +41,7 @@ CREATE POLICY "Gang images can be uploaded by gang editors"
         )
     );
 
-CREATE POLICY "Gang images can be updated by gang editors"
+CREATE POLICY "Gang images can be updated by gang owners and arbs"
     ON storage.objects FOR UPDATE
     TO authenticated
     USING (
@@ -71,7 +71,7 @@ CREATE POLICY "Gang images can be updated by gang editors"
         )
     );
 
-CREATE POLICY "Gang images can be deleted by gang editors"
+CREATE POLICY "Gang images can be deleted by gang owners and arbs"
     ON storage.objects FOR DELETE
     TO authenticated
     USING (
