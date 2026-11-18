@@ -2,6 +2,7 @@
 
 import { invalidateGang, invalidateGangCampaignMembership, invalidateCampaignCore, invalidateCampaignAll, invalidateUser, invalidateCampaignCount } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
+import { campaignImageFolders, removeStorageFolders } from '@/utils/storage-cleanup';
 
 import { getAuthenticatedUser } from '@/utils/auth';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
@@ -223,63 +224,17 @@ export async function deleteCampaign(campaignId: string) {
       .select('gang_id')
       .eq('campaign_id', campaignId);
     
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('campaigns')
       .delete()
-      .eq('id', campaignId);
+      .eq('id', campaignId)
+      .select('id');
 
     if (error) throw error;
+    // RLS deletes nothing, without an error, for a campaign the user can't delete.
+    if (!deleted?.length) throw new Error("You don't have permission to delete this campaign");
 
-    // Clean up all images for this campaign
-    try {
-      // List subfolders and files directly under campaigns/{campaignId}/
-      const { data: topLevelItems } = await supabase.storage
-        .from('users-images')
-        .list(`campaigns/${campaignId}/`);
-
-      const filesToRemove: string[] = [];
-
-      if (topLevelItems && topLevelItems.length > 0) {
-        // Files at the top level can go straight into the removal list.
-        // For each subfolder (item.id === null marks virtual folder entries),
-        // list its contents in parallel rather than sequentially.
-        const subfolderListings = await Promise.all(
-          topLevelItems.map(async item => {
-            if (!item.name) return null;
-            if (item.id !== null) {
-              return { type: 'file' as const, path: `campaigns/${campaignId}/${item.name}` };
-            }
-            const { data: subFiles } = await supabase.storage
-              .from('users-images')
-              .list(`campaigns/${campaignId}/${item.name}/`);
-            const paths = (subFiles ?? [])
-              .filter(f => f.name)
-              .map(f => `campaigns/${campaignId}/${item.name}/${f.name}`);
-            return { type: 'folder' as const, paths };
-          })
-        );
-
-        for (const result of subfolderListings) {
-          if (!result) continue;
-          if (result.type === 'file') {
-            filesToRemove.push(result.path);
-          } else {
-            filesToRemove.push(...result.paths);
-          }
-        }
-      }
-
-      if (filesToRemove.length > 0) {
-        await supabase.storage
-          .from('users-images')
-          .remove(filesToRemove);
-      }
-
-      // Supabase folders are virtual; once files are gone, the folder disappears in UI
-    } catch (storageError) {
-      // Log the error but don't fail the campaign deletion
-      console.error('Error cleaning up campaign images:', storageError);
-    }
+    await removeStorageFolders(campaignImageFolders(campaignId));
 
     // Use comprehensive cache invalidation with proper taxonomy for deleted campaign
     invalidateCampaignAll(campaignId);
