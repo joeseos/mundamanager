@@ -1367,7 +1367,8 @@ async function withSessionRecord(
   { needsEditionSlug = false }: { needsEditionSlug?: boolean } = {}
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
-  const user = await getAuthenticatedUser(supabase);
+  const userId = await getUserIdFromClaims(supabase);
+  if (!userId) return { success: false, error: 'Not authenticated' };
 
   const { data: fighter, error: fetchError } = await supabase
     .from('battle_session_fighters')
@@ -1377,7 +1378,7 @@ async function withSessionRecord(
 
   if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
 
-  const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id, fighter.participant_id);
+  const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, userId, fighter.participant_id);
   if (!auth.authorized) return { success: false, error: auth.error };
 
   let editionSlug: string | null = null;
