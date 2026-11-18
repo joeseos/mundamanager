@@ -387,13 +387,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const isFormOpen = isAddModalOpen || !!editModalData;
 
   const { data: gangTypes = NO_GANG_TYPES } = useQuery({
-    queryKey: ['gangTypes', editionSlug],
+    queryKey: ['gangTypes'],
     queryFn: async () => {
       const res = await fetch('/api/gang-types?includeAll=true');
       if (!res.ok) throw new Error('Failed to fetch gang types');
-      const data = await res.json() as Array<GangType & { edition_slug?: string | null }>;
-      return data.filter(gt => sameEditionForDisplay(gt.edition_slug, editionSlug));
+      return res.json() as Promise<Array<GangType & { edition_slug?: string | null }>>;
     },
+    select: (data) => data.filter(gt => sameEditionForDisplay(gt.edition_slug, editionSlug)),
     enabled: isFormOpen,
     staleTime: 0,
     meta: { errorMessage: 'Failed to load gang types' },
@@ -425,13 +425,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   });
 
   const { data: equipment = NO_EQUIPMENT } = useQuery({
-    queryKey: ['equipment', { core_equipment: false, editionSlug }],
+    queryKey: ['equipment', { core_equipment: false }],
     queryFn: async () => {
       const res = await fetch('/api/equipment?core_equipment=false');
       if (!res.ok) throw new Error('Failed to fetch equipment');
-      const data = await res.json() as EquipmentListItem[];
-      return data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug));
+      return res.json() as Promise<EquipmentListItem[]>;
     },
+    select: (data) => data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug)),
     enabled: isFormOpen,
     staleTime: 0,
     meta: { errorMessage: 'Failed to load equipment' },

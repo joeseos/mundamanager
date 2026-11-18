@@ -1049,13 +1049,13 @@ function useEquipmentData() {
   });
 
   const { data: allEquipment = [] } = useQuery({
-    queryKey: ['equipment', { core_equipment: false, editionSlug }],
+    queryKey: ['equipment', { core_equipment: false }],
     queryFn: async () => {
       const res = await fetch('/api/equipment?core_equipment=false');
       if (!res.ok) throw new Error('Failed to fetch equipment');
-      const data = await res.json() as EquipmentOption[];
-      return data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug));
+      return res.json() as Promise<EquipmentOption[]>;
     },
+    select: (data) => data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
     meta: { errorMessage: 'Failed to load equipment' },
   });
@@ -1571,13 +1571,13 @@ function GangScopeFields({
 }) {
   const editionSlug = useTradingPostEdition();
   const { data: gangTypes = [] } = useQuery({
-    queryKey: ['gangTypes', editionSlug],
+    queryKey: ['gangTypes'],
     queryFn: async () => {
       const res = await fetch('/api/gang-types?includeAll=true');
       if (!res.ok) throw new Error('Failed to fetch gang types');
-      const data = await res.json() as GangTypeOption[];
-      return data.filter(gt => sameEditionForDisplay((gt as any).edition_slug, editionSlug));
+      return res.json() as Promise<GangTypeOption[]>;
     },
+    select: (data) => data.filter(gt => sameEditionForDisplay((gt as any).edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
     meta: { errorMessage: 'Failed to load gang types' },
   });
