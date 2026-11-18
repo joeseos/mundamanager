@@ -14,9 +14,8 @@ import { isStatusIncompatible } from '@/utils/fighter-status';
 import { Tooltip } from 'react-tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
-import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
+import { buildGangComboboxOption, type GangForOption } from '@/utils/gang-combobox-option';
 import { beastSubtypeName, hasGuilderSales, hasSpyrerRecovery } from '@/types/edition';
-import type { CampaignGang } from '@/types/campaign';
 
 const CopyFighterModal = dynamic(() => import('@/components/fighter/copy-fighter-modal'), { ssr: false });
 
@@ -122,8 +121,8 @@ export function FighterActions({
   }
 
   const combineCampaignGangs = useCallback(
-    (results: UseQueryResult<CampaignGang[]>[]) => {
-      const gangs = new Map<string, CampaignGang>();
+    (results: UseQueryResult<GangForOption[]>[]) => {
+      const gangs = new Map<string, GangForOption>();
       for (const campaignGang of results.flatMap((result) => result.data ?? [])) {
         if (campaignGang.id !== gang.id) gangs.set(campaignGang.id, campaignGang);
       }
@@ -138,7 +137,7 @@ export function FighterActions({
       queryFn: async () => {
         const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
         if (!res.ok) throw new Error('Failed to fetch campaign gangs');
-        return res.json() as Promise<CampaignGang[]>;
+        return res.json() as Promise<GangForOption[]>;
       },
       enabled: shouldFetchGangs,
       staleTime: 0,
