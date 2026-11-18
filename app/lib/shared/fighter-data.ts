@@ -9,6 +9,7 @@ import {
   getGangPositioning,
 } from '@/app/lib/shared/gang-data';
 import { assembleFighterView, selectGangFighterIndex } from '@/utils/gang-assembly';
+import { fighterTotalCost, vehicleCost, type VehicleCostRows } from '@/utils/fighter-cost';
 import { isUuid } from '@/utils/uuid';
 
 // =============================================================================
@@ -98,6 +99,21 @@ export const getFighterBasic = async (fighterId: string) => {
   )();
 };
 
+/** A vehicle's own cost columns and the equipment and effects it carries. */
+const vehicleCostColumns = {
+  columns: { cost: true },
+  with: {
+    fighter_equipment: { columns: { purchase_cost: true } },
+    fighter_effects: { columns: { type_specific_data: true } },
+  },
+} as const;
+
+const vehicleCostRows = (vehicle: {
+  cost: number | null;
+  fighter_equipment: VehicleCostRows['equipment'];
+  fighter_effects: VehicleCostRows['effects'];
+}): VehicleCostRows => ({ cost: vehicle.cost, equipment: vehicle.fighter_equipment, effects: vehicle.fighter_effects });
+
 /** The rows getFighterTotalCost adds up: the fighter's own, its vehicles' and its exotic beasts'. */
 function fighterCostQuery(db: AppDb, fighterId: string) {
   return db.query.fighters.findFirst({
@@ -114,19 +130,13 @@ function fighterCostQuery(db: AppDb, fighterId: string) {
         columns: { type_specific_data: true },
         where: (effect, { isNull }) => isNull(effect.vehicle_id),
       },
-      vehicles: {
-        columns: { cost: true },
-        with: {
-          fighter_equipment: { columns: { purchase_cost: true } },
-          fighter_effects: { columns: { type_specific_data: true } },
-        },
-      },
+      vehicles: vehicleCostColumns,
       fighter_exotic_beasts: {
         columns: { fighter_pet_id: true },
         with: {
           fighter_equipment: { columns: { gang_stash: true } },
           pet: {
-            columns: { id: true, cost_adjustment: true, killed: true, retired: true, enslaved: true, captured: true },
+            columns: { cost_adjustment: true, killed: true, retired: true, enslaved: true, captured: true },
             with: {
               fighter_equipment: { columns: { purchase_cost: true } },
               fighter_skills: { columns: { credits_increase: true } },
@@ -138,11 +148,6 @@ function fighterCostQuery(db: AppDb, fighterId: string) {
       },
     },
   });
-}
-
-/** An effect's type_specific_data.credits_increase, or 0 when it has none. */
-function creditsIncrease(typeSpecificData: unknown): number {
-  return (typeSpecificData as { credits_increase?: number } | null)?.credits_increase || 0;
 }
 
 /**
@@ -164,46 +169,39 @@ export const getFighterTotalCost = async (fighterId: string): Promise<number> =>
   // Fighters owned by another fighter (exotic beasts) always cost 0
   if (fighter.beast_link) return 0;
 
-  const equipmentCost = fighter.fighter_equipment.reduce((sum, eq) => sum + (eq.purchase_cost || 0), 0);
-  const skillsCost = fighter.fighter_skills.reduce((sum, skill) => sum + (skill.credits_increase || 0), 0);
-  const effectsCost = fighter.fighter_effects.reduce(
-    (sum, effect) => sum + creditsIncrease(effect.type_specific_data), 0
-  );
-
-  const vehicleCost = fighter.vehicles.reduce((sum, vehicle) => {
-    let vehicleTotal = vehicle.cost || 0;
-    vehicleTotal += vehicle.fighter_equipment.reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
-    vehicleTotal += vehicle.fighter_effects.reduce((s, effect) => s + creditsIncrease(effect.type_specific_data), 0);
-    return sum + vehicleTotal;
-  }, 0);
-
-  // Owned exotic beasts roll their cost into the owner
-  const beastLinks = fighter.fighter_exotic_beasts;
-  const stashedBeastIds = new Set(
-    beastLinks.filter((b) => b.fighter_equipment?.gang_stash).map((b) => b.fighter_pet_id)
-  );
-  // Each active beast with a fighter type, once even if two links point at it
-  const beasts = new Map(
-    beastLinks.flatMap(({ pet }) =>
-      pet?.fighter_types && pet.killed === false && pet.retired === false &&
-      pet.enslaved === false && pet.captured === false
-        ? [[pet.id, pet] as const]
+  return fighterTotalCost({
+    credits: fighter.credits,
+    cost_adjustment: fighter.cost_adjustment,
+    equipment: fighter.fighter_equipment,
+    skills: fighter.fighter_skills,
+    effects: fighter.fighter_effects,
+    vehicles: fighter.vehicles.map(vehicleCostRows),
+    beasts: fighter.fighter_exotic_beasts.flatMap(({ pet, fighter_equipment }) =>
+      pet
+        ? [{
+            base_cost: pet.fighter_types?.cost,
+            cost_adjustment: pet.cost_adjustment,
+            killed: pet.killed,
+            retired: pet.retired,
+            enslaved: pet.enslaved,
+            captured: pet.captured,
+            equipment_stashed: Boolean(fighter_equipment?.gang_stash),
+            equipment: pet.fighter_equipment,
+            skills: pet.fighter_skills,
+            effects: pet.fighter_effects,
+          }]
         : []
-    )
-  );
-  const beastsCost = [...beasts.values()].reduce((sum, beast) => {
-    // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
-    const beastEquipment = stashedBeastIds.has(beast.id)
-      ? 0
-      : beast.fighter_equipment.reduce((s, eq) => s + (eq.purchase_cost || 0), 0);
-    const beastSkills = beast.fighter_skills.reduce((s, skill) => s + (skill.credits_increase || 0), 0);
-    const beastEffects = beast.fighter_effects.reduce((s, effect) => s + creditsIncrease(effect.type_specific_data), 0);
-    const baseBeastCost = beast.fighter_types?.cost || 0;
-    return sum + baseBeastCost + beastEquipment + beastSkills + beastEffects + (beast.cost_adjustment || 0);
-  }, 0);
+    ),
+  });
+};
 
-  return (fighter.credits || 0) + equipmentCost + skillsCost + effectsCost + vehicleCost +
-         (fighter.cost_adjustment || 0) + beastsCost;
+/** A vehicle's cost with its equipment and effects; uncached, like getFighterTotalCost. */
+export const getVehicleTotalCost = async (vehicleId: string): Promise<number> => {
+  const vehicle = await getAppDb().query.vehicles.findFirst({
+    ...vehicleCostColumns,
+    where: (row, { eq }) => eq(row.id, vehicleId),
+  });
+  return vehicle ? vehicleCost(vehicleCostRows(vehicle)) : 0;
 };
 
 // =============================================================================

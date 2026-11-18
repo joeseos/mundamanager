@@ -2,6 +2,7 @@
 
 import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
+import { getVehicleTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
 
 import { updateGangFinancials } from '@/utils/gang-rating-and-wealth';
@@ -60,22 +61,7 @@ export async function sellVehicle(params: SellVehicleParams): Promise<SellVehicl
 
     // Compute total vehicle cost (base + equipment + effects) BEFORE deletion
     const baseCost = vehicle.cost || 0;
-
-    const { data: equipmentData } = await supabase
-      .from('fighter_equipment')
-      .select('purchase_cost')
-      .eq('vehicle_id', params.vehicleId);
-    const equipmentCost =
-      equipmentData?.reduce((s: number, eq: any) => s + (eq.purchase_cost || 0), 0) || 0;
-
-    const { data: effectsData } = await supabase
-      .from('fighter_effects')
-      .select('type_specific_data')
-      .eq('vehicle_id', params.vehicleId);
-    const effectsCost =
-      effectsData?.reduce((s: number, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0) || 0;
-
-    const vehicleCost = baseCost + equipmentCost + effectsCost;
+    const vehicleCost = await getVehicleTotalCost(params.vehicleId);
 
     // Determine sell value (manual or default to base cost)
     const sellValue = params.manual_cost ?? baseCost ?? 0;

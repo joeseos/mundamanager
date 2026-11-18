@@ -2,6 +2,7 @@
 
 import { invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
+import { getVehicleTotalCost } from '@/app/lib/shared/fighter-data';
 
 import { updateGangFinancials, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { getAuthenticatedUser } from '@/utils/auth';
@@ -76,6 +77,9 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       removedFromVehicle = oldVehicleData;
     }
 
+    // Read before the writes, so a failed read leaves the vehicle where it was
+    const vehicleCost = await getVehicleTotalCost(params.vehicleId);
+
     // Unassign fighter from any existing vehicle (RLS enforces authorization)
     const { error: unassignError } = await supabase
       .from('vehicles')
@@ -106,7 +110,6 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
       .single();
     
     const vehicleName = vehicleData?.vehicle_name || 'Unknown Vehicle';
-    const vehicleCost = await calculateVehicleCost(params.vehicleId, supabase);
     
     // Get fighter name for logging
     const { data: fighterData } = await supabase
@@ -219,42 +222,3 @@ export async function assignVehicleToFighter(params: AssignVehicleToFighterParam
     };
   }
 }
-
-/**
- * Calculate the total cost of a vehicle including equipment and effects
- */
-async function calculateVehicleCost(vehicleId: string, supabase: any): Promise<number> {
-  // Get base vehicle cost
-  const { data: vehicleData, error: vehicleError } = await supabase
-    .from('vehicles')
-    .select('cost')
-    .eq('id', vehicleId)
-    .single();
-
-  if (vehicleError) {
-    console.error('Error getting vehicle cost:', vehicleError);
-    return 0;
-  }
-
-  const baseCost = vehicleData?.cost || 0;
-
-  // Get equipment cost
-  const { data: equipmentData } = await supabase
-    .from('fighter_equipment')
-    .select('purchase_cost')
-    .eq('vehicle_id', vehicleId);
-
-  const equipmentCost = equipmentData?.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0) || 0;
-
-  // Get effects cost
-  const { data: effectsData } = await supabase
-    .from('fighter_effects')
-    .select('type_specific_data')
-    .eq('vehicle_id', vehicleId);
-
-  const effectsCost = effectsData?.reduce((sum: number, effect: any) => {
-    return sum + (effect.type_specific_data?.credits_increase || 0);
-  }, 0) || 0;
-
-  return baseCost + equipmentCost + effectsCost;
-} 
