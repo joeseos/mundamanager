@@ -6,7 +6,7 @@ import { createClient } from "@/utils/supabase/server";
 import { revalidateTag } from 'next/cache';
 import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
+import { getFighterTotalCost, getVehicleTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
 import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
@@ -273,43 +273,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
         console.error('Failed to compute fighter total cost for rating adjustment:', e);
         return 0;
       }
-    };
-
-    // Helper to calculate the total cost of a vehicle including equipment and effects
-    const calculateVehicleCost = async (vehicleId: string): Promise<number> => {
-      // Get base vehicle cost
-      const { data: vehicleData, error: vehicleError } = await supabase
-        .from('vehicles')
-        .select('cost')
-        .eq('id', vehicleId)
-        .single();
-
-      if (vehicleError) {
-        console.error('Error getting vehicle cost:', vehicleError);
-        return 0;
-      }
-
-      const baseCost = vehicleData?.cost || 0;
-
-      // Get equipment cost
-      const { data: equipmentData } = await supabase
-        .from('fighter_equipment')
-        .select('purchase_cost')
-        .eq('vehicle_id', vehicleId);
-
-      const equipmentCost = equipmentData?.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0) || 0;
-
-      // Get effects cost
-      const { data: effectsData } = await supabase
-        .from('fighter_effects')
-        .select('type_specific_data')
-        .eq('vehicle_id', vehicleId);
-
-      const effectsCost = effectsData?.reduce((sum: number, effect: any) => {
-        return sum + (effect.type_specific_data?.credits_increase || 0);
-      }, 0) || 0;
-
-      return baseCost + equipmentCost + effectsCost;
     };
 
     // Handle different actions
@@ -1020,7 +983,7 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           .maybeSingle();
 
         if (vehicleData?.id) {
-          vehicleCost = await calculateVehicleCost(vehicleData.id);
+          vehicleCost = await getVehicleTotalCost(vehicleData.id);
         }
 
         // Compute refund amount server-side: base cost + equipment cost
