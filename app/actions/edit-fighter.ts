@@ -258,6 +258,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       throw new Error('Fighter not found');
     }
 
+    if (await fighterLockedInTrade(supabase, params.fighter_id)) {
+      return { success: false, error: FIGHTER_LOCKED_IN_TRADE };
+    }
+
     // Get gang information
     const { data: gang, error: gangError } = await supabase
       .from('gangs')
@@ -907,10 +911,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
           };
         }
 
-        if (await fighterLockedInTrade(supabase, params.fighter_id)) {
-          return { success: false, error: FIGHTER_LOCKED_IN_TRADE };
-        }
-
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
           .update({ 
@@ -988,10 +988,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'delete': {
-        if (await fighterLockedInTrade(supabase, params.fighter_id)) {
-          return { success: false, error: FIGHTER_LOCKED_IN_TRADE };
-        }
-
         // Calculate fighter cost before deletion (for rating delta and logging)
         // Captured fighters still count toward rating (their cost was never subtracted,
         // unlike killed/retired/enslaved which had cost subtracted at status change time)

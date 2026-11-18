@@ -10,7 +10,6 @@ import {
   invalidateCampaignGang,
   invalidateCampaignResources,
   invalidateCampaignTrades,
-  invalidateFighter,
   invalidateGang,
   invalidateGangFinancials,
   invalidateGangStash,
@@ -81,51 +80,6 @@ type TradeItemInsert = {
   description?: string | null;
   locked: boolean;
 };
-
-type TradeItemRow = {
-  kind: string;
-  fighter_id: string | null;
-  fighter_equipment_id: string | null;
-  amount: number | string | null;
-  fighters: { gang_id: string | null } | { gang_id: string | null }[] | null;
-};
-
-type TradeRow = {
-  id: string;
-  campaign_id: string;
-  proposer_gang_id: string;
-  counterparty_gang_id: string | null;
-  parent_trade_id: string | null;
-  title: string;
-  status: string;
-  resolved_at: string | null;
-  campaign_trade_items: TradeItemRow[] | null;
-};
-
-const TRADE_ROW_COLUMNS = `
-  id,
-  campaign_id,
-  proposer_gang_id,
-  counterparty_gang_id,
-  parent_trade_id,
-  title,
-  status,
-  resolved_at,
-  campaign_trade_items (
-    kind,
-    fighter_id,
-    fighter_equipment_id,
-    amount,
-    fighters ( gang_id )
-  )
-`;
-
-type TradeLogActionType =
-  | 'campaign_trade_proposed'
-  | 'campaign_trade_bid'
-  | 'campaign_trade_accepted'
-  | 'campaign_trade_declined'
-  | 'campaign_trade_cancelled';
 
 type TradeFollowUpKind =
   | 'proposed_direct'
@@ -239,12 +193,10 @@ async function loadAcceptedCampaignGangIds(
   return uniqueGangIds((data ?? []).map((row) => row.gang_id));
 }
 
-async function logTradeGangs(params: {
+async function logAcceptedTradeGangs(params: {
   gangIds: Array<string | null | undefined>;
   counterpartGangIds: Array<string | null | undefined>;
   gangs: Map<string, TradeGangInfo>;
-  actionType: TradeLogActionType;
-  verb: string;
   titleQuoted: string;
   userId: string;
 }): Promise<void> {
@@ -253,11 +205,11 @@ async function logTradeGangs(params: {
   await Promise.all(gangIds.map(async (gangId) => {
     const otherId = counterparts.find((id) => id !== gangId);
     const description = otherId
-      ? `${params.verb} ${params.titleQuoted} with ${gangName(params.gangs, otherId)}`
-      : `${params.verb} ${params.titleQuoted}`;
+      ? `Accepted ${params.titleQuoted} with ${gangName(params.gangs, otherId)}`
+      : `Accepted ${params.titleQuoted}`;
     const result = await createGangLog({
       gang_id: gangId,
-      action_type: params.actionType,
+      action_type: 'campaign_trade_accepted',
       description,
       user_id: params.userId,
     });
@@ -303,15 +255,6 @@ async function followUpCampaignTrade(params: {
 
     switch (params.kind) {
       case 'proposed_direct':
-        await logTradeGangs({
-          gangIds: [params.proposerGangId, params.counterpartyGangId],
-          counterpartGangIds: [params.proposerGangId, params.counterpartyGangId],
-          gangs,
-          actionType: 'campaign_trade_proposed',
-          verb: 'Proposed',
-          titleQuoted,
-          userId: params.userId,
-        });
         await notifyTradeOwners({
           ...notifyBase,
           receiverGangIds: [params.counterpartyGangId],
@@ -319,15 +262,6 @@ async function followUpCampaignTrade(params: {
         });
         break;
       case 'proposed_listing':
-        await logTradeGangs({
-          gangIds: [params.proposerGangId],
-          counterpartGangIds: [],
-          gangs,
-          actionType: 'campaign_trade_proposed',
-          verb: 'Posted listing',
-          titleQuoted,
-          userId: params.userId,
-        });
         await notifyTradeOwners({
           ...notifyBase,
           receiverGangIds: listingGangIds.filter((id) => id !== params.proposerGangId),
@@ -335,15 +269,6 @@ async function followUpCampaignTrade(params: {
         });
         break;
       case 'bid':
-        await logTradeGangs({
-          gangIds: [params.proposerGangId, params.counterpartyGangId],
-          counterpartGangIds: [params.proposerGangId, params.counterpartyGangId],
-          gangs,
-          actionType: 'campaign_trade_bid',
-          verb: 'Bid on',
-          titleQuoted,
-          userId: params.userId,
-        });
         await notifyTradeOwners({
           ...notifyBase,
           receiverGangIds: [params.counterpartyGangId],
@@ -351,26 +276,13 @@ async function followUpCampaignTrade(params: {
         });
         break;
       case 'accepted':
-        await logTradeGangs({
+        await logAcceptedTradeGangs({
           gangIds: [params.proposerGangId, params.counterpartyGangId],
           counterpartGangIds: [params.proposerGangId, params.counterpartyGangId],
           gangs,
-          actionType: 'campaign_trade_accepted',
-          verb: 'Accepted',
           titleQuoted,
           userId: params.userId,
         });
-        if (relatedGangIds.length > 0) {
-          await logTradeGangs({
-            gangIds: relatedGangIds,
-            counterpartGangIds: [params.counterpartyGangId ?? params.proposerGangId],
-            gangs,
-            actionType: 'campaign_trade_declined',
-            verb: 'Bid declined on',
-            titleQuoted,
-            userId: params.userId,
-          });
-        }
         await notifyTradeOwners({
           ...notifyBase,
           receiverGangIds: [params.proposerGangId],
@@ -383,15 +295,6 @@ async function followUpCampaignTrade(params: {
         });
         break;
       case 'declined':
-        await logTradeGangs({
-          gangIds: [params.proposerGangId, params.counterpartyGangId],
-          counterpartGangIds: [params.proposerGangId, params.counterpartyGangId],
-          gangs,
-          actionType: 'campaign_trade_declined',
-          verb: 'Declined',
-          titleQuoted,
-          userId: params.userId,
-        });
         await notifyTradeOwners({
           ...notifyBase,
           receiverGangIds: [params.proposerGangId],
@@ -399,15 +302,6 @@ async function followUpCampaignTrade(params: {
         });
         break;
       case 'cancelled_direct':
-        await logTradeGangs({
-          gangIds: [params.proposerGangId, params.counterpartyGangId],
-          counterpartGangIds: [params.proposerGangId, params.counterpartyGangId],
-          gangs,
-          actionType: 'campaign_trade_cancelled',
-          verb: 'Cancelled',
-          titleQuoted,
-          userId: params.userId,
-        });
         await notifyTradeOwners({
           ...notifyBase,
           receiverGangIds: [params.counterpartyGangId],
@@ -415,15 +309,6 @@ async function followUpCampaignTrade(params: {
         });
         break;
       case 'cancelled_listing':
-        await logTradeGangs({
-          gangIds: [params.proposerGangId, ...relatedGangIds],
-          counterpartGangIds: [params.proposerGangId],
-          gangs,
-          actionType: 'campaign_trade_cancelled',
-          verb: 'Cancelled listing',
-          titleQuoted,
-          userId: params.userId,
-        });
         await notifyTradeOwners({
           ...notifyBase,
           receiverGangIds: relatedGangIds,
@@ -451,13 +336,13 @@ function normalizeTradePayments(
         amount: number;
       }>;
     } {
-  if (typeof creditsAmount !== 'number' || !Number.isFinite(creditsAmount) || creditsAmount < 0) {
+  if (typeof creditsAmount !== 'number' || !Number.isInteger(creditsAmount) || creditsAmount < 0) {
     return { error: TRADE_OUTCOME_MESSAGES.invalid };
   }
 
   let normalizedReputation: number | null = null;
   if (reputationAmount !== undefined) {
-    if (typeof reputationAmount !== 'number' || !Number.isFinite(reputationAmount) || reputationAmount < 0) {
+    if (typeof reputationAmount !== 'number' || !Number.isInteger(reputationAmount) || reputationAmount < 0) {
       return { error: TRADE_OUTCOME_MESSAGES.invalid };
     }
     if (reputationAmount > 0) normalizedReputation = reputationAmount;
@@ -470,7 +355,7 @@ function normalizeTradePayments(
   }> = [];
   const seen = new Set<string>();
   for (const resource of resources ?? []) {
-    if (typeof resource.amount !== 'number' || !Number.isFinite(resource.amount) || resource.amount < 0) {
+    if (typeof resource.amount !== 'number' || !Number.isInteger(resource.amount) || resource.amount < 0) {
       return { error: TRADE_OUTCOME_MESSAGES.invalid };
     }
     if (resource.amount === 0) continue;
@@ -498,42 +383,27 @@ function invalidateTradeCaches(params: {
   campaignId: string;
   proposerGangId: string;
   counterpartyGangId?: string | null;
-  fighterId?: string | null;
-  originalGangId?: string | null;
-  creditsMoved?: boolean;
-  stashMoved?: boolean;
-  reputationMoved?: boolean;
-  resourcesMoved?: boolean;
-  accepted?: boolean;
   relatedGangIds?: string[];
+  accepted?: boolean;
 }) {
-  const gangIds = new Set<string>([params.proposerGangId]);
-  if (params.counterpartyGangId) gangIds.add(params.counterpartyGangId);
-  for (const gangId of params.relatedGangIds ?? []) {
-    if (gangId) gangIds.add(gangId);
-  }
+  const gangIds = uniqueGangIds([
+    params.proposerGangId,
+    params.counterpartyGangId,
+    ...(params.relatedGangIds ?? []),
+  ]);
 
   invalidateCampaignTrades(params.campaignId);
   for (const gangId of gangIds) {
     invalidateGang(gangId);
-    if (params.creditsMoved || params.stashMoved || params.reputationMoved) {
+    if (params.accepted) {
       invalidateGangFinancials(gangId);
-    }
-    if (params.stashMoved) {
       invalidateGangStash(gangId);
-    }
-    if (params.resourcesMoved) {
       invalidateCampaignGang(params.campaignId, gangId);
     }
   }
-  if (params.resourcesMoved) {
-    invalidateCampaignResources(params.campaignId);
-  }
   if (params.accepted) {
+    invalidateCampaignResources(params.campaignId);
     invalidateCampaignCaptives(params.campaignId);
-  }
-  if (params.fighterId && params.originalGangId) {
-    invalidateFighter(params.fighterId, params.originalGangId);
   }
 }
 
@@ -679,125 +549,6 @@ async function loadEquipmentGoods(
     return { error: TRADE_OUTCOME_MESSAGES.equipment_unavailable };
   }
   return { fighterEquipmentId, description: item.equipment_name.trim() };
-}
-
-function tradeItems(trade: TradeRow): TradeItemRow[] {
-  return trade.campaign_trade_items ?? [];
-}
-
-function tradeHasGoods(items: TradeItemRow[]): boolean {
-  return items.some((item) => item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom');
-}
-
-function amountMoved(items: TradeItemRow[], kind: string): boolean {
-  return items.some((item) => item.kind === kind && Number(item.amount) > 0);
-}
-
-function captiveHomeGangId(items: TradeItemRow[]): string | null {
-  const captive = items.find((item) => item.kind === 'captive' && item.fighter_id);
-  const fighter = captive?.fighters;
-  if (!fighter) return null;
-  const row = Array.isArray(fighter) ? fighter[0] : fighter;
-  return row?.gang_id ?? null;
-}
-
-async function loadTradeRow(supabase: UserClient, tradeId: string): Promise<TradeRow | null> {
-  const { data, error } = await supabase
-    .from('campaign_trades')
-    .select(TRADE_ROW_COLUMNS)
-    .eq('id', tradeId)
-    .maybeSingle();
-  if (error || !data) {
-    console.error('Error loading campaign trade after resolve:', error);
-    return null;
-  }
-  return data as TradeRow;
-}
-
-async function declinedBidderGangIds(
-  supabase: UserClient,
-  listingId: string,
-  resolvedAt: string | null
-): Promise<string[]> {
-  if (!resolvedAt) return [];
-  const { data, error } = await supabase
-    .from('campaign_trades')
-    .select('proposer_gang_id')
-    .eq('parent_trade_id', listingId)
-    .eq('status', 'declined')
-    .eq('resolved_at', resolvedAt);
-  if (error) {
-    console.error('Error loading declined campaign bids:', error);
-    return [];
-  }
-  return uniqueGangIds((data ?? []).map((row) => row.proposer_gang_id));
-}
-
-async function followResolvedTrade(params: {
-  supabase: UserClient;
-  userId: string;
-  tradeId: string;
-  action: 'accept' | 'decline' | 'cancel';
-}): Promise<void> {
-  const trade = await loadTradeRow(params.supabase, params.tradeId);
-  if (!trade) return;
-
-  const parent = trade.parent_trade_id
-    ? await loadTradeRow(params.supabase, trade.parent_trade_id)
-    : null;
-  const listingId = trade.parent_trade_id ?? (!trade.counterparty_gang_id ? trade.id : null);
-  const notifyDeclinedBids = params.action === 'accept'
-    ? trade.parent_trade_id != null
-    : params.action === 'cancel' && !trade.counterparty_gang_id;
-  const relatedGangIds = notifyDeclinedBids && listingId
-    ? await declinedBidderGangIds(params.supabase, listingId, trade.resolved_at)
-    : [];
-
-  const ownItems = tradeItems(trade);
-  const parentItems = parent ? tradeItems(parent) : null;
-  const parentMissing = trade.parent_trade_id != null && !parent;
-  const goodsItems = parentItems
-    ? (tradeHasGoods(parentItems) ? parentItems : ownItems)
-    : ownItems;
-  const payItems = parentItems
-    ? (tradeHasGoods(parentItems) ? ownItems : parentItems)
-    : ownItems;
-  const captive = goodsItems.find((item) => item.kind === 'captive');
-  const accepted = params.action === 'accept';
-
-  invalidateTradeCaches({
-    campaignId: trade.campaign_id,
-    proposerGangId: trade.proposer_gang_id,
-    counterpartyGangId: trade.counterparty_gang_id,
-    fighterId: accepted ? captive?.fighter_id : null,
-    originalGangId: accepted ? captiveHomeGangId(goodsItems) : null,
-    creditsMoved: accepted && (parentMissing || amountMoved(payItems, 'credits')),
-    stashMoved: accepted && (parentMissing || goodsItems.some((item) => item.kind === 'equipment')),
-    reputationMoved: accepted && (parentMissing || amountMoved(payItems, 'reputation')),
-    resourcesMoved: accepted && (parentMissing || amountMoved(payItems, 'campaign_resource')),
-    accepted,
-    relatedGangIds,
-  });
-
-  await followUpCampaignTrade({
-    supabase: params.supabase,
-    userId: params.userId,
-    campaignId: trade.campaign_id,
-    title: trade.title,
-    kind: params.action === 'accept'
-      ? 'accepted'
-      : params.action === 'decline'
-        ? 'declined'
-        : trade.counterparty_gang_id
-          ? 'cancelled_direct'
-          : 'cancelled_listing',
-    proposerGangId: trade.proposer_gang_id,
-    counterpartyGangId: trade.counterparty_gang_id,
-    relatedGangIds,
-    actorGangId: params.action === 'cancel'
-      ? trade.proposer_gang_id
-      : (trade.counterparty_gang_id ?? trade.proposer_gang_id),
-  });
 }
 
 async function insertTradeWithItems(
@@ -1017,10 +768,10 @@ export async function createCampaignTrade(params: CreateCampaignTradeParams) {
       campaignId,
       proposerGangId,
       counterpartyGangId: resolvedCounterparty,
-      fighterId: goodsKind === 'captive' ? fighterId : null,
-      originalGangId: null,
-      stashMoved: goodsKind === 'equipment',
     });
+    if (goodsKind === 'equipment') {
+      invalidateGangStash(proposerGangId);
+    }
 
     await followUpCampaignTrade({
       supabase,
@@ -1071,7 +822,7 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
 
     const { data: trade, error } = await supabase
       .from('campaign_trades')
-      .select('id, proposer_gang_id, counterparty_gang_id, parent_trade_id, status')
+      .select('id, campaign_id, proposer_gang_id, counterparty_gang_id, parent_trade_id, title, status')
       .eq('id', tradeId)
       .maybeSingle();
     if (error) throw error;
@@ -1088,15 +839,17 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
     const resolvedAt = new Date().toISOString();
     const nextStatus = action === 'cancel' ? 'cancelled' : 'declined';
     const relatedIds: string[] = [];
+    const relatedGangIds: string[] = [];
 
     if (action === 'cancel' && isListing) {
       const { data: bids, error: bidsError } = await writer
         .from('campaign_trades')
-        .select('id')
+        .select('id, proposer_gang_id')
         .eq('parent_trade_id', tradeId)
         .eq('status', 'pending');
       if (bidsError) throw bidsError;
       relatedIds.push(...(bids ?? []).map((bid) => bid.id));
+      relatedGangIds.push(...uniqueGangIds((bids ?? []).map((bid) => bid.proposer_gang_id)));
 
       if (relatedIds.length > 0) {
         const { error: declineBidsError } = await writer
@@ -1116,10 +869,34 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
       .select('id')
       .maybeSingle();
     if (updateError) throw updateError;
-    if (!updated) return fail('not_pending');
+    if (!updated) {
+      if (relatedIds.length > 0) {
+        await unlockTradeItems(writer, relatedIds);
+      }
+      return fail('not_pending');
+    }
 
     await unlockTradeItems(writer, [tradeId, ...relatedIds]);
-    await followResolvedTrade({ supabase, userId: user.id, tradeId, action });
+    invalidateTradeCaches({
+      campaignId: trade.campaign_id,
+      proposerGangId: trade.proposer_gang_id,
+      counterpartyGangId: trade.counterparty_gang_id,
+    });
+    await followUpCampaignTrade({
+      supabase,
+      userId: user.id,
+      campaignId: trade.campaign_id,
+      title: trade.title,
+      kind: action === 'decline'
+        ? 'declined'
+        : trade.counterparty_gang_id
+          ? 'cancelled_direct'
+          : 'cancelled_listing',
+      proposerGangId: trade.proposer_gang_id,
+      counterpartyGangId: trade.counterparty_gang_id,
+      relatedGangIds,
+      actorGangId,
+    });
     return { success: true };
   } catch (error) {
     console.error(`Error ${action}ing campaign trade:`, error);
@@ -1137,6 +914,26 @@ export async function acceptCampaignTrade(tradeId: string) {
 
     if (!isUuid(tradeId)) return fail('invalid');
 
+    const { data: trade, error: tradeError } = await supabase
+      .from('campaign_trades')
+      .select('id, campaign_id, proposer_gang_id, counterparty_gang_id, parent_trade_id, title, status')
+      .eq('id', tradeId)
+      .maybeSingle();
+    if (tradeError) throw tradeError;
+    if (!trade) return fail('not_found');
+
+    let relatedGangIds: string[] = [];
+    if (trade.parent_trade_id) {
+      const { data: siblings, error: siblingsError } = await supabase
+        .from('campaign_trades')
+        .select('proposer_gang_id')
+        .eq('parent_trade_id', trade.parent_trade_id)
+        .eq('status', 'pending')
+        .neq('id', tradeId);
+      if (siblingsError) throw siblingsError;
+      relatedGangIds = uniqueGangIds((siblings ?? []).map((row) => row.proposer_gang_id));
+    }
+
     const { data: outcome, error } = await supabase.rpc('accept_campaign_trade', {
       p_trade_id: tradeId,
     });
@@ -1145,7 +942,23 @@ export async function acceptCampaignTrade(tradeId: string) {
     const message = mapOutcome(outcome);
     if (message) return { success: false, error: message };
 
-    await followResolvedTrade({ supabase, userId: user.id, tradeId, action: 'accept' });
+    invalidateTradeCaches({
+      campaignId: trade.campaign_id,
+      proposerGangId: trade.proposer_gang_id,
+      counterpartyGangId: trade.counterparty_gang_id,
+      accepted: true,
+    });
+    await followUpCampaignTrade({
+      supabase,
+      userId: user.id,
+      campaignId: trade.campaign_id,
+      title: trade.title,
+      kind: 'accepted',
+      proposerGangId: trade.proposer_gang_id,
+      counterpartyGangId: trade.counterparty_gang_id,
+      relatedGangIds,
+      actorGangId: trade.counterparty_gang_id ?? trade.proposer_gang_id,
+    });
     return { success: true };
   } catch (error) {
     console.error('Error accepting campaign trade:', error);

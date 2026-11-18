@@ -12,20 +12,11 @@ export type CampaignTradeShape = 'direct' | 'listing' | 'bid';
 
 export interface CampaignTradeItem {
   id: string;
-  trade_id: string;
-  giving_gang_id: string;
   kind: CampaignTradeItemKind;
-  fighter_id: string | null;
-  /** Captive's home gang (`fighters.gang_id`). Reader-only; not a table column. */
-  original_gang_id: string | null;
-  fighter_equipment_id: string | null;
   amount: number | null;
   campaign_type_resource_id: string | null;
   campaign_resource_id: string | null;
   description: string | null;
-  locked: boolean;
-  created_at: string;
-  updated_at: string | null;
 }
 
 export interface CampaignTrade {
@@ -41,7 +32,6 @@ export interface CampaignTrade {
   status: CampaignTradeStatus;
   created_at: string;
   updated_at: string | null;
-  resolved_at: string | null;
   items: CampaignTradeItem[];
 }
 

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import Modal from '@/components/ui/modal'
 import { Combobox } from '@/components/ui/combobox'
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option'
-import { buildCaptiveComboboxOption } from '@/utils/campaign-gang-fighter-options'
+import { buildFighterComboboxOption } from '@/utils/campaign-gang-fighter-options'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -47,8 +47,6 @@ interface RansomCaptive {
   fighterType?: string | null
   originalGangId: string | null
   originalGangName: string
-  originalGangColour?: string | null
-  originalGangOwnerUsername?: string | null
 }
 
 interface CampaignTradeModalProps {
@@ -142,9 +140,10 @@ export default function CampaignTradeModal({
   const actors = useMemo(() => {
     const gangs = campaignGangs.filter((gang) => {
       if (actorGangId) return gang.id === actorGangId
+      const allowed = isCampaignArb || (!!userId && gang.user_id === userId)
+      if (!allowed) return false
       if (mode === 'bid' && listing) return gang.id !== listing.proposer_gang_id
-      if (isCampaignArb) return true
-      return !!userId && gang.user_id === userId
+      return true
     })
     return gangs.map((gang) => ({
       gangId: gang.id,
@@ -380,7 +379,11 @@ export default function CampaignTradeModal({
               <Label htmlFor="trade-captive" className="text-sm">Captive *</Label>
               <Combobox
                 id="trade-captive"
-                options={captives.map((captive) => buildCaptiveComboboxOption(captive))}
+                options={captives.map((captive) => buildFighterComboboxOption({
+                  id: captive.fighterId,
+                  fighter_name: captive.fighterName,
+                  fighter_type: captive.fighterType,
+                }))}
                 value={actingFighterId}
                 onValueChange={(nextId) => {
                   const next = captives.find((captive) => captive.fighterId === nextId)

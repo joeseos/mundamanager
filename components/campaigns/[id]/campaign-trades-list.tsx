@@ -44,10 +44,6 @@ function tradeHasGoods(trade: CampaignTrade) {
   return trade.items.some((item) => item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom')
 }
 
-function customItem(trade: CampaignTrade) {
-  return trade.items.find((item) => item.kind === 'custom')
-}
-
 function itemSummary(item: CampaignTradeItem, trade: CampaignTrade): string {
   let text: string
   switch (item.kind) {
@@ -76,15 +72,12 @@ function itemSummary(item: CampaignTradeItem, trade: CampaignTrade): string {
   return isAsking ? `Asking: ${text}` : text
 }
 
-function paymentFingerprint(items: CampaignTradeItem[]): string {
-  return items
-    .filter((item) => isPaymentKind(item.kind) && (item.amount ?? 0) > 0)
-    .map((item) => `${item.kind}:${item.amount}:${item.campaign_type_resource_id ?? ''}:${item.campaign_resource_id ?? ''}`)
-    .sort()
-    .join('|')
-}
-
 type PendingTradeAction = 'accept' | 'decline' | 'cancel'
+
+function confirmCopy(action: PendingTradeAction, title: string): string {
+  const verb = action === 'accept' ? 'Accept' : action === 'decline' ? 'Decline' : 'Cancel'
+  return `${verb} "${title}"?`
+}
 
 interface CampaignTradesListProps {
   initialTrades?: CampaignTrade[]
@@ -94,80 +87,6 @@ interface CampaignTradesListProps {
   isCampaignArb?: boolean
   allowTrading?: boolean
   userId?: string
-}
-
-function equipmentItem(trade: CampaignTrade) {
-  return trade.items.find((item) => item.kind === 'equipment')
-}
-
-function paymentSummary(trade: CampaignTrade): string {
-  const parts: string[] = []
-  for (const item of trade.items) {
-    const amount = item.amount ?? 0
-    if (amount <= 0) continue
-    if (item.kind === 'credits') parts.push(`${amount} credits`)
-    else if (item.kind === 'reputation') parts.push(`${amount} reputation`)
-    else if (item.kind === 'campaign_resource') {
-      parts.push(item.description ? `${amount} ${item.description}` : `${amount} resource`)
-    }
-  }
-  return parts.join(', ')
-}
-
-function settlementSides(trade: CampaignTrade, trades: CampaignTrade[]): {
-  goods: CampaignTrade
-  pay: CampaignTrade
-  listing: CampaignTrade | null
-} {
-  if (campaignTradeShape(trade) !== 'bid' || !trade.parent_trade_id) {
-    return { goods: trade, pay: trade, listing: null }
-  }
-  const listing = trades.find((candidate) => candidate.id === trade.parent_trade_id) ?? null
-  if (!listing) return { goods: trade, pay: trade, listing: null }
-  if (tradeHasGoods(listing)) {
-    return { goods: listing, pay: trade, listing }
-  }
-  return { goods: trade, pay: listing, listing }
-}
-
-function confirmCopy(action: PendingTradeAction, trade: CampaignTrade, trades: CampaignTrade[]): string {
-  const title = trade.title
-  const { goods, pay, listing } = settlementSides(trade, trades)
-  const custom = customItem(goods)
-  const equipment = equipmentItem(goods)
-  const good = equipment ? 'item' : tradeHasGoods(goods) && !custom ? 'captive' : 'item'
-  if (action === 'accept') {
-    const sellingAskDiffers = !!listing
-      && tradeHasGoods(listing)
-      && paymentFingerprint(listing.items).length > 0
-      && paymentFingerprint(listing.items) !== paymentFingerprint(pay.items)
-    const warn = sellingAskDiffers
-      ? 'This bid\'s payment differs from the asking price. '
-      : ''
-    const payments = paymentSummary(pay)
-    if (custom) {
-      const recorded = 'Custom terms are recorded only; settle them at the table.'
-      const body = payments
-        ? `Accept "${title}"? ${payments} will move. ${recorded}`
-        : `Accept "${title}"? ${recorded}`
-      return `${warn}${body}`
-    }
-    const captive = goods.items.some((item) => item.kind === 'captive')
-    const transfer = captive
-      ? 'the captive will be released or change holder'
-      : `the ${good} will be transferred`
-    const body = payments
-      ? `Accept "${title}"? ${payments} will move and ${transfer}.`
-      : `Accept "${title}"? ${transfer.charAt(0).toUpperCase()}${transfer.slice(1)}.`
-    return `${warn}${body}`
-  }
-  if (action === 'decline') {
-    return `Decline "${title}"? The ${good} will be unlocked.`
-  }
-  if (campaignTradeShape(trade) === 'listing') {
-    return `Cancel "${title}"? Pending bids will be declined and items unlocked.`
-  }
-  return `Cancel "${title}"? The ${good} will be unlocked.`
 }
 
 export default function CampaignTradesList({
@@ -188,7 +107,6 @@ export default function CampaignTradesList({
       return response.json() as Promise<CampaignTrade[]>
     },
     initialData: initialTrades,
-    staleTime: 0,
   })
   const [filterStatus, setFilterStatus] = useState('')
   const [filterGang, setFilterGang] = useState(involvedGangId ?? '')
@@ -503,7 +421,7 @@ export default function CampaignTradesList({
           }}
           content={
             <p>
-              {confirmCopy(pending.action, pending.trade, trades)}
+              {confirmCopy(pending.action, pending.trade.title)}
             </p>
           }
         />

@@ -160,8 +160,6 @@ interface CampaignPageContentProps {
         fighterType?: string;
         originalGangId: string | null;
         originalGangName: string;
-        originalGangColour?: string | null;
-        originalGangOwnerUsername?: string | null;
       }>;
     }>;
     trades?: CampaignTrade[];
@@ -239,8 +237,7 @@ export default function CampaignPageContent({
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showPhasesCyclesModal, setShowPhasesCyclesModal] = useState(false);
-  const [showSellTradeModal, setShowSellTradeModal] = useState(false);
-  const [showLookingForModal, setShowLookingForModal] = useState(false);
+  const [tradeModalMode, setTradeModalMode] = useState<'sell' | 'looking-for' | null>(null);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -894,10 +891,10 @@ export default function CampaignPageContent({
                   <h2 className="text-xl md:text-2xl font-bold">Trades</h2>
                   {campaignData.allow_trading && actorGangIds.length > 0 && (
                     <div className="flex gap-2">
-                      <Button onClick={() => setShowSellTradeModal(true)}>
+                      <Button onClick={() => setTradeModalMode('sell')}>
                         Selling
                       </Button>
-                      <Button onClick={() => setShowLookingForModal(true)}>
+                      <Button onClick={() => setTradeModalMode('looking-for')}>
                         Looking for
                       </Button>
                     </div>
@@ -1080,25 +1077,14 @@ export default function CampaignPageContent({
             </div>
           )}
 
-        {showSellTradeModal && (
+        {tradeModalMode && (
           <CampaignTradeModal
             campaignId={campaignData.id}
-            mode="sell"
+            mode={tradeModalMode}
             userId={userId}
             isCampaignArb={isCampaignArb}
-            onClose={() => setShowSellTradeModal(false)}
-            onPosted={() => setShowSellTradeModal(false)}
-          />
-        )}
-
-        {showLookingForModal && (
-          <CampaignTradeModal
-            campaignId={campaignData.id}
-            mode="looking-for"
-            userId={userId}
-            isCampaignArb={isCampaignArb}
-            onClose={() => setShowLookingForModal(false)}
-            onPosted={() => setShowLookingForModal(false)}
+            onClose={() => setTradeModalMode(null)}
+            onPosted={() => setTradeModalMode(null)}
           />
         )}
 

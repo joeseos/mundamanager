@@ -101,7 +101,8 @@ export default async function CampaignPage(props: {
       campaignCaptives,
       customTradingPostTypes,
       campaignOoaCounts,
-      allScenarioTables
+      allScenarioTables,
+      campaignTrades
     ] = await Promise.all([
       getCampaignBasic(params.id),
       getCampaignMembers(params.id),
@@ -123,15 +124,14 @@ export default async function CampaignPage(props: {
         console.error('Error loading campaign OOA counts:', error);
         return [];
       }),
-      getScenarioTablesCached()
+      getScenarioTablesCached(),
+      getCampaignTrades(params.id, 100)
     ]);
 
     // Check if campaign exists
     if (!campaignBasic?.campaign_type_id) {
       notFound();
     }
-
-    const campaignTrades = await getCampaignTrades(params.id, 100);
 
     const campaignMap = campaignMapBundle.map;
     const campaignMapObjects = campaignMapBundle.objects;

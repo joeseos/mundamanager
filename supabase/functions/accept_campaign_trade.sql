@@ -47,6 +47,8 @@ DECLARE
     v_credit_payee uuid;
     v_receiver uuid;
     v_captured boolean;
+    v_killed boolean;
+    v_enslaved boolean;
     v_holder uuid;
     v_original uuid;
     v_fighter_name text;
@@ -214,13 +216,15 @@ BEGIN
             RETURN 'invalid';
         END IF;
 
-        SELECT captured, captured_by_gang_id, gang_id, fighter_name
-        INTO v_captured, v_holder, v_original, v_fighter_name
+        SELECT captured, killed, enslaved, captured_by_gang_id, gang_id, fighter_name
+        INTO v_captured, v_killed, v_enslaved, v_holder, v_original, v_fighter_name
         FROM fighters
         WHERE id = v_fighter_id
         FOR UPDATE;
         IF NOT FOUND
             OR NOT v_captured
+            OR COALESCE(v_killed, false)
+            OR COALESCE(v_enslaved, false)
             OR v_holder IS DISTINCT FROM v_captor THEN
             RETURN 'captive_unavailable';
         END IF;

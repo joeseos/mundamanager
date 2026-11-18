@@ -63,13 +63,13 @@ export function parseTradePayments(
       resources: TradePaymentResourceInput[]
     } {
   const creditsAmount = Number(value.credits)
-  if (!Number.isFinite(creditsAmount) || creditsAmount < 0) {
-    return { success: false, error: 'Credits must be 0 or more.' }
+  if (!Number.isInteger(creditsAmount) || creditsAmount < 0) {
+    return { success: false, error: 'Credits must be a whole number of 0 or more.' }
   }
 
   const reputationAmount = Number(value.reputation)
-  if (!Number.isFinite(reputationAmount) || reputationAmount < 0) {
-    return { success: false, error: 'Reputation must be 0 or more.' }
+  if (!Number.isInteger(reputationAmount) || reputationAmount < 0) {
+    return { success: false, error: 'Reputation must be a whole number of 0 or more.' }
   }
 
   const resources: TradePaymentResourceInput[] = []
@@ -79,8 +79,8 @@ export function parseTradePayments(
       return { success: false, error: 'Select a campaign resource.' }
     }
     const amount = Number(row.amount)
-    if (!Number.isFinite(amount) || amount < 0) {
-      return { success: false, error: 'Resource amounts must be 0 or more.' }
+    if (!Number.isInteger(amount) || amount < 0) {
+      return { success: false, error: 'Resource amounts must be a whole number of 0 or more.' }
     }
     if (amount === 0) continue
     if (seen.has(row.resourceId)) {

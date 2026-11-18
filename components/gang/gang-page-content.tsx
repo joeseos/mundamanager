@@ -105,8 +105,7 @@ export default function GangPageContent({
   userPermissions,
   campaignTrades = [],
 }: GangPageContentProps) {
-  const [showSellTradeModal, setShowSellTradeModal] = useState(false);
-  const [showLookingForModal, setShowLookingForModal] = useState(false);
+  const [tradeModalMode, setTradeModalMode] = useState<'sell' | 'looking-for' | null>(null);
   const [gangData, setGangData] = useState<GangDataState>({
     processedData: initialGangData,
     stash: initialGangData.stash || []
@@ -664,9 +663,10 @@ export default function GangPageContent({
   );
 
   const gangCampaigns = gangData.processedData.campaigns || [];
-  const gangCampaign = gangCampaigns.find((campaign) => campaign.status === 'ACCEPTED')
-  const campaignIdForTrades = gangCampaign?.campaign_id != null
-    ? String(gangCampaign.campaign_id)
+  const gangCampaign = gangCampaigns[0]
+  const tradeCampaign = gangCampaigns.find((campaign) => campaign.status === 'ACCEPTED')
+  const campaignIdForTrades = tradeCampaign?.campaign_id != null
+    ? String(tradeCampaign.campaign_id)
     : undefined;
   const gangCampaignProps = gangCampaign ? {
     campaignTradingPostIds: gangCampaign.trading_posts || [],
@@ -734,16 +734,16 @@ export default function GangPageContent({
             onGangTradePointsUpdate={handleGangTradePointsUpdate}
             positioning={gangData.processedData.positioning}
           />
-          {campaignIdForTrades && (gangCampaign?.allow_trading || campaignTrades.length > 0) && (
+          {campaignIdForTrades && (tradeCampaign?.allow_trading || campaignTrades.length > 0) && (
             <div className="mt-8">
               <div className="flex justify-between items-start mb-6 gap-2">
                 <h2 className="text-xl md:text-2xl font-bold">Trades</h2>
-                {gangCampaign?.allow_trading && userPermissions.canEdit && (
+                {tradeCampaign?.allow_trading && userPermissions.canEdit && (
                   <div className="flex flex-wrap justify-end gap-2">
-                    <Button onClick={() => setShowSellTradeModal(true)} size="sm" className="font-medium">
+                    <Button onClick={() => setTradeModalMode('sell')} size="sm" className="font-medium">
                       Selling
                     </Button>
-                    <Button onClick={() => setShowLookingForModal(true)} size="sm" className="font-medium">
+                    <Button onClick={() => setTradeModalMode('looking-for')} size="sm" className="font-medium">
                       Looking for
                     </Button>
                   </div>
@@ -754,7 +754,7 @@ export default function GangPageContent({
                 involvedGangId={gangId}
                 campaignId={campaignIdForTrades}
                 actorGangIds={userPermissions.canEdit ? [gangId] : []}
-                allowTrading={!!gangCampaign?.allow_trading}
+                allowTrading={!!tradeCampaign?.allow_trading}
                 userId={userId}
               />
             </div>
@@ -1147,24 +1147,14 @@ export default function GangPageContent({
         {tabs.map(tab => tab.content)}
       </Tabs>
       </div>
-      {showSellTradeModal && campaignIdForTrades && (
+      {tradeModalMode && campaignIdForTrades && (
         <CampaignTradeModal
           campaignId={campaignIdForTrades}
-          mode="sell"
+          mode={tradeModalMode}
           userId={userId}
           actorGangId={gangId}
-          onClose={() => setShowSellTradeModal(false)}
-          onPosted={() => setShowSellTradeModal(false)}
-        />
-      )}
-      {showLookingForModal && campaignIdForTrades && (
-        <CampaignTradeModal
-          campaignId={campaignIdForTrades}
-          mode="looking-for"
-          userId={userId}
-          actorGangId={gangId}
-          onClose={() => setShowLookingForModal(false)}
-          onPosted={() => setShowLookingForModal(false)}
+          onClose={() => setTradeModalMode(null)}
+          onPosted={() => setTradeModalMode(null)}
         />
       )}
     </FighterCardModalsProvider>

@@ -2,25 +2,30 @@ import { createClient } from '@/utils/supabase/server';
 
 export const EQUIPMENT_LOCKED_IN_TRADE = 'This item is listed in a pending campaign trade.';
 
-export async function equipmentLockedInTrade(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  fighterEquipmentId: string
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+async function anyEquipmentIdsLockedInTrade(
+  supabase: SupabaseClient,
+  fighterEquipmentIds: string[]
 ): Promise<boolean> {
-  const { data: item, error: itemError } = await supabase
+  if (fighterEquipmentIds.length === 0) return false;
+
+  const { data: items, error: itemError } = await supabase
     .from('fighter_equipment')
     .select('id, granted_by_equipment_id')
-    .eq('id', fighterEquipmentId)
-    .maybeSingle();
+    .in('id', fighterEquipmentIds);
   if (itemError) throw itemError;
-  if (!item) return false;
+  if (!items?.length) return false;
 
-  const ids = new Set<string>([fighterEquipmentId]);
-  if (item.granted_by_equipment_id) ids.add(item.granted_by_equipment_id);
+  const ids = new Set<string>(fighterEquipmentIds);
+  for (const item of items) {
+    if (item.granted_by_equipment_id) ids.add(item.granted_by_equipment_id);
+  }
 
   const { data: children, error: childError } = await supabase
     .from('fighter_equipment')
     .select('id')
-    .eq('granted_by_equipment_id', fighterEquipmentId);
+    .in('granted_by_equipment_id', fighterEquipmentIds);
   if (childError) throw childError;
   for (const child of children ?? []) ids.add(child.id);
 
@@ -33,4 +38,18 @@ export async function equipmentLockedInTrade(
     .maybeSingle();
   if (lockError) throw lockError;
   return !!locked;
+}
+
+export async function equipmentLockedInTrade(
+  supabase: SupabaseClient,
+  fighterEquipmentId: string
+): Promise<boolean> {
+  return anyEquipmentIdsLockedInTrade(supabase, [fighterEquipmentId]);
+}
+
+export async function anyEquipmentLockedInTrade(
+  supabase: SupabaseClient,
+  fighterEquipmentIds: string[]
+): Promise<boolean> {
+  return anyEquipmentIdsLockedInTrade(supabase, fighterEquipmentIds);
 }

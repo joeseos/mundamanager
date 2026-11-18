@@ -60,7 +60,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangPositioning,
       roster,
       stash,
-      campaigns,
+      campaignMembership,
       gangSubtypes,
       userProfile,
       userPermissions,
@@ -80,7 +80,13 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         vehicles: assembleGangVehicles(bundle)
       })),
       getGangStash(params.id),
-      getGangCampaigns(params.id),
+      getGangCampaigns(params.id).then(async (campaigns) => {
+        const accepted = campaigns.find((campaign) => campaign.status === 'ACCEPTED')
+        const campaignTrades = accepted
+          ? await getCampaignTrades(accepted.campaign_id, 100)
+          : []
+        return { campaigns, campaignTrades }
+      }),
       getGangSubtypes(gangBasic.gang_subtypes || []),
       getUserProfile(gangBasic.user_id),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
@@ -91,10 +97,8 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         : Promise.resolve([])
     ]);
 
-    const gangCampaign = campaigns.find((campaign) => campaign.status === 'ACCEPTED')
-    const campaignTrades = gangCampaign
-      ? await getCampaignTrades(gangCampaign.campaign_id, 100)
-      : [];
+    const campaigns = campaignMembership.campaigns
+    const campaignTrades = campaignMembership.campaignTrades
 
     const { fighters, vehicles } = roster;
 
