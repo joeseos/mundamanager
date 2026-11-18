@@ -7315,8 +7315,6 @@ CREATE TABLE public.skill_types (
 
 CREATE TABLE public.skills (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    "OLDxp_cost" bigint,
-    "OLDcredit_cost" bigint,
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone,
     name text,
@@ -7393,7 +7391,9 @@ CREATE TABLE public.territories (
     updated_at timestamp with time zone,
     playing_card text,
     edition_id uuid,
-    credits numeric
+    credits numeric,
+    controlled_gang_type_id uuid,
+    controlled_credits numeric
 );
 
 
@@ -13301,6 +13301,14 @@ ALTER TABLE ONLY public.tactics_cards
 
 
 --
+-- Name: territories territories_controlled_gang_type_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.territories
+    ADD CONSTRAINT territories_controlled_gang_type_id_fkey FOREIGN KEY (controlled_gang_type_id) REFERENCES public.gang_types(id) ON DELETE SET NULL;
+
+
+--
 -- Name: territories territories_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14401,12 +14409,12 @@ CREATE POLICY "Editions are viewable by everyone" ON public.editions FOR SELECT 
 -- Name: fighter_exotic_beasts Fighter owner, admin or arb can create exotic beasts; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Fighter owner, admin or arb can create exotic beasts" ON public.fighter_exotic_beasts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (fighter_owner_id IN ( SELECT f.id
+CREATE POLICY "Fighter owner, admin or arb can create exotic beasts" ON public.fighter_exotic_beasts FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (COALESCE(fighter_owner_id, fighter_pet_id) IN ( SELECT f.id
    FROM public.fighters f
   WHERE (f.user_id = ( SELECT auth.uid() AS uid)))) OR (EXISTS ( SELECT 1
    FROM (public.fighters f
      JOIN public.campaign_gangs cg ON ((cg.gang_id = f.gang_id)))
-  WHERE ((f.id = fighter_exotic_beasts.fighter_owner_id) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
+  WHERE ((f.id = COALESCE(fighter_exotic_beasts.fighter_owner_id, fighter_exotic_beasts.fighter_pet_id)) AND (cg.status = 'ACCEPTED'::text) AND ( SELECT private.is_arb(cg.campaign_id) AS is_arb))))));
 
 
 --
