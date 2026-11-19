@@ -1,8 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { eq } from 'drizzle-orm';
+import { DrizzleQueryError, eq } from 'drizzle-orm';
 import { getUserIdFromClaims } from './auth';
 import { invalidateGangFinancials } from './cache-tags';
-import { withUserClaims, withUserWrite } from './db/client';
+import { getAppDb, withUserWrite } from './db/client';
 import { gangs } from './db/schema';
 
 /** Every gangs column this helper reads and writes. */
@@ -90,14 +90,12 @@ export async function updateGangFinancials(
   // Skip if nothing to update
   if (effectiveRatingDelta === 0 && creditsDelta === 0 && tradePointsDelta === 0 && !clearTradePoints &&
       reputationDelta === 0 && stashValueDelta === 0) {
-    // Still fetch current values for logging
+    // Still fetch current values for logging. Every signed-in user may read gangs, so no claims are needed.
     try {
-      const userId = await getUserIdFromClaims(supabase);
-      const [gangRow] = userId
-        ? await withUserClaims(userId, (tx) =>
-            tx.select(financialColumns).from(gangs).where(eq(gangs.id, gangId))
-          )
-        : [];
+      const [gangRow] = await getAppDb()
+        .select(financialColumns)
+        .from(gangs)
+        .where(eq(gangs.id, gangId));
 
       if (gangRow) {
         const unchanged = toFinancialValues(gangRow);
@@ -166,9 +164,12 @@ export async function updateGangFinancials(
     }
     return result;
   } catch (e) {
-    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
     console.error('Failed to update gang rating and wealth:', e);
-    return { success: false, error: 'Failed to update gang credits and rating' };
+    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
+    return {
+      success: false,
+      error: e instanceof Error && !(e instanceof DrizzleQueryError) ? e.message : 'Failed to update gang credits and rating'
+    };
   }
 }
 

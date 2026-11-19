@@ -40,7 +40,7 @@ type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 // jsonb is passed through as Postgres returned it. Drizzle's own jsonb() would
 // JSON.parse string values again, turning e.g. the string "2" into the number 2.
 // Written values are serialised here, since Drizzle turns off postgres.js's own.
-const json = customType<{ data: Json; driverData: string }>({
+const json = customType<{ data: Json }>({
   dataType: () => 'jsonb',
   toDriver: (value) => JSON.stringify(value),
 });
