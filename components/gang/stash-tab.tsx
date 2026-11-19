@@ -823,8 +823,7 @@ export default function GangInventory({
 
   return (
     <>
-      <div className="container max-w-5xl w-full space-y-4 mx-auto">
-        <div className="bg-card rounded-lg shadow-md p-4">
+      <div>
           <div className="flex justify-between items-start mb-6">
             <h2 className="text-xl md:text-2xl font-bold">{title}</h2>
             <div className="flex gap-2">
@@ -989,7 +988,6 @@ export default function GangInventory({
               </div>
             </>
           )}
-        </div>
       </div>
 
       <ChemAlchemyCreator

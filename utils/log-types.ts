@@ -14,6 +14,11 @@ export const CAMPAIGN_ACTION_TYPES = [
   'territory_lost',
   'campaign_credits_granted',
   'campaign_trade_points_cleared',
+  'campaign_trade_proposed',
+  'campaign_trade_bid',
+  'campaign_trade_accepted',
+  'campaign_trade_declined',
+  'campaign_trade_cancelled',
 ] as const;
 
 export const LOG_TYPE_LABELS: Record<string, string> = {
@@ -126,6 +131,11 @@ export const LOG_TYPE_LABELS: Record<string, string> = {
   'territory_lost': 'Territory lost',
   'campaign_credits_granted': 'Credits granted',
   'campaign_trade_points_cleared': 'Trade Points cleared',
+  'campaign_trade_proposed': 'Trade proposed',
+  'campaign_trade_bid': 'Trade bid',
+  'campaign_trade_accepted': 'Trade accepted',
+  'campaign_trade_declined': 'Trade declined',
+  'campaign_trade_cancelled': 'Trade cancelled',
 };
 
 /**

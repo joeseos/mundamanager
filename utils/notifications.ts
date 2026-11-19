@@ -23,6 +23,7 @@ export type NotificationType =
   | 'gang_invite'
   | 'campaign_join_request'
   | 'campaign_challenge'
+  | 'campaign_trade'
   | 'user_message'
   | 'campaign_message'
   | 'mm_staff_message'
@@ -88,6 +89,13 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
     supportsEmail: true,
     defaultEnabled: true,
     subject: '{sender} has challenged your gang',
+  },
+  // A gang proposed, bid on, accepted, declined, or cancelled a campaign trade.
+  campaign_trade: {
+    label: 'Campaign trades',
+    supportsEmail: true,
+    defaultEnabled: true,
+    subject: '{sender} updated a campaign trade',
   },
   // Munda Manager news, general announcements, and feature announcements.
   // The in-app list shows a fixed From line (MM_ANNOUNCEMENT_FROM) linking to the contributors page.

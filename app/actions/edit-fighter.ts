@@ -209,6 +209,23 @@ interface EditFighterResult {
   };
 }
 
+const FIGHTER_LOCKED_IN_TRADE = 'This fighter is listed in a pending campaign trade.';
+
+async function fighterLockedInTrade(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fighterId: string
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('campaign_trade_items')
+    .select('id')
+    .eq('fighter_id', fighterId)
+    .eq('locked', true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
 export async function editFighterStatus(params: EditFighterStatusParams): Promise<EditFighterResult> {
   try {
     const supabase = await createClient();
@@ -239,6 +256,10 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
 
     if (fighterError || !fighter) {
       throw new Error('Fighter not found');
+    }
+
+    if (await fighterLockedInTrade(supabase, params.fighter_id)) {
+      return { success: false, error: FIGHTER_LOCKED_IN_TRADE };
     }
 
     // Get gang information
