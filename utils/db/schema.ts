@@ -22,7 +22,7 @@ import type { CollectionItem } from '@/app/actions/customise/custom-collections'
 import type { NotificationType } from '@/utils/notifications';
 
 /**
- * Drizzle schema for the tables read over the direct database connection
+ * Drizzle schema for the tables read or written over the direct database connection
  * (utils/db/client.ts). The tables themselves are defined by
  * supabase/migrations; these definitions mirror supabase/schema/schema.public.sql
  * and must be kept in step with it when a migration changes these tables.
@@ -40,7 +40,11 @@ type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
 // jsonb is passed through as Postgres returned it. Drizzle's own jsonb() would
 // JSON.parse string values again, turning e.g. the string "2" into the number 2.
-const json = customType<{ data: Json }>({ dataType: () => 'jsonb' });
+// Written values are serialised here, since Drizzle turns off postgres.js's own.
+const json = customType<{ data: Json }>({
+  dataType: () => 'jsonb',
+  toDriver: (value) => JSON.stringify(value),
+});
 const jsonArray = customType<{ data: Json[] }>({ dataType: () => 'jsonb[]' });
 
 export const alignment = pgEnum('alignment', ['Outlaw', 'Law Abiding', 'Unaligned']);
@@ -75,6 +79,17 @@ export const gangs = pgTable('gangs', {
   note_private_updated_at: timestamp('note_private_updated_at', { withTimezone: true, mode: 'string' }),
   trade_points: numeric('trade_points', { mode: 'number' }).default(0).notNull(),
   gang_portrait_id: uuid('gang_portrait_id'),
+});
+
+export const gangLogs = pgTable('gang_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  gang_id: uuid('gang_id').notNull(),
+  user_id: uuid('user_id'),
+  action_type: text('action_type').notNull(),
+  description: text('description').notNull(),
+  fighter_id: uuid('fighter_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  vehicle_id: uuid('vehicle_id'),
 });
 
 export const fighters = pgTable('fighters', {

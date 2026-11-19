@@ -584,8 +584,11 @@ The connection signs in as `app_server` (migration
 user may read; policies that check `auth.uid()` return no rows. The exception is
 `withUserClaims` in `utils/db/client.ts`: it runs a read in a transaction with
 `auth.uid()` set to the given user, so those policies apply as over the Data API
-(the friends read uses it). Pass only the authenticated caller's own id. The
+(the friends read uses it). `withUserWrite` does the same for writes, opening that
+one transaction as read-write (gang credits and rating, gang logs and fighter
+positions use it). Pass only the authenticated caller's own id. The
 connection never checks who is asking, so authenticate the request before reading (the gang
 pages call `getAuthenticatedUser` first). Its password is set in the SQL editor,
 not in the migration. Don't use the Supabase integration's `POSTGRES_URL` in
-production: it signs in as `postgres`, which skips RLS.
+production: it signs in as `postgres`, which skips RLS. The local `postgres` URL
+skips RLS too, so test permission checks on these writes against a preview.
