@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
-import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
@@ -228,24 +227,22 @@ export default async function CampaignPage(props: {
   }
 
   return (
-    <CampaignErrorBoundary>
-      <CampaignPageContent
-        campaignData={pageProps.campaignData}
-        userId={userId}
-        permissions={permissions}
-        campaignTypes={pageProps.campaignTypes}
-        allTerritories={pageProps.allTerritories}
-        tradingPostTypes={pageProps.tradingPostTypes}
-        customTradingPostTypes={pageProps.customTradingPostTypes}
-        campaignAllegiances={pageProps.campaignAllegiances}
-        campaignResources={pageProps.campaignResources}
-        mapData={pageProps.campaignMap}
-        mapObjects={pageProps.campaignMapObjects}
-        hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
-        scenarioTables={pageProps.scenarioTables}
-        // Challenge notifications link to ?tab=battles.
-        initialTab={tab === 'battles' ? 2 : 0}
-      />
-    </CampaignErrorBoundary>
+    <CampaignPageContent
+      campaignData={pageProps.campaignData}
+      userId={userId}
+      permissions={permissions}
+      campaignTypes={pageProps.campaignTypes}
+      allTerritories={pageProps.allTerritories}
+      tradingPostTypes={pageProps.tradingPostTypes}
+      customTradingPostTypes={pageProps.customTradingPostTypes}
+      campaignAllegiances={pageProps.campaignAllegiances}
+      campaignResources={pageProps.campaignResources}
+      mapData={pageProps.campaignMap}
+      mapObjects={pageProps.campaignMapObjects}
+      hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
+      scenarioTables={pageProps.scenarioTables}
+      // Challenge notifications link to ?tab=battles.
+      initialTab={tab === 'battles' ? 2 : 0}
+    />
   );
 } 
