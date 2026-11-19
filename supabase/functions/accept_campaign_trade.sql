@@ -1,16 +1,16 @@
--- Accept a pending trade in one transaction. Direct trades settle as before.
--- Accepting a bid locks the listing and all pending bids in id order, moves
+-- Accept an open trade in one transaction. Direct trades settle as before.
+-- Accepting a bid locks the listing and all open bids in id order, moves
 -- listing goods (selling) or listing payment (buying) together with the bid
 -- counterpart, skips a selling listing's asking-price rows, declines sibling
--- bids, then marks listing and winning bid accepted. Accepting an open
--- listing row is invalid. Does not check allow_trading so a pending trade
+-- bids, then marks listing and winning bid fulfilled. Accepting an open
+-- listing row is invalid. Does not check allow_trading so an open trade
 -- can still complete after the flag is turned off.
 --
 -- Once credits, reputation or resources have been written, a later failure
 -- RAISE-s. A plain RETURN would commit the earlier legs and leave the trade
--- pending. The handler rolls the function back and returns the outcome.
+-- open. The handler rolls the function back and returns the outcome.
 --
--- Returns one of: 'ok', 'not_authorized', 'not_found', 'not_pending',
+-- Returns one of: 'ok', 'not_authorized', 'not_found', 'not_open',
 -- 'captive_unavailable', 'equipment_unavailable', 'insufficient_credits',
 -- 'insufficient_reputation', 'insufficient_resources', 'alignment_blocked',
 -- 'invalid'.
@@ -85,7 +85,7 @@ BEGIN
         FROM campaign_trades
         WHERE id = v_parent
            OR id = p_trade_id
-           OR (parent_trade_id = v_parent AND status = 'pending')
+           OR (parent_trade_id = v_parent AND status = 'open')
         ORDER BY id
         FOR UPDATE;
     ELSE
@@ -102,8 +102,8 @@ BEGIN
     IF NOT FOUND THEN
         RETURN 'not_found';
     END IF;
-    IF v_status IS DISTINCT FROM 'pending' THEN
-        RETURN 'not_pending';
+    IF v_status IS DISTINCT FROM 'open' THEN
+        RETURN 'not_open';
     END IF;
     IF v_proposer IS NULL THEN
         RETURN 'invalid';
@@ -121,8 +121,8 @@ BEGIN
         IF NOT FOUND THEN
             RETURN 'not_found';
         END IF;
-        IF v_listing_status IS DISTINCT FROM 'pending' THEN
-            RETURN 'not_pending';
+        IF v_listing_status IS DISTINCT FROM 'open' THEN
+            RETURN 'not_open';
         END IF;
         IF v_listing_counterparty IS NOT NULL
             OR v_listing_proposer IS NULL
@@ -506,7 +506,7 @@ BEGIN
               SELECT id FROM campaign_trades
               WHERE parent_trade_id = v_parent
                 AND id IS DISTINCT FROM p_trade_id
-                AND status = 'pending'
+                AND status = 'open'
           );
 
         UPDATE campaign_trades
@@ -515,10 +515,10 @@ BEGIN
             updated_at = now()
         WHERE parent_trade_id = v_parent
           AND id IS DISTINCT FROM p_trade_id
-          AND status = 'pending';
+          AND status = 'open';
 
         UPDATE campaign_trades
-        SET status = 'accepted',
+        SET status = 'fulfilled',
             resolved_at = now(),
             updated_at = now()
         WHERE id IN (p_trade_id, v_parent);
@@ -529,7 +529,7 @@ BEGIN
         WHERE trade_id IN (p_trade_id, v_parent) AND locked;
     ELSE
         UPDATE campaign_trades
-        SET status = 'accepted',
+        SET status = 'fulfilled',
             resolved_at = now(),
             updated_at = now()
         WHERE id = p_trade_id;

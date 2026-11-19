@@ -1,4 +1,4 @@
-export type CampaignTradeStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+export type CampaignTradeStatus = 'open' | 'fulfilled' | 'declined' | 'cancelled';
 
 export type CampaignTradeItemKind =
   | 'captive'
@@ -36,15 +36,15 @@ export interface CampaignTrade {
 }
 
 export const campaignTradeStatusLabels: Record<CampaignTradeStatus, string> = {
-  pending: 'Pending',
-  accepted: 'Accepted',
+  open: 'Open',
+  fulfilled: 'Fulfilled',
   declined: 'Declined',
   cancelled: 'Cancelled',
 };
 
 export const campaignTradeStatusColors: Record<CampaignTradeStatus, string> = {
-  pending: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
-  accepted: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  open: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+  fulfilled: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   declined: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   cancelled: 'bg-muted text-muted-foreground',
 };

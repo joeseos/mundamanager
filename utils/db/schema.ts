@@ -1015,7 +1015,7 @@ export const campaignTrades = pgTable('campaign_trades', {
   parent_trade_id: uuid('parent_trade_id'),
   title: varchar('title', { length: 100 }).notNull(),
   note: text('note'),
-  status: text('status').$type<CampaignTradeStatus>().default(sql`'pending'::text`).notNull(),
+  status: text('status').$type<CampaignTradeStatus>().default(sql`'open'::text`).notNull(),
 });
 
 export const campaignTradeItems = pgTable('campaign_trade_items', {

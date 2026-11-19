@@ -209,7 +209,7 @@ interface EditFighterResult {
   };
 }
 
-const FIGHTER_LOCKED_IN_TRADE = 'This fighter is listed in a pending campaign trade.';
+const FIGHTER_LOCKED_IN_TRADE = 'This fighter is listed in an open campaign trade.';
 
 async function fighterLockedInTrade(
   supabase: Awaited<ReturnType<typeof createClient>>,
