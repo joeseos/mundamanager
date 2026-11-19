@@ -1,8 +1,11 @@
 'use server'
 
+import { eq } from 'drizzle-orm';
 import { invalidateGangPositioning } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
+import { withUserWrite } from '@/utils/db/client';
+import { gangs } from '@/utils/db/schema';
 
 interface UpdateGangPositioningParams {
   gangId: string;
@@ -21,33 +24,20 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
     // Get the current user with optimized getClaims()
     const user = await getAuthenticatedUser(supabase);
 
-    // Get gang information to verify ownership
-    const { data: gang, error: gangError } = await supabase
-      .from('gangs')
-      .select('user_id, id')
-      .eq('id', params.gangId)
-      .single();
-    
-    if (gangError || !gang) {
+    // Authorization is enforced by RLS policies on gangs table: a gang the user
+    // may not edit matches no row, the same as a missing one.
+    const updated = await withUserWrite(user.id, (tx) =>
+      tx
+        .update(gangs)
+        .set({ positioning: params.positions })
+        .where(eq(gangs.id, params.gangId))
+        .returning({ id: gangs.id })
+    );
+
+    if (updated.length === 0) {
       return {
         success: false,
         error: 'Gang not found'
-      };
-    }
-
-    // Note: Authorization is enforced by RLS policies on gangs table
-
-    // Update gang positioning
-    const { error: updateError } = await supabase
-      .from('gangs')
-      .update({ positioning: params.positions })
-      .eq('id', params.gangId);
-    
-    if (updateError) {
-      console.error('Update positioning error:', updateError);
-      return {
-        success: false,
-        error: `Update failed: ${updateError.message}`
       };
     }
 
@@ -58,10 +48,11 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
 
     return { success: true };
   } catch (error) {
+    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
     console.error('Error in updateGangPositioning server action:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+      error: 'Failed to update fighter positions'
     };
   }
 }

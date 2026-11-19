@@ -6,6 +6,8 @@ import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 import { DISCORD_CHANNEL_TYPES, postDiscordEmbeds } from "@/utils/discord";
 import { getLogTypeLabel } from "@/utils/log-types";
+import { withUserWrite } from "@/utils/db/client";
+import { gangLogs } from "@/utils/db/schema";
 
 export interface CreateGangLogParams {
   gang_id: string;
@@ -27,32 +29,27 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
   try {
     const supabase = await createClient();
 
-    // Claims are verified locally; getUser() would be a network round trip per log write
-    const userId = params.user_id || await getUserIdFromClaims(supabase);
+    // Claims are verified locally; getUser() would be a network round trip per log write.
+    // The insert runs as the caller even when the log names another user.
+    const callerId = await getUserIdFromClaims(supabase);
 
-    if (!userId) {
+    if (!callerId) {
       throw new Error('User not authenticated');
     }
 
-    // No .select(): RETURNING would also apply the SELECT policy, which campaign
-    // members fail for an opponent's gang even though the INSERT policy lets
-    // them log there (battle results, territory claims), rolling the insert back.
-    const { error } = await supabase
-      .from('gang_logs')
-      .insert({
+    // No RETURNING: it would also apply the SELECT policy, which campaign members
+    // fail for an opponent's gang even though the INSERT policy lets them log
+    // there (battle results, territory claims), rolling the insert back.
+    await withUserWrite(callerId, (tx) =>
+      tx.insert(gangLogs).values({
         gang_id: params.gang_id,
-        user_id: userId,
+        user_id: params.user_id || callerId,
         action_type: params.action_type,
         description: params.description,
         fighter_id: params.fighter_id || null,
         vehicle_id: params.vehicle_id || null,
-        created_at: new Date().toISOString()
-      });
-
-    if (error) {
-      console.error('Error creating gang log:', error);
-      throw new Error(error.message || 'Failed to create gang log');
-    }
+      })
+    );
 
     if (params.dice_roll ?? params.action_type.endsWith('_roll')) {
       after(() => postDiceRollToDiscord(supabase, params));
@@ -60,10 +57,11 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
 
     return { success: true };
   } catch (error) {
+    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
     console.error('Error in createGangLog server action:', error);
     return { 
       success: false, 
-      error: error instanceof Error ? error.message : 'Failed to create gang log'
+      error: 'Failed to create gang log'
     };
   }
 }

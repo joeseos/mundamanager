@@ -1,26 +1,25 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import { eq } from 'drizzle-orm';
+import { getUserIdFromClaims } from './auth';
 import { invalidateGangFinancials } from './cache-tags';
+import { withUserClaims, withUserWrite } from './db/client';
+import { gangs } from './db/schema';
 
-/** How many times to re-read and retry when a concurrent write beats us to the row. */
-const MAX_FINANCIAL_ATTEMPTS = 3;
-
-/** Every gangs column this helper reads, writes and pins in the compare-and-swap. */
-const GANG_FINANCIAL_COLUMNS = 'credits, rating, wealth, trade_points, reputation';
-
-/**
- * Pin one column to the value we read. Nullable columns need .is() — .eq(col, null)
- * does not match NULL in PostgREST, which would make the compare-and-swap never succeed.
- */
-function matchCurrentValue(query: any, column: string, value: number | null) {
-  return value === null ? query.is(column, null) : query.eq(column, value);
-}
+/** Every gangs column this helper reads and writes. */
+const financialColumns = {
+  credits: gangs.credits,
+  rating: gangs.rating,
+  wealth: gangs.wealth,
+  trade_points: gangs.trade_points,
+  reputation: gangs.reputation,
+};
 
 export interface GangFinancialUpdateOptions {
   gangId: string;
   ratingDelta?: number;         // Change to rating
   creditsDelta?: number;        // Credits gained (positive) or spent (negative)
   tradePointsDelta?: number;    // N26 Trade Points gained (positive) or spent (negative)
-  clearTradePoints?: boolean;   // Set Trade Points to 0, from the balance read in the compare-and-swap
+  clearTradePoints?: boolean;   // Set Trade Points to 0, from the balance read under the row lock
   reputationDelta?: number;     // Reputation gained (positive) or spent (negative)
   stashValueDelta?: number;     // Stash value change (affects wealth only)
   applyToRating?: boolean;      // false = skip rating update (inactive fighter)
@@ -41,6 +40,16 @@ export interface GangFinancialUpdateResult {
   newValues?: GangFinancialValues;
 }
 
+function toFinancialValues(row: { [K in keyof GangFinancialValues]: number | null }): GangFinancialValues {
+  return {
+    credits: row.credits ?? 0,
+    rating: row.rating ?? 0,
+    wealth: row.wealth ?? 0,
+    trade_points: row.trade_points ?? 0,
+    reputation: row.reputation ?? 0
+  };
+}
+
 /**
  * Updates every gang value that lives on the gangs row — credits, rating, wealth, Trade
  * Points and reputation — in a single operation.
@@ -53,7 +62,10 @@ export interface GangFinancialUpdateResult {
  * Where effectiveRatingDelta = ratingDelta if applyToRating is true (default), else 0.
  * Trade Points and reputation are separate currencies and deliberately do not feed wealth.
  *
- * @param supabase - Supabase client instance
+ * Runs over the direct database connection as the signed-in user, so it adds no API
+ * gateway log entries and the gangs RLS policies apply as before.
+ *
+ * @param supabase - The request's Supabase client, used to identify the signed-in user
  * @param options - Update options
  * @returns Success status, optional error message, and old/new values for logging
  */
@@ -80,20 +92,15 @@ export async function updateGangFinancials(
       reputationDelta === 0 && stashValueDelta === 0) {
     // Still fetch current values for logging
     try {
-      const { data: gangRow } = await supabase
-        .from('gangs')
-        .select(GANG_FINANCIAL_COLUMNS)
-        .eq('id', gangId)
-        .single();
+      const userId = await getUserIdFromClaims(supabase);
+      const [gangRow] = userId
+        ? await withUserClaims(userId, (tx) =>
+            tx.select(financialColumns).from(gangs).where(eq(gangs.id, gangId))
+          )
+        : [];
 
       if (gangRow) {
-        const unchanged = {
-          credits: (gangRow.credits ?? 0) as number,
-          rating: (gangRow.rating ?? 0) as number,
-          wealth: (gangRow.wealth ?? 0) as number,
-          trade_points: (gangRow.trade_points ?? 0) as number,
-          reputation: (gangRow.reputation ?? 0) as number
-        };
+        const unchanged = toFinancialValues(gangRow);
         return { success: true, oldValues: unchanged, newValues: unchanged };
       }
     } catch (e) {
@@ -103,39 +110,25 @@ export async function updateGangFinancials(
   }
 
   try {
-    // The new values are computed in JS from the current ones, so the write has to be
-    // conditional on the row still holding what we read — otherwise two concurrent
-    // purchases both read the same balance and the second silently clobbers the first's
-    // deduction. Matching every column we write turns this into a compare-and-swap: a
-    // conflicting write makes the UPDATE match 0 rows, and we re-read and try again.
-    for (let attempt = 1; attempt <= MAX_FINANCIAL_ATTEMPTS; attempt++) {
-      const { data: gangRow, error: selectError } = await supabase
-        .from('gangs')
-        .select(GANG_FINANCIAL_COLUMNS)
-        .eq('id', gangId)
-        .single();
+    const userId = await getUserIdFromClaims(supabase);
+    if (!userId) {
+      return { success: false, error: 'User not authenticated' };
+    }
 
-      if (selectError || !gangRow) {
-        return { success: false, error: selectError?.message || 'Gang not found' };
+    const result = await withUserWrite(userId, async (tx): Promise<GangFinancialUpdateResult> => {
+      // The new values are computed from the current ones, so the row is locked when read:
+      // a concurrent purchase waits here until this one commits, then reads its result.
+      const [gangRow] = await tx
+        .select(financialColumns)
+        .from(gangs)
+        .where(eq(gangs.id, gangId))
+        .for('update');
+
+      if (!gangRow) {
+        return { success: false, error: 'Gang not found' };
       }
 
-      // Keep the raw values too: every column except trade_points is nullable, and a NULL
-      // has to be matched with .is() rather than .eq() for the compare-and-swap to hold.
-      const raw = {
-        credits: (gangRow.credits ?? null) as number | null,
-        rating: (gangRow.rating ?? null) as number | null,
-        wealth: (gangRow.wealth ?? null) as number | null,
-        trade_points: (gangRow.trade_points ?? null) as number | null,
-        reputation: (gangRow.reputation ?? null) as number | null
-      };
-
-      const oldValues: GangFinancialValues = {
-        credits: raw.credits ?? 0,
-        rating: raw.rating ?? 0,
-        wealth: raw.wealth ?? 0,
-        trade_points: raw.trade_points ?? 0,
-        reputation: raw.reputation ?? 0
-      };
+      const oldValues = toFinancialValues(gangRow);
 
       if (oldValues.credits + creditsDelta < 0) {
         return { success: false, error: 'Insufficient credits' };
@@ -153,67 +146,29 @@ export async function updateGangFinancials(
       // Wealth = rating change + credits change + stash value change. Trade Points and
       // reputation are separate currencies and do not feed it.
       const wealthDelta = effectiveRatingDelta + creditsDelta + stashValueDelta;
-      const expectedValues: GangFinancialValues = {
-        credits: Math.max(0, oldValues.credits + creditsDelta),
-        rating: Math.max(0, oldValues.rating + effectiveRatingDelta),
-        wealth: Math.max(0, oldValues.wealth + wealthDelta),
-        trade_points: Math.max(0, oldValues.trade_points + tradePointsChange),
-        reputation: Math.max(0, oldValues.reputation + reputationDelta)
-      };
+      const [updatedRow] = await tx
+        .update(gangs)
+        .set({
+          credits: Math.max(0, oldValues.credits + creditsDelta),
+          rating: Math.max(0, oldValues.rating + effectiveRatingDelta),
+          wealth: Math.max(0, oldValues.wealth + wealthDelta),
+          trade_points: Math.max(0, oldValues.trade_points + tradePointsChange),
+          reputation: Math.max(0, oldValues.reputation + reputationDelta)
+        })
+        .where(eq(gangs.id, gangId))
+        .returning(financialColumns);
 
-      // Returning the row from the UPDATE also saves a follow-up SELECT.
-      let query = supabase
-        .from('gangs')
-        .update(expectedValues)
-        .eq('id', gangId);
-      for (const [column, value] of Object.entries(raw)) {
-        query = matchCurrentValue(query, column, value);
-      }
+      return { success: true, oldValues, newValues: toFinancialValues(updatedRow) };
+    });
 
-      const { data: updatedRows, error: updateError } = await query
-        .select(GANG_FINANCIAL_COLUMNS);
-
-      if (updateError) {
-        return { success: false, error: updateError.message };
-      }
-
-      const updatedGangRow = updatedRows?.[0];
-      if (updatedGangRow) {
-        invalidateGangFinancials(gangId);
-        return {
-          success: true,
-          oldValues,
-          newValues: {
-            credits: (updatedGangRow.credits ?? 0) as number,
-            rating: (updatedGangRow.rating ?? 0) as number,
-            wealth: (updatedGangRow.wealth ?? 0) as number,
-            trade_points: (updatedGangRow.trade_points ?? 0) as number,
-            reputation: (updatedGangRow.reputation ?? 0) as number
-          }
-        };
-      }
-      // 0 rows matched: another write landed between our read and write. It has already
-      // committed — Postgres holds a row lock for the duration of an UPDATE, so an
-      // in-flight conflict would block us rather than match nothing — so re-read and
-      // recompute straight away against the settled value.
+    if (result.success) {
+      invalidateGangFinancials(gangId);
     }
-
-    // Not every caller inspects the result — some fire-and-forget rating or wealth
-    // adjustments — so log here rather than relying on them to surface it.
-    console.error(
-      `Gang financials update for ${gangId} gave up after ${MAX_FINANCIAL_ATTEMPTS} attempts ` +
-      `(concurrent modification); deltas:`,
-      { creditsDelta, tradePointsDelta, clearTradePoints, reputationDelta, ratingDelta: effectiveRatingDelta, stashValueDelta }
-    );
-
-    return {
-      success: false,
-      error: 'Gang financials were modified concurrently; please retry'
-    };
+    return result;
   } catch (e) {
-    const errorMessage = e instanceof Error ? e.message : 'Unknown error';
+    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
     console.error('Failed to update gang rating and wealth:', e);
-    return { success: false, error: errorMessage };
+    return { success: false, error: 'Failed to update gang credits and rating' };
   }
 }
 

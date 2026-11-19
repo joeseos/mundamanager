@@ -14,7 +14,8 @@ import { SUPABASE_ROOT_CA } from './supabase-ca';
  * as the read-only app_server role: RLS applies as for `authenticated`, but
  * with no user. Policies that check auth.uid() return no rows, and nothing
  * here checks who is asking, so authenticate the request before reading.
- * Tables whose policies check auth.uid() are read through withUserClaims.
+ * Tables whose policies check auth.uid() are read through withUserClaims, and
+ * written through withUserWrite.
  */
 
 export type AppDb = PostgresJsDatabase<typeof schema>;
@@ -67,9 +68,26 @@ export function getAppDb(): AppDb {
  * `userId` must be the authenticated caller's own id.
  */
 export function withUserClaims<T>(userId: string, read: (tx: AppTx) => Promise<T>): Promise<T> {
+  return runAsUser(userId, read);
+}
+
+/**
+ * withUserClaims for writes: the one transaction is opened read-write over
+ * app_server's read-only default, and the user's RLS policies decide what it
+ * may change, as for a supabase-js write with the user's session.
+ */
+export function withUserWrite<T>(userId: string, write: (tx: AppTx) => Promise<T>): Promise<T> {
+  return runAsUser(userId, write, { accessMode: 'read write' });
+}
+
+function runAsUser<T>(
+  userId: string,
+  run: (tx: AppTx) => Promise<T>,
+  config?: { accessMode: 'read write' }
+): Promise<T> {
   return getAppDb().transaction(async (tx) => {
     const claims = JSON.stringify({ sub: userId, role: 'authenticated' });
     await tx.execute(sql`select set_config('request.jwt.claims', ${claims}, true)`);
-    return read(tx);
-  });
+    return run(tx);
+  }, config);
 }
