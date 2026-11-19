@@ -743,10 +743,10 @@ export default function CampaignTerritoryList({
                   <td className="px-2 py-2 text-right">
                     {item.territory.credits ?? ''}
                   </td>
-                  <td className="pl-10 pr-2 py-2 align-top">
+                  <td className="pl-10 pr-2 py-2">
                     {item.territory.description?.trim() && (
                       <span
-                        className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+                        className="flex w-fit text-muted-foreground hover:text-foreground cursor-help"
                         data-tooltip-id="territory-description-tooltip"
                         data-tooltip-title={item.territory.territory_name}
                         data-tooltip-description={item.territory.description}
