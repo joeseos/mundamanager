@@ -4,7 +4,7 @@ export const EQUIPMENT_LOCKED_IN_TRADE = 'This item is listed in a pending campa
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
-async function anyEquipmentIdsLockedInTrade(
+export async function equipmentLockedInTrade(
   supabase: SupabaseClient,
   fighterEquipmentIds: string[]
 ): Promise<boolean> {
@@ -38,18 +38,4 @@ async function anyEquipmentIdsLockedInTrade(
     .maybeSingle();
   if (lockError) throw lockError;
   return !!locked;
-}
-
-export async function equipmentLockedInTrade(
-  supabase: SupabaseClient,
-  fighterEquipmentId: string
-): Promise<boolean> {
-  return anyEquipmentIdsLockedInTrade(supabase, [fighterEquipmentId]);
-}
-
-export async function anyEquipmentLockedInTrade(
-  supabase: SupabaseClient,
-  fighterEquipmentIds: string[]
-): Promise<boolean> {
-  return anyEquipmentIdsLockedInTrade(supabase, fighterEquipmentIds);
 }

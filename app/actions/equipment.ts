@@ -1279,7 +1279,7 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
-    if (await equipmentLockedInTrade(supabase, row.id)) {
+    if (await equipmentLockedInTrade(supabase, [row.id])) {
       return { success: false, error: EQUIPMENT_LOCKED_IN_TRADE };
     }
 

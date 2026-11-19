@@ -1,13 +1,9 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
-import { getUserIdFromClaims } from '@/utils/auth';
-import { getGangCore } from '@/app/lib/shared/gang-data';
-import { canViewHiddenGang } from '@/utils/user-permissions';
 
 /**
  * GET /api/gangs/[id]/captives
- * Returns fighters held captive by this gang. Any viewer who can see the gang
- * (including Campaign tab visitors) can read the list.
+ * Returns fighters held captive by this gang.
  */
 export async function GET(
   request: Request,
@@ -25,19 +21,6 @@ export async function GET(
   }
 
   try {
-    const userId = await getUserIdFromClaims(supabase);
-    if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const gang = await getGangCore(gangId);
-    if (!gang) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    }
-    if (!(await canViewHiddenGang(userId, gangId, gang.user_id, gang.hidden))) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const { data: fighters, error: fightersError } = await supabase
       .from('fighters')
       .select('id, fighter_name, fighter_type, gang_id, captured_by_gang_id')
@@ -52,26 +35,20 @@ export async function GET(
       return NextResponse.json({ captives: [] });
     }
 
-    const originalGangIds = Array.from(new Set(fighters.map((f) => f.gang_id).filter(Boolean)));
-    const { data: gangs } = originalGangIds.length > 0
-      ? await supabase
-          .from('gangs')
-          .select('id, name')
-          .in('id', originalGangIds)
-      : { data: [] as { id: string; name: string }[] };
+    const originalGangIds = Array.from(new Set(fighters.map((f) => f.gang_id)));
+    const { data: gangs } = await supabase
+      .from('gangs')
+      .select('id, name')
+      .in('id', originalGangIds);
 
-    const gangById = new Map((gangs ?? []).map((g) => [g.id, g]));
+    const gangNameMap = new Map((gangs ?? []).map((g) => [g.id, g.name]));
 
-    const captives = fighters.map((f) => {
-      const originalGang = f.gang_id ? gangById.get(f.gang_id) : undefined;
-      return {
-        fighterId: f.id,
-        fighterName: f.fighter_name,
-        fighterType: f.fighter_type ?? undefined,
-        originalGangId: f.gang_id ?? null,
-        originalGangName: originalGang?.name ?? 'Unknown',
-      };
-    });
+    const captives = fighters.map((f) => ({
+      fighterId: f.id,
+      fighterName: f.fighter_name,
+      fighterType: f.fighter_type ?? undefined,
+      originalGangName: gangNameMap.get(f.gang_id) ?? 'Unknown'
+    }));
 
     return NextResponse.json({ captives });
   } catch (error) {

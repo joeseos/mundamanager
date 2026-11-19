@@ -45,7 +45,7 @@ interface RansomCaptive {
   fighterId: string
   fighterName: string
   fighterType?: string | null
-  originalGangId: string | null
+  originalGangId?: string | null
   originalGangName: string
 }
 

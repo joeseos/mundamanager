@@ -10,6 +10,7 @@ import {
   invalidateCampaignGang,
   invalidateCampaignResources,
   invalidateCampaignTrades,
+  invalidateFighter,
   invalidateGang,
   invalidateGangFinancials,
   invalidateGangStash,
@@ -804,6 +805,43 @@ async function unlockTradeItems(writer: WriterClient, tradeIds: string[]) {
   if (error) throw error;
 }
 
+type TradeCaptiveItem = {
+  fighter_id: string | null;
+  fighters: { gang_id: string | null } | { gang_id: string | null }[] | null;
+};
+
+function captiveHomeFromItems(
+  items: TradeCaptiveItem[] | null | undefined
+): { fighterId: string; homeGangId: string } | null {
+  for (const item of items ?? []) {
+    if (!item.fighter_id) continue;
+    const fighter = item.fighters;
+    const row = Array.isArray(fighter) ? fighter[0] : fighter;
+    if (row?.gang_id) return { fighterId: item.fighter_id, homeGangId: row.gang_id };
+  }
+  return null;
+}
+
+async function loadCaptiveHome(
+  supabase: UserClient,
+  trade: { parent_trade_id: string | null; campaign_trade_items?: TradeCaptiveItem[] | null }
+): Promise<{ fighterId: string; homeGangId: string } | null> {
+  const own = captiveHomeFromItems(trade.campaign_trade_items);
+  if (own) return own;
+  if (!trade.parent_trade_id) return null;
+
+  const { data, error } = await supabase
+    .from('campaign_trade_items')
+    .select('fighter_id, fighters ( gang_id )')
+    .eq('trade_id', trade.parent_trade_id)
+    .not('fighter_id', 'is', null);
+  if (error) {
+    console.error('Error loading captive home gang for campaign trade:', error);
+    return null;
+  }
+  return captiveHomeFromItems(data as TradeCaptiveItem[]);
+}
+
 export async function declineCampaignTrade(tradeId: string) {
   return resolveTrade(tradeId, 'decline');
 }
@@ -850,15 +888,6 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
       if (bidsError) throw bidsError;
       relatedIds.push(...(bids ?? []).map((bid) => bid.id));
       relatedGangIds.push(...uniqueGangIds((bids ?? []).map((bid) => bid.proposer_gang_id)));
-
-      if (relatedIds.length > 0) {
-        const { error: declineBidsError } = await writer
-          .from('campaign_trades')
-          .update({ status: 'declined', resolved_at: resolvedAt, updated_at: resolvedAt })
-          .in('id', relatedIds)
-          .eq('status', 'pending');
-        if (declineBidsError) throw declineBidsError;
-      }
     }
 
     const { data: updated, error: updateError } = await writer
@@ -869,11 +898,15 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
       .select('id')
       .maybeSingle();
     if (updateError) throw updateError;
-    if (!updated) {
-      if (relatedIds.length > 0) {
-        await unlockTradeItems(writer, relatedIds);
-      }
-      return fail('not_pending');
+    if (!updated) return fail('not_pending');
+
+    if (relatedIds.length > 0) {
+      const { error: declineBidsError } = await writer
+        .from('campaign_trades')
+        .update({ status: 'declined', resolved_at: resolvedAt, updated_at: resolvedAt })
+        .in('id', relatedIds)
+        .eq('status', 'pending');
+      if (declineBidsError) throw declineBidsError;
     }
 
     await unlockTradeItems(writer, [tradeId, ...relatedIds]);
@@ -916,7 +949,16 @@ export async function acceptCampaignTrade(tradeId: string) {
 
     const { data: trade, error: tradeError } = await supabase
       .from('campaign_trades')
-      .select('id, campaign_id, proposer_gang_id, counterparty_gang_id, parent_trade_id, title, status')
+      .select(`
+        id,
+        campaign_id,
+        proposer_gang_id,
+        counterparty_gang_id,
+        parent_trade_id,
+        title,
+        status,
+        campaign_trade_items ( fighter_id, fighters ( gang_id ) )
+      `)
       .eq('id', tradeId)
       .maybeSingle();
     if (tradeError) throw tradeError;
@@ -934,6 +976,8 @@ export async function acceptCampaignTrade(tradeId: string) {
       relatedGangIds = uniqueGangIds((siblings ?? []).map((row) => row.proposer_gang_id));
     }
 
+    const captive = await loadCaptiveHome(supabase, trade);
+
     const { data: outcome, error } = await supabase.rpc('accept_campaign_trade', {
       p_trade_id: tradeId,
     });
@@ -948,6 +992,9 @@ export async function acceptCampaignTrade(tradeId: string) {
       counterpartyGangId: trade.counterparty_gang_id,
       accepted: true,
     });
+    if (captive) {
+      invalidateFighter(captive.fighterId, captive.homeGangId);
+    }
     await followUpCampaignTrade({
       supabase,
       userId: user.id,
