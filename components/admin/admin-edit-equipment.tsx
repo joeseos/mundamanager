@@ -257,12 +257,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
 
       if (equipmentDetails.gang_adjusted_costs) setGangAdjustedCosts(equipmentDetails.gang_adjusted_costs);
       if (equipmentDetails.gang_origin_adjusted_costs) setGangOriginAdjustedCosts(equipmentDetails.gang_origin_adjusted_costs);
-      if (equipmentDetails.equipment_availabilities) {
-        setEquipmentAvailabilities(equipmentDetails.equipment_availabilities.map((a: EquipmentAvailability) => ({
-          ...a,
-          exclusive: a.exclusive ?? false
-        })));
-      }
+      if (equipmentDetails.equipment_availabilities) setEquipmentAvailabilities(equipmentDetails.equipment_availabilities);
       if (equipmentDetails.equipment_origin_availabilities) setEquipmentOriginAvailabilities(equipmentDetails.equipment_origin_availabilities);
       if (equipmentDetails.equipment_subtype_availabilities) setEquipmentSubtypeAvailabilities(equipmentDetails.equipment_subtype_availabilities);
       if (equipmentDetails.trading_post_associations) setSelectedTradingPosts(equipmentDetails.trading_post_associations);
@@ -502,12 +497,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     // Weapon Group parents are edition-scoped; drop a cross-edition pick
     if (newEditionId) {
       setWeaponProfiles(profiles => profiles.map(profile => {
-        if (!profile.weapon_group_id) return profile;
-        const parent = weapons.find(w => w.id === profile.weapon_group_id);
-        if (parent && parent.edition_id !== newEditionId) {
-          return { ...profile, weapon_group_id: null };
-        }
-        return profile;
+        return inNewEdition(weapons, profile.weapon_group_id) ? profile : { ...profile, weapon_group_id: null };
       }));
       // Grants options are edition-scoped; blank confirmed cross-edition picks
       setGrantsEquipment(current =>
@@ -666,7 +656,11 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     : filteredGangTypes.map((gang) => <option key={gang.id} value={gang.id}>{gang.gang_type}</option>);
   const originSelectOptions = <GangOriginOptions origins={filteredGangOrigins} />;
 
-  // The per-gang cost and availability sections, in display order. onAdd returns false to keep the dialog open.
+  const draftAdjustedCost = parseInt(draftCost);
+  const draftAvailability = combineAvailability(draftAvailLetter, draftAvailNumber);
+
+  // The per-gang cost and availability sections, in display order. onAdd runs on Save
+  // and returns false to keep the dialog open; the Modal closes it otherwise.
   const scopeSections: Array<{
     dialog: ScopeDialog;
     kind: 'cost' | 'availability';
@@ -679,7 +673,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     loading?: boolean;
     chips: string[];
     onRemove: (index: number) => void;
-    onAdd: (adjustedCost: number, availability: string | null) => boolean | void;
+    onAdd: () => boolean | void;
   }> = [
     {
       dialog: 'gangCost',
@@ -692,9 +686,9 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       loading: isGangTypesLoading,
       chips: gangAdjustedCosts.map(c => `${c.gang_type} (${c.adjusted_cost} credits)`),
       onRemove: index => setGangAdjustedCosts(removeAt(index)),
-      onAdd: (adjusted_cost) => {
+      onAdd: () => {
         const gang = gangTypeOptions.find(g => g.id === draftScopeId);
-        if (gang) setGangAdjustedCosts(prev => [...prev, { gang_type: gang.gang_type, gang_type_id: gang.id, adjusted_cost }]);
+        if (gang) setGangAdjustedCosts(prev => [...prev, { gang_type: gang.gang_type, gang_type_id: gang.id, adjusted_cost: draftAdjustedCost }]);
       },
     },
     {
@@ -711,12 +705,12 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
         a.exclusive ? 'Exclusive' : null
       ].filter(Boolean).join(', ')})`),
       onRemove: index => setEquipmentAvailabilities(removeAt(index)),
-      onAdd: (_, availability) => {
+      onAdd: () => {
         const gang = gangTypeOptions.find(g => g.id === draftScopeId);
         if (gang) {
           setEquipmentAvailabilities(prev => [
             ...prev,
-            { gang_type: gang.gang_type, gang_type_id: gang.id, availability, exclusive: draftExclusive }
+            { gang_type: gang.gang_type, gang_type_id: gang.id, availability: draftAvailability, exclusive: draftExclusive }
           ]);
         }
       },
@@ -734,9 +728,9 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       scopeOptions: originSelectOptions,
       chips: gangOriginAdjustedCosts.map(c => `${c.origin_name} (${c.adjusted_cost} credits)`),
       onRemove: index => setGangOriginAdjustedCosts(removeAt(index)),
-      onAdd: (adjusted_cost) => {
+      onAdd: () => {
         const origin = gangOriginList.find(o => o.id === draftScopeId);
-        if (origin) setGangOriginAdjustedCosts(prev => [...prev, { origin_name: origin.origin_name, gang_origin_id: origin.id, adjusted_cost }]);
+        if (origin) setGangOriginAdjustedCosts(prev => [...prev, { origin_name: origin.origin_name, gang_origin_id: origin.id, adjusted_cost: draftAdjustedCost }]);
       },
     },
     {
@@ -749,9 +743,9 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       scopeOptions: originSelectOptions,
       chips: equipmentOriginAvailabilities.map(a => `${a.origin_name} (Availability: ${a.availability})`),
       onRemove: index => setEquipmentOriginAvailabilities(removeAt(index)),
-      onAdd: (_, availability) => {
+      onAdd: () => {
         const origin = gangOriginList.find(o => o.id === draftScopeId);
-        if (origin && availability) setEquipmentOriginAvailabilities(prev => [...prev, { origin_name: origin.origin_name, gang_origin_id: origin.id, availability }]);
+        if (origin && draftAvailability) setEquipmentOriginAvailabilities(prev => [...prev, { origin_name: origin.origin_name, gang_origin_id: origin.id, availability: draftAvailability }]);
       },
     },
     {
@@ -764,28 +758,23 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       scopeOptions: <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />,
       chips: equipmentSubtypeAvailabilities.map(a => `${a.subtype} (Availability: ${a.availability})`),
       onRemove: index => setEquipmentSubtypeAvailabilities(removeAt(index)),
-      onAdd: (_, availability) => {
+      onAdd: () => {
         if (equipmentSubtypeAvailabilities.some(a => a.gang_subtype_id === draftScopeId)) {
           toast.error('This subtype already has an availability set');
           return false;
         }
         const subtype = gangSubtypeList.find(v => v.id === draftScopeId);
-        if (subtype && availability) setEquipmentSubtypeAvailabilities(prev => [...prev, { subtype: subtype.subtype, gang_subtype_id: subtype.id, availability }]);
+        if (subtype && draftAvailability) setEquipmentSubtypeAvailabilities(prev => [...prev, { subtype: subtype.subtype, gang_subtype_id: subtype.id, availability: draftAvailability }]);
       },
     },
   ];
   // Availability is N23 only (N26 uses Trade Points)
   const visibleScopeSections = scopeSections.filter(section => showAvailability || section.kind === 'cost');
   const openScopeSection = scopeSections.find(section => section.dialog === scopeDialog);
-
-  // The Modal closes itself afterwards unless this returns false
-  const confirmScopeDialog = () => {
-    if (!openScopeSection || !draftScopeId) return;
-    const adjustedCost = parseInt(draftCost);
-    const availability = combineAvailability(draftAvailLetter, draftAvailNumber);
-    const valid = openScopeSection.kind === 'cost' ? adjustedCost >= 0 : Boolean(availability || draftExclusive);
-    if (valid) return openScopeSection.onAdd(adjustedCost, availability);
-  };
+  // Only gang availability rows can be exclusive without an availability
+  const draftValid = !!draftScopeId && !openScopeSection?.loading && (openScopeSection?.kind === 'cost'
+    ? draftAdjustedCost >= 0
+    : !!draftAvailability || draftExclusive);
 
   return (
     <div 
@@ -1159,15 +1148,9 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                       title={openScopeSection.title}
                       helper={openScopeSection.helper}
                       onClose={closeScopeDialog}
-                      onConfirm={confirmScopeDialog}
+                      onConfirm={openScopeSection.onAdd}
                       confirmText="Save"
-                      confirmDisabled={
-                        !draftScopeId
-                        || openScopeSection.loading
-                        || (openScopeSection.kind === 'cost'
-                          ? !draftCost || parseInt(draftCost) < 0
-                          : !draftAvailLetter && !draftExclusive)
-                      }
+                      confirmDisabled={!draftValid}
                       width="sm"
                     >
                       <div className="space-y-4">
@@ -1428,7 +1411,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
               <CountLimitsEditor
                 limits={countLimits}
                 onChange={setCountLimits}
-                disabled={!selectedEquipmentId}
+                disabled={false}
                 helper="How many of this item a gang may have. Leave the scope on Any for every gang; the most specific matching limit wins."
                 labelLists={{ gangTypes: gangTypeOptions, origins: gangOriginList, subtypes: gangSubtypeList }}
                 selectLists={{ gangTypes: filteredGangTypes, origins: filteredGangOrigins, subtypes: filteredGangSubtypes, editionSlug }}

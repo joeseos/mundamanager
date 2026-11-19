@@ -198,22 +198,23 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const openScopeSection = scopeSections.find(section => section.dialog === scopeDialog);
 
   // The Modal closes itself afterwards
+  const draftAdjustedCost = parseInt(draftCost);
+  const draftAvailability = combineAvailability(draftAvailLetter, draftAvailNumber);
+  const draftValid = !!draftGangType && (scopeDialog === 'gangCost'
+    ? draftAdjustedCost >= 0
+    : !!draftAvailability || draftExclusive);
+
+  // Runs on Save, which draftValid gates; the Modal closes the dialog afterwards
   const confirmScopeDialog = () => {
     const gang = gangTypeOptions.find(g => g.id === draftGangType);
     if (!gang) return;
     if (scopeDialog === 'gangCost') {
-      const adjusted_cost = parseInt(draftCost);
-      if (adjusted_cost >= 0) {
-        setGangAdjustedCosts(prev => [...prev, { gang_type: gang.gang_type, gang_type_id: gang.id, adjusted_cost }]);
-      }
+      setGangAdjustedCosts(prev => [...prev, { gang_type: gang.gang_type, gang_type_id: gang.id, adjusted_cost: draftAdjustedCost }]);
     } else {
-      const availability = combineAvailability(draftAvailLetter, draftAvailNumber);
-      if (availability || draftExclusive) {
-        setEquipmentAvailabilities(prev => [
-          ...prev,
-          { gang_type: gang.gang_type, gang_type_id: gang.id, availability, exclusive: draftExclusive }
-        ]);
-      }
+      setEquipmentAvailabilities(prev => [
+        ...prev,
+        { gang_type: gang.gang_type, gang_type_id: gang.id, availability: draftAvailability, exclusive: draftExclusive }
+      ]);
     }
   };
 
@@ -487,12 +488,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 onClose={closeScopeDialog}
                 onConfirm={confirmScopeDialog}
                 confirmText="Save"
-                confirmDisabled={
-                  !draftGangType
-                  || (scopeDialog === 'gangCost'
-                    ? !draftCost || parseInt(draftCost) < 0
-                    : !draftAvailLetter && !draftExclusive)
-                }
+                confirmDisabled={!draftValid}
                 width="sm"
               >
                 <div className="space-y-4">
