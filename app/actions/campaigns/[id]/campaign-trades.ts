@@ -21,7 +21,7 @@ import { createGangLog } from '@/app/actions/logs/gang-logs';
 const TRADE_OUTCOME_MESSAGES: Record<string, string> = {
   not_authorized: 'You cannot do that.',
   not_found: 'Trade not found.',
-  not_pending: 'This trade is no longer pending.',
+  not_open: 'This trade is no longer open.',
   trading_disabled: 'Campaign trading is not enabled.',
   captive_unavailable: 'That captive is not available to trade.',
   equipment_unavailable: 'That item is not available to trade.',
@@ -29,7 +29,7 @@ const TRADE_OUTCOME_MESSAGES: Record<string, string> = {
   insufficient_reputation: 'That gang does not have enough reputation.',
   insufficient_resources: 'That gang does not have enough of that campaign resource.',
   alignment_blocked: 'Law Abiding gangs cannot trade captives to Outlaw gangs.',
-  bid_exists: 'You already have a pending bid on this listing.',
+  bid_exists: 'You already have an open bid on this listing.',
   invalid: 'This trade could not be completed.',
 };
 
@@ -567,7 +567,7 @@ async function insertTradeWithItems(
 ): Promise<{ error: string } | { tradeId: string }> {
   const { data, error } = await writer
     .from('campaign_trades')
-    .insert({ ...trade, status: 'pending' })
+    .insert({ ...trade, status: 'open' })
     .select('id')
     .single();
   if (error) {
@@ -641,7 +641,7 @@ export async function createCampaignTrade(params: CreateCampaignTradeParams) {
       if (listingError) throw listingError;
       if (!listing) return fail('not_found');
       if (listing.campaign_id !== campaignId) return fail('invalid');
-      if (listing.status !== 'pending') return fail('not_pending');
+      if (listing.status !== 'open') return fail('not_open');
       if (listing.counterparty_gang_id || listing.parent_trade_id) return fail('invalid');
       if (listing.proposer_gang_id === proposerGangId) return fail('invalid');
 
@@ -865,7 +865,7 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
       .maybeSingle();
     if (error) throw error;
     if (!trade) return fail('not_found');
-    if (trade.status !== 'pending') return fail('not_pending');
+    if (trade.status !== 'open') return fail('not_open');
 
     const isListing = !trade.parent_trade_id && !trade.counterparty_gang_id;
     if (action === 'decline' && isListing) return fail('invalid');
@@ -884,7 +884,7 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
         .from('campaign_trades')
         .select('id, proposer_gang_id')
         .eq('parent_trade_id', tradeId)
-        .eq('status', 'pending');
+        .eq('status', 'open');
       if (bidsError) throw bidsError;
       relatedIds.push(...(bids ?? []).map((bid) => bid.id));
       relatedGangIds.push(...uniqueGangIds((bids ?? []).map((bid) => bid.proposer_gang_id)));
@@ -894,18 +894,18 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
       .from('campaign_trades')
       .update({ status: nextStatus, resolved_at: resolvedAt, updated_at: resolvedAt })
       .eq('id', tradeId)
-      .eq('status', 'pending')
+      .eq('status', 'open')
       .select('id')
       .maybeSingle();
     if (updateError) throw updateError;
-    if (!updated) return fail('not_pending');
+    if (!updated) return fail('not_open');
 
     if (relatedIds.length > 0) {
       const { error: declineBidsError } = await writer
         .from('campaign_trades')
         .update({ status: 'declined', resolved_at: resolvedAt, updated_at: resolvedAt })
         .in('id', relatedIds)
-        .eq('status', 'pending');
+        .eq('status', 'open');
       if (declineBidsError) throw declineBidsError;
     }
 
@@ -970,7 +970,7 @@ export async function acceptCampaignTrade(tradeId: string) {
         .from('campaign_trades')
         .select('proposer_gang_id')
         .eq('parent_trade_id', trade.parent_trade_id)
-        .eq('status', 'pending')
+        .eq('status', 'open')
         .neq('id', tradeId);
       if (siblingsError) throw siblingsError;
       relatedGangIds = uniqueGangIds((siblings ?? []).map((row) => row.proposer_gang_id));

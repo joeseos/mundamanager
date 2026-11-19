@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 
-export const EQUIPMENT_LOCKED_IN_TRADE = 'This item is listed in a pending campaign trade.';
+export const EQUIPMENT_LOCKED_IN_TRADE = 'This item is listed in an open campaign trade.';
 
 type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
 

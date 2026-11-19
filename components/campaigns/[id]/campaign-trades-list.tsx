@@ -27,7 +27,7 @@ import {
   type CampaignTradeStatus,
 } from '@/types/campaign-trade'
 
-const STATUS_OPTIONS: CampaignTradeStatus[] = ['pending', 'accepted', 'declined', 'cancelled']
+const STATUS_OPTIONS: CampaignTradeStatus[] = ['open', 'fulfilled', 'declined', 'cancelled']
 const SHAPE_OPTIONS: CampaignTradeShape[] = ['direct', 'listing', 'bid']
 const itemsPerPage = 10
 
@@ -255,10 +255,10 @@ export default function CampaignTradesList({
                 const parent = trade.parent_trade_id
                   ? trades.find((candidate) => candidate.id === trade.parent_trade_id)
                   : undefined
-                const showCancel = trade.status === 'pending' && canActFor(trade.proposer_gang_id)
-                const showCounterparty = trade.status === 'pending' && canActFor(trade.counterparty_gang_id)
+                const showCancel = trade.status === 'open' && canActFor(trade.proposer_gang_id)
+                const showCounterparty = trade.status === 'open' && canActFor(trade.counterparty_gang_id)
                 const showPlaceBid = allowTrading
-                  && trade.status === 'pending'
+                  && trade.status === 'open'
                   && shape === 'listing'
                   && actorGangIds.some((gangId) => gangId !== trade.proposer_gang_id)
                 return (

@@ -180,7 +180,7 @@ async function cancelPendingCampaignTradesForGang(campaignId: string, gangId: st
     .from('campaign_trades')
     .select('id, proposer_gang_id, counterparty_gang_id, parent_trade_id')
     .eq('campaign_id', campaignId)
-    .eq('status', 'pending')
+    .eq('status', 'open')
     .or(`proposer_gang_id.eq.${gangId},counterparty_gang_id.eq.${gangId}`);
   if (error) throw error;
   if (!pending?.length) return;
@@ -195,7 +195,7 @@ async function cancelPendingCampaignTradesForGang(campaignId: string, gangId: st
       .from('campaign_trades')
       .select('id')
       .in('parent_trade_id', listingIds)
-      .eq('status', 'pending');
+      .eq('status', 'open');
     if (bidsError) throw bidsError;
     childBids = bids ?? [];
   }
@@ -219,7 +219,7 @@ async function cancelPendingCampaignTradesForGang(campaignId: string, gangId: st
       .from('campaign_trades')
       .update({ status: 'cancelled', resolved_at: resolvedAt, updated_at: resolvedAt })
       .in('id', cancelIds)
-      .eq('status', 'pending');
+      .eq('status', 'open');
     if (cancelError) throw cancelError;
   }
   if (declineIds.length > 0) {
@@ -227,7 +227,7 @@ async function cancelPendingCampaignTradesForGang(campaignId: string, gangId: st
       .from('campaign_trades')
       .update({ status: 'declined', resolved_at: resolvedAt, updated_at: resolvedAt })
       .in('id', declineIds)
-      .eq('status', 'pending');
+      .eq('status', 'open');
     if (declineError) throw declineError;
   }
 
