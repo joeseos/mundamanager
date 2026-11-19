@@ -174,18 +174,18 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
   }
 }
 
-async function cancelPendingCampaignTradesForGang(campaignId: string, gangId: string): Promise<void> {
+async function cancelOpenCampaignTradesForGang(campaignId: string, gangId: string): Promise<void> {
   const writer = createServiceRoleClient();
-  const { data: pending, error } = await writer
+  const { data: open, error } = await writer
     .from('campaign_trades')
     .select('id, proposer_gang_id, counterparty_gang_id, parent_trade_id')
     .eq('campaign_id', campaignId)
     .eq('status', 'open')
     .or(`proposer_gang_id.eq.${gangId},counterparty_gang_id.eq.${gangId}`);
   if (error) throw error;
-  if (!pending?.length) return;
+  if (!open?.length) return;
 
-  const listingIds = pending
+  const listingIds = open
     .filter((trade) => !trade.parent_trade_id && !trade.counterparty_gang_id)
     .map((trade) => trade.id);
 
@@ -200,13 +200,13 @@ async function cancelPendingCampaignTradesForGang(campaignId: string, gangId: st
     childBids = bids ?? [];
   }
 
-  const knownIds = new Set(pending.map((trade) => trade.id));
+  const knownIds = new Set(open.map((trade) => trade.id));
   const extraBids = childBids.filter((bid) => !knownIds.has(bid.id));
-  const cancelIds = pending
+  const cancelIds = open
     .filter((trade) => trade.proposer_gang_id === gangId)
     .map((trade) => trade.id);
   const declineIds = [
-    ...pending
+    ...open
       .filter((trade) => trade.proposer_gang_id !== gangId)
       .map((trade) => trade.id),
     ...extraBids.map((bid) => bid.id),
@@ -290,7 +290,7 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
       const gangIds = memberGangs.map(g => g.gang_id);
 
       for (const gangId of gangIds) {
-        await cancelPendingCampaignTradesForGang(campaignId, gangId);
+        await cancelOpenCampaignTradesForGang(campaignId, gangId);
       }
 
       // Run territory update and gang deletion in parallel for better performance
@@ -395,7 +395,7 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
       await logGangLeftCampaign({ gang_id: gangId, campaign_id: campaignId, actor_id: user.id });
     }
 
-    await cancelPendingCampaignTradesForGang(campaignId, gangId);
+    await cancelOpenCampaignTradesForGang(campaignId, gangId);
 
     // Remove the gang from the campaign
     let removedGangs: { id: string }[] | null = null;
