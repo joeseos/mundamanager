@@ -14,6 +14,7 @@ import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { WeaponProfileFields } from '@/components/ui/weapon-profile-fields';
 import { HiX } from "react-icons/hi";
 import { LuTrash2 } from 'react-icons/lu'
+import Modal from "@/components/ui/modal";
 
 interface EquipmentCategory {
   id: string;
@@ -29,6 +30,8 @@ interface AdminCreateEquipmentModalProps {
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
+type ScopeDialog = 'gangCost' | 'gangAvailability';
+
 export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEquipmentModalProps) {
   const queryClient = useQueryClient();
   const [equipmentName, setEquipmentName] = useState('');
@@ -36,26 +39,21 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   const [availNumber, setAvailNumber] = useState(6);
   const [cost, setCost] = useState('');
   const [tradePoints, setTradePoints] = useState('0');
-  const [variants] = useState('');
   const [equipmentCategory, setEquipmentCategory] = useState('');
   const [equipmentType, setEquipmentType] = useState<EquipmentType | ''>('');
   const [editionId, setEditionId] = useState('');
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile()]);
-  const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [selectedGangType, setSelectedGangType] = useState("");
-  const [adjustedCostValue, setAdjustedCostValue] = useState("");
   const [gangAdjustedCosts, setGangAdjustedCosts] = useState<GangAdjustedCost[]>([]);
-
-  const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
-  const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
-  const [availValueLetter, setAvailValueLetter] = useState('');
-  const [availValueNumber, setAvailValueNumber] = useState(6);
-  const [availExclusive, setAvailExclusive] = useState(false);
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
-  
-  
+  // One per-gang dialog is open at a time, so they share one draft
+  const [scopeDialog, setScopeDialog] = useState<ScopeDialog | null>(null);
+  const [draftGangType, setDraftGangType] = useState('');
+  const [draftCost, setDraftCost] = useState('');
+  const [draftAvailLetter, setDraftAvailLetter] = useState('');
+  const [draftAvailNumber, setDraftAvailNumber] = useState(6);
+  const [draftExclusive, setDraftExclusive] = useState(false);
 
   const { data: categories = [] } = useQuery<EquipmentCategory[]>({
     queryKey: ['admin-equipment-categories'],
@@ -101,6 +99,15 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     [weapons, editionId]
   );
 
+  const closeScopeDialog = () => {
+    setScopeDialog(null);
+    setDraftGangType('');
+    setDraftCost('');
+    setDraftAvailLetter('');
+    setDraftAvailNumber(6);
+    setDraftExclusive(false);
+  };
+
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
     if (equipmentCategory) {
@@ -109,9 +116,9 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         setEquipmentCategory('');
       }
     }
-    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
+    // Gang types are edition-scoped; clear any in-progress pick
     // and drop rows already added against another edition's gang types
-    setSelectedGangType('');
+    closeScopeDialog();
     if (newEditionId) {
       setGangAdjustedCosts(prev =>
         prev.filter(cost => {
@@ -122,11 +129,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
     }
     // N26 uses Trade Points instead of Availability; drop stale N23 rows
     if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
-      setShowAvailabilityDialog(false);
-      setSelectedAvailabilityGangType('');
-      setAvailValueLetter('');
-      setAvailValueNumber(6);
-      setAvailExclusive(false);
       setEquipmentAvailabilities([]);
     }
     // Stats the new edition does not use are no longer rendered, but anything
@@ -155,7 +157,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
       if (!response.ok) throw new Error('Failed to fetch gang types');
       return response.json();
     },
-    enabled: showAdjustedCostDialog || showAvailabilityDialog,
+    enabled: scopeDialog !== null,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -165,23 +167,56 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
   );
 
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
-    const newProfiles = [...weaponProfiles];
-    newProfiles[index] = {
-      ...newProfiles[index],
-      [field]: value
-    };
-    setWeaponProfiles(newProfiles);
+    setWeaponProfiles(profiles => profiles.map((profile, i) => i === index ? { ...profile, [field]: value } : profile));
   };
 
-  const addProfile = () => {
-    setWeaponProfiles([...weaponProfiles, emptyWeaponProfile(weaponProfiles.length + 1)]);
+  const scopeSections: Array<{
+    dialog: ScopeDialog;
+    title: string;
+    helper: string;
+    chips: string[];
+    onRemove: (index: number) => void;
+  }> = [
+    {
+      dialog: 'gangCost',
+      title: 'Cost per Gang',
+      helper: 'Select a gang and enter the adjusted cost',
+      chips: gangAdjustedCosts.map(c => `${c.gang_type} (${c.adjusted_cost} credits)`),
+      onRemove: index => setGangAdjustedCosts(prev => prev.filter((_, i) => i !== index)),
+    },
+    {
+      dialog: 'gangAvailability',
+      title: 'Availability per Gang',
+      helper: 'Select a gang and enter an availability value',
+      chips: equipmentAvailabilities.map(a => `${a.gang_type} (${[
+        a.availability ? `Availability: ${a.availability}` : null,
+        a.exclusive ? 'Exclusive' : null
+      ].filter(Boolean).join(', ')})`),
+      onRemove: index => setEquipmentAvailabilities(prev => prev.filter((_, i) => i !== index)),
+    },
+  ];
+  const openScopeSection = scopeSections.find(section => section.dialog === scopeDialog);
+
+  // The Modal closes itself afterwards
+  const draftAdjustedCost = parseInt(draftCost);
+  const draftAvailability = combineAvailability(draftAvailLetter, draftAvailNumber);
+  const draftValid = !!draftGangType && (scopeDialog === 'gangCost'
+    ? draftAdjustedCost >= 0
+    : !!draftAvailability || draftExclusive);
+
+  // Runs on Save, which draftValid gates; the Modal closes the dialog afterwards
+  const confirmScopeDialog = () => {
+    const gang = gangTypeOptions.find(g => g.id === draftGangType);
+    if (!gang) return;
+    if (scopeDialog === 'gangCost') {
+      setGangAdjustedCosts(prev => [...prev, { gang_type: gang.gang_type, gang_type_id: gang.id, adjusted_cost: draftAdjustedCost }]);
+    } else {
+      setEquipmentAvailabilities(prev => [
+        ...prev,
+        { gang_type: gang.gang_type, gang_type_id: gang.id, availability: draftAvailability, exclusive: draftExclusive }
+      ]);
+    }
   };
-
-  const removeProfile = (index: number) => {
-    setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
-  };
-
-
 
   const handleSubmit = async () => {
     if (!equipmentName || !cost || !equipmentCategory || !equipmentType) {
@@ -211,8 +246,6 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         traits: profile.traits || null
       })) : undefined;
 
-
-
       const response = await fetch('/api/admin/equipment', {
         method: 'POST',
         headers: {
@@ -226,7 +259,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
             : 'C',
           cost: parseInt(cost),
           trade_points: showTradePoints ? tradePoints.trim().toUpperCase() : '0',
-          variants: variants || null,
+          variants: null,
           equipment_category_id: equipmentCategory,
           equipment_type: equipmentType,
           core_equipment: coreEquipment,
@@ -259,9 +292,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
         queryClient.invalidateQueries({ queryKey: ['admin-equipment-list'] }),
       ]);
 
-      if (onSubmit) {
-        onSubmit();
-      }
+      onSubmit?.();
       onClose();
     } catch (error) {
       console.error('Error creating equipment:', error);
@@ -413,284 +444,116 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
               <div className="col-span-1"></div>
             )}
 
-            {equipmentType && equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-1">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Cost per Gang
-                </label>
-                <Button
-                  onClick={() => setShowAdjustedCostDialog(true)}
-                  variant="outline"
-                  size="sm"
-                  className="mb-2"
-                >
-                  Add Gang
-                </Button>
-
-                {gangAdjustedCosts.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {gangAdjustedCosts.map((adjusted_cost, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                      >
-                        <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
-                        <button
-                          onClick={() => setGangAdjustedCosts(prev =>
-                            prev.filter((_, i) => i !== index)
-                          )}
-                          className="hover:text-red-500 focus:outline-hidden"
-                        >
-                          <HiX className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {showAdjustedCostDialog && (
-                  <div
-                    className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex items-center justify-center z-50"
-                    onClick={(e) => {
-                      // Only close if clicking the backdrop (not the dialog itself)
-                      if (e.target === e.currentTarget) {
-                        setShowAdjustedCostDialog(false);
-                        setSelectedGangType("");
-                        setAdjustedCostValue("");
-                      }
-                    }}
+            {equipmentType && equipmentType !== 'vehicle_upgrade' && scopeSections
+              .filter(section => showAvailability || section.dialog === 'gangCost')
+              .map((section) => (
+                <div key={section.dialog} className="col-span-1">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    {section.title}
+                  </label>
+                  <Button
+                    onClick={() => setScopeDialog(section.dialog)}
+                    variant="outline"
+                    size="sm"
+                    className="mb-2"
                   >
-                    <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Cost per Gang</h3>
-                      <p className="text-sm text-muted-foreground mb-4">Select a gang and enter the adjusted cost</p>
+                    Add Gang
+                  </Button>
 
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Gang Type</label>
-                          <select
-                            value={selectedGangType}
-                            onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.id === e.target.value);
-                              if (selected) {
-                                setSelectedGangType(e.target.value);
-                              }
-                            }}
-                            className="w-full p-2 border rounded-md"
+                  {section.chips.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {section.chips.map((chip, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
+                        >
+                          <span>{chip}</span>
+                          <button
+                            onClick={() => section.onRemove(index)}
+                            className="hover:text-red-500 focus:outline-hidden"
                           >
-                            <option key="default" value="">Select a Gang Type</option>
-                            {filteredGangTypes.map((gang) => (
-                              <option key={gang.id} value={gang.id}>
-                                {gang.gang_type}
-                              </option>
-                            ))}
-                          </select>
+                            <HiX className="h-4 w-4" />
+                          </button>
                         </div>
-
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
-                          <Input
-                            type="number"
-                            value={adjustedCostValue}
-                            onChange={(e) => setAdjustedCostValue(e.target.value)}
-                            placeholder="E.g. 120"
-                            min="0"
-                            onKeyDown={(e) => {
-                              if (e.key === '-') {
-                                e.preventDefault();
-                              }
-                            }}
-                          />
-                        </div>
-
-                        <div className="flex gap-2 justify-end mt-6">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowAdjustedCostDialog(false);
-                              setSelectedGangType("");
-                              setAdjustedCostValue("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (selectedGangType && adjustedCostValue) {
-                                const adjusted_cost = parseInt(adjustedCostValue);
-                                if (adjusted_cost >= 0) {
-                                  const selectedGang = gangTypeOptions.find(g => g.id === selectedGangType);
-                                  if (selectedGang) {
-                                    setGangAdjustedCosts(prev => [
-                                      ...prev,
-                                      {
-                                        gang_type: selectedGang.gang_type,
-                                        gang_type_id: selectedGang.id,
-                                        adjusted_cost
-                                      }
-                                    ]);
-                                    setShowAdjustedCostDialog(false);
-                                    setSelectedGangType("");
-                                    setAdjustedCostValue("");
-                                  }
-                                }
-                              }
-                            }}
-                            disabled={!selectedGangType || !adjustedCostValue || parseInt(adjustedCostValue) < 0}
-                          >
-                            Save Adjusted Cost
-                          </Button>
-                        </div>
-                      </div>
+                      ))}
                     </div>
+                  )}
+                </div>
+              ))}
+
+            {openScopeSection && (
+              <Modal
+                title={openScopeSection.title}
+                helper={openScopeSection.helper}
+                onClose={closeScopeDialog}
+                onConfirm={confirmScopeDialog}
+                confirmText="Save"
+                confirmDisabled={!draftValid}
+                width="sm"
+              >
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Gang Type</label>
+                    <select
+                      value={draftGangType}
+                      onChange={(e) => {
+                        if (e.target.value) setDraftGangType(e.target.value);
+                      }}
+                      className="w-full p-2 border rounded-md"
+                    >
+                      <option key="default" value="">Select a Gang Type</option>
+                      {filteredGangTypes.map((gang) => (
+                        <option key={gang.id} value={gang.id}>
+                          {gang.gang_type}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                )}
-              </div>
-            )}
 
-            {showAvailability && equipmentType && equipmentType !== 'vehicle_upgrade' && (
-              <div className="col-span-1">
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Availability per Gang
-                </label>
-                <Button
-                  onClick={() => setShowAvailabilityDialog(true)}
-                  variant="outline"
-                  size="sm"
-                  className="mb-2"
-                >
-                  Add Gang
-                </Button>
+                  {scopeDialog === 'gangCost' ? (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
+                      <Input
+                        type="number"
+                        value={draftCost}
+                        onChange={(e) => setDraftCost(e.target.value)}
+                        placeholder="E.g. 120"
+                        min="0"
+                        onKeyDown={(e) => {
+                          if (e.key === '-') {
+                            e.preventDefault();
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <AvailabilityPicker
+                        label="Availability"
+                        letter={draftAvailLetter}
+                        number={draftAvailNumber}
+                        onLetterChange={setDraftAvailLetter}
+                        onNumberChange={setDraftAvailNumber}
+                        allowEmpty
+                      />
 
-                {equipmentAvailabilities.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {equipmentAvailabilities.map((avail, index) => (
-                      <div 
-                        key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                      >
-                        <span>{avail.gang_type} ({[avail.availability ? `Availability: ${avail.availability}` : null, avail.exclusive ? 'Exclusive' : null].filter(Boolean).join(', ')})</span>
-                        <button
-                          onClick={() => setEquipmentAvailabilities(prev => 
-                            prev.filter((_, i) => i !== index)
-                          )}
-                          className="hover:text-red-500 focus:outline-hidden"
-                        >
-                          <HiX className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {showAvailabilityDialog && (
-                  <div 
-                    className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex items-center justify-center z-50"
-                    onClick={(e) => {
-                      // Only close if clicking the backdrop (not the dialog itself)
-                      if (e.target === e.currentTarget) {
-                        setShowAvailabilityDialog(false);
-                        setSelectedAvailabilityGangType("");
-                        setAvailValueLetter('');
-                        setAvailValueNumber(6);
-                        setAvailExclusive(false);
-                      }
-                    }}
-                  >
-                    <div className="bg-card p-6 rounded-lg shadow-lg w-[400px]">
-                      <h3 className="text-xl font-bold mb-4">Availability per Gang</h3>
-                      <p className="text-sm text-muted-foreground mb-4">Select a gang and enter an availability value</p>
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Gang Type</label>
-                          <select
-                            value={selectedAvailabilityGangType}
-                            onChange={(e) => {
-                              const selected = gangTypeOptions.find(g => g.id === e.target.value);
-                              if (selected) {
-                                setSelectedAvailabilityGangType(e.target.value);
-                              }
-                            }}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option key="default" value="">Select a Gang Type</option>
-                            {filteredGangTypes.map((gang) => (
-                              <option key={gang.id} value={gang.id}>
-                                {gang.gang_type}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <AvailabilityPicker
-                          label="Availability"
-                          letter={availValueLetter}
-                          number={availValueNumber}
-                          onLetterChange={setAvailValueLetter}
-                          onNumberChange={setAvailValueNumber}
-                          allowEmpty
+                      <label className="flex items-start space-x-2">
+                        <Checkbox
+                          checked={draftExclusive}
+                          onCheckedChange={(checked) => setDraftExclusive(checked === true)}
+                          className="mt-1"
                         />
-
-                        <label className="flex items-start space-x-2">
-                          <Checkbox
-                            checked={availExclusive}
-                            onCheckedChange={(checked) => setAvailExclusive(checked === true)}
-                            className="mt-1"
-                          />
-                          <div>
-                            <span className="text-sm font-medium text-muted-foreground">Available only to this gang</span>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Limits this item&apos;s Trading Post visibility to only the gangs flagged here. Flag several gangs to make it available to each of them.
-                            </p>
-                          </div>
-                        </label>
-
-                        <div className="flex gap-2 justify-end mt-6">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setShowAvailabilityDialog(false);
-                              setSelectedAvailabilityGangType("");
-                              setAvailValueLetter('');
-                              setAvailValueNumber(6);
-                              setAvailExclusive(false);
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              const combined = combineAvailability(availValueLetter, availValueNumber);
-                              if (selectedAvailabilityGangType && (combined || availExclusive)) {
-                                const selectedGang = gangTypeOptions.find(g => g.id === selectedAvailabilityGangType);
-                                if (selectedGang) {
-                                  setEquipmentAvailabilities(prev => [
-                                    ...prev,
-                                    {
-                                      gang_type: selectedGang.gang_type,
-                                      gang_type_id: selectedGang.id,
-                                      availability: combined,
-                                      exclusive: availExclusive
-                                    }
-                                  ]);
-                                  setShowAvailabilityDialog(false);
-                                  setSelectedAvailabilityGangType("");
-                                  setAvailValueLetter('');
-                                  setAvailValueNumber(6);
-                                  setAvailExclusive(false);
-                                }
-                              }
-                            }}
-                            disabled={!selectedAvailabilityGangType || (!availValueLetter && !availExclusive)}
-                          >
-                            Save Availability
-                          </Button>
+                        <div>
+                          <span className="text-sm font-medium text-muted-foreground">Available only to this gang</span>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Limits this item&apos;s Trading Post visibility to only the gangs flagged here. Flag several gangs to make it available to each of them.
+                          </p>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+                      </label>
+                    </>
+                  )}
+                </div>
+              </Modal>
             )}
 
             {/* Weapon Profiles Section */}
@@ -699,7 +562,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                 <div className="flex justify-between items-center">
                   <h4 className="text-lg font-semibold">Weapon Profiles</h4>
                   <Button
-                    onClick={addProfile}
+                    onClick={() => setWeaponProfiles(profiles => [...profiles, emptyWeaponProfile(profiles.length + 1)])}
                     variant="outline"
                     size="sm"
                   >
@@ -716,7 +579,7 @@ export function AdminCreateEquipmentModal({ onClose, onSubmit }: AdminCreateEqui
                           <Button
                             variant="destructive"
                             className="h-8 w-8 p-0"
-                            onClick={() => removeProfile(index)}
+                            onClick={() => setWeaponProfiles(profiles => profiles.filter((_, i) => i !== index))}
                           >
                             <LuTrash2 className="h-4 w-4" />
                           </Button>
