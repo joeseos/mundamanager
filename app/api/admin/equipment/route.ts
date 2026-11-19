@@ -17,12 +17,12 @@ interface FighterTypeEquipment {
 }
 
 /**
- * The rows this screen owns: grants and denies scoped at most by gang origin, gang subtype and
- * fighter subtype. Vehicle and gang-type rows belong to other screens; the save deletes
- * everything it reads, so read and delete share this scope.
+ * The rows this screen owns: every grant and deny except vehicle and custom fighter type rows,
+ * which belong to other screens. The save deletes everything it reads, so read and delete
+ * share this scope.
  */
 function scopeToFighterTypeGrants<T>(query: T): T {
-  return ['vehicle_type_id', 'custom_fighter_type_id', 'gang_type_id']
+  return ['vehicle_type_id', 'custom_fighter_type_id']
     .reduce((q, column) => q.is(column, null), query as any) as T;
 }
 
@@ -373,7 +373,7 @@ export async function GET(request: Request) {
             scopeToFighterTypeGrants(
               supabase
                 .from('fighter_type_equipment')
-                .select('fighter_type_id, gang_origin_id, gang_subtype_id, fighter_subtype, excluded')
+                .select('fighter_type_id, gang_type_id, gang_origin_id, gang_subtype_id, fighter_subtype, fighter_specialisation_id, excluded')
                 .eq('equipment_id', id)
             )
               .order('fighter_type_id')
@@ -741,14 +741,19 @@ export async function PATCH(request: Request) {
           .map(grant => ({
             fighter_type_id: grant.fighter_type_id ?? null,
             equipment_id: id,
+            gang_type_id: grant.gang_type_id ?? null,
             gang_origin_id: grant.gang_origin_id ?? null,
             gang_subtype_id: grant.gang_subtype_id ?? null,
             fighter_subtype: grant.fighter_subtype ?? null,
+            fighter_specialisation_id: grant.fighter_specialisation_id ?? null,
             excluded: grant.excluded ?? false,
             updated_at: new Date().toISOString()
           }))
           .filter(record => {
-            const key = `${record.fighter_type_id ?? ''}|${record.gang_origin_id ?? ''}|${record.gang_subtype_id ?? ''}|${record.fighter_subtype ?? ''}`;
+            const key = [
+              record.fighter_type_id, record.gang_type_id, record.gang_origin_id,
+              record.gang_subtype_id, record.fighter_subtype, record.fighter_specialisation_id
+            ].map(part => part ?? '').join('|');
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
