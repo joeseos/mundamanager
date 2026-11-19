@@ -1366,41 +1366,46 @@ async function withSessionRecord(
   updateFn: (record: SessionRecord, editionSlug: string | null) => SessionRecord | { error: string },
   { needsEditionSlug = false }: { needsEditionSlug?: boolean } = {}
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-  const user = await getAuthenticatedUser(supabase);
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
 
-  const { data: fighter, error: fetchError } = await supabase
-    .from('battle_session_fighters')
-    .select('session_record, battle_session_id, participant_id')
-    .eq('id', sessionFighterId)
-    .single();
-
-  if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
-
-  const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id, fighter.participant_id);
-  if (!auth.authorized) return { success: false, error: auth.error };
-
-  let editionSlug: string | null = null;
-  if (needsEditionSlug) {
-    const { data: session } = await supabase
-      .from('battle_sessions')
-      .select('editions:edition_id ( slug )')
-      .eq('id', fighter.battle_session_id)
+    const { data: fighter, error: fetchError } = await supabase
+      .from('battle_session_fighters')
+      .select('session_record, battle_session_id, participant_id')
+      .eq('id', sessionFighterId)
       .single();
-    editionSlug = editionSlugFromJoin(session?.editions);
+
+    if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
+
+    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id, fighter.participant_id);
+    if (!auth.authorized) return { success: false, error: auth.error };
+
+    let editionSlug: string | null = null;
+    if (needsEditionSlug) {
+      const { data: session } = await supabase
+        .from('battle_sessions')
+        .select('editions:edition_id ( slug )')
+        .eq('id', fighter.battle_session_id)
+        .single();
+      editionSlug = editionSlugFromJoin(session?.editions);
+    }
+    const result = updateFn(normalizeSessionRecord(fighter.session_record), editionSlug);
+    if ('error' in result) return { success: false, error: result.error };
+
+    const { error } = await supabase
+      .from('battle_session_fighters')
+      .update({ session_record: result })
+      .eq('id', sessionFighterId);
+
+    if (error) return { success: false, error: error.message };
+
+    invalidateBattleSession(fighter.battle_session_id);
+    return { success: true };
+  } catch (err) {
+    console.error('Error updating session record:', err);
+    return { success: false, error: 'Failed to update fighter' };
   }
-  const result = updateFn(normalizeSessionRecord(fighter.session_record), editionSlug);
-  if ('error' in result) return { success: false, error: result.error };
-
-  const { error } = await supabase
-    .from('battle_session_fighters')
-    .update({ session_record: result })
-    .eq('id', sessionFighterId);
-
-  if (error) return { success: false, error: error.message };
-
-  invalidateBattleSession(fighter.battle_session_id);
-  return { success: true };
 }
 
 export async function updateSessionXp(params: {
