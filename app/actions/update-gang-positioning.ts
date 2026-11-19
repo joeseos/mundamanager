@@ -1,10 +1,10 @@
 'use server'
 
-import { DrizzleQueryError, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { invalidateGangPositioning } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { getAuthenticatedUser } from "@/utils/auth";
-import { withUserWrite } from '@/utils/db/client';
+import { clientErrorMessage, withUserWrite } from '@/utils/db/client';
 import { gangs } from '@/utils/db/schema';
 
 interface UpdateGangPositioningParams {
@@ -49,10 +49,9 @@ export async function updateGangPositioning(params: UpdateGangPositioningParams)
     return { success: true };
   } catch (error) {
     console.error('Error in updateGangPositioning server action:', error);
-    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
     return {
       success: false,
-      error: error instanceof Error && !(error instanceof DrizzleQueryError) ? error.message : 'Failed to update fighter positions'
+      error: clientErrorMessage(error, 'Failed to update fighter positions')
     };
   }
 }

@@ -1,7 +1,7 @@
 import 'server-only';
 
 import postgres from 'postgres';
-import { sql } from 'drizzle-orm';
+import { DrizzleQueryError, sql } from 'drizzle-orm';
 import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 import { SUPABASE_ROOT_CA } from './supabase-ca';
@@ -90,4 +90,13 @@ function runAsUser<T>(
     await tx.execute(sql`select set_config('request.jwt.claims', ${claims}, true)`);
     return run(tx);
   }, config);
+}
+
+/**
+ * The message to return to the client for a caught error. A failed Drizzle
+ * query's message holds its SQL and parameters, so it is replaced by
+ * `fallback` and stays in the server log only.
+ */
+export function clientErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && !(error instanceof DrizzleQueryError) ? error.message : fallback;
 }

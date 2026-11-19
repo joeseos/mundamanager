@@ -1,8 +1,8 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { DrizzleQueryError, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getUserIdFromClaims } from './auth';
 import { invalidateGangFinancials } from './cache-tags';
-import { getAppDb, withUserWrite } from './db/client';
+import { clientErrorMessage, getAppDb, withUserWrite } from './db/client';
 import { gangs } from './db/schema';
 
 /** Every gangs column this helper reads and writes. */
@@ -87,6 +87,11 @@ export async function updateGangFinancials(
   // Calculate effective rating delta based on whether we should apply to rating
   const effectiveRatingDelta = applyToRating ? ratingDelta : 0;
 
+  const userId = await getUserIdFromClaims(supabase);
+  if (!userId) {
+    return { success: false, error: 'User not authenticated' };
+  }
+
   // Skip if nothing to update
   if (effectiveRatingDelta === 0 && creditsDelta === 0 && tradePointsDelta === 0 && !clearTradePoints &&
       reputationDelta === 0 && stashValueDelta === 0) {
@@ -108,11 +113,6 @@ export async function updateGangFinancials(
   }
 
   try {
-    const userId = await getUserIdFromClaims(supabase);
-    if (!userId) {
-      return { success: false, error: 'User not authenticated' };
-    }
-
     const result = await withUserWrite(userId, async (tx): Promise<GangFinancialUpdateResult> => {
       // The new values are computed from the current ones, so the row is locked when read:
       // a concurrent purchase waits here until this one commits, then reads its result.
@@ -165,11 +165,7 @@ export async function updateGangFinancials(
     return result;
   } catch (e) {
     console.error('Failed to update gang rating and wealth:', e);
-    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
-    return {
-      success: false,
-      error: e instanceof Error && !(e instanceof DrizzleQueryError) ? e.message : 'Failed to update gang credits and rating'
-    };
+    return { success: false, error: clientErrorMessage(e, 'Failed to update gang credits and rating') };
   }
 }
 

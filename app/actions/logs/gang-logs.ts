@@ -1,13 +1,12 @@
 'use server'
 
 import { after } from "next/server";
-import { DrizzleQueryError } from "drizzle-orm";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/utils/supabase/server";
 import { getUserIdFromClaims } from "@/utils/auth";
 import { DISCORD_CHANNEL_TYPES, postDiscordEmbeds } from "@/utils/discord";
 import { getLogTypeLabel } from "@/utils/log-types";
-import { withUserWrite } from "@/utils/db/client";
+import { clientErrorMessage, withUserWrite } from "@/utils/db/client";
 import { gangLogs } from "@/utils/db/schema";
 
 export interface CreateGangLogParams {
@@ -59,10 +58,9 @@ export async function createGangLog(params: CreateGangLogParams): Promise<GangLo
     return { success: true };
   } catch (error) {
     console.error('Error in createGangLog server action:', error);
-    // A failed Drizzle query's message holds its SQL and parameters, so it stays in the server log.
     return { 
       success: false, 
-      error: error instanceof Error && !(error instanceof DrizzleQueryError) ? error.message : 'Failed to create gang log'
+      error: clientErrorMessage(error, 'Failed to create gang log')
     };
   }
 }
