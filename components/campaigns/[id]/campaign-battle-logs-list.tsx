@@ -741,123 +741,31 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return (
       <div className="space-y-1">
         {gangs.map((p) => (
-          <div key={p.gang_id}>{renderGangWithRole(p.gang_id, p.role, getGangName(p.gang_id), gangRatings.get(p.gang_id))}</div>
+          <div key={p.gang_id}>{renderGangWithRole(p.gang_id, p.role, battleGangName(battle, p.gang_id), gangRatings.get(p.gang_id))}</div>
         ))}
       </div>
     );
   };
 
-  // Get all gangs with their roles for a battle
+  // A gang's name in a battle, preferring the name the battle was loaded with
+  const battleGangName = (battle: Battle, gangId: string) => getGangName(
+    gangId,
+    [battle.attacker, battle.defender].find((gang) => gang?.id === gangId)?.name
+  );
+
+  // Every gang in a battle: attackers, then defenders, then the rest, each by name
   const getGangsWithRoles = (battle: Battle): React.ReactNode => {
-    // Parse participants if it's a string
-    let participants = battle.participants;
-    if (participants && typeof participants === 'string') {
-      try {
-        participants = JSON.parse(participants);
-      } catch (e) {
-        console.error('Error parsing participants:', e);
-        participants = [];
-      }
-    }
-
-    // If using the new data structure with participants
-    if (participants && Array.isArray(participants) && participants.length > 0) {
-      // If no gangs with roles, return None
-      if (participants.every(p => !p.gang_id)) {
-        return <span className="text-muted-foreground">None</span>;
-      }
-
-      // Create a map of gang IDs to gang names from battle data
-      const battleGangNames = new Map<string, string>();
-      if (battle.attacker?.id && battle.attacker?.name) {
-        battleGangNames.set(battle.attacker.id, battle.attacker.name);
-      }
-      if (battle.defender?.id && battle.defender?.name) {
-        battleGangNames.set(battle.defender.id, battle.defender.name);
-      }
-
-      participants = [...participants].sort((a, b) => {
-        const roleOrder: Record<'attacker' | 'defender' | 'none', number> = { attacker: 0, defender: 1, none: 99 };
-        const roleA = roleOrder[a.role] ?? 99;
-        const roleB = roleOrder[b.role] ?? 99;
-
-        if (roleA !== roleB) return roleA - roleB;
-
-        const nameA = getGangName(a.gang_id, battleGangNames.get(a.gang_id)).toLowerCase();
-        const nameB = getGangName(b.gang_id, battleGangNames.get(b.gang_id)).toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
-
-      return (
-        <div className="space-y-1">
-          {participants.map((participant, index) => {
-            if (!participant.gang_id) return null;
-            
-            const gangName = getGangName(participant.gang_id, battleGangNames.get(participant.gang_id));
-            return <div key={index}>{renderGangWithRole(participant.gang_id, participant.role, gangName)}</div>;
-          })}
-        </div>
-      );
-    }
-    
-    // Fallback to enriched attacker/defender objects
-    const gangs = [];
-
-    if (battle.attacker?.id) {
-      gangs.push({
-        id: battle.attacker.id,
-        name: battle.attacker.name || getGangName(battle.attacker.id),
-        role: 'attacker'
-      });
-    }
-
-    if (battle.defender?.id) {
-      gangs.push({
-        id: battle.defender.id,
-        name: battle.defender.name || getGangName(battle.defender.id),
-        role: 'defender'
-      });
-    }
-    
-    if (gangs.length === 0) {
-      return <span className="text-muted-foreground">None</span>;
-    }
-
-    gangs.sort((a, b) => {
-      const roleOrder = { attacker: 0, defender: 1 };
-      const roleA = roleOrder[a.role as 'attacker' | 'defender'] ?? 99;
-      const roleB = roleOrder[b.role as 'attacker' | 'defender'] ?? 99;
-
-      if (roleA !== roleB) return roleA - roleB;
-
-      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-    });
-    
+    const roleOrder: Record<BattleParticipant['role'], number> = { attacker: 0, defender: 1, none: 2 };
+    const gangs = parseParticipants(battle.participants)
+      .filter((p) => p.gang_id)
+      .sort((a, b) => (roleOrder[a.role] ?? 2) - (roleOrder[b.role] ?? 2)
+        || battleGangName(battle, a.gang_id).toLowerCase().localeCompare(battleGangName(battle, b.gang_id).toLowerCase()));
+    if (gangs.length === 0) return <span className="text-muted-foreground">None</span>;
     return (
       <div className="space-y-1">
-        {gangs.map((gang, index) => {
-          const roleColor = gang.role === 'attacker' ? 'bg-red-500' : 'bg-blue-500';
-          const roleLetter = gang.role === 'attacker' ? 'A' : 'D';
-          
-          return (
-            <div key={index}>
-              <div className="flex items-center space-x-1">
-                <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
-                  {roleLetter}
-                </span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
-                  <a
-                    href={`/gang/${gang.id}`}
-                    className="hover:text-muted-foreground transition-colors"
-                    onClick={(e) => handleGangClick(e, gang.id)}
-                  >
-                    {gang.name}
-                  </a>
-                </span>
-              </div>
-            </div>
-          );
-        })}
+        {gangs.map((p, index) => (
+          <div key={index}>{renderGangWithRole(p.gang_id, p.role, battleGangName(battle, p.gang_id))}</div>
+        ))}
       </div>
     );
   };
