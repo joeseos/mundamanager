@@ -10,6 +10,7 @@ import { HiX } from "react-icons/hi";
 import Modal from '@/components/ui/modal';
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { Edition } from '@/types/edition';
 
 type LineageType = 'legacy' | 'affiliation';
 
@@ -49,6 +50,28 @@ interface GangType {
 
 interface AdminGangLineageModalProps {
   onClose: () => void;
+}
+
+function getFighterTypeDisplayName(
+  fighterType: FighterType,
+  editions: Edition[],
+  editionId: string,
+) {
+  let displayName = fighterType.fighter_type;
+
+  const subtypeDisplay = formatFighterSubtypeDisplay(
+    fighterType.fighter_subtypes,
+    editionSlugOf(editions, fighterType.edition_id ?? editionId),
+  );
+  if (subtypeDisplay) {
+    displayName += ` (${subtypeDisplay})`;
+  }
+
+  for (const name of [fighterType.fighter_variant, fighterType.fighter_specialisation]) {
+    if (name) displayName += ` - ${name}`;
+  }
+
+  return displayName;
 }
 
 export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
@@ -390,27 +413,6 @@ export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
     setFighterTypeAccess(fighterTypeAccess.filter(id => id !== fighterTypeId));
   };
 
-  // Helper function to format fighter type display name
-  const getFighterTypeDisplayName = (fighterType: FighterType) => {
-    let displayName = fighterType.fighter_type;
-    
-    // Add fighter subtype in parentheses
-    const subtypeDisplay = formatFighterSubtypeDisplay(
-      fighterType.fighter_subtypes,
-      editionSlugOf(editions, fighterType.edition_id ?? editionId),
-    );
-    if (subtypeDisplay) {
-      displayName += ` (${subtypeDisplay})`;
-    }
-    
-    // Add variant and specialisation with a dash if they exist
-    for (const name of [fighterType.fighter_variant, fighterType.fighter_specialisation]) {
-      if (name) displayName += ` - ${name}`;
-    }
-    
-    return displayName;
-  };
-
   // Derived: fighter types selectable as access rules, scoped to edition and gang type
   const accessFighterTypeOptions = useMemo(
     () => accessRuleGangTypeId
@@ -418,9 +420,12 @@ export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
           .filter(ft => ft.gang_type_id === accessRuleGangTypeId
             && (!editionId || ft.edition_id === editionId)
             && !fighterTypeAccess.includes(ft.id))
-          .sort((a, b) => getFighterTypeDisplayName(a).localeCompare(getFighterTypeDisplayName(b)))
+          .sort((a, b) =>
+            getFighterTypeDisplayName(a, editions, editionId).localeCompare(
+              getFighterTypeDisplayName(b, editions, editionId),
+            ))
       : [],
-    [accessRuleGangTypeId, fighterTypes, editionId, fighterTypeAccess]
+    [accessRuleGangTypeId, fighterTypes, editionId, fighterTypeAccess, editions]
   );
 
   // Create modal content
@@ -489,7 +494,7 @@ export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
           </option>
           {filteredFighterTypes.map((fighterType) => (
             <option key={fighterType.id} value={fighterType.id}>
-              {getFighterTypeDisplayName(fighterType)}
+              {getFighterTypeDisplayName(fighterType, editions, editionId)}
             </option>
           ))}
         </select>
@@ -543,7 +548,7 @@ export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
                 </option>
                 {accessFighterTypeOptions.map((fighterType) => (
                   <option key={fighterType.id} value={fighterType.id}>
-                    {getFighterTypeDisplayName(fighterType)}
+                    {getFighterTypeDisplayName(fighterType, editions, editionId)}
                   </option>
                 ))}
               </select>
@@ -729,7 +734,7 @@ export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
                       </option>
                       {filteredFighterTypes.map((fighterType) => (
                         <option key={fighterType.id} value={fighterType.id}>
-                          {getFighterTypeDisplayName(fighterType)}
+                          {getFighterTypeDisplayName(fighterType, editions, editionId)}
                         </option>
                       ))}
                     </select>
@@ -789,7 +794,7 @@ export function AdminGangLineageModal({ onClose }: AdminGangLineageModalProps) {
                           </option>
                           {accessFighterTypeOptions.map((fighterType) => (
                             <option key={fighterType.id} value={fighterType.id}>
-                              {getFighterTypeDisplayName(fighterType)}
+                              {getFighterTypeDisplayName(fighterType, editions, editionId)}
                             </option>
                           ))}
                         </select>
