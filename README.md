@@ -563,6 +563,11 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
   and collections in `app/lib/customise`
 - the account page's friends and friend requests (`getFriendsAndRequests` in
   `app/lib/friends.ts`)
+- equipment purchases (`buyEquipmentForFighter` in `app/actions/equipment.ts`,
+  the exotic beast check in `utils/exotic-beasts.ts` and the log text names in
+  `app/actions/logs/equipment-logs.ts`), and the purchase modal's effect types
+  (`app/lib/fighter-effect-types.ts`) and equipment list
+  (`app/lib/available-equipment.ts`)
 
 The files:
 
@@ -584,9 +589,9 @@ The connection signs in as `app_server` (migration
 user may read; policies that check `auth.uid()` return no rows. The exception is
 `withUserClaims` in `utils/db/client.ts`: it runs a read in a transaction with
 `auth.uid()` set to the given user, so those policies apply as over the Data API
-(the friends read uses it). `withUserWrite` does the same for writes, opening that
-one transaction as read-write (gang credits and rating, gang logs and fighter
-positions use it). Pass only the authenticated caller's own id. The
+(the friends read and the equipment modal's list use it). `withUserWrite` does the same for writes, opening that
+one transaction as read-write (gang credits and rating, gang logs, fighter
+positions and bought equipment use it). Pass only the authenticated caller's own id. The
 connection never checks who is asking, so authenticate the request before reading (the gang
 pages call `getAuthenticatedUser` first). Its password is set in the SQL editor,
 not in the migration. Don't use the Supabase integration's `POSTGRES_URL` in

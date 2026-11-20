@@ -369,6 +369,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
      */
     const fighterPetId = fighterRow ? fighterRow.fighter_pet_id ?? null : undefined;
 
+    // Both columns are nullable in the schema only: every row has a name and a cost
+    const equipmentName = equipmentDetails.equipment_name ?? 'Unknown';
     const baseCost = equipmentDetails.cost ?? 0;
     const weaponProfiles = equipmentDetails.equipment_type === 'weapon' ? equipmentDetails.weapon_profiles : [];
 
@@ -683,7 +685,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     try {
       await logEquipmentAction({
         ...logContext,
-        equipment_name: equipmentDetails.equipment_name ?? 'Unknown',
+        equipment_name: equipmentName,
         purchase_cost: finalPurchaseCost,
         action_type: 'purchased',
         ...(isResourcePurchase && params.resourceCost && {
@@ -778,7 +780,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
             gang_stash: true,
             is_master_crafted: masterCrafted,
             wargear_details: {
-              name: equipmentDetails.equipment_name,
+              name: equipmentName,
               cost: baseCost
             }
           }]
@@ -791,7 +793,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       const newEquipment: any = {
         ...equipmentRecord,
         wargear_details: {
-          name: equipmentDetails.equipment_name,
+          name: equipmentName,
           cost: baseCost
         }
       };
