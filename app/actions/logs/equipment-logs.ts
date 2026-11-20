@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { clientErrorMessage, getAppDb } from "@/utils/db/client";
+import { getUserIdFromClaims } from "@/utils/auth";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatFinancialChanges } from "./log-helpers";
 
@@ -25,8 +26,13 @@ export interface EquipmentLogParams {
 
 export async function logEquipmentAction(params: EquipmentLogParams): Promise<GangLogActionResult> {
   try {
-    // Names for the log text. Every signed-in user may read fighters and vehicles, and
-    // createGangLog below checks who is asking before anything is written.
+    // The direct connection doesn't check who is asking, so sign-in is checked first.
+    // Every signed-in user may read fighters and vehicles.
+    if (!(await getUserIdFromClaims(await createClient()))) {
+      return { success: false, error: 'User not authenticated' };
+    }
+
+    // Names for the log text
     const db = getAppDb();
     const [fighter, vehicle] = await Promise.all([
       params.fighter_id
