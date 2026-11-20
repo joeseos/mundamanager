@@ -706,7 +706,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   }, [isAdmin, ownsGang]);
 
   // Get all gangs with their roles for a battle
-  const getGangsWithRoles = (battle: Battle): React.ReactNode => {
+  const getGangsWithRoles = (battle: Battle, showChallengerRating = false): React.ReactNode => {
     // Parse participants if it's a string
     let participants = battle.participants;
     if (participants && typeof participants === 'string') {
@@ -781,6 +781,9 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                       {gangName}
                     </a>
                   </span>
+                  {showChallengerRating && participant.gang_id === battle.challenger_gang_id && gangRatings.has(participant.gang_id) && (
+                    <span className="text-xs text-muted-foreground">{gangRatings.get(participant.gang_id)}</span>
+                  )}
                 </div>
               </div>
             );
@@ -995,7 +998,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                 </td>
 
                 <td className="p-1 md:p-2 align-top">
-                  {getGangsWithRoles(battle)}
+                  {getGangsWithRoles(battle, isChallengeTable)}
                 </td>
 
                 {isChallengeTable ? (
