@@ -21,7 +21,7 @@ import { useMutation } from '@tanstack/react-query';
 import { formatLocalDate } from '@/utils/local-date';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioLabel as scenarioLabelOf, battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
-import { getWinnerIds } from '@/utils/battle-winners';
+import { getWinnerIds, parseParticipants } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -705,8 +705,43 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return participants.some((p) => ownsGang(p.gang_id));
   }, [isAdmin, ownsGang]);
 
+  // A gang's pill with its scenario role (A, D or blank) beside it
+  const renderGangWithRole = (gangId: string, role: BattleParticipant['role'] | undefined, name: string, rating?: number) => {
+    const roleBadge = role === 'attacker' ? { color: 'bg-red-500', letter: 'A' }
+      : role === 'defender' ? { color: 'bg-blue-500', letter: 'D' }
+      : { color: '', letter: '' };
+    return (
+      <div className="flex items-center space-x-1">
+        <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleBadge.color} text-white text-[10px] font-bold`}>
+          {roleBadge.letter}
+        </span>
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
+          style={{ color: getGangColour(gangId) }}
+        >
+          <a
+            href={`/gang/${gangId}`}
+            className="hover:text-muted-foreground transition-colors"
+            onClick={(e) => handleGangClick(e, gangId)}
+          >
+            {name}
+          </a>
+          {rating !== undefined && (
+            <span className="ml-1 shrink-0 whitespace-nowrap font-normal text-muted-foreground">{`\u2022 ${rating}`}</span>
+          )}
+        </span>
+      </div>
+    );
+  };
+
+  // A challenge's challenger or challenged gang, with its role in the battle
+  const renderChallengeGang = (battle: Battle, gangId: string | null | undefined, showRating: boolean) => {
+    if (!gangId) return <span className="text-muted-foreground">-</span>;
+    const role = parseParticipants(battle.participants).find((p) => p.gang_id === gangId)?.role;
+    return renderGangWithRole(gangId, role, getGangName(gangId), showRating ? gangRatings.get(gangId) : undefined);
+  };
+
   // Get all gangs with their roles for a battle
-  const getGangsWithRoles = (battle: Battle, showChallengerRating = false): React.ReactNode => {
+  const getGangsWithRoles = (battle: Battle): React.ReactNode => {
     // Parse participants if it's a string
     let participants = battle.participants;
     if (participants && typeof participants === 'string') {
@@ -740,8 +775,6 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         const roleB = roleOrder[b.role] ?? 99;
 
         if (roleA !== roleB) return roleA - roleB;
-        if (showChallengerRating && a.gang_id === battle.challenger_gang_id) return -1;
-        if (showChallengerRating && b.gang_id === battle.challenger_gang_id) return 1;
 
         const nameA = getGangName(a.gang_id, battleGangNames.get(a.gang_id)).toLowerCase();
         const nameB = getGangName(b.gang_id, battleGangNames.get(b.gang_id)).toLowerCase();
@@ -753,42 +786,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           {participants.map((participant, index) => {
             if (!participant.gang_id) return null;
             
-            // Role indicator
-            let roleColor = "";
-            let roleLetter = "";
-            if (participant.role === 'attacker') {
-              roleColor = "bg-red-500";
-              roleLetter = "A";
-            } else if (participant.role === 'defender') {
-              roleColor = "bg-blue-500";
-              roleLetter = "D";
-            }
-            
             const gangName = getGangName(participant.gang_id, battleGangNames.get(participant.gang_id));
-            
-            return (
-              <div key={index}>
-                <div className="flex items-center space-x-1">
-                  <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
-                    {roleLetter}
-                  </span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                    style={{ color: getGangColour(participant.gang_id) }}
-                  >
-                    <a
-                      href={`/gang/${participant.gang_id}`}
-                      className="hover:text-muted-foreground transition-colors"
-                      onClick={(e) => handleGangClick(e, participant.gang_id)}
-                    >
-                      {gangName}
-                    </a>
-                    {showChallengerRating && participant.gang_id === battle.challenger_gang_id && gangRatings.has(participant.gang_id) && (
-                      <span className="ml-1 shrink-0 whitespace-nowrap font-normal text-muted-foreground">{`\u2022 ${gangRatings.get(participant.gang_id)}`}</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-            );
+            return <div key={index}>{renderGangWithRole(participant.gang_id, participant.role, gangName)}</div>;
           })}
         </div>
       );
@@ -965,7 +964,14 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                 )}
               </div>
             </th>
-            <th className="px-7 py-2 text-left font-medium">Gangs</th>
+            {isChallengeTable ? (
+              <>
+                <th className="px-7 py-2 text-left font-medium">Challenger</th>
+                <th className="px-7 py-2 text-left font-medium">Challenged</th>
+              </>
+            ) : (
+              <th className="px-7 py-2 text-left font-medium">Gangs</th>
+            )}
             {isChallengeTable
               ? <th className="p-1 md:p-2 text-left font-medium">Status</th>
               : <th className="px-2 py-2 text-left font-medium">Winner(s)</th>}
@@ -976,7 +982,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={(isAdmin || availableGangs.length > 0) ? 8 : 7} className="text-muted-foreground italic text-center">
+              <td colSpan={(isChallengeTable ? 9 : 8) - (isAdmin || availableGangs.length > 0 ? 0 : 1)} className="text-muted-foreground italic text-center">
                 {emptyText}
               </td>
             </tr>
@@ -999,9 +1005,20 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                   {battle.territory_name || '-'}
                 </td>
 
-                <td className="p-1 md:p-2 align-top">
-                  {getGangsWithRoles(battle, isChallengeTable)}
-                </td>
+                {isChallengeTable ? (
+                  <>
+                    <td className="p-1 md:p-2 align-top">
+                      {renderChallengeGang(battle, battle.challenger_gang_id, true)}
+                    </td>
+                    <td className="p-1 md:p-2 align-top">
+                      {renderChallengeGang(battle, battle.challenged_gang_id, false)}
+                    </td>
+                  </>
+                ) : (
+                  <td className="p-1 md:p-2 align-top">
+                    {getGangsWithRoles(battle)}
+                  </td>
+                )}
 
                 {isChallengeTable ? (
                   <td className="p-1 md:p-2 align-top">
