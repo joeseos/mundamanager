@@ -95,6 +95,8 @@ export interface GangStashItem {
   type: 'equipment';
   cost_resource?: { name: string; amount: number } | null;
   granted_by_equipment_id: string | null;
+  /** The item comes with a fighter card (a beast, or the Trazior Pattern Sentry Gun's) */
+  grants_fighter: boolean;
 }
 
 export interface GangCampaignResource {
@@ -302,6 +304,7 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
         with: {
           equipment: { columns: equipmentColumns },
           custom_equipment: { columns: equipmentColumns },
+          granted_fighters: { columns: { id: true } },
         },
       });
 
@@ -316,7 +319,8 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
         cost: item.purchase_cost ?? 0,
         type: 'equipment' as const,
         cost_resource: item.cost_resource ?? null,
-        granted_by_equipment_id: item.granted_by_equipment_id
+        granted_by_equipment_id: item.granted_by_equipment_id,
+        grants_fighter: item.granted_fighters.length > 0
       }));
     },
     [`gang-stash-v3-${gangId}`],
