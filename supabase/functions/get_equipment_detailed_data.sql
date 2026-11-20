@@ -81,6 +81,9 @@ BEGIN
             -- Empty for gang and vehicle calls, so a subtype rule matches nothing.
             -- A fighter with no subtypes of its own ('[]', never NULL) uses its type's.
             COALESCE(NULLIF(f.fighter_subtypes, '[]'::jsonb), ft_sub.fighter_subtypes, cft_sub.fighter_subtypes, '[]'::jsonb) AS fighter_subtypes,
+            -- The fighter's own, with no fallback to its type's: promotion and the
+            -- fighter page change it without changing the type.
+            f.fighter_specialisation_id,
             COALESCE(gt.edition_id, cgt.edition_id) AS edition_id
         FROM (SELECT 1) AS _dummy
         LEFT JOIN gangs g ON g.id = $8
@@ -282,16 +285,17 @@ BEGIN
         -- type, written as ANY so each branch can use its index.
         WHERE (fte.fighter_type_id = ANY (ARRAY[$3, CASE WHEN $4 THEN gd.legacy_ft_id END, gd.affiliation_ft_id])
                OR fte.vehicle_type_id = ANY (ARRAY[$3, CASE WHEN $4 THEN gd.legacy_ft_id END, gd.affiliation_ft_id])
-               -- A subtype rule spanning every gang names no fighter of its own.
-               -- fighter_subtype must be set, or an all-NULL row matches everything.
+               -- A subtype or specialisation rule names no fighter of its own. One of
+               -- them must be set, or an all-NULL row matches everything.
                OR (fte.fighter_type_id IS NULL
                    AND fte.vehicle_type_id IS NULL
                    AND fte.custom_fighter_type_id IS NULL
-                   AND fte.fighter_subtype IS NOT NULL))
+                   AND (fte.fighter_subtype IS NOT NULL OR fte.fighter_specialisation_id IS NOT NULL)))
           AND (fte.gang_origin_id IS NULL OR fte.gang_origin_id = gd.gang_origin_id)
           AND (fte.gang_subtype_id IS NULL OR gd.gang_subtypes ? fte.gang_subtype_id::text)
           AND (fte.gang_type_id IS NULL OR fte.gang_type_id = $1)
           AND (fte.fighter_subtype IS NULL OR gd.fighter_subtypes ? fte.fighter_subtype)
+          AND (fte.fighter_specialisation_id IS NULL OR fte.fighter_specialisation_id = gd.fighter_specialisation_id)
           -- Grants only: this join sets is_fighter_list, so a deny matching here would grant.
           AND NOT fte.excluded
     ),
@@ -559,6 +563,7 @@ BEGIN
               AND (d.gang_subtype_id IS NULL OR gd.gang_subtypes ? d.gang_subtype_id::text)
               AND (d.gang_type_id    IS NULL OR d.gang_type_id = $1)
               AND (d.fighter_subtype IS NULL OR gd.fighter_subtypes ? d.fighter_subtype)
+              AND (d.fighter_specialisation_id IS NULL OR d.fighter_specialisation_id = gd.fighter_specialisation_id)
         ) AS is_fighter_list
     ) ftl_flag ON true
 
@@ -606,10 +611,10 @@ BEGIN
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
-        -- Unrestricted: only equipment from the gang's edition
+        -- Only equipment from the gang's edition, like custom equipment below:
+        -- a type-less grant (e.g. Subtype: Leader) has no edition of its own
         AND (
-            NOT ($4 IS NULL AND $5 IS NULL)
-            OR gd.edition_id IS NULL
+            gd.edition_id IS NULL
             OR e.edition_id = gd.edition_id
         )
 

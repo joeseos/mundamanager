@@ -4,6 +4,7 @@ import { invalidateCampaignMap, invalidateCampaignTerritories } from '@/utils/ca
 import { createClient } from "@/utils/supabase/server";
 
 import { getAuthenticatedUser } from '@/utils/auth';
+import { removeStorageFolders } from '@/utils/storage-cleanup';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -452,27 +453,8 @@ export async function deleteCampaignMap(params: { campaignId: string }) {
       return { success: false, error: deleteError.message };
     }
 
-    // Clean up map images from storage. Best-effort: log errors but don't
-    // fail the request, since the DB row is already gone.
-    try {
-      const { data: mapFiles } = await supabase.storage
-        .from('users-images')
-        .list(`campaigns/${params.campaignId}/map/`);
-
-      if (mapFiles && mapFiles.length > 0) {
-        const filesToRemove = mapFiles
-          .filter(f => f.name)
-          .map(f => `campaigns/${params.campaignId}/map/${f.name}`);
-
-        if (filesToRemove.length > 0) {
-          await supabase.storage
-            .from('users-images')
-            .remove(filesToRemove);
-        }
-      }
-    } catch (storageError) {
-      console.error('Error cleaning up map images:', storageError);
-    }
+    // The user was checked as a campaign editor above.
+    await removeStorageFolders([`campaigns/${params.campaignId}/map/`]);
 
     invalidateMapCache(params.campaignId);
     // Deleting the map cascades to its objects, which SET NULL every territory's

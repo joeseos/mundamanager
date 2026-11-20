@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Input } from '../ui/input';
 import { Switch } from "@/components/ui/switch";
@@ -235,7 +235,7 @@ export default function GangEditModal({
   // Alliances, affiliations and origins load on first focus of their field, then
   // come from the query cache (same keys as FighterAddModal and the injury hatred picker)
   const [alliancesRequested, setAlliancesRequested] = useState(false);
-  const { data: editionAllianceList = [], isSuccess: allianceListLoaded, error: alliancesError } = useQuery<Alliance[]>({
+  const { data: editionAllianceList = [], isSuccess: allianceListLoaded } = useQuery<Alliance[]>({
     queryKey: ['alliances', editionSlug],
     queryFn: async () => {
       const response = await fetch('/api/alliances');
@@ -244,14 +244,11 @@ export default function GangEditModal({
       return data.filter((alliance) => sameEditionForDisplay(alliance.edition_slug, editionSlug));
     },
     enabled: alliancesRequested,
+    meta: { errorMessage: 'Failed to load alliances' },
   });
 
-  useEffect(() => {
-    if (alliancesError) toast.error('Failed to load alliances');
-  }, [alliancesError]);
-
   const [gangTypesRequested, setGangTypesRequested] = useState(false);
-  const { data: gangTypes, isSuccess: gangTypesLoaded, error: gangTypesError } = useQuery<Array<{
+  const { data: gangTypes, isSuccess: gangTypesLoaded } = useQuery<Array<{
     edition_slug?: string | null;
     available_affiliations?: Array<{ id: string; name: string }>;
     available_origins?: Array<{ id: string; origin_name: string; category_name: string }>;
@@ -263,11 +260,8 @@ export default function GangEditModal({
       return response.json();
     },
     enabled: gangTypesRequested,
+    meta: { errorMessage: 'Failed to load affiliations/origins' },
   });
-
-  useEffect(() => {
-    if (gangTypesError) toast.error('Failed to load affiliations/origins');
-  }, [gangTypesError]);
 
   // Affiliations come from the first gang type of this gang's edition that has any
   const affiliationList = useMemo(

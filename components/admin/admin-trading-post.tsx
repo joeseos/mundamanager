@@ -19,7 +19,6 @@ interface AdminTradingPostProps {
   setSelectedTradingPosts: (tradingPosts: string[] | ((prev: string[]) => string[])) => void;
   tradingPostTypes?: TradingPostType[];
   editionId?: string;
-  disabled?: boolean;
 }
 
 export function AdminTradingPost({
@@ -27,8 +26,7 @@ export function AdminTradingPost({
   selectedTradingPosts,
   setSelectedTradingPosts,
   tradingPostTypes: propTradingPostTypes = [],
-  editionId = '',
-  disabled = false
+  editionId = ''
 }: AdminTradingPostProps) {
   const [showTradingPostDialog, setShowTradingPostDialog] = useState(false);
 
@@ -142,7 +140,6 @@ export function AdminTradingPost({
         variant="outline"
         size="sm"
         className="mb-2"
-        disabled={disabled}
       >
         Manage Trading Posts
       </Button>

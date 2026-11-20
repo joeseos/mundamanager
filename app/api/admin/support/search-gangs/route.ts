@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
 import { checkAdmin } from '@/utils/auth'
+import { gangEditionSlug } from '@/types/edition'
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,7 +21,11 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('gangs')
-      .select('id, name, user_id, profiles!user_id(username)')
+      .select(`
+        id, name, user_id, profiles!user_id(username),
+        gang_types!gang_type_id(editions:edition_id(slug)),
+        custom_gang_types!custom_gang_type_id(editions:edition_id(slug))
+      `)
       .ilike('name', `%${query}%`)
       .limit(10)
 
@@ -34,6 +39,7 @@ export async function GET(request: NextRequest) {
       name: gang.name,
       user_id: gang.user_id,
       username: gang.profiles?.username || 'Unknown',
+      edition_slug: gangEditionSlug(gang),
     }))
 
     return Response.json(results)

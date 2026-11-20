@@ -13,6 +13,7 @@ import { clearHardpointReference } from './vehicle-hardpoints';
 import { returnCostResource } from '@/utils/campaigns/resources';
 import { isBeastWargear, type CostResourcePayload } from '@/types/equipment';
 import { GRANTED_FIGHTERS_COLUMNS, invalidateBeastOwnerCache, stashItemFighters } from '@/utils/exotic-beasts';
+import { EQUIPMENT_LOCKED_IN_TRADE, equipmentLockedInTrade } from '@/utils/campaign-trade-locks';
 import { grantedEquipment } from '@/utils/equipment-grants';
 
 interface SellEquipmentParams {
@@ -362,6 +363,9 @@ export async function sellEquipmentFromStash(params: StashSellParams): Promise<S
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
+    if (await equipmentLockedInTrade(supabase, [row.id])) {
+      return { success: false, error: EQUIPMENT_LOCKED_IN_TRADE };
+    }
 
     const equipmentCategory = (row as any).equipment?.equipment_category;
     const isResourcePurchaseStash = row.cost_resource && (row.cost_resource as any).name;

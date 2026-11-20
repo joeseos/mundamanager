@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { FighterEffect } from '@/types/fighter';
 import { toast } from 'sonner';
@@ -25,8 +25,7 @@ import {
 } from '@/app/actions/fighter-injury';
 import { requiredHatredTarget } from '@/utils/injuryTarget';
 import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
-import { fetchCampaignGangsAndFighters } from '@/utils/api/fighter-ooa-records';
-import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
+import { useOtherCampaignGangs } from '@/utils/campaign-gang-fighter-options';
 import { hasKilledStatusFlag } from '@/utils/fighter-status';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -101,8 +100,6 @@ export function VehicleDamagesList({
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
-  const [campaignGangs, setCampaignGangs] = useState<CampaignGangWithFighters[]>([]);
-  const [isFetchingGangs, setIsFetchingGangs] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -475,7 +472,7 @@ export function VehicleDamagesList({
   // Fetch available damages using TanStack Query - when add modal or repair modal is opened.
   // The edition is part of the key: effect_name is reused across editions, so one
   // shared cache entry would serve N23's damages to an N26 vehicle.
-  const { data: availableDamages = [], isLoading: isLoadingDamages, error: damagesError } = useQuery({
+  const { data: availableDamages = [], isLoading: isLoadingDamages } = useQuery({
     queryKey: ['vehicle-lasting-damages', editionSlug],
     queryFn: async () => {
       const query = editionSlug ? `?edition_slug=${encodeURIComponent(editionSlug)}` : '';
@@ -488,6 +485,7 @@ export function VehicleDamagesList({
     enabled: isAddModalOpen || isRepairModalOpen, // Fetch when either modal is open
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000,  // 10 minutes
+    meta: { errorMessage: 'Failed to load lasting damage types' },
   });
 
   const selectedDamage = availableDamages.find((d: any) => d.id === selectedDamageId);
@@ -506,63 +504,13 @@ export function VehicleDamagesList({
   if (needsCampaignGangPicker !== prevNeedsCampaignGangPicker) {
     setPrevNeedsCampaignGangPicker(needsCampaignGangPicker);
     if (!needsCampaignGangPicker) {
-      setCampaignGangs([]);
       setSelectedCapturingGangId('');
       setSelectedHatredTargetId('');
       setSelectedHatredGangId('');
-    } else {
-      setIsFetchingGangs(true);
     }
   }
 
-  useEffect(() => {
-    if (!needsCampaignGangPicker) return;
-
-    let cancelled = false;
-
-    const fetchGangs = async () => {
-      try {
-        const allGangs: CampaignGangWithFighters[] = [];
-        const seenIds = new Set<string>();
-
-        const gangResults = await Promise.all(
-          campaignIds.map(async (campaignId) => {
-            try {
-              return await fetchCampaignGangsAndFighters({ campaignId, gangId });
-            } catch {
-              return [];
-            }
-          })
-        );
-
-        for (const gangs of gangResults) {
-          for (const g of gangs) {
-            // The helper passes gangId so the vehicle's own gang comes back too
-            if (g.gang_id !== gangId && !seenIds.has(g.gang_id)) {
-              seenIds.add(g.gang_id);
-              allGangs.push(g);
-            }
-          }
-        }
-
-        if (!cancelled) setCampaignGangs(allGangs);
-      } catch (err) {
-        console.error('Failed to fetch campaign gangs:', err);
-      } finally {
-        if (!cancelled) setIsFetchingGangs(false);
-      }
-    };
-
-    fetchGangs();
-    return () => { cancelled = true; };
-  }, [needsCampaignGangPicker, campaignIds, gangId]);
-
-  // Show error toast if damages failed to load
-  useEffect(() => {
-    if (damagesError) {
-      toast.error('Failed to load lasting damage types');
-    }
-  }, [damagesError]);
+  const { gangs: campaignGangs, isLoading: isFetchingGangs } = useOtherCampaignGangs(campaignIds, gangId, needsCampaignGangPicker);
 
   const handleOpenModal = useCallback(() => {
     setIsAddModalOpen(true);
@@ -749,7 +697,6 @@ export function VehicleDamagesList({
       <div>
         <DiceRoller
           items={availableDamages}
-          ensureItems={undefined}
           getRange={(i: FighterEffect) => {
             const range = resolveVehicleDamageRangeByNameFor((i as any).effect_name, editionSlug);
             return range ? { min: range[0], max: range[1] } : null;

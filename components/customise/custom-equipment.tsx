@@ -42,6 +42,8 @@ interface EquipmentCategory {
   edition_slug?: string | null;
 }
 
+const NO_CATEGORIES: EquipmentCategory[] = [];
+
 /**
  * Normalise a stored profile into the all-string form shape. lethality and traits
  * are the nullable columns, and the inputs are controlled.
@@ -70,7 +72,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [copyModalData, setCopyModalData] = useState<CustomEquipment | null>(null);
   const [shareModalData, setShareModalData] = useState<CustomEquipment | null>(null);
   const supabase = createClient();
-  const [categories, setCategories] = useState<EquipmentCategory[]>([]);
   const [editForm, setEditForm] = useState({
     equipment_name: '',
     cost: '',
@@ -98,26 +99,19 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [weaponProfilesModified, setWeaponProfilesModified] = useState(false);
   
 
-  // Handle opening the add equipment modal
-  const handleAddEquipment = () => {
-    setCreateModalOpen(true);
-    if (categories.length === 0) {
-      fetchCategories();
-    }
-  };
-
-  // Fetch equipment categories
-  const fetchCategories = async () => {
-    try {
+  const isFormOpen = createModalOpen || !!editModalData || !!viewModalData;
+  // Same request and key as Custom Trading Posts
+  const { data: categories = NO_CATEGORIES } = useQuery({
+    queryKey: ['equipmentCategories'],
+    queryFn: async () => {
       const response = await fetch('/api/equipment/categories');
       if (!response.ok) throw new Error('Failed to fetch categories');
-      const data = await response.json();
-      setCategories(data);
-    } catch (error) {
-      console.error('Error fetching categories:', error);
-      toast.error("Error", { description: "Failed to load equipment categories" });
-    }
-  };
+      return response.json() as Promise<EquipmentCategory[]>;
+    },
+    enabled: isFormOpen,
+    staleTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment categories' },
+  });
 
   // A category name repeats across editions (Grenades exists in both), so the form
   // holds the category id and resolves the name only for display and rules.
@@ -133,22 +127,21 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     (createModalOpen && isAmmunition(createForm.equipment_category_id)) ||
     (editModalData !== null && isAmmunition(editForm.equipment_category_id));
 
-  const { data: availableWeapons = [] } = useQuery<AvailableWeapon[]>({
-    // editionSlug is part of the key because the result below is edition-filtered
-    queryKey: ['equipment', { equipment_type: 'weapon', core_equipment: false, editionSlug }],
+  const { data: availableWeapons = [] } = useQuery({
+    queryKey: ['equipment', { equipment_type: 'weapon', core_equipment: false }],
     queryFn: async () => {
       const response = await fetch('/api/equipment?equipment_type=weapon&core_equipment=false');
       if (!response.ok) throw new Error('Failed to fetch equipment');
-      const data: EquipmentListItem[] = await response.json();
-      return data
-        .filter(item => sameEditionForDisplay(item.edition_slug, editionSlug))
-        .map(item => ({
-          id: item.is_custom ? item.original_id! : item.id,
-          name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
-          is_custom: item.is_custom,
-          category: item.equipment_category || '',
-        }));
+      return response.json() as Promise<EquipmentListItem[]>;
     },
+    select: (data): AvailableWeapon[] => data
+      .filter(item => sameEditionForDisplay(item.edition_slug, editionSlug))
+      .map(item => ({
+        id: item.is_custom ? item.original_id! : item.id,
+        name: item.is_custom ? item.equipment_name.replace(' (Custom)', '') : item.equipment_name,
+        is_custom: item.is_custom,
+        category: item.equipment_category || '',
+      })),
     enabled: needsAvailableWeapons,
   });
 
@@ -382,11 +375,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     } else {
       setEditWeaponProfiles([]);
     }
-    
-    // Fetch categories if not already loaded
-    if (categories.length === 0) {
-      fetchCategories();
-    }
   };
 
   const handleEditEquipment = async (equipment: CustomEquipment) => {
@@ -418,11 +406,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         }
     } else {
       setEditWeaponProfiles([]);
-    }
-    
-    // Fetch categories if not already loaded
-    if (categories.length === 0) {
-      fetchCategories();
     }
   };
 
@@ -707,7 +690,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
         items={equipment}
         columns={columns}
         actions={actions}
-        onAdd={readOnly ? undefined : handleAddEquipment}
+        onAdd={readOnly ? undefined : () => setCreateModalOpen(true)}
         addButtonText="Create"
         emptyMessage="No custom equipment created yet."
         isLoading={isLoading}

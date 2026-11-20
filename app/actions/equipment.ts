@@ -16,6 +16,7 @@ import { clearHardpointReference } from './vehicle-hardpoints';
 import { deductGangResource, returnGangResource, parseTradePointsCost, REPUTATION_RESOURCE_NAME } from '@/utils/campaigns/resources';
 import { gangEditionSlug, hasMasterCraftedWeapons, hasTradePoints } from '@/types/edition';
 import { chosenGrantOptions, grantedEquipment, insertGrantedEquipment } from '@/utils/equipment-grants';
+import { EQUIPMENT_LOCKED_IN_TRADE, equipmentLockedInTrade } from '@/utils/campaign-trade-locks';
 
 interface BuyEquipmentParams {
   equipment_id?: string;
@@ -1269,6 +1270,9 @@ export async function deleteEquipmentFromStash(params: StashDeleteParams): Promi
       .single();
     if (fetchErr || !row) return { success: false, error: 'Stash item not found' };
     if (!row.gang_stash) return { success: false, error: 'Item is not in gang stash' };
+    if (await equipmentLockedInTrade(supabase, [row.id])) {
+      return { success: false, error: EQUIPMENT_LOCKED_IN_TRADE };
+    }
 
     // Includes the equipment it granted, which the delete cascades to
     const purchaseCost = (row.purchase_cost || 0) + (await grantedEquipment(supabase, row)).cost;

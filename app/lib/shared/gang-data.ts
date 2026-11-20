@@ -54,6 +54,7 @@ export interface GangBasic {
   gang_types?: {
     affiliation: boolean;
     gang_origin_category_id?: string;
+    parent_gang_type_id?: string | null;
     parent_gang_type_name?: string | null;
     gang_origin_categories?: {
       category_name: string;
@@ -107,6 +108,9 @@ export interface GangCampaign {
   campaign_id: string;
   campaign_gang_id: string;
   campaign_name: string;
+  allow_trading: boolean;
+  /** campaign_gangs.status. A gang has one ACCEPTED campaign. */
+  status: string | null;
   role: string;
   trading_posts?: string[] | null;
   trading_post_names?: string[];
@@ -183,7 +187,7 @@ function gangCoreQuery(db: AppDb, gangId: string) {
         with: { gang_origin_categories: { columns: { category_name: true } } },
       },
       gang_types: {
-        columns: { affiliation: true, gang_origin_category_id: true, parent_gang_type_name: true },
+        columns: { affiliation: true, gang_origin_category_id: true, parent_gang_type_id: true, parent_gang_type_name: true },
         with: {
           gang_origin_categories: { columns: { category_name: true } },
           editions: { columns: { slug: true } },
@@ -228,7 +232,7 @@ export const getGangCore = async (gangId: string): Promise<GangCore | null> => {
         venator_ranks_incomplete: venatorRanksIncomplete,
       } as GangCore;
     },
-    [`gang-core-v11-${gangId}`],
+    [`gang-core-v12-${gangId}`],
     {
       tags: [TAGS.gang(gangId), TAGS.globalGangTypes(), TAGS.globalGangPortraits()],
       revalidate: false
@@ -377,12 +381,12 @@ const getGangCampaignIdsCached = async (gangId: string): Promise<string[]> => {
 /** The gang's campaign memberships with their campaign, member role, territories, resources and allegiance. */
 function gangCampaignsQuery(db: AppDb, gangId: string) {
   return db.query.campaignGangs.findMany({
-    columns: { id: true, campaign_allegiance_id: true, campaign_type_allegiance_id: true },
+    columns: { id: true, status: true, campaign_allegiance_id: true, campaign_type_allegiance_id: true },
     where: (cg, { eq }) => eq(cg.gang_id, gangId),
     with: {
       campaign_member: { columns: { role: true } },
       campaign: {
-        columns: { id: true, campaign_name: true, trading_posts: true, custom_trading_posts: true },
+        columns: { id: true, campaign_name: true, trading_posts: true, custom_trading_posts: true, allow_trading: true },
         with: {
           // This gang's territories only
           campaign_territories: {
@@ -399,6 +403,7 @@ function gangCampaignsQuery(db: AppDb, gangId: string) {
               credits: true,
             },
             where: (territory, { eq }) => eq(territory.gang_id, gangId),
+            with: { territory: { columns: { controlled_gang_type_id: true, controlled_credits: true } } },
           },
           campaign_type: { columns: {}, with: { campaign_type_resources: { columns: { id: true, resource_name: true } } } },
           campaign_resources: { columns: { id: true, resource_name: true } },
@@ -478,12 +483,19 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
           campaign_id: campaign.id,
           campaign_gang_id: cg.id,
           campaign_name: campaign.campaign_name as string,
+          allow_trading: campaign.allow_trading,
+          status: cg.status,
           role: cg.campaign_member?.role as string,
           trading_posts: tradingPosts,
           trading_post_names: tradingPosts.flatMap((id) => names.tradingPostNames.get(id) || []),
           custom_trading_posts: customTradingPosts,
           custom_trading_post_names: customTradingPosts.flatMap((id) => names.customTradingPostNames.get(id) || []),
-          territories: campaign.campaign_territories,
+          // Controlled income comes from the catalog territory; custom territories have none
+          territories: campaign.campaign_territories.map(({ territory, ...campaignTerritory }) => ({
+            ...campaignTerritory,
+            controlled_gang_type_id: territory?.controlled_gang_type_id ?? null,
+            controlled_credits: territory?.controlled_credits ?? null,
+          })),
           allegiance: allegiance?.allegiance_name ? { id: allegiance.id, name: allegiance.allegiance_name } : null,
           resources: [
             ...(campaign.campaign_type?.campaign_type_resources ?? []).map(resource(false)),
@@ -492,10 +504,12 @@ export const getGangCampaigns = async (gangId: string): Promise<GangCampaign[]> 
         }];
       });
     },
-    [`gang-campaigns-v4-${gangId}`],
+    [`gang-campaigns-v8-${gangId}`],
     {
       tags: [
         TAGS.gangCampaigns(gangId),
+        // Controlled income is read from the catalog territories
+        TAGS.globalTerritories(),
         ...campaignIdsForTags.flatMap(id => [
           TAGS.campaignCore(id),
           TAGS.campaignMembers(id),

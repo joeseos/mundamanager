@@ -1,7 +1,8 @@
 'use client'
 
 import Modal from "@/components/ui/modal"
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import Link from 'next/link'
 import { Combobox } from "@/components/ui/combobox"
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option'
@@ -17,6 +18,8 @@ interface Gang {
   owner_username?: string;
 }
 
+
+const NO_GANGS: Gang[] = [];
 
 interface TerritoryGangModalProps {
   isOpen: boolean;
@@ -37,35 +40,19 @@ export default function TerritoryGangModal({
   existingGangId = null,
   isAssigning = false
 }: TerritoryGangModalProps) {
-  const [availableGangs, setAvailableGangs] = useState<Gang[]>([]);
   const [selectedGang, setSelectedGang] = useState<string>('');
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const loadGangs = async () => {
-      if (!isOpen) return;
-      
-      setIsLoading(true);
-      try {
-        // Use existing API route that combines all queries server-side
-        const response = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch gangs: ${response.statusText}`);
-        }
-
-        const gangs = await response.json();
-        setAvailableGangs(gangs);
-      } catch (error) {
-        console.error('Error loading gangs:', error);
-        setAvailableGangs([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadGangs();
-  }, [isOpen, campaignId]);
+  const { data: availableGangs = NO_GANGS, isLoading } = useQuery({
+    queryKey: ['campaign-gangs', campaignId],
+    queryFn: async () => {
+      const res = await fetch(`/api/campaigns/campaign-gangs?campaignId=${campaignId}`);
+      if (!res.ok) throw new Error('Failed to fetch campaign gangs');
+      return res.json() as Promise<Gang[]>;
+    },
+    enabled: isOpen,
+    staleTime: 0,
+    meta: { errorMessage: 'Failed to load gangs' },
+  });
 
   const modalContent = (
     <div className="space-y-4">

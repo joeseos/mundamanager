@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
 import { Button } from "@/components/ui/button";
@@ -21,11 +21,15 @@ import { FaBook } from "react-icons/fa";
 import { InfoTooltip } from '@/components/ui/info-tooltip';
 import CampaignTerritoryList from "@/components/campaigns/[id]/campaign-territory-list";
 import CampaignCaptivesList from "@/components/campaigns/[id]/campaign-captives-list";
+import CampaignTradesList from "@/components/campaigns/[id]/campaign-trades-list";
+import CampaignTradeModal from "@/components/campaigns/[id]/campaign-trade-modal";
+import type { CampaignTrade } from '@/types/campaign-trade';
 import CampaignAddTerritoryModal from "@/components/campaigns/[id]/campaign-add-territory-modal";
 import CampaignTriumphs from "@/components/campaigns/[id]/campaign-triumphs";
 import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
+import type { CatalogTerritory } from '@/app/lib/reference-data';
 import type { BattleSession } from '@/types/battle-session';
 import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
@@ -107,16 +111,6 @@ interface Territory {
   } | null;
 }
 
-
-interface AllTerritory {
-  id: string;
-  territory_name: string;
-  campaign_type_id: string | null;
-  territory_id?: string | null;
-  edition_slug?: string | null;
-}
-
-
 interface CampaignPageContentProps {
   campaignData: {
     id: string;
@@ -145,6 +139,7 @@ interface CampaignPageContentProps {
     discord_dice_rolls?: boolean;
     discord_dice_roll_channel_id?: string | null;
     allow_join_requests?: boolean;
+    allow_trading?: boolean;
     battles: Battle[];
     battleSessions?: BattleSession[];
     triumphs: {
@@ -159,8 +154,15 @@ interface CampaignPageContentProps {
     captives?: Array<{
       gangId: string;
       gangName: string;
-      captives: Array<{ fighterId: string; fighterName: string; originalGangName: string }>;
+      captives: Array<{
+        fighterId: string;
+        fighterName: string;
+        fighterType?: string;
+        originalGangId: string | null;
+        originalGangName: string;
+      }>;
     }>;
+    trades?: CampaignTrade[];
   };
   userId?: string;
   permissions: CampaignPermissions | null;
@@ -170,7 +172,7 @@ interface CampaignPageContentProps {
   /** The tab to open on load, as its index in the tab bar. */
   initialTab?: number;
   campaignTypes: CampaignType[];
-  allTerritories: AllTerritory[];
+  allTerritories: CatalogTerritory[];
   tradingPostTypes?: Array<{ id: string; trading_post_name: string | null; edition_slug?: string | null }>;
   customTradingPostTypes?: Array<{ id: string; trading_post_name: string; edition_slug?: string | null }>;
   campaignAllegiances?: Array<{ id: string; allegiance_name: string; is_custom: boolean }>;
@@ -235,6 +237,7 @@ export default function CampaignPageContent({
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [showPhasesCyclesModal, setShowPhasesCyclesModal] = useState(false);
+  const [tradeModalMode, setTradeModalMode] = useState<'sell' | 'looking-for' | null>(null);
 
   // Provide default permissions if null
   const safePermissions = permissions || {
@@ -260,6 +263,30 @@ export default function CampaignPageContent({
 
   // Fix: Include app-level admin status in isAdmin check
   const isAdmin = safePermissions.isOwner || safePermissions.isArbitrator || safePermissions.isAdmin;
+  const isCampaignArb = !!safePermissions.isArbitrator || !!safePermissions.isAdmin || !!safePermissions.isOwner;
+
+  const acceptedGangs = useMemo(
+    () => (campaignData.members ?? []).flatMap((member: Member) =>
+      (member.gangs ?? [])
+        .filter((gang) => gang.status === 'ACCEPTED')
+        .map((gang) => ({
+          ...gang,
+          owner_username: member.username || member.profile?.username || 'Unknown',
+        }))
+    ),
+    [campaignData.members]
+  );
+
+  const actorGangIds = useMemo(() => {
+    if (isCampaignArb) return acceptedGangs.map((gang: { id: string }) => gang.id);
+    return (campaignData.members ?? [])
+      .filter((member) => member.user_id === userId)
+      .flatMap((member) =>
+        (member.gangs ?? [])
+          .filter((gang: { status: string | null }) => gang.status === 'ACCEPTED')
+          .map((gang: { id: string }) => gang.id)
+      );
+  }, [acceptedGangs, campaignData.members, isCampaignArb, userId]);
 
   // Shared handler for territory updates with optimistic updates
   interface TerritoryUpdate {
@@ -857,6 +884,33 @@ export default function CampaignPageContent({
               />
             </div>
 
+
+            {(campaignData.allow_trading || (campaignData.trades ?? []).length > 0) && (
+              <div className="mb-8">
+                <div className="flex justify-between items-center mb-4 gap-2">
+                  <h2 className="text-xl md:text-2xl font-bold">Trades</h2>
+                  {campaignData.allow_trading && actorGangIds.length > 0 && (
+                    <div className="flex gap-2">
+                      <Button onClick={() => setTradeModalMode('sell')}>
+                        Selling
+                      </Button>
+                      <Button onClick={() => setTradeModalMode('looking-for')}>
+                        Looking for
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <CampaignTradesList
+                  initialTrades={campaignData.trades ?? []}
+                  campaignId={campaignData.id}
+                  actorGangIds={actorGangIds}
+                  isCampaignArb={isCampaignArb}
+                  allowTrading={!!campaignData.allow_trading}
+                  userId={userId}
+                />
+              </div>
+            )}
+
             {/* Campaign Captured Fighters Section */}
             <div className="mb-8">
               <h2 className="text-xl md:text-2xl font-bold mb-4">Captured Fighters</h2>
@@ -1023,6 +1077,17 @@ export default function CampaignPageContent({
             </div>
           )}
 
+        {tradeModalMode && (
+          <CampaignTradeModal
+            campaignId={campaignData.id}
+            mode={tradeModalMode}
+            userId={userId}
+            isCampaignArb={isCampaignArb}
+            onClose={() => setTradeModalMode(null)}
+            onPosted={() => setTradeModalMode(null)}
+          />
+        )}
+
         {/* Replace the inline modal with our new component */}
         {showEditModal && (
           <CampaignEditModal
@@ -1034,6 +1099,7 @@ export default function CampaignPageContent({
               custom_trading_posts: campaignData.custom_trading_posts || [],
               status: campaignData.status,
               allow_join_requests: campaignData.allow_join_requests ?? false,
+              allow_trading: campaignData.allow_trading ?? false,
               campaign_type_name: campaignData.campaign_type_name,
               campaign_type_id: campaignData.campaign_type_id,
               edition_slug: campaignData.edition_slug ?? null,

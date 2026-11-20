@@ -12,6 +12,7 @@ import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
 import { fighterCostTarget, FighterCostTarget, FighterStatus, RATING_STATUS_COLUMNS, vehicleCostTarget } from '@/utils/fighter-status';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { isBeastWargear } from '@/types/equipment';
+import { EQUIPMENT_LOCKED_IN_TRADE, equipmentLockedInTrade } from '@/utils/campaign-trade-locks';
 
 export interface MoveFromStashItem {
   stash_id: string;
@@ -91,6 +92,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (!stashDataMap.has(item.stash_id)) {
         throw new Error(`Stash item with ID ${item.stash_id} not found`);
       }
+    }
+    if (await equipmentLockedInTrade(supabase, stashIds)) {
+      throw new Error(EQUIPMENT_LOCKED_IN_TRADE);
     }
 
     // Use first item's gang_id (all must belong to same gang)

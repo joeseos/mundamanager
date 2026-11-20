@@ -103,13 +103,17 @@ export function DraggableFighters({
     setCurrentPositions(normalizedPositions);
   }
 
+  // A fighter being added shows with a temp- id until the server returns its real one, so
+  // saving now would store the temp id and then save again once the real id arrives.
+  const hasUnsavedFighter = fighters.some(fighter => fighter.id.startsWith('temp-'));
+
   useEffect(() => {
     const signature = positionsSignature(normalizedPositions);
-    if (canEdit && !isSorting && signature !== lastSyncedPositionsSignature.current) {
+    if (canEdit && !isSorting && !hasUnsavedFighter && signature !== lastSyncedPositionsSignature.current) {
       lastSyncedPositionsSignature.current = signature;
       onPositionsUpdate?.(normalizedPositions);
     }
-  }, [canEdit, isSorting, normalizedPositions, onPositionsUpdate]);
+  }, [canEdit, isSorting, hasUnsavedFighter, normalizedPositions, onPositionsUpdate]);
   
   const sortedPositionedFighters = Object.entries(normalizedPositions)
     .sort(([a], [b]) => Number(a) - Number(b))

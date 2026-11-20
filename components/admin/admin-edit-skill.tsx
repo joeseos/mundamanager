@@ -29,6 +29,8 @@ interface Skill {
   effects?: any[];
 }
 
+const NO_SKILLS: Skill[] = [];
+
 const grantedIdsOf = (skill?: Skill) =>
   skill?.grants_equipment?.options?.map(opt => opt.equipment_id) ?? [];
 
@@ -155,15 +157,12 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
   const queryClient = useQueryClient();
   const [skillName, setSkillName] = useState('');
   const [skillId, setSkillId] = useState('');
-  const [skillNameList, setSkillList] = useState<Skill[]>([]);
   const [skillType, setSkillType] = useState('');
   const [skillTypeName, setSkillTypeName] = useState('');
   const [gangOrigin, setGangOrigin] = useState('');
   const [editionId, setEditionId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [skillEffects, setSkillEffects] = useState<any[]>([]);
-  const [skillsCategoryId, setSkillsCategoryId] = useState('');
-  const [effectCategories, setEffectCategories] = useState<any[]>([]);
   // Equipment the skill comes with (skills.grants_equipment, fixed and free)
   const [grantedEquipmentIds, setGrantedEquipmentIds] = useState<string[]>([]);
   const [usableBy, setUsableBy] = useState<SkillUserKind[]>([]);
@@ -203,6 +202,26 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Same request and key as the Create and Edit Fighter Type modals
+  const { data: skillSet, isLoading: isLoadingSkills } = useQuery({
+    queryKey: ['admin-skills', skillType, editionId],
+    queryFn: async (): Promise<{ skills: Array<Omit<Skill, 'name'> & { skill_name: string }>; effect_categories: any[] }> => {
+      const params = new URLSearchParams({ skill_type_id: skillType });
+      if (editionId) params.set('edition_id', editionId);
+      const response = await fetch(`/api/admin/skills?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch skills');
+      return response.json();
+    },
+    select: (data) => ({
+      skills: data.skills.map(({ skill_name, ...skill }) => ({ ...skill, name: skill_name })),
+      skillsCategories: data.effect_categories.filter(c => c.category_name === 'skills'),
+    }),
+    enabled: !!skillType,
+    staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load skills' },
+  });
+  const skillNameList = skillSet?.skills ?? NO_SKILLS;
+
   const grantableEquipment = (editionId
     ? allEquipment.filter(e => e.edition_id === editionId)
     : allEquipment
@@ -230,7 +249,6 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
         setSkillId('');
         setGangOrigin('');
         setUsableBy([]);
-        setSkillList([]);
       }
     }
   };
@@ -249,60 +267,6 @@ export function AdminEditSkillModal({ onClose }: AdminEditSkillModalProps) {
       setUsableBy([]);
     }
   }
-
-  const searchSkillType = async (skillTypeId: string, selectedEditionId: string) => {
-    setIsLoading(true);
-
-    try {
-      const params = new URLSearchParams({ skill_type_id: skillTypeId });
-      if (selectedEditionId) params.set('edition_id', selectedEditionId);
-      const response = await fetch(`/api/admin/skills?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch skills');
-      }
-      const data = await response.json();
-
-      // Extract skills and categories from response
-      const skills = data.skills || data; // Support both new and old format
-      const categories = data.effect_categories || [];
-
-      // Set effect categories
-      if (categories.length > 0) {
-        setEffectCategories(categories);
-        const skillsCat = categories.find((c: any) => c.category_name === 'skills');
-        if (skillsCat) setSkillsCategoryId(skillsCat.id);
-      }
-
-      // Set skills list
-      setSkillList(skills.map((skill: any) => ({
-        id: skill.id,
-        name: skill.skill_name,
-        gang_origin_id: skill.gang_origin_id,
-        grants_equipment: skill.grants_equipment ?? null,
-        usable_by: skill.usable_by ?? null,
-        effects: skill.effects || []
-      })));
-
-      // If a skill is currently selected, set its effects immediately (FIX for race condition)
-      if (skillId) {
-        const selectedSkill = skills.find((s: any) => s.id === skillId);
-        if (selectedSkill?.effects) {
-          setSkillEffects(selectedSkill.effects);
-        }
-        setGrantedEquipmentIds(grantedIdsOf(selectedSkill));
-      }
-    } catch (error) {
-      console.error('Error fetching skills:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const handleSubmitType = async (operation: OperationType) => {
   if (operation === OperationType.UPDATE && !skillType) {
@@ -415,6 +379,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
     toast.success(`Skill ${operation === OperationType.UPDATE ? 'updated' : 'deleted'} successfully`);
 
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['admin-skills'] }),
       queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
       queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
     ]);
@@ -465,12 +430,9 @@ const handleSubmitSkill = async (operation: OperationType) => {
                     const selectedOption = e.target.options[selectedIndex];
                     const selectedSkillType = selectedOption.getAttribute("data-skill-type") || "";
                     const selectedType = skillTypeList.find(t => t.id === e.target.value);
-                    const selectedEditionId = selectedType?.edition_id ?? editionId;
                     setSkillType(e.target.value);
                     setSkillName("");
-                    if (e.target.value !== "") {
-                      searchSkillType(e.target.value, selectedEditionId);
-                    }
+                    setSkillId("");
                     setSkillTypeName(selectedSkillType);
                     setEditionId(selectedType?.edition_id ?? '');
                   }
@@ -521,7 +483,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                 }
 
                 className="w-full p-2 border rounded-md"
-                disabled={skillType == ""}
+                disabled={skillType == "" || isLoadingSkills}
               >
                 <option value="">Select a skill</option>
                   {skillNameList.map((skill) => {
@@ -559,7 +521,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
             )}
 
             {/* Skill Effects Section */}
-            {skillId && skillsCategoryId && (
+            {skillId && !!skillSet?.skillsCategories.length && (
               <div className="mt-6 border-t pt-4">
                 <label className="block text-sm font-medium mb-1">
                   Skill Effects
@@ -571,7 +533,7 @@ const handleSubmitSkill = async (operation: OperationType) => {
                   equipmentId={skillId}
                   isSkill={true}
                   fighterEffects={skillEffects}
-                  fighterEffectCategories={effectCategories.filter(c => c.category_name === 'skills')}
+                  fighterEffectCategories={skillSet.skillsCategories}
                   onChange={(effects) => {
                     setSkillEffects(effects);
                   }}

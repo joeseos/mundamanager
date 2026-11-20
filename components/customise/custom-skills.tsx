@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomSkill } from '@/app/lib/customise/custom-skills';
 import { createCustomSkill, updateCustomSkill, deleteCustomSkill, createCustomSkillType, updateCustomSkillType, deleteCustomSkillType } from '@/app/actions/customise/custom-skills';
@@ -37,6 +38,8 @@ interface SkillType {
   is_custom?: boolean;
 }
 
+const NO_SKILL_TYPES: SkillType[] = [];
+
 export function CustomiseSkills({ className, initialSkills = [], readOnly = false, userId, userCampaigns = [], editionSlug }: CustomiseSkillsProps) {
   const [skills, setSkills] = useState<CustomSkill[]>(initialSkills);
   const [prevInitialSkills, setPrevInitialSkills] = useState(initialSkills);
@@ -51,7 +54,6 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const [viewModalData, setViewModalData] = useState<CustomSkill | null>(null);
   const [copyModalData, setCopyModalData] = useState<CustomSkill | null>(null);
   const [shareModalData, setShareModalData] = useState<CustomSkill | null>(null);
-  const [skillTypes, setSkillTypes] = useState<SkillType[]>([]);
   const [editForm, setEditForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false, description: null as string | null });
   const [createForm, setCreateForm] = useState({ skill_name: '', skill_type_id: '', is_custom_type: false, description: null as string | null });
 
@@ -60,28 +62,27 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const [showNewSkillTypeInput, setShowNewSkillTypeInput] = useState<'create' | 'edit' | null>(null);
   const [skillTypesToDelete, setSkillTypesToDelete] = useState<string[]>([]);
 
+  const queryClient = useQueryClient();
+  const isFormOpen = createModalOpen || !!editModalData;
+
   // /api/skill-types returns the edition's standard types plus the user's own
   // custom types, already flagged with is_custom -- the two direct table reads
   // this replaces were unscoped and mixed both editions together.
-  const fetchSkillTypes = async () => {
-    if (!userId) return;
-    try {
+  // Same request and key as the Custom Fighters form.
+  const { data: skillTypes = NO_SKILL_TYPES } = useQuery({
+    queryKey: ['skill-types', editionSlug],
+    queryFn: async () => {
       const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}`);
       if (!response.ok) throw new Error('Failed to fetch skill types');
-      const data: SkillType[] = await response.json();
-      setSkillTypes([
-        ...data.filter(t => t.is_custom),
-        ...data.filter(t => !t.is_custom),
-      ]);
-    } catch (error) {
-      console.error('Error fetching skill types:', error);
-      toast.error('Failed to load skill types');
-    }
-  };
+      return response.json() as Promise<SkillType[]>;
+    },
+    select: (data) => [...data.filter(t => t.is_custom), ...data.filter(t => !t.is_custom)],
+    enabled: !!userId && isFormOpen,
+    meta: { errorMessage: 'Failed to load skill types' },
+  });
 
   const handleAddSkill = () => {
     setCreateModalOpen(true);
-    fetchSkillTypes();
   };
 
   const resetNewSkillTypeInput = () => {
@@ -92,7 +93,7 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const applySkillTypeDeletions = async () => {
     if (skillTypesToDelete.length === 0) return;
     await Promise.all(skillTypesToDelete.map(typeId => deleteCustomSkillType(typeId)));
-    setSkillTypes(prev => prev.filter(t => !skillTypesToDelete.includes(t.id)));
+    queryClient.invalidateQueries({ queryKey: ['skill-types'] });
     setSkills(prev => prev.filter(s => !skillTypesToDelete.includes(s.custom_skill_type_id || '')));
     setSkillTypesToDelete([]);
   };
@@ -101,13 +102,12 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
   const resolveSkillTypeId = async (form: { skill_type_id: string; is_custom_type: boolean }): Promise<{ id: string; is_custom: boolean } | null> => {
     if (showNewSkillTypeInput === 'create' && newSkillTypeName.trim()) {
       const created = await createCustomSkillType({ name: newSkillTypeName.trim(), edition_slug: editionSlug });
-      const newType: SkillType = { id: created.id, name: created.name, is_custom: true };
-      setSkillTypes(prev => [newType, ...prev.filter(t => t.id !== created.id)]);
+      queryClient.invalidateQueries({ queryKey: ['skill-types'] });
       return { id: created.id, is_custom: true };
     }
     if (showNewSkillTypeInput === 'edit' && newSkillTypeName.trim() && form.skill_type_id) {
-      const updated = await updateCustomSkillType(form.skill_type_id, { name: newSkillTypeName.trim() });
-      setSkillTypes(prev => prev.map(t => t.id === form.skill_type_id ? { ...t, name: updated.name } : t));
+      await updateCustomSkillType(form.skill_type_id, { name: newSkillTypeName.trim() });
+      queryClient.invalidateQueries({ queryKey: ['skill-types'] });
       return { id: form.skill_type_id, is_custom: true };
     }
     if (form.skill_type_id) {
@@ -162,7 +162,6 @@ export function CustomiseSkills({ className, initialSkills = [], readOnly = fals
       is_custom_type: isCustomType,
       description: skill.description || null,
     });
-    fetchSkillTypes();
   };
 
   const handleEditModalClose = () => {

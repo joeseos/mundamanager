@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { NextRequest } from 'next/server'
 import { checkAdmin } from '@/utils/auth'
+import { editionSlugFromJoin } from '@/types/edition'
 
 export async function GET(request: NextRequest) {
   try {
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('campaigns')
-      .select('id, campaign_name, campaign_type_id')
+      .select('id, campaign_name, campaign_type_id, campaign_types!campaign_type_id(campaign_type_name, editions:edition_id(slug))')
       .ilike('campaign_name', `%${query}%`)
       .limit(10)
 
@@ -29,25 +30,12 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'Failed to search campaigns' }, { status: 500 })
     }
 
-    const typeIds = Array.from(new Set((data || []).map(c => c.campaign_type_id).filter(Boolean)))
-    let typesMap: Record<string, string> = {}
-
-    if (typeIds.length > 0) {
-      const { data: types } = await supabase
-        .from('campaign_types')
-        .select('id, campaign_type_name')
-        .in('id', typeIds)
-
-      if (types) {
-        typesMap = Object.fromEntries(types.map(t => [t.id, t.campaign_type_name]))
-      }
-    }
-
     const results = (data || []).map((campaign: any) => ({
       id: campaign.id,
       campaign_name: campaign.campaign_name,
       campaign_type_id: campaign.campaign_type_id,
-      campaign_type_name: typesMap[campaign.campaign_type_id] || 'Unknown',
+      campaign_type_name: campaign.campaign_types?.campaign_type_name || 'Unknown',
+      edition_slug: editionSlugFromJoin(campaign.campaign_types?.editions),
     }))
 
     return Response.json(results)

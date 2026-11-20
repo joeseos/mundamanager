@@ -60,9 +60,17 @@ interface PostCycleActionsProps {
   /** gangs.reputation is nullable; NULL reads as 0, as on the gang card. */
   gangReputation: number | null;
   /** The gang's territories across its campaigns; credits is null when unset. */
-  territories: Array<{ id: string; territory_name: string; credits: number | null }>;
-  /** Gang facts the gang-specific actions depend on; see postCycleAvailability. */
+  territories: Array<{
+    id: string;
+    territory_name: string;
+    credits: number | null;
+    controlled_gang_type_id: string | null;
+    controlled_credits: number | null;
+  }>;
+  /** Gang facts the gang-specific actions and territory income depend on; see postCycleAvailability. */
   gangType?: string | null;
+  gangTypeId?: string | null;
+  parentGangTypeId?: string | null;
   isCustomGangType: boolean;
   gangSubtypes: Array<{ id: string; subtype: string }>;
   /** What the gang already holds, which Develop Tactics cannot pick again. */
@@ -210,6 +218,8 @@ export default function PostCycleActions({
   gangReputation,
   territories,
   gangType,
+  gangTypeId,
+  parentGangTypeId,
   isCustomGangType,
   gangSubtypes,
   tacticsCards,
@@ -327,7 +337,10 @@ export default function PostCycleActions({
   const reputation = gangReputation ?? 0;
   const income = reputationIncome(reputation);
   const incomeTerritories = territories
-    .map((territory) => ({ ...territory, income: territoryIncome(territory, { gangType, isCustomGangType }) }))
+    .map((territory) => ({
+      ...territory,
+      income: territoryIncome(territory, { gangType, gangTypeId, parentGangTypeId, isCustomGangType }),
+    }))
     .filter((territory) => territory.income);
   const pickedTerritories = incomeTerritories.filter((territory) =>
     collectTerritoryIds.includes(territory.id)

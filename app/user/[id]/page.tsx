@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useEffect } from "react";
+import { use } from "react";
 import { useQuery } from '@tanstack/react-query';
 import { notFound } from "next/navigation";
 import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
@@ -27,7 +27,6 @@ import { EditionToggle } from "@/components/home/edition-toggle";
 import { sameEditionForDisplay } from "@/types/edition";
 import type { UserCampaign } from "@/types/campaign";
 import { compactGangTypeLabel } from "@/utils/gang-type-label";
-import { toast } from 'sonner';
 
 import Link from "next/link";
 
@@ -100,13 +99,6 @@ export default function UserPage({ params }: { params: Promise<{ id: string }> }
   // Same edition the home Custom Assets tab is on, so a profile never renders an
   // N26 asset under N23 rules.
   const { editionSlug, setEditionSlug } = useHomeEdition();
-
-  // Show error toast if user data failed to load
-  useEffect(() => {
-    if (error) {
-      toast.error("Failed to load user data");
-    }
-  }, [error]);
 
   if (isLoading) {
     return (
