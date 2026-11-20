@@ -566,8 +566,8 @@ gateway log entries, which Supabase bills as Logs Ingest. These are read this wa
 - equipment purchases (`buyEquipmentForFighter` in `app/actions/equipment.ts`,
   the exotic beast check in `utils/exotic-beasts.ts` and the log text names in
   `app/actions/logs/equipment-logs.ts`), and the purchase modal's effect types
-  (`app/lib/fighter-effect-types.ts`) and equipment list
-  (`app/lib/available-equipment.ts`)
+  (`app/api/fighter-effects`) and equipment list
+  (`app/api/gangs/[id]/available-equipment`)
 
 The files:
 
