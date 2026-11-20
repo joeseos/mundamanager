@@ -9,8 +9,7 @@ export interface FighterStatus {
   killed?: boolean;
   retired?: boolean;
   enslaved?: boolean;
-  // Nullable column, so Drizzle reads can return null
-  captured?: boolean | null;
+  captured?: boolean;
   recovery?: boolean;
   starved?: boolean;
 }
