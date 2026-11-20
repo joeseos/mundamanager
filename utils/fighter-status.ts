@@ -6,12 +6,13 @@
  */
 
 export interface FighterStatus {
-  killed?: boolean | null;
-  retired?: boolean | null;
-  enslaved?: boolean | null;
+  killed?: boolean;
+  retired?: boolean;
+  enslaved?: boolean;
+  // Nullable column, so Drizzle reads can return null
   captured?: boolean | null;
-  recovery?: boolean | null;
-  starved?: boolean | null;
+  recovery?: boolean;
+  starved?: boolean;
 }
 
 /**
