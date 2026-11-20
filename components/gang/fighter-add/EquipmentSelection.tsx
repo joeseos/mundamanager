@@ -100,8 +100,6 @@ export function EquipmentSelection({
           ? categoryData.default.reduce((sum, d) => sum + (d.quantity || 1), 0)
           : 0;
         const replacementMode = (categoryData.replacement_mode || 'flexible') as 'flexible' | 'strict';
-        // A strict pick grants its own count: one shotgun for a pistol + club, two matrices for two launchers.
-        const strictQuantity = (option?: EquipmentOption) => Math.min(option?.max_quantity || 1, totalSlots);
 
         const usedSlots = isOptional
           ? (categoryData.options || []).filter(o =>
@@ -233,7 +231,7 @@ export function EquipmentSelection({
                           setSelectedEquipment(withCategoryDefaults);
                           if (selectedOption) {
                             setFighterCost((prevCost) =>
-                              String(parseInt(prevCost || '0') - (selectedOption.cost || 0) * strictQuantity(selectedOption))
+                              String(parseInt(prevCost || '0') - (selectedOption.cost || 0) * selectedOption.max_quantity)
                             );
                           }
                         }}
@@ -316,7 +314,8 @@ export function EquipmentSelection({
 
                     // === OPTIONAL + STRICT MODE: radio buttons ===
                     if (isOptional && replacementMode === 'strict') {
-                      const quantity = strictQuantity(option);
+                      // A strict pick grants its own count: one shotgun for a pistol + club, two matrices for two launchers.
+                      const quantity = option.max_quantity;
                       return (
                         <div key={uniqueOptionId} className="flex items-center gap-2">
                           <input
@@ -326,7 +325,7 @@ export function EquipmentSelection({
                             checked={selectedOptionId === uniqueOptionId}
                             onChange={() => {
                               const optionCost = option.cost || 0;
-                              const prevCost = (selectedOption?.cost || 0) * strictQuantity(selectedOption);
+                              const prevCost = selectedOption ? (selectedOption.cost || 0) * selectedOption.max_quantity : 0;
 
                               setSelectedEquipmentIds((prev) => [...withoutCategoryIds(prev), uniqueOptionId]);
 
