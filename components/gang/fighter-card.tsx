@@ -22,7 +22,7 @@ import { useViewportWidth } from '@/hooks/use-viewport-width';
 import { dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
-import { isCardInactive } from '@/utils/fighter-status';
+import { formatOwnerDisplay, isCardInactive } from '@/utils/fighter-status';
 
 const COMPACT_SCALE_PERCENT = {
   '4-card': 32,
@@ -411,9 +411,7 @@ const FighterCard = memo(function FighterCard({
   }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);
 
   const isInactive = isCardInactive({ killed, retired, enslaved, recovery }) || !!owner_inactive;
-  const ownerDisplay = owner_name
-    ? `${owner_name}${owner_status ? ` (${owner_status})` : ''}`
-    : null;
+  const ownerDisplay = formatOwnerDisplay(owner_name, owner_status);
   const ownerLine = ownerDisplay ? (
     <div className="text-sm italic">
       Owner: <span className="font-semibold">{ownerDisplay}</span>

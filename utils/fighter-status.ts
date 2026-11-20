@@ -46,9 +46,13 @@ export function isCardInactive(fighter: FighterStatus | null | undefined): boole
 }
 
 /**
- * The owner's primary status label for pet/beast cards, or null when they
- * have none. One label: killed, retired, enslaved, captured, recovery, then
- * starved.
+ * The owner's primary status for pet/beast owner lines, or null when they
+ * have none. One label, in this order: killed, retired, enslaved, captured,
+ * recovery, then starved.
+ *
+ * Starved is included on purpose even though it does not collapse the pet
+ * card: the suffix is how you see how the owner is doing, same as Recovery
+ * or Captured on an otherwise expanded card.
  */
 export function fighterStatusLabel(fighter: FighterStatus | null | undefined): string | null {
   if (!fighter) return null;
@@ -59,6 +63,15 @@ export function fighterStatusLabel(fighter: FighterStatus | null | undefined): s
   if (fighter.recovery) return 'Recovery';
   if (fighter.starved) return 'Starved';
   return null;
+}
+
+/** `Name` or `Name (Recovery)` for pet/beast owner lines. */
+export function formatOwnerDisplay(
+  name: string | null | undefined,
+  status?: string | null
+): string | null {
+  if (!name) return null;
+  return status ? `${name} (${status})` : name;
 }
 
 /** Print "inactive fighters" toggle: killed / retired / enslaved, including via owner. */

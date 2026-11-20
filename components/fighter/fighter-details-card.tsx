@@ -22,6 +22,7 @@ import { FaMedkit, FaBookDead } from "react-icons/fa";
 import { LuLogs } from "react-icons/lu";
 import { Equipment } from '@/types/equipment';
 import { UserPermissions } from '@/types/user-permissions';
+import { formatOwnerDisplay } from '@/utils/fighter-status';
 
 const FighterImageEditModal = dynamic(
   () => import('./fighter-image-edit-modal').then((mod) => mod.FighterImageEditModal),
@@ -113,6 +114,7 @@ interface FighterDetailsCardProps {
   campaignId?: string;
   userPermissions: UserPermissions;
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
+  owner_status?: string | null;
   captured_by_gang_name?: string;
   captured_by_gang_id?: string | null;
   image_url?: string;
@@ -289,6 +291,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
   campaignId,
   userPermissions,
   owner_name,
+  owner_status,
   captured_by_gang_name,
   captured_by_gang_id,
   image_url,
@@ -586,7 +589,7 @@ export const FighterDetailsCard = memo(function FighterDetailsCard({
       {owner_name && (
         <div className="mt-2 text-left">
           <div className="text-sm text-muted-foreground">
-            Owned by: <Badge variant="secondary">{owner_name}</Badge>
+            Owner: <Badge variant="secondary">{formatOwnerDisplay(owner_name, owner_status)}</Badge>
           </div>
         </div>
       )}
