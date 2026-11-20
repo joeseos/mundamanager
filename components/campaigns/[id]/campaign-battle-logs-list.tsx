@@ -996,45 +996,45 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           ) : (
             rows.map((battle) => (
               <tr key={battle.id} className="border-b">
-                <td className="p-1 md:p-2 align-top max-w-[5rem]">
+                <td className="p-1 md:p-2 align-middle max-w-[5rem]">
                   {formatDate(battle.created_at)}
                 </td>
 
-                <td className="p-1 md:p-2 align-top text-right">
+                <td className="p-1 md:p-2 align-middle text-right">
                   {battle.cycle || '-'}
                 </td>
 
-                <td className="p-1 md:p-2 align-top max-w-[8rem]">
+                <td className="p-1 md:p-2 align-middle max-w-[8rem]">
                   {scenarioLabel(battle) || '-'}
                 </td>
 
-                <td className="p-1 md:p-2 align-top">
+                <td className="p-1 md:p-2 align-middle">
                   {battle.territory_name || '-'}
                 </td>
 
                 {isChallengeTable ? (
                   <>
-                    <td className="p-1 md:p-2 align-top">
+                    <td className="p-1 md:p-2 align-middle">
                       {renderChallengeGangs(battle, true)}
                     </td>
-                    <td className="p-1 md:p-2 align-top">
+                    <td className="p-1 md:p-2 align-middle">
                       {renderChallengeGangs(battle, false)}
                     </td>
                   </>
                 ) : (
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="p-1 md:p-2 align-middle">
                     {getGangsWithRoles(battle)}
                   </td>
                 )}
 
                 {isChallengeTable ? (
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="p-1 md:p-2 align-middle">
                     <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
                       {battleStatusLabels[battleStatusOf(battle)]}
                     </span>
                   </td>
                 ) : (
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="p-1 md:p-2 align-middle">
                     {(() => {
                       const winnerIds = getWinnerIds(battle);
                       if (winnerIds.length === 0) {
@@ -1070,7 +1070,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                   </td>
                 )}
 
-                <td className="p-1 md:p-2 align-top">
+                <td className="p-1 md:p-2 align-middle">
                   {battle.note && (
                     <button
                       onClick={() => {
@@ -1085,7 +1085,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                   )}
                 </td>
                 {canUserEditBattle(battle) && (
-                  <td className="p-1 md:p-2 align-top text-right">
+                  <td className="p-1 md:p-2 align-middle text-right">
                     <div className="flex justify-end gap-2">
                       {battleStatusOf(battle) === 'challenge_accepted' && (
                         <Button
