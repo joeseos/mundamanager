@@ -740,6 +740,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         const roleB = roleOrder[b.role] ?? 99;
 
         if (roleA !== roleB) return roleA - roleB;
+        if (showChallengerRating && a.gang_id === battle.challenger_gang_id) return -1;
+        if (showChallengerRating && b.gang_id === battle.challenger_gang_id) return 1;
 
         const nameA = getGangName(a.gang_id, battleGangNames.get(a.gang_id)).toLowerCase();
         const nameB = getGangName(b.gang_id, battleGangNames.get(b.gang_id)).toLowerCase();
@@ -780,10 +782,10 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                     >
                       {gangName}
                     </a>
+                    {showChallengerRating && participant.gang_id === battle.challenger_gang_id && gangRatings.has(participant.gang_id) && (
+                      <span className="ml-1 shrink-0 whitespace-nowrap font-normal text-muted-foreground">{`\u2022 ${gangRatings.get(participant.gang_id)}`}</span>
+                    )}
                   </span>
-                  {showChallengerRating && participant.gang_id === battle.challenger_gang_id && gangRatings.has(participant.gang_id) && (
-                    <span className="text-xs text-muted-foreground">{gangRatings.get(participant.gang_id)}</span>
-                  )}
                 </div>
               </div>
             );
