@@ -715,19 +715,21 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleBadge.color} text-white text-[10px] font-bold`}>
           {roleBadge.letter}
         </span>
-        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted ${rating !== undefined ? 'whitespace-nowrap' : ''}`}
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
           style={{ color: getGangColour(gangId) }}
         >
-          <a
-            href={`/gang/${gangId}`}
-            className="hover:text-muted-foreground transition-colors"
-            onClick={(e) => handleGangClick(e, gangId)}
-          >
-            {name}
-          </a>
-          {rating !== undefined && (
-            <span className="ml-1 font-normal text-muted-foreground">{`\u2022 ${rating}`}</span>
-          )}
+          <span>
+            <a
+              href={`/gang/${gangId}`}
+              className="hover:text-muted-foreground transition-colors"
+              onClick={(e) => handleGangClick(e, gangId)}
+            >
+              {name}
+            </a>
+            {rating !== undefined && (
+              <span className="whitespace-nowrap font-normal text-muted-foreground">{`\u00a0\u2022 ${rating}`}</span>
+            )}
+          </span>
         </span>
       </div>
     );
