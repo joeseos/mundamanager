@@ -47,9 +47,6 @@ export const RATING_STATUS_COLUMNS = `
   )
 `;
 
-/** RATING_STATUS_COLUMNS' status flags, as Drizzle columns. */
-export const STATUS_COLUMNS = { killed: true, retired: true, enslaved: true, captured: true } as const;
-
 /** A fighters row selected with RATING_STATUS_COLUMNS. */
 export type FighterRatingStatus = FighterStatus & { beast_link?: unknown };
 
