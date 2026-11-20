@@ -354,14 +354,22 @@ export function postCycleAvailability(gang: PostCycleGang): PostCycleAvailabilit
 const SPYRE_HUNTERS_TERRITORY_INCOME = 15;
 
 /**
- * Collect Income from one held Territory: its credits, except that a Spyre
- * Hunters gang takes a flat 15 from each Territory instead of its Boon.
+ * Collect Income from one held Territory: its credits, or its controlled credits
+ * for the controlling house and its alternate lists, like Toll Road's 30 for
+ * Orlocks. A Spyre Hunters gang takes a flat 15 from each Territory instead.
  */
 export const territoryIncome = (
-  territory: { credits: number | null },
-  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'>
-): number =>
-  gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE ? SPYRE_HUNTERS_TERRITORY_INCOME : (territory.credits ?? 0);
+  territory: { credits: number | null; controlled_gang_type_id?: string | null; controlled_credits?: number | null },
+  gang: Pick<PostCycleGang, 'gangType' | 'isCustomGangType'> & {
+    gangTypeId?: string | null;
+    parentGangTypeId?: string | null;
+  }
+): number => {
+  if (gangTypeName(gang) === SPYRE_HUNTERS_GANG_TYPE) return SPYRE_HUNTERS_TERRITORY_INCOME;
+  const controlledBy = territory.controlled_gang_type_id;
+  const controlled = !!controlledBy && (controlledBy === gang.gangTypeId || controlledBy === gang.parentGangTypeId);
+  return (controlled ? territory.controlled_credits : null) ?? territory.credits ?? 0;
+};
 
 export function canPerformPostCycleAction(
   fighter: PostCycleFighter,

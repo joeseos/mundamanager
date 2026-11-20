@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import Modal from '@/components/ui/modal';
 import { Input } from '@/components/ui/input';
@@ -781,7 +781,7 @@ function EquipmentItemsSection({
   const [isAddEquipOpen, setIsAddEquipOpen] = useState(false);
   const [editOverridesItem, setEditOverridesItem] = useState<CustomTPEquipment | null>(null);
 
-  const { data: equipmentItems = [], isLoading: isLoadingItems, error: equipmentError } = useQuery({
+  const { data: equipmentItems = [], isLoading: isLoadingItems } = useQuery({
     queryKey: ['tpEquipment', tradingPostId],
     queryFn: async () => {
       const result = await getTPEquipment(tradingPostId);
@@ -789,11 +789,8 @@ function EquipmentItemsSection({
       return result.data!;
     },
     staleTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment items' },
   });
-
-  useEffect(() => {
-    if (equipmentError) toast.error('Failed to load equipment items');
-  }, [equipmentError]);
 
   const displayItems: CustomTPEquipment[] = [
     ...equipmentItems
@@ -1039,36 +1036,29 @@ function ViewTradingPostModal({
 function useEquipmentData() {
   const editionSlug = useTradingPostEdition();
 
-  const { data: categories = [], error: categoriesError } = useQuery({
-    // Keyed on edition because the result below is edition-filtered
-    queryKey: ['equipmentCategories', editionSlug],
+  const { data: categories = [] } = useQuery({
+    queryKey: ['equipmentCategories'],
     queryFn: async () => {
       const res = await fetch('/api/equipment/categories');
       if (!res.ok) throw new Error('Failed to fetch categories');
-      const data = await res.json() as Array<{ id: string; category_name: string; edition_slug?: string | null }>;
-      return data.filter(c => sameEditionForDisplay(c.edition_slug, editionSlug));
+      return res.json() as Promise<Array<{ id: string; category_name: string; edition_slug?: string | null }>>;
     },
+    select: (data) => data.filter(c => sameEditionForDisplay(c.edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment categories' },
   });
 
-  const { data: allEquipment = [], error: equipmentError } = useQuery({
-    queryKey: ['equipment', { core_equipment: false, editionSlug }],
+  const { data: allEquipment = [] } = useQuery({
+    queryKey: ['equipment', { core_equipment: false }],
     queryFn: async () => {
       const res = await fetch('/api/equipment?core_equipment=false');
       if (!res.ok) throw new Error('Failed to fetch equipment');
-      const data = await res.json() as EquipmentOption[];
-      return data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug));
+      return res.json() as Promise<EquipmentOption[]>;
     },
+    select: (data) => data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment' },
   });
-
-  useEffect(() => {
-    if (categoriesError) toast.error('Failed to load equipment categories');
-  }, [categoriesError]);
-
-  useEffect(() => {
-    if (equipmentError) toast.error('Failed to load equipment');
-  }, [equipmentError]);
 
   return { categories, allEquipment };
 }
@@ -1581,14 +1571,15 @@ function GangScopeFields({
 }) {
   const editionSlug = useTradingPostEdition();
   const { data: gangTypes = [] } = useQuery({
-    queryKey: ['gangTypes', editionSlug],
+    queryKey: ['gangTypes'],
     queryFn: async () => {
       const res = await fetch('/api/gang-types?includeAll=true');
       if (!res.ok) throw new Error('Failed to fetch gang types');
-      const data = await res.json() as GangTypeOption[];
-      return data.filter(gt => sameEditionForDisplay((gt as any).edition_slug, editionSlug));
+      return res.json() as Promise<GangTypeOption[]>;
     },
+    select: (data) => data.filter(gt => sameEditionForDisplay((gt as any).edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load gang types' },
   });
 
   const selectedGangType = gangTypes.find(gt => gt.id === gangTypeId);
@@ -1689,6 +1680,7 @@ function AddAvailabilityRuleModal({
     },
     select: (data) => data.filter(v => sameEditionForDisplay(v.edition_slug, editionSlug)),
     staleTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load subtypes' },
   });
 
   const { data: allegiances = [] } = useQuery({

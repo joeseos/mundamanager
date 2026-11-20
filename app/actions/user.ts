@@ -232,9 +232,8 @@ export const deleteAccountAction = async (formData: FormData) => {
       return { success: false, error: "Failed to delete account" };
     }
 
-    // After the delete, so a failed delete keeps the images. The service role,
-    // since the user's session went with the account.
-    await removeStorageFolders(serviceClient, [
+    // After the delete, so a failed delete keeps the images.
+    await removeStorageFolders([
       ...gangs.flatMap((gang) => gangImageFolders(gang.id)),
       `avatars/${user.id}/`,
     ]);

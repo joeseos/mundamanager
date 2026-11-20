@@ -2,6 +2,7 @@
 
 import { invalidateGang, invalidateFighter, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from '@/utils/supabase/server';
+import { getVehicleTotalCost } from '@/app/lib/shared/fighter-data';
 
 import { getAuthenticatedUser } from '@/utils/auth';
 import { countsTowardRating } from '@/utils/fighter-status';
@@ -39,21 +40,7 @@ export async function deleteVehicle(params: DeleteVehicleParams): Promise<Delete
     const gangId = vehBefore?.gang_id ?? params.gangId;
 
     // Calculate vehicle total cost BEFORE deletion (assigned or unassigned)
-    const baseCost = vehBefore?.cost || 0;
-
-    const { data: equipmentData } = await supabase
-      .from('fighter_equipment')
-      .select('purchase_cost')
-      .eq('vehicle_id', params.vehicleId);
-    const equipmentCost = equipmentData?.reduce((s: number, eq: any) => s + (eq.purchase_cost || 0), 0) || 0;
-
-    const { data: effectsData } = await supabase
-      .from('fighter_effects')
-      .select('type_specific_data')
-      .eq('vehicle_id', params.vehicleId);
-    const effectsCost = effectsData?.reduce((s: number, eff: any) => s + (eff.type_specific_data?.credits_increase || 0), 0) || 0;
-
-    const vehicleCost = baseCost + equipmentCost + effectsCost;
+    const vehicleCost = await getVehicleTotalCost(params.vehicleId);
     const wasAssigned = !!vehBefore?.fighter_id;
 
     // Delete related records first to avoid foreign key constraint issues

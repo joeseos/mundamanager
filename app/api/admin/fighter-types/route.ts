@@ -16,7 +16,7 @@ function isNonEmptyArray(value: unknown): boolean {
  * applied to the reads and the delete alike.
  */
 function scopeToUnscopedGrants<T>(query: T): T {
-  return ['gang_origin_id', 'gang_subtype_id', 'gang_type_id', 'fighter_subtype']
+  return ['gang_origin_id', 'gang_subtype_id', 'gang_type_id', 'fighter_subtype', 'fighter_specialisation_id']
     .reduce((q, column) => q.is(column, null), query as any)
     .eq('excluded', false) as T;
 }

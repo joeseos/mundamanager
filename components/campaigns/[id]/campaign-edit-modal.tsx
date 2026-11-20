@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useMemo, useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Combobox } from "@/components/ui/combobox";
@@ -17,6 +18,14 @@ import { Badge } from "@/components/ui/badge";
 import { sameEditionForDisplay } from '@/types/edition';
 import { DISCORD_CHANNEL_TYPES } from '@/utils/discord';
 
+interface DiscordChannel {
+  id: string;
+  name: string;
+  type: number;
+}
+
+const NO_CHANNELS: DiscordChannel[] = [];
+
 interface TradingPostType {
   id: string;
   trading_post_name: string | null;
@@ -30,6 +39,7 @@ interface SettingsFormValues {
   custom_trading_posts: string[];
   status: string;
   allow_join_requests: boolean;
+  allow_trading: boolean;
   discord_guild_id?: string | null;
   discord_channel_id?: string | null;
   discord_channel_type?: number | null;
@@ -44,6 +54,7 @@ interface EditCampaignModalProps {
     description: string | null;
     status: string | null;
     allow_join_requests?: boolean;
+    allow_trading?: boolean;
     trading_posts: string[];
     custom_trading_posts: string[];
     campaign_type_name?: string;
@@ -99,6 +110,7 @@ export default function CampaignEditModal({
     description: campaignData.description ?? '',
     status: campaignData.status || 'Active',
     allowJoinRequests: campaignData.allow_join_requests ?? false,
+    allowTrading: campaignData.allow_trading ?? false,
     tradingPosts: campaignData.trading_posts || [],
     customTradingPosts: campaignData.custom_trading_posts || [],
   });
@@ -106,8 +118,6 @@ export default function CampaignEditModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [charCount, setCharCount] = useState((campaignData.description ?? '').length);
   const [confirmText, setConfirmText] = useState('');
-  const [discordChannels, setDiscordChannels] = useState<Array<{ id: string; name: string; type: number }>>([]);
-  const [loadingChannels, setLoadingChannels] = useState(!!campaignData.discord_guild_id);
   const [selectedChannelId, setSelectedChannelId] = useState<string>(campaignData.discord_channel_id || '');
   const [postDiceRolls, setPostDiceRolls] = useState(campaignData.discord_dice_rolls ?? false);
   const [diceRollChannelId, setDiceRollChannelId] = useState<string>(campaignData.discord_dice_roll_channel_id || '');
@@ -128,22 +138,19 @@ export default function CampaignEditModal({
     [customTradingPostTypes, campaignData.edition_slug]
   );
 
-  const [prevDiscordGuildId, setPrevDiscordGuildId] = useState(campaignData.discord_guild_id);
-  if (campaignData.discord_guild_id !== prevDiscordGuildId) {
-    setPrevDiscordGuildId(campaignData.discord_guild_id);
-    setLoadingChannels(!!campaignData.discord_guild_id);
-  }
-
-  useEffect(() => {
-    if (!campaignData.discord_guild_id) return;
-    let cancelled = false;
-    fetch(`/api/discord/channels?guild_id=${campaignData.discord_guild_id}`)
-      .then(res => res.ok ? res.json() : [])
-      .then(channels => { if (!cancelled) setDiscordChannels(channels); })
-      .catch(() => { if (!cancelled) setDiscordChannels([]); })
-      .finally(() => { if (!cancelled) setLoadingChannels(false); });
-    return () => { cancelled = true; };
-  }, [campaignData.discord_guild_id]);
+  const guildId = campaignData.discord_guild_id;
+  const { data: discordChannels = NO_CHANNELS, isLoading: loadingChannels } = useQuery({
+    queryKey: ['discord-channels', guildId],
+    queryFn: async () => {
+      const res = await fetch(`/api/discord/channels?guild_id=${guildId}`);
+      if (!res.ok) throw new Error('Failed to fetch Discord channels');
+      return res.json() as Promise<DiscordChannel[]>;
+    },
+    enabled: !!guildId,
+    // Channels change on Discord, so each open reads them again
+    staleTime: 0,
+    meta: { errorMessage: 'Failed to load Discord channels' },
+  });
 
   // Listen for postMessage from Discord OAuth popup
   useEffect(() => {
@@ -183,13 +190,15 @@ export default function CampaignEditModal({
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
       allow_join_requests: formValues.allowJoinRequests,
+      allow_trading: formValues.allowTrading,
     };
 
     // Include discord fields if guild is connected
     if (campaignData.discord_guild_id) {
       saveData.discord_channel_id = selectedChannelId || null;
       const selectedChannel = discordChannels.find(ch => ch.id === selectedChannelId);
-      saveData.discord_channel_type = selectedChannel?.type ?? 0;
+      // Keeps the saved type while the channels haven't loaded
+      saveData.discord_channel_type = selectedChannel?.type ?? campaignData.discord_channel_type ?? 0;
       saveData.discord_dice_rolls = postDiceRolls;
       saveData.discord_dice_roll_channel_id = diceRollChannelId || null;
     }
@@ -218,6 +227,7 @@ export default function CampaignEditModal({
       custom_trading_posts: formValues.customTradingPosts,
       status: formValues.status,
       allow_join_requests: formValues.allowJoinRequests,
+      allow_trading: formValues.allowTrading,
       discord_guild_id: null,
       discord_channel_id: null,
       discord_channel_type: 0,
@@ -225,7 +235,6 @@ export default function CampaignEditModal({
       discord_dice_roll_channel_id: null,
     });
     if (result) {
-      setDiscordChannels([]);
       setSelectedChannelId('');
       setPostDiceRolls(false);
       setDiceRollChannelId('');
@@ -345,6 +354,25 @@ export default function CampaignEditModal({
               <span className="text-sm font-medium">Allow join requests</span>
               <InfoTooltip ariaLabel="About join requests">
                 When enabled, any logged-in user can request to join this campaign from the campaign page. Campaign owners and arbitrators receive a notification to accept or decline each request.
+              </InfoTooltip>
+            </label>
+
+            {/* Campaign Trading */}
+            <label
+              htmlFor="allow-trading"
+              className="flex items-center space-x-2 cursor-pointer"
+            >
+              <Checkbox
+                id="allow-trading"
+                checked={formValues.allowTrading}
+                onCheckedChange={(checked) => setFormValues(prev => ({
+                  ...prev,
+                  allowTrading: checked === true
+                }))}
+              />
+              <span className="text-sm font-medium">Allow campaign trading</span>
+              <InfoTooltip ariaLabel="About campaign trading">
+                When enabled, owners of gangs in this campaign can post and bid on trades (direct deals, listings, and bids). A trade completes only when it is fulfilled. Turning this off hides Selling and Looking for; open trades stay on the list so they can be accepted or cancelled.
               </InfoTooltip>
             </label>
 
@@ -522,17 +550,14 @@ export default function CampaignEditModal({
                       <label className="block text-xs text-muted-foreground mb-1">
                         Battle Log channel
                       </label>
-                      {loadingChannels ? (
-                        <p className="text-xs text-muted-foreground">Loading channels...</p>
-                      ) : (
-                        <Combobox
-                          options={discordChannels.map(ch => ({ value: ch.id, label: `# ${ch.name}` }))}
-                          value={selectedChannelId}
-                          onValueChange={setSelectedChannelId}
-                          placeholder="Select a channel"
-                          className="w-full"
-                        />
-                      )}
+                      <Combobox
+                        options={discordChannels.map(ch => ({ value: ch.id, label: `# ${ch.name}` }))}
+                        value={selectedChannelId}
+                        onValueChange={setSelectedChannelId}
+                        placeholder="Select a channel"
+                        disabled={loadingChannels}
+                        className="w-full"
+                      />
                     </div>
                     <label
                       htmlFor="discord-dice-rolls"
@@ -548,7 +573,7 @@ export default function CampaignEditModal({
                         Posts every roll the players make for their gangs in this campaign, such as Lasting Injuries, Advancements and Post-cycle Actions, so arbitrators can follow them on Discord.
                       </InfoTooltip>
                     </label>
-                    {postDiceRolls && !loadingChannels && (
+                    {postDiceRolls && (
                       <div>
                         <label className="block text-xs text-muted-foreground mb-1">
                           Dice roll channel
@@ -561,6 +586,7 @@ export default function CampaignEditModal({
                           onValueChange={setDiceRollChannelId}
                           placeholder="Same as Battle Log channel"
                           clearable
+                          disabled={loadingChannels}
                           className="w-full"
                         />
                       </div>

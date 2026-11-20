@@ -6,6 +6,7 @@ import type { CountLimit } from '@/types/fighter-type';
 import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import { gangRulesForWeapon } from '@/utils/gang-rules';
+import { beastCost, effectsCost, fighterTotalCost, type BeastCostRows } from '@/utils/fighter-cost';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -113,14 +114,6 @@ function effectsByCategory(rows: any[]): Record<string, any[]> {
   return effects;
 }
 
-/** The credits the effects add (type_specific_data.credits_increase). */
-const effectCredits = (effects: any[]) =>
-  effects.reduce((sum: number, effect: any) => sum + (effect.type_specific_data?.credits_increase || 0), 0);
-
-/** The credits the skills add. */
-const skillCredits = (skills: any[]) =>
-  skills.reduce((sum: number, skill: any) => sum + (skill.credits_increase || 0), 0);
-
 /** The gang's rules when the fighter is of the gang's own gang type, else none */
 function gangRulesFor(bundle: GangFightersBundle, fighterType: { gang_type_id?: string | null } | null | undefined) {
   return bundle.gangTypeId && fighterType?.gang_type_id === bundle.gangTypeId ? bundle.gangRules : [];
@@ -161,7 +154,8 @@ export function resolveGangCountLimit(
 type LoadoutContext = { loadoutId: string | null; loadoutName?: string; isActiveLoadout: boolean };
 
 interface OwnedBeastCosts {
-  total: number;
+  /** One per owned-beast link, for fighterTotalCost. */
+  rows: BeastCostRows[];
   /** Per beast-granting item: the beast's own equipment and its advancements. */
   byEquipmentId: Record<string, { equipment: number; advancements: number }>;
 }
@@ -342,31 +336,32 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
 
   /** Exotic beasts owned by this fighter: their cost rolls into the owner's. */
   const ownedBeastCosts = (fighterId: string): OwnedBeastCosts => {
+    const rows: BeastCostRows[] = [];
     const byEquipmentId: OwnedBeastCosts['byEquipmentId'] = {};
-    let total = 0;
     (beastsByOwner[fighterId] || []).forEach((beastRel: any) => {
       const beastFighter: any = fighterLookup.get(beastRel.fighter_pet_id);
-      if (!beastFighter || beastFighter.killed || beastFighter.retired || beastFighter.enslaved || beastFighter.captured) {
-        return;
+      if (!beastFighter) return;
+
+      const beast: BeastCostRows = {
+        base_cost: beastFighter.fighter_types?.cost,
+        cost_adjustment: beastFighter.cost_adjustment,
+        killed: beastFighter.killed,
+        retired: beastFighter.retired,
+        enslaved: beastFighter.enslaved,
+        captured: beastFighter.captured,
+        equipment_stashed: Boolean(beastRel.fighter_equipment?.gang_stash),
+        equipment: equipmentByFighter[beastRel.fighter_pet_id] || [],
+        skills: skillsByFighter[beastRel.fighter_pet_id] || [],
+        effects: effectsByFighter[beastRel.fighter_pet_id] || [],
+      };
+      rows.push(beast);
+
+      const cost = beastCost(beast);
+      if (cost && beastRel.fighter_equipment_id) {
+        byEquipmentId[beastRel.fighter_equipment_id] = { equipment: cost.equipment, advancements: cost.advancements };
       }
-
-      // Get beast's equipment, skills, effects
-      const beastEquipment = equipmentByFighter[beastRel.fighter_pet_id] || [];
-      const beastSkills = skillsByFighter[beastRel.fighter_pet_id] || [];
-      const beastEffects = effectsByFighter[beastRel.fighter_pet_id] || [];
-
-      // Stashed equipment already moved its cost to stash value; the beast's advancements did not.
-      const equipmentCost = beastRel.fighter_equipment?.gang_stash
-        ? 0
-        : beastEquipment.reduce((sum: number, eq: any) => sum + (eq.purchase_cost || 0), 0);
-      const advancementsCost = skillCredits(beastSkills) + effectCredits(beastEffects) + (beastFighter.cost_adjustment || 0);
-
-      if (beastRel.fighter_equipment_id) {
-        byEquipmentId[beastRel.fighter_equipment_id] = { equipment: equipmentCost, advancements: advancementsCost };
-      }
-      total += ((beastFighter.fighter_types as any)?.cost || 0) + equipmentCost + advancementsCost;
     });
-    return { total, byEquipmentId };
+    return { rows, byEquipmentId };
   };
 
   /** Assemble one fighter. Without a loadout context, its active loadout applies. */
@@ -395,7 +390,6 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
 
     // Effects grouped by category; every effect counts towards cost
     const effects = effectsByCategory(effectsData);
-    const unfilteredEffectsCost = effectCredits(effectsData);
 
     // Filter effects by active loadout (for display and stats)
     if (activeLoadoutEquipmentIds !== null) {
@@ -499,8 +493,6 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
 
     const beastCosts = ownedBeastCosts(fighterId);
 
-    // Calculate total cost
-    let totalCost = 0;
     const isOwnedBeast = !!ownershipInfo;
 
     // Process vehicles with equipment and effects for display
@@ -558,25 +550,31 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       };
     });
 
-    const vehicleCost = processedVehicles.reduce((sum: number, vehicle: any) => {
-      let vehicleTotal = vehicle.cost || 0;
-      vehicleTotal += vehicle.equipment.reduce((equipSum: number, eq: any) => equipSum + (eq.purchase_cost || 0), 0);
-      vehicleTotal += effectCredits(Object.values(vehicle.effects).flat());
-      return sum + vehicleTotal;
-    }, 0);
-
-    // Calculate loadout cost for display (only equipment in active loadout)
-    const loadoutEquipmentCost = processedEquipment
-      .filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id))
-      .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
-
-    if (!isOwnedBeast) {
-      // Total cost for gang rating uses ALL equipment, skills and effects (not filtered by loadout)
-      const allEquipmentCost = processedEquipment
-        .reduce((sum: number, eq: any) => sum + eq.purchase_cost, 0);
-      totalCost = fighter.credits + allEquipmentCost + skillCredits(Object.values(allSkills)) + unfilteredEffectsCost +
-                  vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total;
-    }
+    // An owned exotic beast's cost rolls into its owner's
+    const costRows = {
+      credits: fighter.credits,
+      cost_adjustment: fighter.cost_adjustment,
+      vehicles: processedVehicles.map((vehicle: any) => ({
+        cost: vehicle.cost,
+        equipment: vehicle.equipment,
+        effects: Object.values(vehicle.effects).flat() as any[],
+      })),
+      beasts: beastCosts.rows,
+    };
+    // The gang rating counts every item, skill and effect, in or out of the active loadout
+    const totalCost = isOwnedBeast ? 0 : fighterTotalCost({
+      ...costRows,
+      equipment: processedEquipment,
+      skills: Object.values(allSkills),
+      effects: effectsData,
+    });
+    // The fighter card shows only the active loadout's
+    const displayLoadoutCost = isOwnedBeast ? 0 : fighterTotalCost({
+      ...costRows,
+      equipment: processedEquipment.filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id)),
+      skills: Object.values(skills),
+      effects: Object.values(effects).flat(),
+    });
 
     // Separate equipment into weapons and wargear (filtered by active loadout if set)
     const weapons: WeaponProps[] = processedEquipment
@@ -606,11 +604,6 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
     const fighterTypeInfo = fighter.fighter_types || {};
     const fighterSpecialisationInfo = fighter.fighter_specialisations || null;
     const countLimit = resolveGangCountLimit(fighterTypeInfo.count_limits, gangScope);
-
-    // Loadout cost for fighter card display: base cost + loadout equipment + skills + effects
-    const displayLoadoutCost = !isOwnedBeast
-      ? fighter.credits + loadoutEquipmentCost + skillCredits(Object.values(skills)) + effectCredits(Object.values(effects).flat()) + vehicleCost + (fighter.cost_adjustment || 0) + beastCosts.total
-      : 0;
 
     const result: GangFighter = {
       id: fighter.id,
@@ -826,9 +819,6 @@ export function assembleGangVehicles(bundle: GangFightersBundle): any[] {
       });
 
     const equipmentCost = equipment.reduce((sum: number, eq: any) => sum + (eq.cost || 0), 0);
-    const effectsCost = Object.values(effectsByCategory).flat().reduce((sum: number, effect: any) => {
-      return sum + (effect.type_specific_data?.credits_increase || 0);
-    }, 0);
 
     return {
       id: vehicle.id,
@@ -854,7 +844,7 @@ export function assembleGangVehicles(bundle: GangFightersBundle): any[] {
       equipment,
       total_equipment_cost: equipmentCost,
       effects: effectsByCategory,
-      total_effect_credits: effectsCost
+      total_effect_credits: effectsCost(Object.values(effectsByCategory).flat())
     };
   });
 }

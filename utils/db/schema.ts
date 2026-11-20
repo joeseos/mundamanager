@@ -17,11 +17,12 @@ import {
 import { relations, sql } from 'drizzle-orm';
 import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
 import type { BattleParticipant, BattleStatus, ScenarioTableType } from '@/types/campaign';
+import type { CampaignTradeItemKind, CampaignTradeStatus } from '@/types/campaign-trade';
 import type { CollectionItem } from '@/app/actions/customise/custom-collections';
 import type { NotificationType } from '@/utils/notifications';
 
 /**
- * Drizzle schema for the tables read over the direct database connection
+ * Drizzle schema for the tables read or written over the direct database connection
  * (utils/db/client.ts). The tables themselves are defined by
  * supabase/migrations; these definitions mirror supabase/schema/schema.public.sql
  * and must be kept in step with it when a migration changes these tables.
@@ -39,7 +40,11 @@ type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
 // jsonb is passed through as Postgres returned it. Drizzle's own jsonb() would
 // JSON.parse string values again, turning e.g. the string "2" into the number 2.
-const json = customType<{ data: Json }>({ dataType: () => 'jsonb' });
+// Written values are serialised here, since Drizzle turns off postgres.js's own.
+const json = customType<{ data: Json }>({
+  dataType: () => 'jsonb',
+  toDriver: (value) => JSON.stringify(value),
+});
 const jsonArray = customType<{ data: Json[] }>({ dataType: () => 'jsonb[]' });
 
 export const alignment = pgEnum('alignment', ['Outlaw', 'Law Abiding', 'Unaligned']);
@@ -74,6 +79,17 @@ export const gangs = pgTable('gangs', {
   note_private_updated_at: timestamp('note_private_updated_at', { withTimezone: true, mode: 'string' }),
   trade_points: numeric('trade_points', { mode: 'number' }).default(0).notNull(),
   gang_portrait_id: uuid('gang_portrait_id'),
+});
+
+export const gangLogs = pgTable('gang_logs', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  gang_id: uuid('gang_id').notNull(),
+  user_id: uuid('user_id'),
+  action_type: text('action_type').notNull(),
+  description: text('description').notNull(),
+  fighter_id: uuid('fighter_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
+  vehicle_id: uuid('vehicle_id'),
 });
 
 export const fighters = pgTable('fighters', {
@@ -440,8 +456,6 @@ export const skillTypes = pgTable('skill_types', {
 
 export const skills = pgTable('skills', {
   id: uuid('id').defaultRandom().primaryKey(),
-  OLDxp_cost: bigint('OLDxp_cost', { mode: 'number' }),
-  OLDcredit_cost: bigint('OLDcredit_cost', { mode: 'number' }),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   name: text('name'),
@@ -687,6 +701,7 @@ export const campaigns = pgTable('campaigns', {
   created_by: uuid('created_by').default(sql`auth.uid()`),
   custom_trading_posts: json('custom_trading_posts').$type<string[]>(),
   allow_join_requests: boolean('allow_join_requests').default(false).notNull(),
+  allow_trading: boolean('allow_trading').default(false).notNull(),
   current_cycle: integer('current_cycle'),
   current_phase: text('current_phase'),
   campaign_portrait_id: uuid('campaign_portrait_id'),
@@ -951,6 +966,8 @@ export const territories = pgTable('territories', {
   playing_card: text('playing_card'),
   edition_id: uuid('edition_id'),
   credits: numeric('credits', { mode: 'number' }),
+  controlled_gang_type_id: uuid('controlled_gang_type_id'),
+  controlled_credits: numeric('controlled_credits', { mode: 'number' }),
 });
 
 export const scenarios = pgTable('scenarios', {
@@ -985,6 +1002,36 @@ export const campaignBattles = pgTable('campaign_battles', {
   deployment_name: text('deployment_name'),
   objective_name: text('objective_name'),
   challenge_order: integer('challenge_order'),
+});
+
+export const campaignTrades = pgTable('campaign_trades', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  resolved_at: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
+  campaign_id: uuid('campaign_id').notNull(),
+  proposer_gang_id: uuid('proposer_gang_id').notNull(),
+  counterparty_gang_id: uuid('counterparty_gang_id'),
+  parent_trade_id: uuid('parent_trade_id'),
+  title: varchar('title', { length: 100 }).notNull(),
+  note: text('note'),
+  status: text('status').$type<CampaignTradeStatus>().default(sql`'open'::text`).notNull(),
+});
+
+export const campaignTradeItems = pgTable('campaign_trade_items', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+  trade_id: uuid('trade_id').notNull(),
+  giving_gang_id: uuid('giving_gang_id').notNull(),
+  kind: text('kind').$type<CampaignTradeItemKind>().notNull(),
+  fighter_id: uuid('fighter_id'),
+  fighter_equipment_id: uuid('fighter_equipment_id'),
+  amount: numeric('amount', { mode: 'number' }),
+  campaign_type_resource_id: uuid('campaign_type_resource_id'),
+  campaign_resource_id: uuid('campaign_resource_id'),
+  description: text('description'),
+  locked: boolean('locked').default(true).notNull(),
 });
 
 export const campaignMaps = pgTable('campaign_maps', {
@@ -1149,6 +1196,9 @@ export const gangsRelations = relations(gangs, ({ one, many }) => ({
   }),
   gang_skill_set_ranks: many(gangSkillSetRanks),
   campaign_gangs: many(campaignGangs),
+  proposed_trades: many(campaignTrades, { relationName: 'trade_proposer' }),
+  counterparty_trades: many(campaignTrades, { relationName: 'trade_counterparty' }),
+  given_trade_items: many(campaignTradeItems, { relationName: 'trade_item_giving_gang' }),
 }));
 
 export const gangOriginsRelations = relations(gangOrigins, ({ one }) => ({
@@ -1227,6 +1277,7 @@ export const campaignsRelations = relations(campaigns, ({ one, many }) => ({
   campaign_resources: many(campaignResources),
   campaign_allegiances: many(campaignAllegiances),
   campaign_gangs: many(campaignGangs),
+  campaign_trades: many(campaignTrades),
 }));
 
 export const campaignTypesRelations = relations(campaignTypes, ({ one, many }) => ({
@@ -1686,6 +1737,58 @@ export const campaignBattlesRelations = relations(campaignBattles, ({ one }) => 
   }),
 }));
 
+export const campaignTradesRelations = relations(campaignTrades, ({ one, many }) => ({
+  campaign: one(campaigns, {
+    fields: [campaignTrades.campaign_id],
+    references: [campaigns.id],
+  }),
+  proposer_gang: one(gangs, {
+    fields: [campaignTrades.proposer_gang_id],
+    references: [gangs.id],
+    relationName: 'trade_proposer',
+  }),
+  counterparty_gang: one(gangs, {
+    fields: [campaignTrades.counterparty_gang_id],
+    references: [gangs.id],
+    relationName: 'trade_counterparty',
+  }),
+  parent_trade: one(campaignTrades, {
+    fields: [campaignTrades.parent_trade_id],
+    references: [campaignTrades.id],
+    relationName: 'trade_bids',
+  }),
+  bids: many(campaignTrades, { relationName: 'trade_bids' }),
+  items: many(campaignTradeItems),
+}));
+
+export const campaignTradeItemsRelations = relations(campaignTradeItems, ({ one }) => ({
+  trade: one(campaignTrades, {
+    fields: [campaignTradeItems.trade_id],
+    references: [campaignTrades.id],
+  }),
+  giving_gang: one(gangs, {
+    fields: [campaignTradeItems.giving_gang_id],
+    references: [gangs.id],
+    relationName: 'trade_item_giving_gang',
+  }),
+  fighter: one(fighters, {
+    fields: [campaignTradeItems.fighter_id],
+    references: [fighters.id],
+  }),
+  fighter_equipment: one(fighterEquipment, {
+    fields: [campaignTradeItems.fighter_equipment_id],
+    references: [fighterEquipment.id],
+  }),
+  campaign_type_resource: one(campaignTypeResources, {
+    fields: [campaignTradeItems.campaign_type_resource_id],
+    references: [campaignTypeResources.id],
+  }),
+  campaign_resource: one(campaignResources, {
+    fields: [campaignTradeItems.campaign_resource_id],
+    references: [campaignResources.id],
+  }),
+}));
+
 export const campaignMapsRelations = relations(campaignMaps, ({ many }) => ({
   campaign_map_objects: many(campaignMapObjects),
 }));
@@ -1730,6 +1833,10 @@ export const territoriesRelations = relations(territories, ({ one }) => ({
   editions: one(editions, {
     fields: [territories.edition_id],
     references: [editions.id],
+  }),
+  controlled_gang_type: one(gangTypes, {
+    fields: [territories.controlled_gang_type_id],
+    references: [gangTypes.id],
   }),
 }));
 

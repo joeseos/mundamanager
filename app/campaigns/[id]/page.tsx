@@ -1,7 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { notFound, redirect, unstable_rethrow } from "next/navigation";
 import CampaignPageContent from "@/components/campaigns/[id]/campaign-page-content";
-import { CampaignErrorBoundary } from "@/components/campaigns/campaign-error-boundary";
 import { checkCampaignPermissions } from "@/utils/user-permissions";
 import type { CampaignPermissions } from "@/types/user-permissions";
 import { getAuthenticatedUser, signInPath } from "@/utils/auth";
@@ -23,6 +22,7 @@ import {
   getCampaignAllegiances,
   getCampaignResources,
   getCampaignCaptives,
+  getCampaignTrades,
   getCampaignSharedTradingPosts,
   getCampaignMapWithObjects,
   getCampaignOoaCounts
@@ -100,7 +100,8 @@ export default async function CampaignPage(props: {
       campaignCaptives,
       customTradingPostTypes,
       campaignOoaCounts,
-      allScenarioTables
+      allScenarioTables,
+      campaignTrades
     ] = await Promise.all([
       getCampaignBasic(params.id),
       getCampaignMembers(params.id),
@@ -122,7 +123,8 @@ export default async function CampaignPage(props: {
         console.error('Error loading campaign OOA counts:', error);
         return [];
       }),
-      getScenarioTablesCached()
+      getScenarioTablesCached(),
+      getCampaignTrades(params.id, 100)
     ]);
 
     // Check if campaign exists
@@ -173,6 +175,7 @@ export default async function CampaignPage(props: {
       discord_dice_rolls: campaignBasic.discord_dice_rolls,
       discord_dice_roll_channel_id: campaignBasic.discord_dice_roll_channel_id,
       allow_join_requests: campaignBasic.allow_join_requests ?? false,
+      allow_trading: campaignBasic.allow_trading ?? false,
       note: campaignBasic.note,
       current_cycle: campaignBasic.current_cycle ?? null,
       current_phase: campaignBasic.current_phase ?? null,
@@ -182,7 +185,8 @@ export default async function CampaignPage(props: {
       battleSessions,
       triumphs: campaignTriumphs,
       ooaCounts: campaignOoaCounts,
-      captives: campaignCaptives
+      captives: campaignCaptives,
+      trades: campaignTrades
     };
     
     if (!campaignData.id) {
@@ -223,24 +227,22 @@ export default async function CampaignPage(props: {
   }
 
   return (
-    <CampaignErrorBoundary>
-      <CampaignPageContent
-        campaignData={pageProps.campaignData}
-        userId={userId}
-        permissions={permissions}
-        campaignTypes={pageProps.campaignTypes}
-        allTerritories={pageProps.allTerritories}
-        tradingPostTypes={pageProps.tradingPostTypes}
-        customTradingPostTypes={pageProps.customTradingPostTypes}
-        campaignAllegiances={pageProps.campaignAllegiances}
-        campaignResources={pageProps.campaignResources}
-        mapData={pageProps.campaignMap}
-        mapObjects={pageProps.campaignMapObjects}
-        hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
-        scenarioTables={pageProps.scenarioTables}
-        // Challenge notifications link to ?tab=battles.
-        initialTab={tab === 'battles' ? 2 : 0}
-      />
-    </CampaignErrorBoundary>
+    <CampaignPageContent
+      campaignData={pageProps.campaignData}
+      userId={userId}
+      permissions={permissions}
+      campaignTypes={pageProps.campaignTypes}
+      allTerritories={pageProps.allTerritories}
+      tradingPostTypes={pageProps.tradingPostTypes}
+      customTradingPostTypes={pageProps.customTradingPostTypes}
+      campaignAllegiances={pageProps.campaignAllegiances}
+      campaignResources={pageProps.campaignResources}
+      mapData={pageProps.campaignMap}
+      mapObjects={pageProps.campaignMapObjects}
+      hasPendingJoinRequest={pageProps.hasPendingJoinRequest}
+      scenarioTables={pageProps.scenarioTables}
+      // Challenge notifications link to ?tab=battles.
+      initialTab={tab === 'battles' ? 2 : 0}
+    />
   );
 } 

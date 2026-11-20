@@ -155,6 +155,8 @@ export interface FighterTypeGrant {
   gang_type_id: string | null;
   gang_origin_id: string | null;
   gang_subtype_id: string | null;
+  /** fighter_type_equipment only: every fighter with this specialisation, like fighter_subtype. */
+  fighter_specialisation_id?: string | null;
   excluded: boolean;
 }
 

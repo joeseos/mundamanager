@@ -32,10 +32,11 @@ export async function deleteGang(gangId: string) {
       .eq('gang_id', gangId);
 
     // Delete the gang
-    const { error: deleteError } = await supabase
+    const { data: deleted, error: deleteError } = await supabase
       .from('gangs')
       .delete()
-      .eq('id', gangId);
+      .eq('id', gangId)
+      .select('id');
 
     // Handle delete error inline - don't throw
     if (deleteError) {
@@ -46,15 +47,15 @@ export async function deleteGang(gangId: string) {
       };
     }
 
-    await removeStorageFolders(supabase, gangImageFolders(gangId));
+    // RLS deletes nothing, without an error, for a gang the user can't delete.
+    if (!deleted?.length) {
+      return { success: false, error: "You don't have permission to delete this gang" };
+    }
 
-    // Invalidate user's gang cache
-    invalidateUser(gang.user_id);
-    invalidateUser(gang.user_id);
+    await removeStorageFolders(gangImageFolders(gangId));
 
-    // Invalidate gang permissions cache
+    invalidateUser(gang.user_id);
     invalidatePermission(gang.user_id, gangId);
-    invalidateUser(gang.user_id);
 
     // Invalidate campaign membership caches if gang was in any campaigns (fetched before delete)
     if (campaigns && campaigns.length > 0) {

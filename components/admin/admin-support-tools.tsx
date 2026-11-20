@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { SEARCH_DEBOUNCE_MS } from '@/components/shared/user-search-bar';
 import Link from 'next/link';
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
@@ -24,6 +26,7 @@ interface GangResult {
   name: string;
   user_id: string;
   username: string;
+  edition_slug: string | null;
 }
 
 interface FighterResult {
@@ -31,6 +34,7 @@ interface FighterResult {
   fighter_name: string;
   gang_id: string;
   gang_name: string;
+  edition_slug: string | null;
 }
 
 interface CampaignResult {
@@ -38,6 +42,7 @@ interface CampaignResult {
   campaign_name: string;
   campaign_type_id: string;
   campaign_type_name: string;
+  edition_slug: string | null;
 }
 
 type ComboboxOption = {
@@ -51,198 +56,103 @@ interface AdminSupportToolsModalProps {
   onSubmit?: () => void;
 }
 
+const SEARCH_MIN_LENGTH = 2;
+
+/** A result with its owner or type, then its edition, muted after bullets */
+const toOption = (id: string, name: string, detail: string, editionSlug: string | null): ComboboxOption => {
+  const muted = [detail, editionSlug?.toUpperCase()].filter(Boolean).join(' \u2022 ');
+  return {
+    value: id,
+    label: (
+      <span>
+        <span>{name}</span>
+        <span className="text-xs text-muted-foreground"> • {muted}</span>
+      </span>
+    ),
+    displayValue: `${name} \u2022 ${muted}`,
+  };
+};
+
+/** Search-as-you-type against one /api/admin/support search route */
+function useSupportSearch<T>(route: string) {
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const { data } = useQuery({
+    queryKey: ['admin-support-search', route, debouncedQuery],
+    queryFn: async ({ signal }): Promise<T[]> => {
+      const res = await fetch(`/api/admin/support/${route}?query=${encodeURIComponent(debouncedQuery)}`, { signal });
+      if (!res.ok) throw new Error('Search failed');
+      return res.json();
+    },
+    enabled: debouncedQuery.length >= SEARCH_MIN_LENGTH,
+    // Keep showing the last results while the next ones load
+    placeholderData: keepPreviousData,
+    // Support looks things up to answer users, so never show an older answer
+    staleTime: 0,
+    meta: { errorMessage: 'Search failed' },
+  });
+
+  const onInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
+    setQuery((e.target as HTMLInputElement).value);
+  }, []);
+
+  return { results: (query.length >= SEARCH_MIN_LENGTH && data) || [], onInput };
+}
+
 export function AdminSupportToolsModal({ onClose }: AdminSupportToolsModalProps) {
   const [activeTab, setActiveTab] = useState<SearchTab>('users');
 
-  const [userOptions, setUserOptions] = useState<ComboboxOption[]>([]);
+  const userSearch = useSupportSearch<{ id: string; username: string }>('search-users');
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
-  const [isLoadingUserDetail, setIsLoadingUserDetail] = useState(false);
+  const { data: userDetail, isLoading: isLoadingUserDetail } = useQuery({
+    queryKey: ['admin-support-user', selectedUserId],
+    queryFn: async (): Promise<UserDetail> => {
+      const res = await fetch(`/api/admin/support/users/${selectedUserId}`);
+      if (!res.ok) throw new Error('Failed to fetch user');
+      return res.json();
+    },
+    enabled: !!selectedUserId,
+    staleTime: 0,
+    meta: { errorMessage: 'Failed to load user' },
+  });
 
-  const [gangOptions, setGangOptions] = useState<ComboboxOption[]>([]);
+  const gangSearch = useSupportSearch<GangResult>('search-gangs');
   const [selectedGangId, setSelectedGangId] = useState('');
   const [selectedGang, setSelectedGang] = useState<GangResult | null>(null);
-  const gangResultsRef = useRef<GangResult[]>([]);
 
-  const [fighterOptions, setFighterOptions] = useState<ComboboxOption[]>([]);
+  const fighterSearch = useSupportSearch<FighterResult>('search-fighters');
   const [selectedFighterId, setSelectedFighterId] = useState('');
   const [selectedFighter, setSelectedFighter] = useState<FighterResult | null>(null);
-  const fighterResultsRef = useRef<FighterResult[]>([]);
 
-  const [campaignOptions, setCampaignOptions] = useState<ComboboxOption[]>([]);
+  const campaignSearch = useSupportSearch<CampaignResult>('search-campaigns');
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [selectedCampaign, setSelectedCampaign] = useState<CampaignResult | null>(null);
-  const campaignResultsRef = useRef<CampaignResult[]>([]);
 
-  const userSearchTimeout = useRef<NodeJS.Timeout>(undefined);
-  const gangSearchTimeout = useRef<NodeJS.Timeout>(undefined);
-  const fighterSearchTimeout = useRef<NodeJS.Timeout>(undefined);
-  const campaignSearchTimeout = useRef<NodeJS.Timeout>(undefined);
+  const userOptions: ComboboxOption[] = userSearch.results.map(u => ({ value: u.id, label: u.username }));
+  const gangOptions = gangSearch.results.map(g => toOption(g.id, g.name, g.username, g.edition_slug));
+  const fighterOptions = fighterSearch.results.map(f => toOption(f.id, f.fighter_name, f.gang_name, f.edition_slug));
+  const campaignOptions = campaignSearch.results.map(c => toOption(c.id, c.campaign_name, c.campaign_type_name, c.edition_slug));
 
-  useEffect(() => {
-    return () => {
-      if (userSearchTimeout.current) clearTimeout(userSearchTimeout.current);
-      if (gangSearchTimeout.current) clearTimeout(gangSearchTimeout.current);
-      if (fighterSearchTimeout.current) clearTimeout(fighterSearchTimeout.current);
-      if (campaignSearchTimeout.current) clearTimeout(campaignSearchTimeout.current);
-    };
-  }, []);
-
-  const handleUserInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
-    const query = (e.target as HTMLInputElement).value;
-    if (userSearchTimeout.current) clearTimeout(userSearchTimeout.current);
-    if (!query || query.length < 2) {
-      setUserOptions([]);
-      return;
-    }
-    userSearchTimeout.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/admin/support/search-users?query=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data: Array<{ id: string; username: string }> = await res.json();
-          setUserOptions(data.map(u => ({ value: u.id, label: u.username })));
-        }
-      } catch (err) {
-        console.error('User search error:', err);
-      }
-    }, 300);
-  }, []);
-
-  const handleGangInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
-    const query = (e.target as HTMLInputElement).value;
-    if (gangSearchTimeout.current) clearTimeout(gangSearchTimeout.current);
-    if (!query || query.length < 2) {
-      setGangOptions([]);
-      return;
-    }
-    gangSearchTimeout.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/admin/support/search-gangs?query=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data: GangResult[] = await res.json();
-          gangResultsRef.current = data;
-          setGangOptions(data.map(g => ({
-            value: g.id,
-            label: (
-              <span>
-                <span>{g.name}</span>
-                <span className="text-xs text-muted-foreground"> • {g.username}</span>
-              </span>
-            ),
-            displayValue: `${g.name} \u2022 ${g.username}`,
-          })));
-        }
-      } catch (err) {
-        console.error('Gang search error:', err);
-      }
-    }, 300);
-  }, []);
-
-  const handleFighterInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
-    const query = (e.target as HTMLInputElement).value;
-    if (fighterSearchTimeout.current) clearTimeout(fighterSearchTimeout.current);
-    if (!query || query.length < 2) {
-      setFighterOptions([]);
-      return;
-    }
-    fighterSearchTimeout.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/admin/support/search-fighters?query=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data: FighterResult[] = await res.json();
-          fighterResultsRef.current = data;
-          setFighterOptions(data.map(f => ({
-            value: f.id,
-            label: (
-              <span>
-                <span>{f.fighter_name}</span>
-                <span className="text-xs text-muted-foreground"> • {f.gang_name}</span>
-              </span>
-            ),
-            displayValue: `${f.fighter_name} \u2022 ${f.gang_name}`,
-          })));
-        }
-      } catch (err) {
-        console.error('Fighter search error:', err);
-      }
-    }, 300);
-  }, []);
-
-  const handleCampaignInput = useCallback((e: React.FormEvent<HTMLDivElement>) => {
-    const query = (e.target as HTMLInputElement).value;
-    if (campaignSearchTimeout.current) clearTimeout(campaignSearchTimeout.current);
-    if (!query || query.length < 2) {
-      setCampaignOptions([]);
-      return;
-    }
-    campaignSearchTimeout.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/admin/support/search-campaigns?query=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data: CampaignResult[] = await res.json();
-          campaignResultsRef.current = data;
-          setCampaignOptions(data.map(c => ({
-            value: c.id,
-            label: (
-              <span>
-                <span>{c.campaign_name}</span>
-                <span className="text-xs text-muted-foreground"> • {c.campaign_type_name}</span>
-              </span>
-            ),
-            displayValue: `${c.campaign_name} \u2022 ${c.campaign_type_name}`,
-          })));
-        }
-      } catch (err) {
-        console.error('Campaign search error:', err);
-      }
-    }, 300);
-  }, []);
-
-  const handleUserSelect = useCallback(async (userId: string) => {
-    setSelectedUserId(userId);
-    if (!userId) {
-      setUserDetail(null);
-      return;
-    }
-    setIsLoadingUserDetail(true);
-    try {
-      const res = await fetch(`/api/admin/support/users/${userId}`);
-      if (res.ok) {
-        setUserDetail(await res.json());
-      }
-    } catch (err) {
-      console.error('User detail error:', err);
-    } finally {
-      setIsLoadingUserDetail(false);
-    }
-  }, []);
-
-  const handleGangSelect = useCallback((gangId: string) => {
+  const handleGangSelect = (gangId: string) => {
     setSelectedGangId(gangId);
-    if (!gangId) {
-      setSelectedGang(null);
-      return;
-    }
-    setSelectedGang(gangResultsRef.current.find(g => g.id === gangId) || null);
-  }, []);
+    setSelectedGang(gangSearch.results.find(g => g.id === gangId) ?? null);
+  };
 
-  const handleFighterSelect = useCallback((fighterId: string) => {
+  const handleFighterSelect = (fighterId: string) => {
     setSelectedFighterId(fighterId);
-    if (!fighterId) {
-      setSelectedFighter(null);
-      return;
-    }
-    setSelectedFighter(fighterResultsRef.current.find(f => f.id === fighterId) || null);
-  }, []);
+    setSelectedFighter(fighterSearch.results.find(f => f.id === fighterId) ?? null);
+  };
 
-  const handleCampaignSelect = useCallback((campaignId: string) => {
+  const handleCampaignSelect = (campaignId: string) => {
     setSelectedCampaignId(campaignId);
-    if (!campaignId) {
-      setSelectedCampaign(null);
-      return;
-    }
-    setSelectedCampaign(campaignResultsRef.current.find(c => c.id === campaignId) || null);
-  }, []);
+    setSelectedCampaign(campaignSearch.results.find(c => c.id === campaignId) ?? null);
+  };
 
   const tabs: { key: SearchTab; label: string }[] = [
     { key: 'users', label: 'Users' },
@@ -288,11 +198,11 @@ export function AdminSupportToolsModal({ onClose }: AdminSupportToolsModalProps)
 
       {activeTab === 'users' && (
         <div className="space-y-4">
-          <div onInput={handleUserInput}>
+          <div onInput={userSearch.onInput}>
             <Combobox
               options={userOptions}
               value={selectedUserId}
-              onValueChange={handleUserSelect}
+              onValueChange={setSelectedUserId}
               placeholder="Search by username..."
               clearable
             />
@@ -373,7 +283,7 @@ export function AdminSupportToolsModal({ onClose }: AdminSupportToolsModalProps)
 
       {activeTab === 'gangs' && (
         <div className="space-y-4">
-          <div onInput={handleGangInput}>
+          <div onInput={gangSearch.onInput}>
             <Combobox
               options={gangOptions}
               value={selectedGangId}
@@ -439,7 +349,7 @@ export function AdminSupportToolsModal({ onClose }: AdminSupportToolsModalProps)
 
       {activeTab === 'fighters' && (
         <div className="space-y-4">
-          <div onInput={handleFighterInput}>
+          <div onInput={fighterSearch.onInput}>
             <Combobox
               options={fighterOptions}
               value={selectedFighterId}
@@ -555,7 +465,7 @@ export function AdminSupportToolsModal({ onClose }: AdminSupportToolsModalProps)
 
       {activeTab === 'campaigns' && (
         <div className="space-y-4">
-          <div onInput={handleCampaignInput}>
+          <div onInput={campaignSearch.onInput}>
             <Combobox
               options={campaignOptions}
               value={selectedCampaignId}

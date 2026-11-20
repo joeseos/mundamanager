@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateCampaignMembers, invalidateCampaignGang, invalidateCampaignTradingPosts, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
+import { invalidateCampaignMembers, invalidateCampaignGang, invalidateCampaignTradingPosts, invalidateCampaignTrades, invalidateGang, invalidateUser, invalidatePermission } from '@/utils/cache-tags';
 import { createClient, createServiceRoleClient } from "@/utils/supabase/server";
 
 import { logGangJoinedCampaign, logGangLeftCampaign } from "../../logs/gang-campaign-logs";
@@ -174,6 +174,76 @@ export async function addGangToCampaign(params: AddGangToCampaignParams) {
   }
 }
 
+async function cancelOpenCampaignTradesForGang(campaignId: string, gangId: string): Promise<void> {
+  const writer = createServiceRoleClient();
+  const { data: open, error } = await writer
+    .from('campaign_trades')
+    .select('id, proposer_gang_id, counterparty_gang_id, parent_trade_id')
+    .eq('campaign_id', campaignId)
+    .eq('status', 'open')
+    .or(`proposer_gang_id.eq.${gangId},counterparty_gang_id.eq.${gangId}`);
+  if (error) throw error;
+  if (!open?.length) return;
+
+  const listingIds = open
+    .filter((trade) => !trade.parent_trade_id && !trade.counterparty_gang_id)
+    .map((trade) => trade.id);
+
+  let childBids: Array<{ id: string }> = [];
+  if (listingIds.length > 0) {
+    const { data: bids, error: bidsError } = await writer
+      .from('campaign_trades')
+      .select('id')
+      .in('parent_trade_id', listingIds)
+      .eq('status', 'open');
+    if (bidsError) throw bidsError;
+    childBids = bids ?? [];
+  }
+
+  const knownIds = new Set(open.map((trade) => trade.id));
+  const extraBids = childBids.filter((bid) => !knownIds.has(bid.id));
+  const cancelIds = open
+    .filter((trade) => trade.proposer_gang_id === gangId)
+    .map((trade) => trade.id);
+  const declineIds = [
+    ...open
+      .filter((trade) => trade.proposer_gang_id !== gangId)
+      .map((trade) => trade.id),
+    ...extraBids.map((bid) => bid.id),
+  ];
+  const resolvedAt = new Date().toISOString();
+  const idsToUnlock = [...cancelIds, ...declineIds];
+
+  if (cancelIds.length > 0) {
+    const { error: cancelError } = await writer
+      .from('campaign_trades')
+      .update({ status: 'cancelled', resolved_at: resolvedAt, updated_at: resolvedAt })
+      .in('id', cancelIds)
+      .eq('status', 'open');
+    if (cancelError) throw cancelError;
+  }
+  if (declineIds.length > 0) {
+    const { error: declineError } = await writer
+      .from('campaign_trades')
+      .update({ status: 'declined', resolved_at: resolvedAt, updated_at: resolvedAt })
+      .in('id', declineIds)
+      .eq('status', 'open');
+    if (declineError) throw declineError;
+  }
+
+  if (idsToUnlock.length > 0) {
+    const { error: unlockError } = await writer
+      .from('campaign_trade_items')
+      .update({ locked: false, updated_at: resolvedAt })
+      .in('trade_id', idsToUnlock)
+      .eq('locked', true);
+    if (unlockError) throw unlockError;
+  }
+
+  invalidateCampaignTrades(campaignId);
+  invalidateGang(gangId);
+}
+
 /**
  * Remove a member from a campaign with targeted cache invalidation
  */
@@ -218,6 +288,10 @@ export async function removeMemberFromCampaign(params: RemoveMemberParams) {
 
     if (memberGangs && memberGangs.length > 0) {
       const gangIds = memberGangs.map(g => g.gang_id);
+
+      for (const gangId of gangIds) {
+        await cancelOpenCampaignTradesForGang(campaignId, gangId);
+      }
 
       // Run territory update and gang deletion in parallel for better performance
       const [territoryResult, gangResult] = await Promise.all([
@@ -320,6 +394,8 @@ export async function removeGangFromCampaign(params: RemoveGangParams) {
     if (campaignGangRows?.[0]?.status === 'ACCEPTED') {
       await logGangLeftCampaign({ gang_id: gangId, campaign_id: campaignId, actor_id: user.id });
     }
+
+    await cancelOpenCampaignTradesForGang(campaignId, gangId);
 
     // Remove the gang from the campaign
     let removedGangs: { id: string }[] | null = null;

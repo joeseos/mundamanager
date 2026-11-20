@@ -8,11 +8,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { toast } from 'sonner';
 import { FighterType } from "@/types/fighter";
-import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
+import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentGrantOption, EquipmentAvailability, EquipmentOriginAvailability, EquipmentSubtypeAvailability, GangAdjustedCost, GangOriginAdjustedCost } from "@/types/equipment";
 import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
 import { HiX } from "react-icons/hi";
 import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
-import { CountLimitsEditor, GangOriginOptions, GangSubtypeOptions } from "./gang-scope-options";
+import { CountLimitsEditor, GangOriginOptions, GangScopeSelects, GangSubtypeOptions, formatGangScope } from "./gang-scope-options";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
@@ -36,10 +36,16 @@ interface AdminEditEquipmentModalProps {
 const EQUIPMENT_TYPES = ['wargear', 'weapon', 'vehicle_upgrade'] as const;
 type EquipmentType = typeof EQUIPMENT_TYPES[number];
 
+// Stable fallback, so memos over the details' lists don't rerun every render
+const NO_ROWS: never[] = [];
+
+type ScopeDialog = 'gangCost' | 'gangAvailability' | 'originCost' | 'originAvailability' | 'subtypeAvailability';
+
 // Omits excluded, as fighter_type_equipment_fighter_scope_uidx does, so a grant and a deny for
 // one scope collide.
 const grantKey = (grant: FighterTypeGrant) =>
-  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_subtype_id, grant.fighter_subtype]
+  [grant.fighter_type_id, grant.gang_type_id, grant.gang_origin_id, grant.gang_subtype_id,
+    grant.fighter_subtype, grant.fighter_specialisation_id]
     .map(part => part ?? '')
     .join('|');
 
@@ -112,50 +118,34 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
   const [isEditable, setIsEditable] = useState(false);
   const [isConsumable, setIsConsumable] = useState(false);
   const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
-  const [allEquipment, setAllEquipment] = useState<Array<{id: string, equipment_name: string, edition_id?: string | null, cost?: number}>>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile(1)]);
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [fighterTypes, setFighterTypes] = useState<FighterType[]>([]);
   const [fighterTypeGrants, setFighterTypeGrants] = useState<FighterTypeGrant[]>([]);
   const [showScopedGrantDialog, setShowScopedGrantDialog] = useState(false);
   const [scopedGrantFighterType, setScopedGrantFighterType] = useState('');
+  const [scopedGrantGangType, setScopedGrantGangType] = useState('');
   const [scopedGrantOrigin, setScopedGrantOrigin] = useState('');
   const [scopedGrantGangSubtype, setScopedGrantGangSubtype] = useState('');
   const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
+  const [scopedGrantSpecialisation, setScopedGrantSpecialisation] = useState('');
   const [scopedGrantExcluded, setScopedGrantExcluded] = useState(false);
   // null until loaded, so a failed load leaves the stored limits alone.
   const [countLimits, setCountLimits] = useState<CountLimit[] | null>(null);
-  const [showAdjustedCostDialog, setShowAdjustedCostDialog] = useState(false);
-  const [selectedGangType, setSelectedGangType] = useState("");
-  const [adjustedCostValue, setAdjustedCostValue] = useState("");
   const [gangAdjustedCosts, setGangAdjustedCosts] = useState<GangAdjustedCost[]>([]);
-  const [showOriginAdjustedCostDialog, setShowOriginAdjustedCostDialog] = useState(false);
-  const [selectedAdjustedCostGangOrigin, setSelectedAdjustedCostGangOrigin] = useState("");
-  const [originAdjustedCostValue, setOriginAdjustedCostValue] = useState("");
   const [gangOriginAdjustedCosts, setGangOriginAdjustedCosts] = useState<GangOriginAdjustedCost[]>([]);
-  const [showAvailabilityDialog, setShowAvailabilityDialog] = useState(false);
-  const [selectedAvailabilityGangType, setSelectedAvailabilityGangType] = useState("");
-  const [availValueLetter, setAvailValueLetter] = useState('');
-  const [availValueNumber, setAvailValueNumber] = useState(6);
-  const [availExclusive, setAvailExclusive] = useState(false);
   const [equipmentAvailabilities, setEquipmentAvailabilities] = useState<EquipmentAvailability[]>([]);
-  const [showOriginAvailabilityDialog, setShowOriginAvailabilityDialog] = useState(false);
-  const [selectedAvailabilityGangOrigin, setSelectedAvailabilityGangOrigin] = useState("");
-  const [originAvailValueLetter, setOriginAvailValueLetter] = useState('');
-  const [originAvailValueNumber, setOriginAvailValueNumber] = useState(6);
   const [equipmentOriginAvailabilities, setEquipmentOriginAvailabilities] = useState<EquipmentOriginAvailability[]>([]);
-  const [showVariantAvailabilityDialog, setShowVariantAvailabilityDialog] = useState(false);
-  const [selectedAvailabilityGangSubtype, setSelectedAvailabilityGangSubtype] = useState("");
-  const [variantAvailValueLetter, setVariantAvailValueLetter] = useState('');
-  const [variantAvailValueNumber, setVariantAvailValueNumber] = useState(6);
   const [equipmentSubtypeAvailabilities, setEquipmentSubtypeAvailabilities] = useState<EquipmentSubtypeAvailability[]>([]);
+  // One per-gang dialog is open at a time, so they share one draft
+  const [scopeDialog, setScopeDialog] = useState<ScopeDialog | null>(null);
+  const [draftScopeId, setDraftScopeId] = useState('');
+  const [draftCost, setDraftCost] = useState('');
+  const [draftAvailLetter, setDraftAvailLetter] = useState('');
+  const [draftAvailNumber, setDraftAvailNumber] = useState(6);
+  const [draftExclusive, setDraftExclusive] = useState(false);
   const [fighterEffects, setFighterEffects] = useState<any[]>([]);
-  const [fighterEffectCategories, setFighterEffectCategories] = useState<any[]>([]);
   const [selectedTradingPosts, setSelectedTradingPosts] = useState<string[]>([]);
-  const [tradingPostTypes, setTradingPostTypes] = useState<Array<{id: string, trading_post_name: string, edition_id?: string | null}>>([]);
-
-  
 
   const { data: equipmentList = [] } = useQuery<Equipment[]>({
     queryKey: ['admin-equipment-list', categoryFilter],
@@ -268,81 +258,24 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
         );
       }
 
-      if (equipmentDetails.all_equipment) {
-        setAllEquipment(equipmentDetails.all_equipment);
-      }
-
-      if (equipmentDetails.gang_adjusted_costs) {
-        setGangAdjustedCosts(equipmentDetails.gang_adjusted_costs.map((d: any) => ({
-          gang_type: d.gang_type,
-          gang_type_id: d.gang_type_id,
-          adjusted_cost: d.adjusted_cost
-        })));
-      }
-
-      if (equipmentDetails.gang_origin_adjusted_costs) {
-        setGangOriginAdjustedCosts(equipmentDetails.gang_origin_adjusted_costs.map((d: any) => ({
-          origin_name: d.origin_name,
-          gang_origin_id: d.gang_origin_id,
-          adjusted_cost: d.adjusted_cost
-        })));
-      }
-
-      if (equipmentDetails.equipment_availabilities) {
-        setEquipmentAvailabilities(equipmentDetails.equipment_availabilities.map((a: any) => ({
-          gang_type: a.gang_type,
-          gang_type_id: a.gang_type_id,
-          availability: a.availability,
-          exclusive: a.exclusive ?? false
-        })));
-      }
-
-      if (equipmentDetails.equipment_origin_availabilities) {
-        setEquipmentOriginAvailabilities(equipmentDetails.equipment_origin_availabilities.map((a: any) => ({
-          origin_name: a.origin_name,
-          gang_origin_id: a.gang_origin_id,
-          availability: a.availability
-        })));
-      }
-
-      if (equipmentDetails.equipment_subtype_availabilities) {
-        setEquipmentSubtypeAvailabilities(equipmentDetails.equipment_subtype_availabilities.map((a: any) => ({
-          subtype: a.subtype,
-          gang_subtype_id: a.gang_subtype_id,
-          availability: a.availability
-        })));
-      }
-
-      if (equipmentDetails.trading_post_associations) {
-        setSelectedTradingPosts(equipmentDetails.trading_post_associations);
-      }
-
-      if (equipmentDetails.trading_post_types) {
-        setTradingPostTypes(equipmentDetails.trading_post_types);
-      }
-
-      if (equipmentDetails.fighter_effects) {
-        setFighterEffects(equipmentDetails.fighter_effects);
-      }
-
-      if (equipmentDetails.fighter_effect_categories) {
-        setFighterEffectCategories(equipmentDetails.fighter_effect_categories);
-      }
-
-      if (equipmentDetails.all_fighter_types) {
-        setFighterTypes(equipmentDetails.all_fighter_types);
-      }
+      if (equipmentDetails.gang_adjusted_costs) setGangAdjustedCosts(equipmentDetails.gang_adjusted_costs);
+      if (equipmentDetails.gang_origin_adjusted_costs) setGangOriginAdjustedCosts(equipmentDetails.gang_origin_adjusted_costs);
+      if (equipmentDetails.equipment_availabilities) setEquipmentAvailabilities(equipmentDetails.equipment_availabilities);
+      if (equipmentDetails.equipment_origin_availabilities) setEquipmentOriginAvailabilities(equipmentDetails.equipment_origin_availabilities);
+      if (equipmentDetails.equipment_subtype_availabilities) setEquipmentSubtypeAvailabilities(equipmentDetails.equipment_subtype_availabilities);
+      if (equipmentDetails.trading_post_associations) setSelectedTradingPosts(equipmentDetails.trading_post_associations);
+      if (equipmentDetails.fighter_effects) setFighterEffects(equipmentDetails.fighter_effects);
 
       setCountLimits(Array.isArray(equipmentDetails.count_limits) ? equipmentDetails.count_limits : null);
 
       if (equipmentDetails.fighter_types_with_equipment) {
         setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any): FighterTypeGrant => ({
           fighter_type_id: ft.fighter_type_id ?? null,
-          // Always null: scopeToFighterTypeGrants reads only rows this screen owns
-          gang_type_id: null,
+          gang_type_id: ft.gang_type_id ?? null,
           gang_origin_id: ft.gang_origin_id ?? null,
           gang_subtype_id: ft.gang_subtype_id ?? null,
           fighter_subtype: ft.fighter_subtype ?? null,
+          fighter_specialisation_id: ft.fighter_specialisation_id ?? null,
           excluded: ft.excluded ?? false
         })));
       }
@@ -380,6 +313,11 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     [weapons, editionId]
   );
 
+  // Read-only lists that come with the details
+  const allEquipment: Array<{ id: string, equipment_name: string, edition_id?: string | null }> = equipmentDetails?.all_equipment ?? NO_ROWS;
+  const fighterTypes: FighterType[] = equipmentDetails?.all_fighter_types ?? NO_ROWS;
+  const tradingPostTypes: Array<{ id: string, trading_post_name: string, edition_id?: string | null }> = equipmentDetails?.trading_post_types ?? NO_ROWS;
+
   const filteredAllEquipment = useMemo(
     () => editionId ? allEquipment.filter(e => e.edition_id === editionId) : allEquipment,
     [allEquipment, editionId]
@@ -393,7 +331,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       return response.json();
     },
     // Also needed unopened, to label count limits
-    enabled: !!selectedEquipmentId || showAdjustedCostDialog || showAvailabilityDialog,
+    enabled: !!selectedEquipmentId,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -425,7 +363,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       return response.json();
     },
     // Also needed unopened, to label scoped grants
-    enabled: !!selectedEquipmentId || showOriginAvailabilityDialog || showOriginAdjustedCostDialog,
+    enabled: !!selectedEquipmentId,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -437,7 +375,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       return response.json();
     },
     // Also needed unopened, to label scoped grants
-    enabled: !!selectedEquipmentId || showVariantAvailabilityDialog,
+    enabled: !!selectedEquipmentId,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -463,6 +401,18 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: specialisationList = [] } = useQuery<Array<{id: string, specialisation_name: string}>>({
+    queryKey: ['admin-fighter-specialisations'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
+      return response.json();
+    },
+    // Also needed unopened, to label scoped grants
+    enabled: !!selectedEquipmentId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Subtypes are stored on the grant by name, but the names are per edition
   const filteredFighterSubtypes = useMemo(
     () => (editionId ? fighterSubtypeList.filter(s => s.edition_id === editionId) : [...fighterSubtypeList])
@@ -473,18 +423,39 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     [fighterSubtypeList, editionId, editions]
   );
 
+  // A grant needs a fighter, and a scope the quick-add can't already give.
+  // A deny needs no fighter, but an all-null one would strip it everywhere.
+  const scopedGrantHasFighter = !!(scopedGrantFighterType || scopedGrantSubtype || scopedGrantSpecialisation);
+  const scopedGrantHasScope = !!(scopedGrantGangType || scopedGrantOrigin || scopedGrantGangSubtype
+    || scopedGrantSubtype || scopedGrantSpecialisation);
+
   const closeScopedGrantDialog = () => {
     setShowScopedGrantDialog(false);
     setScopedGrantFighterType("");
+    setScopedGrantGangType("");
     setScopedGrantOrigin("");
     setScopedGrantGangSubtype("");
     setScopedGrantSubtype("");
+    setScopedGrantSpecialisation("");
     setScopedGrantExcluded(false);
+  };
+
+  const closeScopeDialog = () => {
+    setScopeDialog(null);
+    setDraftScopeId('');
+    setDraftCost('');
+    setDraftAvailLetter('');
+    setDraftAvailNumber(6);
+    setDraftExclusive(false);
   };
 
   const handleEditionChange = (newEditionId: string) => {
     setEditionId(newEditionId);
-    const newSlug = editionSlugOf(editions, newEditionId);
+    // Kept when it is not in the list, or the list can't confirm another edition
+    const inNewEdition = (list: Array<{ id: string, edition_id?: string | null }>, id?: string | null) => {
+      const item = list.find(entry => entry.id === id);
+      return !item || item.edition_id === newEditionId;
+    };
     if (newEditionId && selectedEquipmentId) {
       const selected = equipmentList.find(item => item.id === selectedEquipmentId);
       if (selected && selected.edition_id !== newEditionId) {
@@ -507,102 +478,46 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
         setEquipmentCategory('');
       }
     }
-    // Gang types are edition-scoped; clear any in-progress Cost-per-Gang pick
-    setSelectedGangType('');
-    // Origin/gang-subtype/fighter-subtype picks are edition-scoped too; drop in-progress ones
-    setSelectedAdjustedCostGangOrigin('');
-    setSelectedAvailabilityGangOrigin('');
-    setSelectedAvailabilityGangSubtype('');
+    // Gang type/origin/subtype and fighter picks are edition-scoped; drop in-progress ones
+    closeScopeDialog();
     setScopedGrantFighterType('');
     setScopedGrantSubtype('');
+    setScopedGrantGangType('');
     setScopedGrantOrigin('');
     setScopedGrantGangSubtype('');
     // Drop trading posts / fighter types that belong to another edition
     if (newEditionId) {
-      setSelectedTradingPosts(prev =>
-        prev.filter(id => {
-          const tp = tradingPostTypes.find(t => t.id === id);
-          return !tp || tp.edition_id === newEditionId;
-        })
-      );
-      // fighter_subtype is not judged: it is stored by name, and names repeat per edition
-      setFighterTypeGrants(prev =>
-        prev.filter(grant => {
-          const ft = fighterTypes.find(f => f.id === grant.fighter_type_id);
-          if (ft && ft.edition_id !== newEditionId) return false;
-          const origin = gangOriginList.find(o => o.id === grant.gang_origin_id);
-          if (origin && origin.edition_id !== newEditionId) return false;
-          const subtype = gangSubtypeList.find(v => v.id === grant.gang_subtype_id);
-          if (subtype && subtype.edition_id !== newEditionId) return false;
-          return true;
-        })
-      );
-      setCountLimits(prev => prev?.filter(limit => {
-        const ft = fighterTypes.find(f => f.id === limit.for_fighter_type_id);
-        if (ft && ft.edition_id !== newEditionId) return false;
-        const gt = gangTypeOptions.find(g => g.id === limit.gang_type_id);
-        if (gt && gt.edition_id !== newEditionId) return false;
-        const origin = gangOriginList.find(o => o.id === limit.gang_origin_id);
-        if (origin && origin.edition_id !== newEditionId) return false;
-        const subtype = gangSubtypeList.find(v => v.id === limit.gang_subtype_id);
-        if (subtype && subtype.edition_id !== newEditionId) return false;
-        return true;
-      }) ?? null);
-      // Cost per Gang is keyed on a gang type, which is edition-scoped too
-      setGangAdjustedCosts(prev =>
-        prev.filter(cost => {
-          const gt = gangTypeOptions.find(g => g.id === cost.gang_type_id);
-          return !gt || gt.edition_id === newEditionId;
-        })
-      );
-      // Origin- and subtype-scoped rows are edition-scoped as well
-      setGangOriginAdjustedCosts(prev =>
-        prev.filter(cost => {
-          const origin = gangOriginList.find(o => o.id === cost.gang_origin_id);
-          return !origin || origin.edition_id === newEditionId;
-        })
-      );
-      setEquipmentOriginAvailabilities(prev =>
-        prev.filter(avail => {
-          const origin = gangOriginList.find(o => o.id === avail.gang_origin_id);
-          return !origin || origin.edition_id === newEditionId;
-        })
-      );
-      setEquipmentSubtypeAvailabilities(prev =>
-        prev.filter(avail => {
-          const subtype = gangSubtypeList.find(v => v.id === avail.gang_subtype_id);
-          return !subtype || subtype.edition_id === newEditionId;
-        })
-      );
+      setSelectedTradingPosts(prev => prev.filter(id => inNewEdition(tradingPostTypes, id)));
+      // fighter_subtype is not judged: it is stored by name, and names repeat per edition.
+      // Specialisations are shared by every edition.
+      setFighterTypeGrants(prev => prev.filter(grant =>
+        inNewEdition(fighterTypes, grant.fighter_type_id)
+        && inNewEdition(gangTypeOptions, grant.gang_type_id)
+        && inNewEdition(gangOriginList, grant.gang_origin_id)
+        && inNewEdition(gangSubtypeList, grant.gang_subtype_id)
+      ));
+      setCountLimits(prev => prev?.filter(limit =>
+        inNewEdition(fighterTypes, limit.for_fighter_type_id)
+        && inNewEdition(gangTypeOptions, limit.gang_type_id)
+        && inNewEdition(gangOriginList, limit.gang_origin_id)
+        && inNewEdition(gangSubtypeList, limit.gang_subtype_id)
+      ) ?? null);
+      // Cost per Gang and the origin- and subtype-scoped rows are edition-scoped too
+      setGangAdjustedCosts(prev => prev.filter(cost => inNewEdition(gangTypeOptions, cost.gang_type_id)));
+      setGangOriginAdjustedCosts(prev => prev.filter(cost => inNewEdition(gangOriginList, cost.gang_origin_id)));
+      setEquipmentOriginAvailabilities(prev => prev.filter(avail => inNewEdition(gangOriginList, avail.gang_origin_id)));
+      setEquipmentSubtypeAvailabilities(prev => prev.filter(avail => inNewEdition(gangSubtypeList, avail.gang_subtype_id)));
     }
     // N26 uses Trade Points instead of Availability; drop stale N23 rows
-    if (hasTradePoints(newSlug)) {
-      setShowAvailabilityDialog(false);
-      setSelectedAvailabilityGangType('');
-      setAvailValueLetter('');
-      setAvailValueNumber(6);
-      setAvailExclusive(false);
+    if (hasTradePoints(editionSlugOf(editions, newEditionId))) {
       setEquipmentAvailabilities([]);
-      setShowOriginAvailabilityDialog(false);
-      setSelectedAvailabilityGangOrigin('');
-      setOriginAvailValueLetter('');
-      setOriginAvailValueNumber(6);
       setEquipmentOriginAvailabilities([]);
-      setShowVariantAvailabilityDialog(false);
-      setSelectedAvailabilityGangSubtype('');
-      setVariantAvailValueLetter('');
-      setVariantAvailValueNumber(6);
       setEquipmentSubtypeAvailabilities([]);
     }
     // Weapon Group parents are edition-scoped; drop a cross-edition pick
     if (newEditionId) {
       setWeaponProfiles(profiles => profiles.map(profile => {
-        if (!profile.weapon_group_id) return profile;
-        const parent = weapons.find(w => w.id === profile.weapon_group_id);
-        if (parent && parent.edition_id !== newEditionId) {
-          return { ...profile, weapon_group_id: null };
-        }
-        return profile;
+        return inNewEdition(weapons, profile.weapon_group_id) ? profile : { ...profile, weapon_group_id: null };
       }));
       // Grants options are edition-scoped; blank confirmed cross-edition picks
       setGrantsEquipment(current =>
@@ -614,23 +529,14 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
   const isLoading = isEquipmentDetailsLoading || isWeaponsLoading || isSubmitting;
 
   const handleProfileChange = (index: number, field: keyof WeaponProfileInput, value: string | number | boolean) => {
-    const newProfiles = [...weaponProfiles];
-    newProfiles[index] = {
-      ...newProfiles[index],
-      [field]: value
-    };
-    setWeaponProfiles(newProfiles);
+    setWeaponProfiles(profiles => profiles.map((profile, i) => i === index ? { ...profile, [field]: value } : profile));
   };
 
-  const addProfile = () => {
-    setWeaponProfiles([
-      ...weaponProfiles,
-      emptyWeaponProfile(weaponProfiles.length + 1)
-    ]);
-  };
-
-  const removeProfile = (index: number) => {
-    setWeaponProfiles(weaponProfiles.filter((_, i) => i !== index));
+  const updateGrantOption = (index: number, patch: Partial<EquipmentGrantOption>) => {
+    setGrantsEquipment(current => current && {
+      ...current,
+      options: current.options.map((option, i) => i === index ? { ...option, ...patch } : option)
+    });
   };
 
   const handleSubmit = async () => {
@@ -729,23 +635,20 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
         throw new Error('Failed to update equipment');
       }
 
-      // Update trading post associations
-      if (selectedTradingPosts.length > 0 || selectedTradingPosts.length === 0) {
-        const tradingPostResponse = await fetch('/api/admin/equipment/trading-posts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            equipment_id: selectedEquipmentId,
-            trading_post_ids: selectedTradingPosts
-          })
-        });
+      const tradingPostResponse = await fetch('/api/admin/equipment/trading-posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          equipment_id: selectedEquipmentId,
+          trading_post_ids: selectedTradingPosts
+        })
+      });
 
-        if (!tradingPostResponse.ok) {
-          console.error('Failed to update trading post associations');
-          // Don't fail the whole operation for this
-        }
+      if (!tradingPostResponse.ok) {
+        console.error('Failed to update trading post associations');
+        // Don't fail the whole operation for this
       }
 
       toast.success("Equipment updated successfully");
@@ -766,6 +669,132 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       setIsSubmitting(false);
     }
   };
+
+  const removeAt = (index: number) => <T,>(prev: T[]) => prev.filter((_, i) => i !== index);
+  const gangTypeSelectOptions = isGangTypesLoading
+    ? <option>Loading...</option>
+    : filteredGangTypes.map((gang) => <option key={gang.id} value={gang.id}>{gang.gang_type}</option>);
+  const originSelectOptions = <GangOriginOptions origins={filteredGangOrigins} />;
+
+  const draftAdjustedCost = parseInt(draftCost);
+  const draftAvailability = combineAvailability(draftAvailLetter, draftAvailNumber);
+
+  // The per-gang cost and availability sections, in display order. onAdd runs on Save
+  // and returns false to keep the dialog open; the Modal closes it otherwise.
+  const scopeSections: Array<{
+    dialog: ScopeDialog;
+    kind: 'cost' | 'availability';
+    title: string;
+    helper: string;
+    addLabel: string;
+    addDisabled?: boolean;
+    scopeLabel: string;
+    scopeOptions: React.ReactNode;
+    loading?: boolean;
+    chips: string[];
+    onRemove: (index: number) => void;
+    onAdd: () => boolean | void;
+  }> = [
+    {
+      dialog: 'gangCost',
+      kind: 'cost',
+      title: 'Cost per Gang',
+      helper: 'Select a gang and enter the adjusted cost',
+      addLabel: 'Add Gang',
+      scopeLabel: 'Gang Type',
+      scopeOptions: gangTypeSelectOptions,
+      loading: isGangTypesLoading,
+      chips: gangAdjustedCosts.map(c => `${c.gang_type} (${c.adjusted_cost} credits)`),
+      onRemove: index => setGangAdjustedCosts(removeAt(index)),
+      onAdd: () => {
+        const gang = gangTypeOptions.find(g => g.id === draftScopeId);
+        if (gang) setGangAdjustedCosts(prev => [...prev, { gang_type: gang.gang_type, gang_type_id: gang.id, adjusted_cost: draftAdjustedCost }]);
+      },
+    },
+    {
+      dialog: 'gangAvailability',
+      kind: 'availability',
+      title: 'Availability per Gang',
+      helper: 'Select a gang and enter an availability value',
+      addLabel: 'Add Gang',
+      scopeLabel: 'Gang Type',
+      scopeOptions: gangTypeSelectOptions,
+      loading: isGangTypesLoading,
+      chips: equipmentAvailabilities.map(a => `${a.gang_type} (${[
+        a.availability ? `Availability: ${a.availability}` : null,
+        a.exclusive ? 'Exclusive' : null
+      ].filter(Boolean).join(', ')})`),
+      onRemove: index => setEquipmentAvailabilities(removeAt(index)),
+      onAdd: () => {
+        const gang = gangTypeOptions.find(g => g.id === draftScopeId);
+        if (gang) {
+          setEquipmentAvailabilities(prev => [
+            ...prev,
+            { gang_type: gang.gang_type, gang_type_id: gang.id, availability: draftAvailability, exclusive: draftExclusive }
+          ]);
+        }
+      },
+    },
+    {
+      dialog: 'originCost',
+      kind: 'cost',
+      title: 'Cost per Gang Origin',
+      helper: 'Select a gang origin and enter the adjusted cost',
+      addLabel: 'Add Origin',
+      // Unlike the Availability sections this one renders in every
+      // edition, so it can be the one with no origins left to add
+      addDisabled: gangOriginList.length > 0 && filteredGangOrigins.length === 0,
+      scopeLabel: 'Gang Origin',
+      scopeOptions: originSelectOptions,
+      chips: gangOriginAdjustedCosts.map(c => `${c.origin_name} (${c.adjusted_cost} credits)`),
+      onRemove: index => setGangOriginAdjustedCosts(removeAt(index)),
+      onAdd: () => {
+        const origin = gangOriginList.find(o => o.id === draftScopeId);
+        if (origin) setGangOriginAdjustedCosts(prev => [...prev, { origin_name: origin.origin_name, gang_origin_id: origin.id, adjusted_cost: draftAdjustedCost }]);
+      },
+    },
+    {
+      dialog: 'originAvailability',
+      kind: 'availability',
+      title: 'Availability per Gang Origin',
+      helper: 'Select a gang origin and enter an availability value',
+      addLabel: 'Add Origin',
+      scopeLabel: 'Gang Origin',
+      scopeOptions: originSelectOptions,
+      chips: equipmentOriginAvailabilities.map(a => `${a.origin_name} (Availability: ${a.availability})`),
+      onRemove: index => setEquipmentOriginAvailabilities(removeAt(index)),
+      onAdd: () => {
+        const origin = gangOriginList.find(o => o.id === draftScopeId);
+        if (origin && draftAvailability) setEquipmentOriginAvailabilities(prev => [...prev, { origin_name: origin.origin_name, gang_origin_id: origin.id, availability: draftAvailability }]);
+      },
+    },
+    {
+      dialog: 'subtypeAvailability',
+      kind: 'availability',
+      title: 'Availability per Gang Subtype',
+      helper: 'Select a gang subtype and enter an availability value',
+      addLabel: 'Add Subtype',
+      scopeLabel: 'Gang Subtype',
+      scopeOptions: <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />,
+      chips: equipmentSubtypeAvailabilities.map(a => `${a.subtype} (Availability: ${a.availability})`),
+      onRemove: index => setEquipmentSubtypeAvailabilities(removeAt(index)),
+      onAdd: () => {
+        if (equipmentSubtypeAvailabilities.some(a => a.gang_subtype_id === draftScopeId)) {
+          toast.error('This subtype already has an availability set');
+          return false;
+        }
+        const subtype = gangSubtypeList.find(v => v.id === draftScopeId);
+        if (subtype && draftAvailability) setEquipmentSubtypeAvailabilities(prev => [...prev, { subtype: subtype.subtype, gang_subtype_id: subtype.id, availability: draftAvailability }]);
+      },
+    },
+  ];
+  // Availability is N23 only (N26 uses Trade Points)
+  const visibleScopeSections = scopeSections.filter(section => showAvailability || section.kind === 'cost');
+  const openScopeSection = scopeSections.find(section => section.dialog === scopeDialog);
+  // Only gang availability rows can be exclusive without an availability
+  const draftValid = !!draftScopeId && !openScopeSection?.loading && (openScopeSection?.kind === 'cost'
+    ? draftAdjustedCost >= 0
+    : !!draftAvailability || draftExclusive);
 
   return (
     <div 
@@ -852,7 +881,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                   value={equipmentName}
                   onChange={(e) => setEquipmentName(e.target.value)}
                   placeholder="E.g. Bolt pistol, Combat knife"
-                  disabled={!selectedEquipmentId}
                 />
               </div>
 
@@ -863,8 +891,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                 <select
                   value={equipmentCategory}
                   onChange={(e) => setEquipmentCategory(e.target.value)}
-                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-muted cursor-not-allowed' : ''}`}
-                  disabled={!selectedEquipmentId}
+                  className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select category</option>
                   {filteredCategories.map((category) => (
@@ -881,12 +908,8 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                 </label>
                 <select
                   value={equipmentType}
-                  onChange={(e) => {
-                    const newType = e.target.value as EquipmentType;
-                    setEquipmentType(newType);
-                  }}
-                  className={`w-full p-2 border rounded-md ${!selectedEquipmentId ? 'bg-muted cursor-not-allowed' : ''}`}
-                  disabled={!selectedEquipmentId}
+                  onChange={(e) => setEquipmentType(e.target.value as EquipmentType)}
+                  className="w-full p-2 border rounded-md"
                 >
                   <option value="">Select equipment type</option>
                   {EQUIPMENT_TYPES.map((type) => (
@@ -908,7 +931,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                   value={cost}
                   onChange={(e) => setCost(e.target.value)}
                   placeholder="E.g. 130"
-                  disabled={!selectedEquipmentId}
                 />
               </div>
 
@@ -919,7 +941,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                   number={availNumber}
                   onLetterChange={(v) => setAvailLetter(v as 'C' | 'R' | 'E' | 'I' | 'S')}
                   onNumberChange={setAvailNumber}
-                  disabled={!selectedEquipmentId}
                 />
               )}
 
@@ -933,60 +954,45 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                     value={tradePoints}
                     onChange={(e) => setTradePoints(e.target.value)}
                     placeholder="2 or E"
-                    disabled={!selectedEquipmentId}
                   />
                 </div>
               )}
 
-              {equipmentType !== 'vehicle_upgrade' && (
-                <div className="col-span-1">
+              {[
+                {
+                  label: 'Exclusive to a single Fighter',
+                  description: "I.e. the 'Canine jaws' of the Hacked Cyber-mastiff (Exotic Beast).",
+                  checked: coreEquipment,
+                  onChange: setCoreEquipment,
+                  hidden: equipmentType === 'vehicle_upgrade',
+                },
+                {
+                  label: 'Editable After Purchase',
+                  description: 'Allows adding/removing effects on this equipment after purchase.',
+                  checked: isEditable,
+                  onChange: setIsEditable,
+                },
+                {
+                  label: 'Consumable',
+                  description: 'Can be consumed by the fighter (e.g. chem-alchemy, Limited ammo).',
+                  checked: isConsumable,
+                  onChange: setIsConsumable,
+                },
+              ].filter(flag => !flag.hidden).map(flag => (
+                <div key={flag.label} className="col-span-1">
                   <label className="flex items-start space-x-2">
                     <Checkbox
-                      checked={coreEquipment}
-                      onCheckedChange={(checked) => setCoreEquipment(checked === true)}
+                      checked={flag.checked}
+                      onCheckedChange={(checked) => flag.onChange(checked === true)}
                       className="mt-1"
                     />
                     <div>
-                      <span className="text-sm font-medium text-muted-foreground">Exclusive to a single Fighter</span>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        I.e. the &apos;Canine jaws&apos; of the Hacked Cyber-mastiff (Exotic Beast).
-                      </p>
+                      <span className="text-sm font-medium text-muted-foreground">{flag.label}</span>
+                      <p className="text-sm text-muted-foreground mt-1">{flag.description}</p>
                     </div>
                   </label>
                 </div>
-              )}
-
-              <div className="col-span-1">
-                <label className="flex items-start space-x-2">
-                  <Checkbox
-                    checked={isEditable}
-                    onCheckedChange={(checked) => setIsEditable(checked === true)}
-                    className="mt-1"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-muted-foreground">Editable After Purchase</span>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Allows adding/removing effects on this equipment after purchase.
-                    </p>
-                  </div>
-                </label>
-              </div>
-
-              <div className="col-span-1">
-                <label className="flex items-start space-x-2">
-                  <Checkbox
-                    checked={isConsumable}
-                    onCheckedChange={(checked) => setIsConsumable(checked === true)}
-                    className="mt-1"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-muted-foreground">Consumable</span>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Can be consumed by the fighter (e.g. chem-alchemy, Limited ammo).
-                    </p>
-                  </div>
-                </label>
-              </div>
+              ))}
 
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-3">
@@ -1005,19 +1011,14 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                     <select
                       value={grantsEquipment?.selection_type || ''}
                       onChange={(e) => {
-                        const value = e.target.value as "" | "fixed" | "single_select" | "multiple_select";
-                        if (value === '') {
-                          setGrantsEquipment(null);
-                        } else {
-                          setGrantsEquipment({
-                            selection_type: value,
-                            max_selections: value === 'multiple_select' ? 2 : undefined,
-                            options: grantsEquipment?.options || []
-                          });
-                        }
+                        const value = e.target.value as "" | EquipmentGrants['selection_type'];
+                        setGrantsEquipment(value ? {
+                          selection_type: value,
+                          max_selections: value === 'multiple_select' ? 2 : undefined,
+                          options: grantsEquipment?.options || []
+                        } : null);
                       }}
                       className="w-full p-2 border rounded-md max-w-xs"
-                      disabled={!selectedEquipmentId}
                     >
                       <option value="">None</option>
                       <option value="fixed">Fixed (auto-granted)</option>
@@ -1045,7 +1046,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                         }}
                         className="w-24"
                         placeholder="e.g. 2"
-                        disabled={!selectedEquipmentId}
                       />
                     </div>
                   )}
@@ -1061,13 +1061,10 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setGrantsEquipment({
-                              ...grantsEquipment,
-                              options: [...grantsEquipment.options, { equipment_id: '', additional_cost: 0 }]
-                            });
-                          }}
-                          disabled={!selectedEquipmentId}
+                          onClick={() => setGrantsEquipment({
+                            ...grantsEquipment,
+                            options: [...grantsEquipment.options, { equipment_id: '', additional_cost: 0 }]
+                          })}
                         >
                           Add Option
                         </Button>
@@ -1083,13 +1080,8 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                         <div key={index} className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 bg-card rounded-sm border">
                           <select
                             value={option.equipment_id}
-                            onChange={(e) => {
-                              const newOptions = [...grantsEquipment.options];
-                              newOptions[index] = { ...newOptions[index], equipment_id: e.target.value };
-                              setGrantsEquipment({ ...grantsEquipment, options: newOptions });
-                            }}
+                            onChange={(e) => updateGrantOption(index, { equipment_id: e.target.value })}
                             className="flex-1 min-w-0 p-2 border rounded-md"
-                            disabled={!selectedEquipmentId}
                           >
                             <option value="">Select equipment...</option>
                             {filteredAllEquipment
@@ -1107,27 +1099,18 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                               <Input
                                 type="number"
                                 value={option.additional_cost}
-                                onChange={(e) => {
-                                  const newOptions = [...grantsEquipment.options];
-                                  newOptions[index] = {
-                                    ...newOptions[index],
-                                    additional_cost: parseInt(e.target.value) || 0
-                                  };
-                                  setGrantsEquipment({ ...grantsEquipment, options: newOptions });
-                                }}
+                                onChange={(e) => updateGrantOption(index, { additional_cost: parseInt(e.target.value) || 0 })}
                                 className="w-24"
                                 placeholder="E.g. 130"
-                                disabled={!selectedEquipmentId}
                               />
                             </div>
                             <button
                               type="button"
-                              onClick={() => {
-                                const newOptions = grantsEquipment.options.filter((_, i) => i !== index);
-                                setGrantsEquipment({ ...grantsEquipment, options: newOptions });
-                              }}
+                              onClick={() => setGrantsEquipment({
+                                ...grantsEquipment,
+                                options: grantsEquipment.options.filter((_, i) => i !== index)
+                              })}
                               className="hover:text-red-500 focus:outline-hidden p-1"
-                              disabled={!selectedEquipmentId}
                             >
                               <HiX className="h-4 w-4" />
                             </button>
@@ -1143,594 +1126,114 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
               {equipmentType !== 'vehicle_upgrade' && (
                 <div className="col-span-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {/* Cost per Gang */}
-                    <div>
-                      <label className="block text-sm font-medium text-muted-foreground mb-1">
-                        Cost per Gang
-                      </label>
-                      <Button
-                        onClick={() => setShowAdjustedCostDialog(true)}
-                        variant="outline"
-                        size="sm"
-                        className="mb-2"
-                      >
-                        Add Gang
-                      </Button>
-
-                      {gangAdjustedCosts.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {gangAdjustedCosts.map((adjusted_cost, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                            >
-                              <span>{adjusted_cost.gang_type} ({adjusted_cost.adjusted_cost} credits)</span>
-                              <button
-                                onClick={() => setGangAdjustedCosts(prev =>
-                                  prev.filter((_, i) => i !== index)
-                                )}
-                                className="hover:text-red-500 focus:outline-hidden"
-                              >
-                                <HiX className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {showAdjustedCostDialog && (
-                        <Modal
-                          title="Cost per Gang"
-                          helper="Select a gang and enter the adjusted cost"
-                          onClose={() => {
-                            setShowAdjustedCostDialog(false);
-                            setSelectedGangType("");
-                            setAdjustedCostValue("");
-                          }}
-                          onConfirm={() => {
-                            if (selectedGangType && adjustedCostValue) {
-                              const adjusted_cost = parseInt(adjustedCostValue);
-                              if (adjusted_cost >= 0) {
-                                const selectedGang = gangTypeOptions.find(g => g.id === selectedGangType);
-                                if (selectedGang) {
-                                  setGangAdjustedCosts(prev => [
-                                    ...prev,
-                                    {
-                                      gang_type: selectedGang.gang_type,
-                                      gang_type_id: selectedGang.id,
-                                      adjusted_cost
-                                    }
-                                  ]);
-                                  setShowAdjustedCostDialog(false);
-                                  setSelectedGangType("");
-                                  setAdjustedCostValue("");
-                                }
-                              }
-                            }
-                          }}
-                          confirmText="Save"
-                          confirmDisabled={
-                            isGangTypesLoading ||
-                            !selectedGangType ||
-                            !adjustedCostValue ||
-                            parseInt(adjustedCostValue) < 0
-                          }
-                          width="sm"
+                    {visibleScopeSections.map((section) => (
+                      <div key={section.dialog}>
+                        <label className="block text-sm font-medium text-muted-foreground mb-1">
+                          {section.title}
+                        </label>
+                        <Button
+                          onClick={() => setScopeDialog(section.dialog)}
+                          variant="outline"
+                          size="sm"
+                          className="mb-2"
+                          disabled={section.addDisabled}
                         >
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Gang Type</label>
-                              <select
-                                value={selectedGangType}
-                                onChange={(e) => {
-                                  const selected = gangTypeOptions.find(g => g.id === e.target.value);
-                                  if (selected) {
-                                    setSelectedGangType(e.target.value);
-                                  }
-                                }}
-                                className="w-full p-2 border rounded-md"
-                                disabled={isGangTypesLoading}
+                          {section.addLabel}
+                        </Button>
+
+                        {section.chips.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {section.chips.map((chip, index) => (
+                              <div
+                                key={index}
+                                className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
                               >
-                                <option key="default" value="">Select a Gang Type</option>
-                                {isGangTypesLoading ? (
-                                  <option>Loading...</option>
-                                ) : (
-                                  filteredGangTypes.map((gang) => (
-                                    <option key={gang.id} value={gang.id}>
-                                      {gang.gang_type}
-                                    </option>
-                                  ))
-                                )}
-                              </select>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
-                              <Input
-                                type="number"
-                                value={adjustedCostValue}
-                                onChange={(e) => setAdjustedCostValue(e.target.value)}
-                                placeholder="E.g. 120"
-                                min="0"
-                                onKeyDown={(e) => {
-                                  if (e.key === '-') {
-                                    e.preventDefault();
-                                  }
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </Modal>
-                      )}
-                    </div>
-
-                    {/* Availability per Gang — N23 only (N26 uses Trade Points) */}
-                    {showAvailability && (
-                    <div>
-                      <label className="block text-sm font-medium text-muted-foreground mb-1">
-                        Availability per Gang
-                      </label>
-                      <Button
-                        onClick={() => setShowAvailabilityDialog(true)}
-                        variant="outline"
-                        size="sm"
-                        className="mb-2"
-                      >
-                        Add Gang
-                      </Button>
-
-                      {equipmentAvailabilities.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {equipmentAvailabilities.map((avail, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                            >
-                              <span>{avail.gang_type} ({[avail.availability ? `Availability: ${avail.availability}` : null, avail.exclusive ? 'Exclusive' : null].filter(Boolean).join(', ')})</span>
-                              <button
-                                onClick={() => setEquipmentAvailabilities(prev =>
-                                  prev.filter((_, i) => i !== index)
-                                )}
-                                className="hover:text-red-500 focus:outline-hidden"
-                                disabled={!selectedEquipmentId}
-                              >
-                                <HiX className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {showAvailabilityDialog && (
-                        <Modal
-                          title="Availability per Gang"
-                          helper="Select a gang and enter an availability value"
-                          onClose={() => {
-                            setShowAvailabilityDialog(false);
-                            setSelectedAvailabilityGangType("");
-                            setAvailValueLetter('');
-                            setAvailValueNumber(6);
-                            setAvailExclusive(false);
-                          }}
-                          onConfirm={() => {
-                            const combined = combineAvailability(availValueLetter, availValueNumber);
-                            if (selectedAvailabilityGangType && (combined || availExclusive)) {
-                              const selectedGang = gangTypeOptions.find(g => g.id === selectedAvailabilityGangType);
-                              if (selectedGang) {
-                                setEquipmentAvailabilities(prev => [
-                                  ...prev,
-                                  {
-                                    gang_type: selectedGang.gang_type,
-                                    gang_type_id: selectedGang.id,
-                                    availability: combined,
-                                    exclusive: availExclusive
-                                  }
-                                ]);
-                                setShowAvailabilityDialog(false);
-                                setSelectedAvailabilityGangType("");
-                                setAvailValueLetter('');
-                                setAvailValueNumber(6);
-                                setAvailExclusive(false);
-                              }
-                            }
-                          }}
-                          confirmText="Save"
-                          confirmDisabled={
-                            isGangTypesLoading ||
-                            !selectedAvailabilityGangType ||
-                            (!availValueLetter && !availExclusive)
-                          }
-                          width="sm"
-                        >
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Gang Type</label>
-                              <select
-                                value={selectedAvailabilityGangType}
-                                onChange={(e) => {
-                                  const selected = gangTypeOptions.find(g => g.id === e.target.value);
-                                  if (selected) {
-                                    setSelectedAvailabilityGangType(e.target.value);
-                                  }
-                                }}
-                                className="w-full p-2 border rounded-md"
-                                disabled={isGangTypesLoading}
-                              >
-                                <option key="default" value="">Select a Gang Type</option>
-                                {isGangTypesLoading ? (
-                                  <option>Loading...</option>
-                                ) : (
-                                  filteredGangTypes.map((gang) => (
-                                    <option key={gang.id} value={gang.id}>
-                                      {gang.gang_type}
-                                    </option>
-                                  ))
-                                )}
-                              </select>
-                            </div>
-
-                            <AvailabilityPicker
-                              label="Availability"
-                              letter={availValueLetter}
-                              number={availValueNumber}
-                              onLetterChange={setAvailValueLetter}
-                              onNumberChange={setAvailValueNumber}
-                              allowEmpty
-                            />
-
-                            <label className="flex items-start space-x-2">
-                              <Checkbox
-                                checked={availExclusive}
-                                onCheckedChange={(checked) => setAvailExclusive(checked === true)}
-                                className="mt-1"
-                              />
-                              <div>
-                                <span className="text-sm font-medium text-muted-foreground">Available only to this gang</span>
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  Limits this item&apos;s Trading Post visibility to only the gangs flagged here. Flag several gangs to make it available to each of them.
-                                </p>
+                                <span>{chip}</span>
+                                <button
+                                  onClick={() => section.onRemove(index)}
+                                  className="hover:text-red-500 focus:outline-hidden"
+                                >
+                                  <HiX className="h-4 w-4" />
+                                </button>
                               </div>
-                            </label>
+                            ))}
                           </div>
-                        </Modal>
-                      )}
-                    </div>
-                    )}
-
-                    {/* Cost per Gang Origin */}
-                    <div>
-                      <label className="block text-sm font-medium text-muted-foreground mb-1">
-                        Cost per Gang Origin
-                      </label>
-                      <Button
-                        onClick={() => setShowOriginAdjustedCostDialog(true)}
-                        variant="outline"
-                        size="sm"
-                        className="mb-2"
-                        // Unlike the Availability sections this one renders in every
-                        // edition, so it can be the one with no origins left to add
-                        disabled={gangOriginList.length > 0 && filteredGangOrigins.length === 0}
-                      >
-                        Add Origin
-                      </Button>
-
-                      {gangOriginAdjustedCosts.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {gangOriginAdjustedCosts.map((adjusted_cost, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                            >
-                              <span>{adjusted_cost.origin_name} ({adjusted_cost.adjusted_cost} credits)</span>
-                              <button
-                                onClick={() => setGangOriginAdjustedCosts(prev =>
-                                  prev.filter((_, i) => i !== index)
-                                )}
-                                className="hover:text-red-500 focus:outline-hidden"
-                              >
-                                <HiX className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {showOriginAdjustedCostDialog && (
-                        <Modal
-                          title="Cost per Gang Origin"
-                          helper="Select a gang origin and enter the adjusted cost"
-                          onClose={() => {
-                            setShowOriginAdjustedCostDialog(false);
-                            setSelectedAdjustedCostGangOrigin("");
-                            setOriginAdjustedCostValue("");
-                          }}
-                          onConfirm={() => {
-                            if (selectedAdjustedCostGangOrigin && originAdjustedCostValue) {
-                              const adjusted_cost = parseInt(originAdjustedCostValue);
-                              if (adjusted_cost >= 0) {
-                                const selectedOrigin = gangOriginList.find(g => g.id === selectedAdjustedCostGangOrigin);
-                                if (selectedOrigin) {
-                                  setGangOriginAdjustedCosts(prev => [
-                                    ...prev,
-                                    {
-                                      origin_name: selectedOrigin.origin_name,
-                                      gang_origin_id: selectedOrigin.id,
-                                      adjusted_cost
-                                    }
-                                  ]);
-                                  setShowOriginAdjustedCostDialog(false);
-                                  setSelectedAdjustedCostGangOrigin("");
-                                  setOriginAdjustedCostValue("");
-                                }
-                              }
-                            }
-                          }}
-                          confirmText="Save"
-                          confirmDisabled={
-                            !selectedAdjustedCostGangOrigin ||
-                            !originAdjustedCostValue ||
-                            parseInt(originAdjustedCostValue) < 0
-                          }
-                          width="sm"
-                        >
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Gang Origin</label>
-                              <select
-                                value={selectedAdjustedCostGangOrigin}
-                                onChange={(e) => {
-                                  const selected = gangOriginList.find(g => g.id === e.target.value);
-                                  if (selected) {
-                                    setSelectedAdjustedCostGangOrigin(e.target.value);
-                                  }
-                                }}
-                                className="w-full p-2 border rounded-md"
-                              >
-                                <option key="default" value="">Select a Gang Origin</option>
-                                <GangOriginOptions origins={filteredGangOrigins} />
-                              </select>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
-                              <Input
-                                type="number"
-                                value={originAdjustedCostValue}
-                                onChange={(e) => setOriginAdjustedCostValue(e.target.value)}
-                                placeholder="E.g. 120"
-                                min="0"
-                                onKeyDown={(e) => {
-                                  if (e.key === '-') {
-                                    e.preventDefault();
-                                  }
-                                }}
-                              />
-                            </div>
-                          </div>
-                        </Modal>
-                      )}
-                    </div>
-
-                    {/* Availability per Gang Origin — N23 only */}
-                    {showAvailability && (
-                    <div>
-                      <label className="block text-sm font-medium text-muted-foreground mb-1">
-                        Availability per Gang Origin
-                      </label>
-                      <Button
-                        onClick={() => setShowOriginAvailabilityDialog(true)}
-                        variant="outline"
-                        size="sm"
-                        className="mb-2"
-                      >
-                        Add Origin
-                      </Button>
-
-                      {equipmentOriginAvailabilities.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {equipmentOriginAvailabilities.map((avail, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                            >
-                              <span>{avail.origin_name} (Availability: {avail.availability})</span>
-                              <button
-                                onClick={() => setEquipmentOriginAvailabilities(prev =>
-                                  prev.filter((_, i) => i !== index)
-                                )}
-                                className="hover:text-red-500 focus:outline-hidden"
-                                disabled={!selectedEquipmentId}
-                              >
-                                <HiX className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {showOriginAvailabilityDialog && (
-                        <Modal
-                          title="Availability per Gang Origin"
-                          helper="Select a gang origin and enter an availability value"
-                          onClose={() => {
-                            setShowOriginAvailabilityDialog(false);
-                            setSelectedAvailabilityGangOrigin("");
-                            setOriginAvailValueLetter('');
-                            setOriginAvailValueNumber(6);
-                          }}
-                          onConfirm={() => {
-                            const combined = combineAvailability(originAvailValueLetter, originAvailValueNumber);
-                            if (selectedAvailabilityGangOrigin && combined) {
-                              const selectedOrigin = gangOriginList.find(g => g.id === selectedAvailabilityGangOrigin);
-                              if (selectedOrigin) {
-                                setEquipmentOriginAvailabilities(prev => [
-                                  ...prev,
-                                  {
-                                    origin_name: selectedOrigin.origin_name,
-                                    gang_origin_id: selectedOrigin.id,
-                                    availability: combined
-                                  }
-                                ]);
-                                setShowOriginAvailabilityDialog(false);
-                                setSelectedAvailabilityGangOrigin("");
-                                setOriginAvailValueLetter('');
-                                setOriginAvailValueNumber(6);
-                              }
-                            }
-                          }}
-                          confirmText="Save"
-                          confirmDisabled={
-                            !selectedAvailabilityGangOrigin ||
-                            !originAvailValueLetter
-                          }
-                          width="sm"
-                        >
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Gang Origin</label>
-                              <select
-                                value={selectedAvailabilityGangOrigin}
-                                onChange={(e) => {
-                                  const selected = gangOriginList.find(g => g.id === e.target.value);
-                                  if (selected) {
-                                    setSelectedAvailabilityGangOrigin(e.target.value);
-                                  }
-                                }}
-                                className="w-full p-2 border rounded-md"
-                              >
-                                <option key="default" value="">Select a Gang Origin</option>
-                                <GangOriginOptions origins={filteredGangOrigins} />
-                              </select>
-                            </div>
-
-                            <AvailabilityPicker
-                              label="Availability"
-                              letter={originAvailValueLetter}
-                              number={originAvailValueNumber}
-                              onLetterChange={setOriginAvailValueLetter}
-                              onNumberChange={setOriginAvailValueNumber}
-                              allowEmpty
-                            />
-                          </div>
-                        </Modal>
-                      )}
-                    </div>
-                    )}
-
-                    {/* Availability per Gang Subtype — N23 only */}
-                    {showAvailability && (
-                    <div>
-                      <label className="block text-sm font-medium text-muted-foreground mb-1">
-                        Availability per Gang Subtype
-                      </label>
-                      <Button
-                        onClick={() => setShowVariantAvailabilityDialog(true)}
-                        variant="outline"
-                        size="sm"
-                        className="mb-2"
-                      >
-                        Add Subtype
-                      </Button>
-
-                      {equipmentSubtypeAvailabilities.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {equipmentSubtypeAvailabilities.map((avail, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-muted"
-                            >
-                              <span>{avail.subtype} (Availability: {avail.availability})</span>
-                              <button
-                                onClick={() => setEquipmentSubtypeAvailabilities(prev =>
-                                  prev.filter((_, i) => i !== index)
-                                )}
-                                className="hover:text-red-500 focus:outline-hidden"
-                                disabled={!selectedEquipmentId}
-                              >
-                                <HiX className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {showVariantAvailabilityDialog && (
-                        <Modal
-                          title="Availability per Gang Subtype"
-                          helper="Select a gang subtype and enter an availability value"
-                          onClose={() => {
-                            setShowVariantAvailabilityDialog(false);
-                            setSelectedAvailabilityGangSubtype("");
-                            setVariantAvailValueLetter('');
-                            setVariantAvailValueNumber(6);
-                          }}
-                          onConfirm={() => {
-                            const combined = combineAvailability(variantAvailValueLetter, variantAvailValueNumber);
-                            if (selectedAvailabilityGangSubtype && combined) {
-                              const alreadyExists = equipmentSubtypeAvailabilities.some(
-                                a => a.gang_subtype_id === selectedAvailabilityGangSubtype
-                              );
-                              if (alreadyExists) {
-                                toast.error('This subtype already has an availability set');
-                                return false;
-                              }
-
-                              const selectedSubtype = gangSubtypeList.find(g => g.id === selectedAvailabilityGangSubtype);
-                              if (selectedSubtype) {
-                                setEquipmentSubtypeAvailabilities(prev => [
-                                  ...prev,
-                                  {
-                                    subtype: selectedSubtype.subtype,
-                                    gang_subtype_id: selectedSubtype.id,
-                                    availability: combined
-                                  }
-                                ]);
-                                setShowVariantAvailabilityDialog(false);
-                                setSelectedAvailabilityGangSubtype("");
-                                setVariantAvailValueLetter('');
-                                setVariantAvailValueNumber(6);
-                              }
-                            }
-                          }}
-                          confirmText="Save"
-                          confirmDisabled={
-                            !selectedAvailabilityGangSubtype ||
-                            !variantAvailValueLetter
-                          }
-                          width="sm"
-                        >
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium mb-1">Gang Subtype</label>
-                              <select
-                                value={selectedAvailabilityGangSubtype}
-                                onChange={(e) => {
-                                  const selected = gangSubtypeList.find(g => g.id === e.target.value);
-                                  if (selected) {
-                                    setSelectedAvailabilityGangSubtype(e.target.value);
-                                  }
-                                }}
-                                className="w-full p-2 border rounded-md"
-                              >
-                                <option key="default" value="">Select a Gang Subtype</option>
-                                <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
-                              </select>
-                            </div>
-
-                            <AvailabilityPicker
-                              label="Availability"
-                              letter={variantAvailValueLetter}
-                              number={variantAvailValueNumber}
-                              onLetterChange={setVariantAvailValueLetter}
-                              onNumberChange={setVariantAvailValueNumber}
-                              allowEmpty
-                            />
-                          </div>
-                        </Modal>
-                      )}
-                    </div>
-                    )}
+                        )}
+                      </div>
+                    ))}
                   </div>
+
+                  {openScopeSection && (
+                    <Modal
+                      title={openScopeSection.title}
+                      helper={openScopeSection.helper}
+                      onClose={closeScopeDialog}
+                      onConfirm={openScopeSection.onAdd}
+                      confirmText="Save"
+                      confirmDisabled={!draftValid}
+                      width="sm"
+                    >
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">{openScopeSection.scopeLabel}</label>
+                          <select
+                            value={draftScopeId}
+                            onChange={(e) => {
+                              if (e.target.value) setDraftScopeId(e.target.value);
+                            }}
+                            className="w-full p-2 border rounded-md"
+                            disabled={openScopeSection.loading}
+                          >
+                            <option key="default" value="">Select a {openScopeSection.scopeLabel}</option>
+                            {openScopeSection.scopeOptions}
+                          </select>
+                        </div>
+
+                        {openScopeSection.kind === 'cost' ? (
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Adjusted Cost</label>
+                            <Input
+                              type="number"
+                              value={draftCost}
+                              onChange={(e) => setDraftCost(e.target.value)}
+                              placeholder="E.g. 120"
+                              min="0"
+                              onKeyDown={(e) => {
+                                if (e.key === '-') {
+                                  e.preventDefault();
+                                }
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <AvailabilityPicker
+                            label="Availability"
+                            letter={draftAvailLetter}
+                            number={draftAvailNumber}
+                            onLetterChange={setDraftAvailLetter}
+                            onNumberChange={setDraftAvailNumber}
+                            allowEmpty
+                          />
+                        )}
+
+                        {openScopeSection.dialog === 'gangAvailability' && (
+                          <label className="flex items-start space-x-2">
+                            <Checkbox
+                              checked={draftExclusive}
+                              onCheckedChange={(checked) => setDraftExclusive(checked === true)}
+                              className="mt-1"
+                            />
+                            <div>
+                              <span className="text-sm font-medium text-muted-foreground">Available only to this gang</span>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Limits this item&apos;s Trading Post visibility to only the gangs flagged here. Flag several gangs to make it available to each of them.
+                              </p>
+                            </div>
+                          </label>
+                        )}
+                      </div>
+                    </Modal>
+                  )}
                 </div>
               )}
 
@@ -1745,7 +1248,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                     variant="outline"
                     size="sm"
                     className="mb-2"
-                    disabled={!selectedEquipmentId}
                   >
                     Add Scoped
                   </Button>
@@ -1762,13 +1264,13 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                       e.target.value = "";
                     }}
                     className="w-full p-2 border rounded-md"
-                    disabled={!selectedEquipmentId}
                   >
                     <option value="">Select fighter type to add</option>
                     {filteredFighterTypes
                       .filter(ft => !fighterTypeGrants.some(
                         g => g.fighter_type_id === ft.id
-                          && !g.gang_origin_id && !g.gang_subtype_id && !g.fighter_subtype
+                          && !g.gang_type_id && !g.gang_origin_id && !g.gang_subtype_id
+                          && !g.fighter_subtype && !g.fighter_specialisation_id
                       ))
                       .map((ft) => (
                         <option key={ft.id} value={ft.id}>
@@ -1785,13 +1287,11 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                       if (grant.fighter_type_id && !ft) return null;
 
                       const scope = [
-                        grant.gang_origin_id
-                          ? `Origin: ${gangOriginList.find(o => o.id === grant.gang_origin_id)?.origin_name ?? '…'}`
-                          : null,
-                        grant.gang_subtype_id
-                          ? `Gang subtype: ${gangSubtypeList.find(v => v.id === grant.gang_subtype_id)?.subtype ?? '…'}`
-                          : null,
-                        grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null
+                        formatGangScope(grant, { gangTypes: gangTypeOptions, origins: gangOriginList, subtypes: gangSubtypeList }),
+                        grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null,
+                        grant.fighter_specialisation_id
+                          ? `Specialisation: ${specialisationList.find(sp => sp.id === grant.fighter_specialisation_id)?.specialisation_name ?? '…'}`
+                          : null
                       ].filter(Boolean).join(', ');
 
                       return (
@@ -1806,7 +1306,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                               fighterTypeGrants.filter(g => grantKey(g) !== grantKey(grant))
                             )}
                             className="hover:text-red-500 focus:outline-hidden"
-                            disabled={!selectedEquipmentId}
                           >
                             <HiX className="h-4 w-4" />
                           </button>
@@ -1818,15 +1317,16 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                   {showScopedGrantDialog && (
                     <Modal
                       title="Scoped Equipment List Entry"
-                      helper="Narrow a grant or deny to a gang origin, gang subtype and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
+                      helper="Narrow a grant or deny to a gang and/or a fighter subtype or specialisation. Leave Fighter Type as Any for a rule that follows the fighter whatever its type, e.g. Gang Type + Specialisation."
                       onClose={closeScopedGrantDialog}
                       onConfirm={() => {
                         const grant: FighterTypeGrant = {
                           fighter_type_id: scopedGrantFighterType || null,
-                          gang_type_id: null,
+                          gang_type_id: scopedGrantGangType || null,
                           gang_origin_id: scopedGrantOrigin || null,
                           gang_subtype_id: scopedGrantGangSubtype || null,
                           fighter_subtype: scopedGrantSubtype || null,
+                          fighter_specialisation_id: scopedGrantSpecialisation || null,
                           excluded: scopedGrantExcluded
                         };
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
@@ -1837,17 +1337,9 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                         closeScopedGrantDialog();
                       }}
                       confirmText="Save"
-                      confirmDisabled={
-                        // A grant needs a fighter, and a scope the quick-add can't already give.
-                        (!scopedGrantExcluded && (
-                          (!scopedGrantFighterType && !scopedGrantSubtype)
-                          || (!scopedGrantOrigin && !scopedGrantGangSubtype && !scopedGrantSubtype)
-                        ))
-                        // A deny needs no fighter, but an all-null one would strip it everywhere.
-                        || (scopedGrantExcluded
-                            && !scopedGrantFighterType && !scopedGrantSubtype
-                            && !scopedGrantOrigin && !scopedGrantGangSubtype)
-                      }
+                      confirmDisabled={scopedGrantExcluded
+                        ? !scopedGrantHasFighter && !scopedGrantHasScope
+                        : !scopedGrantHasFighter || !scopedGrantHasScope}
                       width="sm"
                     >
                       <div className="space-y-4">
@@ -1884,28 +1376,33 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-1">Gang Origin</label>
+                          <label className="block text-sm font-medium mb-1">Specialisation</label>
                           <select
-                            value={scopedGrantOrigin}
-                            onChange={(e) => setScopedGrantOrigin(e.target.value)}
+                            value={scopedGrantSpecialisation}
+                            onChange={(e) => setScopedGrantSpecialisation(e.target.value)}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option key="default" value="">Any Gang Origin</option>
-                            <GangOriginOptions origins={filteredGangOrigins} />
+                            <option key="default" value="">Any Specialisation</option>
+                            {specialisationList.map((specialisation) => (
+                              <option key={specialisation.id} value={specialisation.id}>
+                                {specialisation.specialisation_name}
+                              </option>
+                            ))}
                           </select>
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Gang Subtype</label>
-                          <select
-                            value={scopedGrantGangSubtype}
-                            onChange={(e) => setScopedGrantGangSubtype(e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option key="default" value="">Any Gang Subtype</option>
-                            <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
-                          </select>
-                        </div>
+                        <GangScopeSelects
+                          gangTypes={filteredGangTypes}
+                          origins={filteredGangOrigins}
+                          subtypes={filteredGangSubtypes}
+                          editionSlug={editionSlug}
+                          gangTypeId={scopedGrantGangType}
+                          onGangTypeChange={setScopedGrantGangType}
+                          gangOriginId={scopedGrantOrigin}
+                          onGangOriginChange={setScopedGrantOrigin}
+                          gangSubtypeId={scopedGrantGangSubtype}
+                          onGangSubtypeChange={setScopedGrantGangSubtype}
+                        />
 
                         <label className="flex items-start space-x-2">
                           <Checkbox
@@ -1931,7 +1428,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
               <CountLimitsEditor
                 limits={countLimits}
                 onChange={setCountLimits}
-                disabled={!selectedEquipmentId}
+                disabled={false}
                 helper="How many of this item a gang may have. Leave the scope on Any for every gang; the most specific matching limit wins."
                 labelLists={{ gangTypes: gangTypeOptions, origins: gangOriginList, subtypes: gangSubtypeList }}
                 selectLists={{ gangTypes: filteredGangTypes, origins: filteredGangOrigins, subtypes: filteredGangSubtypes, editionSlug }}
@@ -1941,35 +1438,23 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                 }))}
               />
 
-              {/* Trading Post Section - Add this above Fighter Effects */}
-              {selectedEquipmentId && (
-                <AdminTradingPost
-                  equipmentId={selectedEquipmentId}
-                  selectedTradingPosts={selectedTradingPosts}
-                  setSelectedTradingPosts={setSelectedTradingPosts}
-                  tradingPostTypes={tradingPostTypes}
-                  editionId={editionId}
-                  disabled={!selectedEquipmentId}
-                />
-              )}
+              <AdminTradingPost
+                equipmentId={selectedEquipmentId}
+                selectedTradingPosts={selectedTradingPosts}
+                setSelectedTradingPosts={setSelectedTradingPosts}
+                tradingPostTypes={tradingPostTypes}
+                editionId={editionId}
+              />
 
-              {/* Fighter Effects Section */}
-              {selectedEquipmentId && (
-                <div className="col-span-3">
-                  <AdminFighterEffects
-                    equipmentId={selectedEquipmentId}
-                    editionId={editionId}
-                    fighterEffects={fighterEffects}
-                    fighterEffectCategories={fighterEffectCategories}
-                    onUpdate={() => {
-                      // No toast needed as effects show directly in UI
-                    }}
-                    onChange={(effects) => {
-                      setFighterEffects(effects);
-                    }}
-                  />
-                </div>
-              )}
+              <div className="col-span-3">
+                <AdminFighterEffects
+                  equipmentId={selectedEquipmentId}
+                  editionId={editionId}
+                  fighterEffects={fighterEffects}
+                  fighterEffectCategories={equipmentDetails?.fighter_effect_categories ?? NO_ROWS}
+                  onChange={setFighterEffects}
+                />
+              </div>
 
               {/* Weapon Profiles Section */}
               {equipmentType === 'weapon' && (
@@ -1977,10 +1462,9 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                   <div className="flex justify-between items-center sticky top-0 bg-card py-2">
                     <h4 className="text-lg font-semibold">Weapon Profiles</h4>
                     <Button
-                      onClick={addProfile}
+                      onClick={() => setWeaponProfiles(profiles => [...profiles, emptyWeaponProfile(profiles.length + 1)])}
                       variant="outline"
                       size="sm"
-                      disabled={!selectedEquipmentId}
                     >
                       Add Profile
                     </Button>
@@ -1995,8 +1479,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                             <Button
                               variant="destructive"
                               className="h-8 w-8 p-0"
-                              onClick={() => removeProfile(index)}
-                              disabled={!selectedEquipmentId}
+                              onClick={() => setWeaponProfiles(profiles => profiles.filter((_, i) => i !== index))}
                             >
                               <LuTrash2 className="h-4 w-4" />
                             </Button>
@@ -2013,7 +1496,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                               value={profile.profile_name}
                               onChange={(e) => handleProfileChange(index, 'profile_name', e.target.value)}
                               placeholder="e.g. Standard, Rapid Fire"
-                              disabled={!selectedEquipmentId}
                             />
                           </div>
                           <div>
@@ -2030,7 +1512,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                                 handleProfileChange(index, 'sort_order', parseInt(value) || 0);
                               }}
                               placeholder="#"
-                              disabled={!selectedEquipmentId}
                             />
                           </div>
                         </div>
@@ -2051,7 +1532,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                             }
                             onChange={(e) => handleProfileChange(index, 'weapon_group_id', e.target.value)}
                             className="w-full p-2 border rounded-md"
-                            disabled={!selectedEquipmentId}
                           >
                             <option value="">Use This Weapon (Default)</option>
                             {filteredWeapons
@@ -2070,7 +1550,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                           index={index}
                           onChange={handleProfileChange}
                           usesLethality={usesLethality}
-                          disabled={!selectedEquipmentId}
                         />
                         <div>
                           <div className="col-span-3">
@@ -2081,7 +1560,6 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                               value={profile.traits}
                               onChange={(e) => handleProfileChange(index, 'traits', e.target.value)}
                               placeholder="Comma-separated list of traits"
-                              disabled={!selectedEquipmentId}
                             />
                           </div>
                         </div>

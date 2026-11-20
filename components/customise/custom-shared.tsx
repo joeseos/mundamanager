@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { CustomFighterType } from '@/types/fighter';
 import { CustomEquipment } from '@/types/equipment';
 import { toast } from 'sonner';
@@ -70,7 +70,7 @@ function ShareToCampaignsModal({
     [userCampaigns, itemEditionSlug]
   );
 
-  const { data: sharedCampaignIds = [], isLoading, isSuccess, error: fetchError } = useQuery({
+  const { data: sharedCampaignIds = [], isLoading, isSuccess } = useQuery({
     queryKey: sharedQueryKey,
     queryFn: async (): Promise<string[]> => {
       const params = new URLSearchParams({ type: itemType, id: itemId });
@@ -80,6 +80,7 @@ function ShareToCampaignsModal({
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load shared campaigns' },
   });
 
   const [prevSharedKey, setPrevSharedKey] = useState('');
@@ -91,10 +92,6 @@ function ShareToCampaignsModal({
       setSelectedCampaigns(sharedCampaignIds.filter(id => eligibleIds.has(id)));
     }
   }
-
-  useEffect(() => {
-    if (fetchError) toast.error('Failed to load shared campaigns');
-  }, [fetchError]);
 
   const shareMutation = useMutation({
     mutationFn: (campaignIds: string[]) => share(campaignIds),

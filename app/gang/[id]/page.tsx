@@ -18,6 +18,7 @@ import {
 import { assembleGangFighters, assembleGangVehicles } from '@/utils/gang-assembly';
 import { getGangBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
 import { hasGangTacticsCards } from '@/types/edition';
+import { getCampaignTrades } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
 export default async function GangPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
@@ -59,7 +60,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangPositioning,
       roster,
       stash,
-      campaigns,
+      campaignMembership,
       gangSubtypes,
       userProfile,
       userPermissions,
@@ -79,7 +80,13 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         vehicles: assembleGangVehicles(bundle)
       })),
       getGangStash(params.id),
-      getGangCampaigns(params.id),
+      getGangCampaigns(params.id).then(async (campaigns) => {
+        const accepted = campaigns.find((campaign) => campaign.status === 'ACCEPTED')
+        const campaignTrades = accepted
+          ? await getCampaignTrades(accepted.campaign_id, 100)
+          : []
+        return { campaigns, campaignTrades }
+      }),
       getGangSubtypes(gangBasic.gang_subtypes || []),
       getUserProfile(gangBasic.user_id),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
@@ -89,6 +96,9 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
         ? getGangTacticsCards(params.id)
         : Promise.resolve([])
     ]);
+
+    const campaigns = campaignMembership.campaigns
+    const campaignTrades = campaignMembership.campaignTrades
 
     const { fighters, vehicles } = roster;
 
@@ -112,6 +122,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       image_url: gangBasic.image_url,
       gang_portrait_id: gangBasic.gang_portrait_id ?? null,
       gang_portrait_url: gangBasic.gang_portrait_url ?? null,
+      parent_gang_type_id: gangTypeConfig?.parent_gang_type_id ?? null,
       parent_gang_type_name: gangTypeConfig?.parent_gang_type_name ?? null,
       gang_colour: gangBasic.gang_colour,
       credits: gangBasic.credits,
@@ -151,7 +162,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       tacticsCards: tacticsCards
     };
 
-    pageProps = { gangDataForClient, userPermissions };
+    pageProps = { gangDataForClient, userPermissions, campaignTrades };
   } catch (error) {
     // notFound()/forbidden()/redirect() signal by throwing; let them through
     // untouched so they are not logged as failures.
@@ -168,6 +179,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangId={params.id}
       userId={user.id}
       userPermissions={pageProps.userPermissions}
+      campaignTrades={pageProps.campaignTrades}
     />
   );
 }

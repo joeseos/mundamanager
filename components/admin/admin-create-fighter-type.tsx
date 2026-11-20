@@ -136,6 +136,7 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
       return response.json();
     },
     staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load equipment' },
   });
 
   const { data: fighterSubtypes = [] } = useQuery<FighterSubtype[]>({
@@ -271,18 +272,20 @@ export function AdminCreateFighterTypeModal({ onClose, onSubmit }: AdminCreateFi
     }
   };
 
-  const { data: skills = [] } = useQuery<Skill[]>({
+  // Same request and key as the Edit Fighter Type and Edit Skill modals
+  const { data: skills = [] } = useQuery({
     queryKey: ['admin-skills', selectedSkillType, editionId],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ skills: Skill[] }> => {
       const params = new URLSearchParams({ skill_type_id: selectedSkillType });
       if (editionId) params.set('edition_id', editionId);
       const response = await fetch(`/api/admin/skills?${params}`);
       if (!response.ok) throw new Error('Failed to fetch skills');
-      const data = await response.json();
-      return Array.isArray(data) ? data : data.skills || [];
+      return response.json();
     },
+    select: (data) => data.skills,
     enabled: !!selectedSkillType,
     staleTime: 5 * 60 * 1000,
+    meta: { errorMessage: 'Failed to load skills' },
   });
 
   const handleAddSpecialRule = () => {

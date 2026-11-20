@@ -111,6 +111,7 @@ export function AdminCreateSkillModal({ onClose, onSubmit }: AdminCreateSkillMod
       toast.success("Skill created successfully");
 
       await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-skills'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-skill-types'] }),
         queryClient.invalidateQueries({ queryKey: ['admin-gang-origins'] }),
       ]);

@@ -9,7 +9,8 @@ import { Label } from "@/components/ui/label";
 import { ValidatedEmailField } from "@/components/ui/validated-email-field";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useRef } from 'react';
+import { useQueries } from '@tanstack/react-query';
 import TurnstileWidget, { type TurnstileHandle } from '@/components/turnstile-widget';
 import { FaUsers } from "react-icons/fa";
 import { MdAppShortcut } from "react-icons/md";
@@ -17,6 +18,8 @@ import { LuEye, LuEyeOff } from "react-icons/lu";
 import { RiErrorWarningFill } from "react-icons/ri";
 import AboutMundaManager from "@/components/munda-manager-info/about-munda-manager";
 import WhatIsMundaManager from "@/components/munda-manager-info/what-is-munda-manager";
+
+const STATS = ['user-count', 'gang-count', 'campaign-count'] as const;
 
 export default function SignIn() {
   return (
@@ -32,43 +35,23 @@ function SignInContent() {
   const [errorMessage, setErrorMessage] = useState<string | null>(urlError);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
-  const [userCount, setUserCount] = useState<number | undefined>(undefined);
-  const [gangCount, setGangCount] = useState<number | undefined>(undefined);
-  const [campaignCount, setCampaignCount] = useState<number | undefined>(undefined);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const turnstileRef = useRef<TurnstileHandle>(null);
 
-  useEffect(() => {
-    // Fetch stats (non-blocking, cached)
-    async function fetchStats() {
-      try {
-        const [userResponse, gangResponse, campaignResponse] = await Promise.all([
-          fetch('/api/stats/user-count'),
-          fetch('/api/stats/gang-count'),
-          fetch('/api/stats/campaign-count')
-        ]);
-
-        if (userResponse.ok) {
-          const data = await userResponse.json();
-          setUserCount(data.count);
-        }
-        if (gangResponse.ok) {
-          const data = await gangResponse.json();
-          setGangCount(data.count);
-        }
-        if (campaignResponse.ok) {
-          const data = await campaignResponse.json();
-          setCampaignCount(data.count);
-        }
-      } catch (error) {
-        // Silently fail - we'll just show the generic message
-        console.error('Failed to fetch stats:', error);
-      }
-    }
-
-    fetchStats();
-  }, []);
+  // Non-blocking: a failed count just shows the generic message
+  const [userCount, gangCount, campaignCount] = useQueries({
+    queries: STATS.map(stat => ({
+      queryKey: ['stats', stat],
+      queryFn: async () => {
+        const response = await fetch(`/api/stats/${stat}`);
+        if (!response.ok) throw new Error(`Failed to fetch ${stat}`);
+        const data: { count: number } = await response.json();
+        return data.count;
+      },
+    })),
+    combine: results => results.map(result => result.data),
+  });
 
   // Create the appropriate message object based on searchParams
   let topMessage: Message | null = null;

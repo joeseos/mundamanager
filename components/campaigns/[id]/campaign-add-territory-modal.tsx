@@ -1,35 +1,14 @@
 'use client'
 
+import type { ComponentProps } from 'react'
 import { createPortal } from 'react-dom'
 import Modal from "@/components/ui/modal"
 import TerritoryList from "@/components/campaigns/[id]/campaign-add-territory-list"
-import type { CampaignType, CampaignTerritoryRow } from '@/types/campaign';
 
-interface Territory {
-  id: string;
-  territory_name: string;
-  campaign_type_id: string | null;
-  territory_id?: string | null;
-  edition_slug?: string | null;
-}
-
-interface CampaignTerritory {
-  territory_id: string | null;
-  territory_name: string;
-}
-
-interface CampaignAddTerritoryModalProps {
+type CampaignAddTerritoryModalProps = ComponentProps<typeof TerritoryList> & {
   isOpen: boolean;
   onClose: () => void;
-  campaignId: string;
-  campaignTypeId: string;
-  editionSlug?: string | null;
-  campaignTypes: CampaignType[];
-  allTerritories: Territory[];
-  existingCampaignTerritories: CampaignTerritory[];
-  onTerritoryAdd: (territory: CampaignTerritoryRow) => void;
-  isAdmin: boolean;
-}
+};
 
 export default function CampaignAddTerritoryModal({
   isOpen,

@@ -11,6 +11,7 @@ interface HoldingGang {
     fighterId: string
     fighterName: string
     fighterType?: string
+    originalGangId?: string | null
     originalGangName: string
   }>
 }

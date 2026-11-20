@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { List, ListColumn, ListAction } from '@/components/ui/list';
 import { CustomFighterType } from '@/types/fighter';
 import { toast } from 'sonner';
@@ -18,7 +18,7 @@ import { Tooltip } from 'react-tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import Modal from '@/components/ui/modal';
 import { Textarea } from '@/components/ui/textarea';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createCustomFighter, deleteCustomFighter, updateCustomFighter } from '@/app/actions/customise/custom-fighters';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import { ShareCustomFighterModal } from '@/components/customise/custom-shared';
@@ -113,6 +113,12 @@ interface FighterSubtype {
   id: string;
   subtype_name: string;
 }
+
+const NO_GANG_TYPES: GangType[] = [];
+const NO_FIGHTER_SUBTYPES: FighterSubtype[] = [];
+const NO_SKILL_TYPES: SkillTypeItem[] = [];
+const NO_EQUIPMENT: EquipmentListItem[] = [];
+const NO_SKILLS: Array<{ id: string; skill_name: string }> = [];
 
 export function CustomiseFighters({ className, initialFighters, userId, userCampaigns = [], readOnly = false, editionSlug }: CustomiseFightersProps) {
   const showSave = hasSaveCharacteristic(editionSlug);
@@ -328,8 +334,6 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [selectedGangType, setSelectedGangType] = useState('');
   // Names, not ids: N26 fighters carry several subtypes, and the column stores names.
   const [selectedFighterSubtypes, setSelectedFighterSubtypes] = useState<string[]>([]);
-  const [gangTypes, setGangTypes] = useState<GangType[]>([]);
-  const [fighterSubtypes, setFighterSubtypes] = useState<FighterSubtype[]>([]);
 
   // Combat stats
   const [movement, setMovement] = useState('');
@@ -354,7 +358,6 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const [description, setDescription] = useState<string | null>(null);
 
   // Skill access state
-  const [skillTypes, setSkillTypes] = useState<Array<{id: string, skill_type: string, name?: string, is_custom?: boolean}>>([]);
   const [skillAccess, setSkillAccess] = useState<{
     skill_type_id: string;
     access_level: 'primary' | 'secondary' | 'allowed';
@@ -363,16 +366,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   }[]>([]);
   const [skillTypeToAdd, setSkillTypeToAdd] = useState<string>('');
 
-  // Equipment state
-  const [equipment, setEquipment] = useState<EquipmentListItem[]>([]);
-
-  // Loading states to prevent duplicate API calls
-  const [isLoadingDropdownData, setIsLoadingDropdownData] = useState(false);
-
   // Default skills state
-  const [skills, setSkills] = useState<Array<{id: string, skill_name: string, skill_type_id: string}>>([]);
   const [selectedSkillType, setSelectedSkillType] = useState('');
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [selectedSkills, setSelectedSkills] = useState<Array<{ id: string; skill_name: string }>>([]);
 
   // Default equipment state
   const [selectedEquipmentCategory, setSelectedEquipmentCategory] = useState('');
@@ -386,16 +382,76 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   // vehicles fighter types instead, so this is false there by construction.
   const isCrew = selectedFighterSubtypes.includes('Crew');
 
-  // The dropdown fetches below only run while their list is empty, so an edition
-  // change has to clear them or the first edition's options would stick.
-  const [prevEditionSlug, setPrevEditionSlug] = useState(editionSlug);
-  if (editionSlug !== prevEditionSlug) {
-    setPrevEditionSlug(editionSlug);
-    setGangTypes([]);
-    setFighterSubtypes([]);
-    setSkillTypes([]);
-    setEquipment([]);
-  }
+  // Dropdown data for the Add and Edit modals. staleTime 0 on the lists that include
+  // the user's custom items: the other Customise sections change those without invalidating.
+  const isFormOpen = isAddModalOpen || !!editModalData;
+
+  const { data: gangTypes = NO_GANG_TYPES } = useQuery({
+    queryKey: ['gangTypes'],
+    queryFn: async () => {
+      const res = await fetch('/api/gang-types?includeAll=true');
+      if (!res.ok) throw new Error('Failed to fetch gang types');
+      return res.json() as Promise<Array<GangType & { edition_slug?: string | null }>>;
+    },
+    select: (data) => data.filter(gt => sameEditionForDisplay(gt.edition_slug, editionSlug)),
+    enabled: isFormOpen,
+    staleTime: 0,
+    meta: { errorMessage: 'Failed to load gang types' },
+  });
+
+  const { data: fighterSubtypes = NO_FIGHTER_SUBTYPES } = useQuery({
+    queryKey: ['fighter-subtypes', editionSlug],
+    queryFn: async () => {
+      const response = await fetch(`/api/fighter-subtypes?${new URLSearchParams({ edition_slug: editionSlug })}`);
+      if (!response.ok) throw new Error('Failed to fetch fighter subtypes');
+      return response.json() as Promise<FighterSubtype[]>;
+    },
+    select: (data) => filterAllowedFighterSubtypes(data, editionSlug),
+    enabled: isFormOpen,
+    meta: { errorMessage: 'Failed to load fighter subtypes' },
+  });
+
+  const { data: skillTypes = NO_SKILL_TYPES } = useQuery({
+    queryKey: ['skill-types', editionSlug],
+    queryFn: async () => {
+      const response = await fetch(`/api/skill-types?edition_slug=${editionSlug}`);
+      if (!response.ok) throw new Error('Failed to fetch skill types');
+      return response.json() as Promise<Array<{ id: string; name: string; is_custom?: boolean }>>;
+    },
+    select: (data): SkillTypeItem[] => data.map(type => ({ id: type.id, skill_type: type.name, is_custom: type.is_custom ?? false })),
+    enabled: isFormOpen,
+    staleTime: 0,
+    meta: { errorMessage: 'Failed to load skill types' },
+  });
+
+  const { data: equipment = NO_EQUIPMENT } = useQuery({
+    queryKey: ['equipment', { core_equipment: false }],
+    queryFn: async () => {
+      const res = await fetch('/api/equipment?core_equipment=false');
+      if (!res.ok) throw new Error('Failed to fetch equipment');
+      return res.json() as Promise<EquipmentListItem[]>;
+    },
+    select: (data) => data.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug)),
+    enabled: isFormOpen,
+    staleTime: 0,
+    meta: { errorMessage: 'Failed to load equipment' },
+  });
+
+  const { data: skillsInSet = NO_SKILLS } = useQuery({
+    queryKey: ['skills', selectedSkillType],
+    queryFn: async () => {
+      const { createClient } = await import('@/utils/supabase/client');
+      const { data, error } = await createClient()
+        .from('skills')
+        .select('id, name')
+        .eq('skill_type_id', selectedSkillType)
+        .order('name');
+      if (error) throw error;
+      return data.map(skill => ({ id: skill.id, skill_name: skill.name }));
+    },
+    enabled: !!selectedSkillType,
+    meta: { errorMessage: 'Failed to load skills' },
+  });
 
   const [prevIsCrew, setPrevIsCrew] = useState(isCrew);
   if (isCrew !== prevIsCrew) {
@@ -551,124 +607,6 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     );
   };
 
-  useEffect(() => {
-    if ((isAddModalOpen || editModalData) && gangTypes.length === 0) {
-      const fetchGangTypes = async () => {
-        try {
-          const response = await fetch('/api/gang-types?includeAll=true');
-          if (!response.ok) throw new Error('Failed to fetch gang types');
-          const data = await response.json();
-          setGangTypes(data.filter((gt: any) => sameEditionForDisplay(gt.edition_slug, editionSlug)));
-        } catch (error) {
-          console.error('Error fetching gang types:', error);
-          toast.error('Failed to load gang types');
-        }
-      };
-
-      fetchGangTypes();
-    }
-  }, [isAddModalOpen, editModalData, gangTypes.length, editionSlug]);
-
-  useEffect(() => {
-    if ((isAddModalOpen || editModalData) && !isLoadingDropdownData && (fighterSubtypes.length === 0 || skillTypes.length === 0 || equipment.length === 0)) {
-      const fetchData = async () => {
-        setIsLoadingDropdownData(true);
-        try {
-          const promises = [];
-
-          // Fetch fighter subtypes if not loaded
-          if (fighterSubtypes.length === 0) {
-            promises.push(
-              fetch(`/api/fighter-subtypes?edition_slug=${editionSlug}`).then(async (response) => {
-                if (response.ok) {
-                  const subtypeData = await response.json();
-                  setFighterSubtypes(filterAllowedFighterSubtypes(subtypeData, editionSlug));
-                }
-              })
-            );
-          }
-
-          // Fetch skill types if not loaded
-          if (skillTypes.length === 0) {
-            promises.push(
-              fetch(`/api/skill-types?edition_slug=${editionSlug}`).then(async (response) => {
-                if (response.ok) {
-                  const skillData = await response.json();
-                  const transformedData = skillData.map((type: any) => ({
-                    id: type.id,
-                    skill_type: type.name || type.skill_type,
-                    name: type.name,
-                    is_custom: type.is_custom || false
-                  }));
-                  setSkillTypes(transformedData);
-                }
-              })
-            );
-          }
-
-          // Fetch equipment if not loaded
-          if (equipment.length === 0) {
-            promises.push(
-              fetch('/api/equipment?core_equipment=false').then(async (response) => {
-                if (response.ok) {
-                  const equipData: EquipmentListItem[] = await response.json();
-                  setEquipment(equipData.filter(e => sameEditionForDisplay(e.edition_slug, editionSlug)));
-                }
-              })
-            );
-          }
-
-          await Promise.all(promises);
-        } catch (error) {
-          console.error('Error fetching dropdown data:', error);
-          toast.error('Failed to load some dropdown options');
-        } finally {
-          setIsLoadingDropdownData(false);
-        }
-      };
-
-      fetchData();
-    }
-  }, [isAddModalOpen, editModalData, fighterSubtypes.length, skillTypes.length, equipment.length, isLoadingDropdownData, editionSlug]);
-
-  // useEffect to fetch skills based on selected skill type
-  useEffect(() => {
-    const fetchSkills = async () => {
-      if (!selectedSkillType) {
-        setSkills([]);
-        return;
-      }
-
-      try {
-        const { createClient } = await import('@/utils/supabase/client');
-        const supabase = createClient();
-
-        const { data, error } = await supabase
-          .from('skills')
-          .select('id, name, skill_type_id')
-          .eq('skill_type_id', selectedSkillType)
-          .order('name');
-
-        if (error) throw error;
-
-        // Transform to match the expected format
-        const transformedSkills = data.map(skill => ({
-          id: skill.id,
-          skill_name: skill.name,
-          skill_type_id: skill.skill_type_id
-        }));
-
-        setSkills(transformedSkills);
-      } catch (error) {
-        console.error('Error fetching skills:', error);
-        toast.error('Failed to load skills');
-      }
-    };
-
-    fetchSkills();
-  }, [selectedSkillType]);
-
-
   const resetForm = () => {
     setFighterType('');
     setCost('');
@@ -697,7 +635,6 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setSkillTypeToAdd('');
     setSelectedSkills([]);
     setSelectedSkillType('');
-    setSkills([]);
     setSelectedEquipment([]);
     setSelectedEquipmentCategory('');
     setSelectedEquipmentList([]);
@@ -706,22 +643,6 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
 
   const handleEdit = async (fighter: CustomFighterType) => {
     setEditModalData(fighter);
-
-    // Load existing default skills if they exist - use data from server
-    if (fighter.default_skills && fighter.default_skills.length > 0) {
-      // Transform the existing skill data to match the expected format
-      const existingSkills = fighter.default_skills.map(skill => ({
-        id: skill.skill_id,
-        skill_name: skill.skill_name,
-        skill_type_id: skill.skill_type_id
-      }));
-
-      setSkills(existingSkills);
-    }
-
-    // Note: We don't add existing equipment to the equipment state here
-    // because it would interfere with the API call that fetches full equipment list with categories
-    // The selected equipment IDs will be set below, and the equipment list will be loaded via API
 
     // Pre-populate the form with existing data
     setFighterType(fighter.fighter_type ?? '');
@@ -750,12 +671,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
     setDescription(fighter.description || null);
     setSkillAccess(fighter.skill_access || []);
 
-    // Set selected skills from existing data
-    if (fighter.default_skills && fighter.default_skills.length > 0) {
-      setSelectedSkills(fighter.default_skills.map(skill => skill.skill_id));
-    } else {
-      setSelectedSkills([]);
-    }
+    setSelectedSkills((fighter.default_skills ?? []).map(skill => ({ id: skill.skill_id, skill_name: skill.skill_name })));
     setSelectedSkillType('');
 
     // Set selected equipment from existing data
@@ -773,25 +689,11 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       setSelectedEquipmentList([]);
     }
     setSelectedEquipmentListCategory('');
-
-    // Fighter subtype will be set by useEffect when fighterSubtypes are loaded
   };
 
   const handleView = async (fighter: CustomFighterType) => {
     setViewModalData(fighter);
     setDescription(fighter.description || null);
-
-    // Load existing default skills if they exist - use data from server
-    if (fighter.default_skills && fighter.default_skills.length > 0) {
-      // Transform the existing skill data to match the expected format
-      const existingSkills = fighter.default_skills.map(skill => ({
-        id: skill.skill_id,
-        skill_name: skill.skill_name,
-        skill_type_id: skill.skill_type_id
-      }));
-
-      setSkills(existingSkills);
-    }
 
     // Load skill access data if it exists
     if (fighter.skill_access && fighter.skill_access.length > 0) {
@@ -803,24 +705,6 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       }));
       setSkillAccess(existingSkillAccess);
     }
-
-    // Load existing default equipment if they exist
-    if (fighter.default_equipment && fighter.default_equipment.length > 0) {
-      const existingEquipment: EquipmentListItem[] = fighter.default_equipment.map(eq => ({
-        id: eq.equipment_id,
-        equipment_name: eq.equipment_name,
-        equipment_category: '',
-        is_custom: false,
-      }));
-
-      setEquipment(existingEquipment);
-    }
-
-    // No gang-type or subtype fetch here: the View modal renders gang_type and
-    // fighter_subtypes straight off the fighter. Populating those lists only
-    // served to satisfy the `length === 0` guard on the Add/Edit fetch, which
-    // then skipped its own curated fetch and left the authoring pickers showing
-    // placeholder and alliance-only subtypes.
   };
 
   const handleCopy = (fighter: CustomFighterType) => {
@@ -965,7 +849,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
       special_rules: specialRules,
       free_skill: freeSkill,
       skill_access: skillAccess,
-      default_skills: selectedSkills,
+      default_skills: selectedSkills.map(skill => skill.id),
       default_equipment: selectedEquipment,
       equipment_list: selectedEquipmentList,
       description,
@@ -1427,9 +1311,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                 <select
                   value=""
                   onChange={(e) => {
-                    const value = e.target.value;
-                    if (value) {
-                      setSelectedSkills([...selectedSkills, value]);
+                    const skill = skillsInSet.find(s => s.id === e.target.value);
+                    if (skill) {
+                      setSelectedSkills([...selectedSkills, skill]);
                     }
                     e.target.value = "";
                   }}
@@ -1437,36 +1321,29 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
                   disabled={!selectedSkillType}
                 >
                   <option value="">Select a skill to add</option>
-                  {skills
-                    .filter(skill => skill.skill_type_id === selectedSkillType)
-                    .map((skill) => (
-                      <option key={skill.id} value={skill.id}>
-                        {skill.skill_name}
-                      </option>
-                    ))}
+                  {skillsInSet.map((skill) => (
+                    <option key={skill.id} value={skill.id}>
+                      {skill.skill_name}
+                    </option>
+                  ))}
                 </select>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {selectedSkills.map((skillId, index) => {
-                    const skill = skills.find(s => s.id === skillId);
-                    if (!skill) return null;
-
-                    return (
-                      <div
-                        key={index}
-                        className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                  {selectedSkills.map((skill, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center gap-1 px-2 py-1 rounded-full text-sm bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                    >
+                      <span>{skill.skill_name}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
+                        className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
                       >
-                        <span>{skill.skill_name}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedSkills(selectedSkills.filter((_, i) => i !== index))}
-                          className="text-gray-600 dark:text-gray-400 hover:text-red-500 focus:outline-hidden"
-                        >
-                          <HiX className="h-4 w-4" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                        <HiX className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1695,13 +1572,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
             </div>
 
             {/* Default Skills */}
-            {skills.length > 0 && (
+            {viewModalData.default_skills && viewModalData.default_skills.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Default Skills
                 </label>
                 <div className="space-y-2">
-                  {skills.map((skill, index) => (
+                  {viewModalData.default_skills.map((skill, index) => (
                     <div key={index} className="p-2 border rounded-md bg-muted">
                       {skill.skill_name}
                     </div>
@@ -1711,13 +1588,13 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
             )}
 
             {/* Default Equipment */}
-            {equipment.length > 0 && (
+            {viewModalData.default_equipment && viewModalData.default_equipment.length > 0 && (
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Default Equipment
                 </label>
                 <div className="space-y-2">
-                  {equipment.map((eq, index) => (
+                  {viewModalData.default_equipment.map((eq, index) => (
                     <div key={index} className="p-2 border rounded-md bg-muted">
                       <span>{eq.equipment_name}</span>
                     </div>
