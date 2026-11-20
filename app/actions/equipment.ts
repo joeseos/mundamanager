@@ -345,6 +345,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     if (!gang?.user_id) {
       throw new Error('Gang not found');
     }
+    if (params.vehicle_id && forFighterOrVehicle && !vehicle) {
+      throw new Error('Failed to load the fighter or vehicle');
+    }
     if (!equipmentDetails) {
       if (params.equipment_id) throw new Error('Equipment not found');
       if (customEquipmentId) throw new Error('Custom equipment not found');
