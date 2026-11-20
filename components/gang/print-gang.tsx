@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { FighterProps, Vehicle, FighterEffect } from "@/types/fighter";
 import { Equipment } from "@/types/equipment";
@@ -24,7 +24,7 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from "@/types/gang";
 import { detailGangTypeLabel } from "@/utils/gang-type-label";
-import { isPrintInactiveFighter, isPrintRecoveryFighter } from "@/utils/fighter-status";
+import { isPrintInactive, isPrintRecovery } from "@/utils/fighter-status";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
@@ -228,18 +228,18 @@ export default function PrintGang({ gang }: PrintGangProps) {
       ? fightersActiveLoadoutOnly
       : fighters;
 
+  const fighterById = useMemo(
+    () => new Map(fighters.map((f) => [f.id, f])),
+    [fighters]
+  );
+
   const filteredFighters = sourceFighters.filter((f) => {
-    // Filter out inactive fighters if option is disabled (pets follow their owner)
-    if (!showInactiveFighters && isPrintInactiveFighter(f)) {
+    const owner = f.owner_id ? fighterById.get(f.owner_id) : undefined;
+    if (!showInactiveFighters && (isPrintInactive(f) || isPrintInactive(owner))) {
       return false;
     }
-    // Filter out fighters in recovery if option is disabled (pets follow their owner)
-    if (!showFightersInRecovery && isPrintRecoveryFighter(f)) {
+    if (!showFightersInRecovery && (isPrintRecovery(f) || isPrintRecovery(owner))) {
       return false;
-    }
-    // If both options are disabled, only show active fighters (not killed, not enslaved, not retired, not captured, not in recovery)
-    if (!showInactiveFighters && !showFightersInRecovery) {
-      return !isPrintInactiveFighter(f) && !isPrintRecoveryFighter(f);
     }
     return true;
   });

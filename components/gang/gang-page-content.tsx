@@ -27,7 +27,7 @@ import Modal from "@/components/ui/modal";
 import { editFighterStatus } from "@/app/actions/edit-fighter";
 import { toast } from 'sonner';
 import type { FighterEffect } from '@/types/fighter';
-import { hasKilledStatusFlag, countsTowardRating, withPetsOwnerInactive } from '@/utils/fighter-status';
+import { hasKilledStatusFlag, countsTowardRating } from '@/utils/fighter-status';
 import { hasVehicles, hasGangTacticsCards, hasPostCycleActions } from '@/types/edition';
 import CampaignTradesList from '@/components/campaigns/[id]/campaign-trades-list';
 import CampaignTradeModal from '@/components/campaigns/[id]/campaign-trade-modal';
@@ -209,13 +209,11 @@ export default function GangPageContent({
           ...prev,
           processedData: {
             ...prev.processedData,
-            fighters: withPetsOwnerInactive(
-              existingFighter 
-                ? prev.processedData.fighters.map(fighter =>
-                    fighter.id === updatedFighter.id ? updatedFighter : fighter
-                  )
-                : [...prev.processedData.fighters, updatedFighter]
-            ),
+            fighters: existingFighter 
+              ? prev.processedData.fighters.map(fighter =>
+                  fighter.id === updatedFighter.id ? updatedFighter : fighter
+                )
+              : [...prev.processedData.fighters, updatedFighter],
             // Don't modify rating when skipRatingUpdate is true
           }
         };
@@ -230,7 +228,7 @@ export default function GangPageContent({
           ...prev,
           processedData: {
             ...prev.processedData,
-            fighters: withPetsOwnerInactive([...prev.processedData.fighters, updatedFighter]),
+            fighters: [...prev.processedData.fighters, updatedFighter],
             // Don't modify rating for new exotic beasts (they have 0 cost)
           }
         };
@@ -287,10 +285,8 @@ export default function GangPageContent({
         ...prev,
         processedData: {
           ...prev.processedData,
-          fighters: withPetsOwnerInactive(
-            prev.processedData.fighters.map(fighter =>
-              fighter.id === nextFighter.id ? nextFighter : fighter
-            )
+          fighters: prev.processedData.fighters.map(fighter =>
+            fighter.id === nextFighter.id ? nextFighter : fighter
           ),
           // Update the rating based on vehicle and credit changes
           rating: newRating
@@ -302,7 +298,7 @@ export default function GangPageContent({
   const handleFighterAdd = useCallback((newFighter: FighterProps, cost: number) => {
     setGangData((prev: GangDataState) => {
       // Add the new fighter to the fighters array
-      const updatedFighters = withPetsOwnerInactive([...prev.processedData.fighters, newFighter]);
+      const updatedFighters = [...prev.processedData.fighters, newFighter];
 
       // Update gang credits by subtracting the cost
       const updatedCredits = prev.processedData.credits - cost;
@@ -380,10 +376,8 @@ export default function GangPageContent({
   const handleFighterReconcile = useCallback((tempFighterId: string, realFighter: FighterProps) => {
     setGangData((prev: GangDataState) => {
       // Replace the temp fighter with the real one
-      const updatedFighters = withPetsOwnerInactive(
-        prev.processedData.fighters.map(f =>
-          f.id === tempFighterId ? realFighter : f
-        )
+      const updatedFighters = prev.processedData.fighters.map(f =>
+        f.id === tempFighterId ? realFighter : f
       );
 
       // Update positioning - replace temp ID with real ID
@@ -549,20 +543,18 @@ export default function GangPageContent({
       ...prev,
       processedData: {
         ...prev.processedData,
-        fighters: withPetsOwnerInactive(
-          prev.processedData.fighters.map(f =>
-            f.id === fighterId
-              ? {
-                  ...f,
-                  captured: false,
-                  captured_by_gang_id: null,
-                  effects: {
-                    ...f.effects,
-                    injuries: (f.effects?.injuries || []).filter(injury => injury.effect_name !== 'Captured'),
-                  },
-                }
-              : f
-          )
+        fighters: prev.processedData.fighters.map(f =>
+          f.id === fighterId
+            ? {
+                ...f,
+                captured: false,
+                captured_by_gang_id: null,
+                effects: {
+                  ...f.effects,
+                  injuries: (f.effects?.injuries || []).filter(injury => injury.effect_name !== 'Captured'),
+                },
+              }
+            : f
         ),
       },
     }));
@@ -577,10 +569,8 @@ export default function GangPageContent({
         ...prev,
         processedData: {
           ...prev.processedData,
-          fighters: withPetsOwnerInactive(
-            prev.processedData.fighters.map(f =>
-              f.id === fighterId ? fighter : f
-            )
+          fighters: prev.processedData.fighters.map(f =>
+            f.id === fighterId ? fighter : f
           ),
         },
       }));
@@ -605,20 +595,18 @@ export default function GangPageContent({
         ...prev,
         processedData: {
           ...prev.processedData,
-          fighters: withPetsOwnerInactive(
-            prev.processedData.fighters.map(f =>
-              f.id === fighterId
-                ? {
-                    ...f,
-                    killed: false,
-                    effects: {
-                      ...f.effects,
-                      injuries: (f.effects?.injuries || []).filter(removeKilledStatusEffect),
-                      'rig-glitches': (f.effects?.['rig-glitches'] || []).filter(removeKilledStatusEffect),
-                    },
-                  }
-                : f
-            )
+          fighters: prev.processedData.fighters.map(f =>
+            f.id === fighterId
+              ? {
+                  ...f,
+                  killed: false,
+                  effects: {
+                    ...f.effects,
+                    injuries: (f.effects?.injuries || []).filter(removeKilledStatusEffect),
+                    'rig-glitches': (f.effects?.['rig-glitches'] || []).filter(removeKilledStatusEffect),
+                  },
+                }
+              : f
           ),
         },
       }));
@@ -633,10 +621,8 @@ export default function GangPageContent({
           ...prev,
           processedData: {
             ...prev.processedData,
-            fighters: withPetsOwnerInactive(
-              prev.processedData.fighters.map(f =>
-                f.id === fighterId ? fighter : f
-              )
+            fighters: prev.processedData.fighters.map(f =>
+              f.id === fighterId ? fighter : f
             ),
           },
         }));
@@ -1003,7 +989,7 @@ export default function GangPageContent({
                   ...prev,
                   processedData: {
                     ...prev.processedData,
-                    fighters: withPetsOwnerInactive(prev.processedData.fighters.map(f => {
+                    fighters: prev.processedData.fighters.map(f => {
                       if (f.id !== currentFighter.id) return f;
 
                       const isSpyrer = f.is_spyrer;
@@ -1025,7 +1011,7 @@ export default function GangPageContent({
                             : (f.effects?.['rig-glitches'] || []),
                         },
                       };
-                    })),
+                    }),
                   },
                 }));
               }}
@@ -1125,20 +1111,18 @@ export default function GangPageContent({
                   ...prev,
                   processedData: {
                     ...prev.processedData,
-                    fighters: withPetsOwnerInactive(
-                      prev.processedData.fighters.map(f =>
-                        f.id === currentFighter.id
-                          ? {
-                              ...f,
-                              ...(status.recovery !== undefined && { recovery: status.recovery }),
-                              ...(status.captured !== undefined && { captured: status.captured }),
-                              ...(status.capturedByGangId !== undefined && {
-                                captured_by_gang_id: status.capturedByGangId
-                              }),
-                              ...(status.killed !== undefined && { killed: status.killed })
-                            }
-                          : f
-                      )
+                    fighters: prev.processedData.fighters.map(f =>
+                      f.id === currentFighter.id
+                        ? {
+                            ...f,
+                            ...(status.recovery !== undefined && { recovery: status.recovery }),
+                            ...(status.captured !== undefined && { captured: status.captured }),
+                            ...(status.capturedByGangId !== undefined && {
+                              captured_by_gang_id: status.capturedByGangId
+                            }),
+                            ...(status.killed !== undefined && { killed: status.killed })
+                          }
+                        : f
                     ),
                   },
                 }));

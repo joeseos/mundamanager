@@ -22,7 +22,7 @@ import { useViewportWidth } from '@/hooks/use-viewport-width';
 import { dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
-import { formatOwnerDisplay, isCardInactive } from '@/utils/fighter-status';
+import { formatOwnerDisplay, isCardInactive, ownerStatusCollapsesCard } from '@/utils/fighter-status';
 
 const COMPACT_SCALE_PERCENT = {
   '4-card': 32,
@@ -133,7 +133,6 @@ const FighterCard = memo(function FighterCard({
   viewMode = 'normal',
   scaleToContent = false,
   owner_name,
-  owner_inactive,
   owner_status,
   captured_by_gang_name,
   image_url,
@@ -410,7 +409,7 @@ const FighterCard = memo(function FighterCard({
     };
   }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);
 
-  const isInactive = isCardInactive({ killed, retired, enslaved, recovery }) || !!owner_inactive;
+  const isInactive = isCardInactive({ killed, retired, enslaved, recovery }) || ownerStatusCollapsesCard(owner_status);
   const ownerDisplay = formatOwnerDisplay(owner_name, owner_status);
   const ownerLine = ownerDisplay ? (
     <div className="text-sm italic">
@@ -636,7 +635,7 @@ const FighterCard = memo(function FighterCard({
               )}
               {ownerLine}
               {/* Em dash separator */}
-              {owner_name && captured && captured_by_gang_name && (
+              {ownerDisplay && captured && captured_by_gang_name && (
                 <span className="text-sm italic">—</span>
               )}
               {/* Captured by gang information */}

@@ -255,8 +255,6 @@ export interface FighterProps {
 
   owner_id?: string; // Fighter who owns this fighter (for exotic beasts / pets)
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
-  /** Derived: the owner is killed, retired, enslaved, or in recovery. */
-  owner_inactive?: boolean;
   /** Derived: the owner's primary status label, e.g. Recovery. */
   owner_status?: string | null;
   beast_equipment_stashed?: boolean; // Whether the equipment granting this beast is in stash

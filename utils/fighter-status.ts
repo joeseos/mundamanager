@@ -74,44 +74,38 @@ export function formatOwnerDisplay(
   return status ? `${name} (${status})` : name;
 }
 
-/** Print "inactive fighters" toggle: killed / retired / enslaved, including via owner. */
-export function isPrintInactiveFighter(
-  fighter: FighterStatus & { owner_status?: string | null }
-): boolean {
-  return !!(
-    fighter.killed ||
-    fighter.enslaved ||
-    fighter.retired ||
-    fighter.owner_status === 'Killed' ||
-    fighter.owner_status === 'Retired' ||
-    fighter.owner_status === 'Enslaved'
-  );
+/**
+ * Pet/beast cards collapse for the same owner statuses as `isCardInactive`
+ * (killed, retired, enslaved, recovery — not captured or starved).
+ */
+export function ownerStatusCollapsesCard(status: string | null | undefined): boolean {
+  return status === 'Killed' || status === 'Retired' || status === 'Enslaved' || status === 'Recovery';
 }
 
-/** Print "fighters in recovery" toggle, including pets of a recovering owner. */
-export function isPrintRecoveryFighter(fighter: {
-  recovery?: boolean;
-  owner_status?: string | null;
-}): boolean {
-  return !!(fighter.recovery || fighter.owner_status === 'Recovery');
+/** Print "inactive fighters" toggle: killed / retired / enslaved. */
+export function isPrintInactive(fighter: FighterStatus | null | undefined): boolean {
+  if (!fighter) return false;
+  return !!(fighter.killed || fighter.enslaved || fighter.retired);
+}
+
+/** Print "fighters in recovery" toggle. */
+export function isPrintRecovery(fighter: FighterStatus | null | undefined): boolean {
+  return !!fighter?.recovery;
 }
 
 /**
- * Pets/beasts collapse when their owner is card-inactive. Recomputes
- * `owner_inactive` and `owner_status` from the owner's current flags;
- * non-pets are unchanged.
+ * Pets/beasts: copy the owner's current status label onto `owner_status`.
+ * Call at render over the roster, not in each state updater.
  */
 export function withPetsOwnerInactive<
-  T extends { id: string; owner_id?: string; owner_inactive?: boolean; owner_status?: string | null } & FighterStatus
+  T extends { id: string; owner_id?: string; owner_status?: string | null } & FighterStatus
 >(fighters: T[]): T[] {
   const byId = new Map(fighters.map((f) => [f.id, f]));
   return fighters.map((f) => {
     if (!f.owner_id) return f;
-    const owner = byId.get(f.owner_id);
-    const ownerInactive = isCardInactive(owner);
-    const ownerStatus = fighterStatusLabel(owner);
-    if (f.owner_inactive === ownerInactive && f.owner_status === ownerStatus) return f;
-    return { ...f, owner_inactive: ownerInactive, owner_status: ownerStatus };
+    const ownerStatus = fighterStatusLabel(byId.get(f.owner_id));
+    if (f.owner_status === ownerStatus) return f;
+    return { ...f, owner_status: ownerStatus };
   });
 }
 
