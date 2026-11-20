@@ -250,26 +250,29 @@ export default function CampaignTradesList({
   }
 
   const totalPages = Math.ceil(filteredBlocks.length / groupsPerPage)
+  const pageBlocks = useMemo(() => {
+    const start = (currentPage - 1) * groupsPerPage
+    return filteredBlocks.slice(start, start + groupsPerPage)
+  }, [filteredBlocks, currentPage])
   const hiddenOfferCountByParent = useMemo(() => {
     const counts = new Map<string, number>()
-    for (const block of filteredBlocks) {
+    for (const block of pageBlocks) {
       const parent = block[0]
       if (!parent || parent.status !== 'fulfilled') continue
       const hidden = block.slice(1).filter((child) => child.status !== 'fulfilled').length
       if (hidden > 0) counts.set(parent.id, hidden)
     }
     return counts
-  }, [filteredBlocks])
+  }, [pageBlocks])
   const currentTrades = useMemo(() => {
-    const start = (currentPage - 1) * groupsPerPage
-    return filteredBlocks.slice(start, start + groupsPerPage).flatMap((block) => {
+    return pageBlocks.flatMap((block) => {
       const parent = block[0]
       if (!parent || parent.status !== 'fulfilled' || expandedOfferParents.has(parent.id)) {
         return block
       }
       return [parent, ...block.slice(1).filter((child) => child.status === 'fulfilled')]
     })
-  }, [filteredBlocks, currentPage, expandedOfferParents])
+  }, [pageBlocks, expandedOfferParents])
 
   const emptyText = trades.length === 0
     ? 'No trades yet.'

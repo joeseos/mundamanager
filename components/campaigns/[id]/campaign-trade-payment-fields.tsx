@@ -84,9 +84,12 @@ export function parseTradePayments(
     const amount = Number(row.amount)
     if (!row.resourceId) {
       if (!row.amount || amount === 0) continue
+      if (Number.isNaN(amount) || !Number.isInteger(amount) || amount < 0) {
+        return { success: false, error: 'Resource amounts must be a whole number of 0 or more.' }
+      }
       return { success: false, error: 'Select a resource.' }
     }
-    if (!Number.isInteger(amount) || amount < 0) {
+    if (Number.isNaN(amount) || !Number.isInteger(amount) || amount < 0) {
       return { success: false, error: 'Resource amounts must be a whole number of 0 or more.' }
     }
     if (amount === 0) continue
@@ -145,7 +148,7 @@ export default function CampaignTradePaymentFields({
       {heading && (
         <p className="text-sm font-medium">{heading}</p>
       )}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 items-start">
+      <div className={`grid gap-x-3 gap-y-1 items-start${canAddResource ? ' grid-cols-2' : ' grid-cols-1'}`}>
         <Label htmlFor={`${idPrefix}-credits`} className="col-start-1 text-xs">Credits</Label>
         {canAddResource && (
           <Label className="col-start-2 text-xs">Other resources</Label>
