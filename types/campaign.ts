@@ -63,8 +63,8 @@ export type BattleStatus =
   | 'played';
 
 export const battleStatusLabels: Record<BattleStatus, string> = {
-  challenge_pending: 'Awaiting opponent',
-  challenge_issued: 'Challenge issued',
+  challenge_pending: 'Open',
+  challenge_issued: 'Issued',
   challenge_accepted: 'Accepted',
   challenge_declined: 'Declined',
   played: 'Played',
