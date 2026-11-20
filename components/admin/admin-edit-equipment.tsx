@@ -12,7 +12,7 @@ import { WeaponProfileInput, emptyWeaponProfile, EquipmentGrants, EquipmentGrant
 import { CountLimit, FighterTypeGrant } from "@/types/fighter-type";
 import { HiX } from "react-icons/hi";
 import { getFighterSubtypeSortRank } from "@/utils/fighterSubtypeRank";
-import { CountLimitsEditor, GangOriginOptions, GangSubtypeOptions } from "./gang-scope-options";
+import { CountLimitsEditor, GangOriginOptions, GangScopeSelects, GangSubtypeOptions, formatGangScope } from "./gang-scope-options";
 import { AdminFighterEffects } from "./admin-fighter-effects";
 import { EditionSelect, useEditions, editionSlugOf } from '@/components/edition-select';
 import { hasLethalityStatline, hasTradePoints } from '@/types/edition';
@@ -44,7 +44,8 @@ type ScopeDialog = 'gangCost' | 'gangAvailability' | 'originCost' | 'originAvail
 // Omits excluded, as fighter_type_equipment_fighter_scope_uidx does, so a grant and a deny for
 // one scope collide.
 const grantKey = (grant: FighterTypeGrant) =>
-  [grant.fighter_type_id, grant.gang_origin_id, grant.gang_subtype_id, grant.fighter_subtype]
+  [grant.fighter_type_id, grant.gang_type_id, grant.gang_origin_id, grant.gang_subtype_id,
+    grant.fighter_subtype, grant.fighter_specialisation_id]
     .map(part => part ?? '')
     .join('|');
 
@@ -123,9 +124,11 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
   const [fighterTypeGrants, setFighterTypeGrants] = useState<FighterTypeGrant[]>([]);
   const [showScopedGrantDialog, setShowScopedGrantDialog] = useState(false);
   const [scopedGrantFighterType, setScopedGrantFighterType] = useState('');
+  const [scopedGrantGangType, setScopedGrantGangType] = useState('');
   const [scopedGrantOrigin, setScopedGrantOrigin] = useState('');
   const [scopedGrantGangSubtype, setScopedGrantGangSubtype] = useState('');
   const [scopedGrantSubtype, setScopedGrantSubtype] = useState('');
+  const [scopedGrantSpecialisation, setScopedGrantSpecialisation] = useState('');
   const [scopedGrantExcluded, setScopedGrantExcluded] = useState(false);
   // null until loaded, so a failed load leaves the stored limits alone.
   const [countLimits, setCountLimits] = useState<CountLimit[] | null>(null);
@@ -268,11 +271,11 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       if (equipmentDetails.fighter_types_with_equipment) {
         setFighterTypeGrants(equipmentDetails.fighter_types_with_equipment.map((ft: any): FighterTypeGrant => ({
           fighter_type_id: ft.fighter_type_id ?? null,
-          // Always null: scopeToFighterTypeGrants reads only rows this screen owns
-          gang_type_id: null,
+          gang_type_id: ft.gang_type_id ?? null,
           gang_origin_id: ft.gang_origin_id ?? null,
           gang_subtype_id: ft.gang_subtype_id ?? null,
           fighter_subtype: ft.fighter_subtype ?? null,
+          fighter_specialisation_id: ft.fighter_specialisation_id ?? null,
           excluded: ft.excluded ?? false
         })));
       }
@@ -398,6 +401,18 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     staleTime: 5 * 60 * 1000,
   });
 
+  const { data: specialisationList = [] } = useQuery<Array<{id: string, specialisation_name: string}>>({
+    queryKey: ['admin-fighter-specialisations'],
+    queryFn: async () => {
+      const response = await fetch('/api/admin/fighter-specialisations');
+      if (!response.ok) throw new Error('Failed to fetch fighter specialisations');
+      return response.json();
+    },
+    // Also needed unopened, to label scoped grants
+    enabled: !!selectedEquipmentId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Subtypes are stored on the grant by name, but the names are per edition
   const filteredFighterSubtypes = useMemo(
     () => (editionId ? fighterSubtypeList.filter(s => s.edition_id === editionId) : [...fighterSubtypeList])
@@ -408,12 +423,20 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     [fighterSubtypeList, editionId, editions]
   );
 
+  // A grant needs a fighter, and a scope the quick-add can't already give.
+  // A deny needs no fighter, but an all-null one would strip it everywhere.
+  const scopedGrantHasFighter = !!(scopedGrantFighterType || scopedGrantSubtype || scopedGrantSpecialisation);
+  const scopedGrantHasScope = !!(scopedGrantGangType || scopedGrantOrigin || scopedGrantGangSubtype
+    || scopedGrantSubtype || scopedGrantSpecialisation);
+
   const closeScopedGrantDialog = () => {
     setShowScopedGrantDialog(false);
     setScopedGrantFighterType("");
+    setScopedGrantGangType("");
     setScopedGrantOrigin("");
     setScopedGrantGangSubtype("");
     setScopedGrantSubtype("");
+    setScopedGrantSpecialisation("");
     setScopedGrantExcluded(false);
   };
 
@@ -459,23 +482,20 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
     closeScopeDialog();
     setScopedGrantFighterType('');
     setScopedGrantSubtype('');
+    setScopedGrantGangType('');
     setScopedGrantOrigin('');
     setScopedGrantGangSubtype('');
     // Drop trading posts / fighter types that belong to another edition
     if (newEditionId) {
       setSelectedTradingPosts(prev => prev.filter(id => inNewEdition(tradingPostTypes, id)));
-      // fighter_subtype is not judged: it is stored by name, and names repeat per edition
-      setFighterTypeGrants(prev =>
-        prev.filter(grant => {
-          const ft = fighterTypes.find(f => f.id === grant.fighter_type_id);
-          if (ft && ft.edition_id !== newEditionId) return false;
-          const origin = gangOriginList.find(o => o.id === grant.gang_origin_id);
-          if (origin && origin.edition_id !== newEditionId) return false;
-          const subtype = gangSubtypeList.find(v => v.id === grant.gang_subtype_id);
-          if (subtype && subtype.edition_id !== newEditionId) return false;
-          return true;
-        })
-      );
+      // fighter_subtype is not judged: it is stored by name, and names repeat per edition.
+      // Specialisations are shared by every edition.
+      setFighterTypeGrants(prev => prev.filter(grant =>
+        inNewEdition(fighterTypes, grant.fighter_type_id)
+        && inNewEdition(gangTypeOptions, grant.gang_type_id)
+        && inNewEdition(gangOriginList, grant.gang_origin_id)
+        && inNewEdition(gangSubtypeList, grant.gang_subtype_id)
+      ));
       setCountLimits(prev => prev?.filter(limit =>
         inNewEdition(fighterTypes, limit.for_fighter_type_id)
         && inNewEdition(gangTypeOptions, limit.gang_type_id)
@@ -1249,7 +1269,8 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                     {filteredFighterTypes
                       .filter(ft => !fighterTypeGrants.some(
                         g => g.fighter_type_id === ft.id
-                          && !g.gang_origin_id && !g.gang_subtype_id && !g.fighter_subtype
+                          && !g.gang_type_id && !g.gang_origin_id && !g.gang_subtype_id
+                          && !g.fighter_subtype && !g.fighter_specialisation_id
                       ))
                       .map((ft) => (
                         <option key={ft.id} value={ft.id}>
@@ -1266,13 +1287,11 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                       if (grant.fighter_type_id && !ft) return null;
 
                       const scope = [
-                        grant.gang_origin_id
-                          ? `Origin: ${gangOriginList.find(o => o.id === grant.gang_origin_id)?.origin_name ?? '…'}`
-                          : null,
-                        grant.gang_subtype_id
-                          ? `Gang subtype: ${gangSubtypeList.find(v => v.id === grant.gang_subtype_id)?.subtype ?? '…'}`
-                          : null,
-                        grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null
+                        formatGangScope(grant, { gangTypes: gangTypeOptions, origins: gangOriginList, subtypes: gangSubtypeList }),
+                        grant.fighter_subtype ? `Subtype: ${grant.fighter_subtype}` : null,
+                        grant.fighter_specialisation_id
+                          ? `Specialisation: ${specialisationList.find(sp => sp.id === grant.fighter_specialisation_id)?.specialisation_name ?? '…'}`
+                          : null
                       ].filter(Boolean).join(', ');
 
                       return (
@@ -1298,15 +1317,16 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                   {showScopedGrantDialog && (
                     <Modal
                       title="Scoped Equipment List Entry"
-                      helper="Narrow a grant or deny to a gang origin, gang subtype and/or fighter subtype. Leave Fighter Type as Any for a subtype rule spanning every gang."
+                      helper="Narrow a grant or deny to a gang and/or a fighter subtype or specialisation. Leave Fighter Type as Any for a rule that follows the fighter whatever its type, e.g. Gang Type + Specialisation."
                       onClose={closeScopedGrantDialog}
                       onConfirm={() => {
                         const grant: FighterTypeGrant = {
                           fighter_type_id: scopedGrantFighterType || null,
-                          gang_type_id: null,
+                          gang_type_id: scopedGrantGangType || null,
                           gang_origin_id: scopedGrantOrigin || null,
                           gang_subtype_id: scopedGrantGangSubtype || null,
                           fighter_subtype: scopedGrantSubtype || null,
+                          fighter_specialisation_id: scopedGrantSpecialisation || null,
                           excluded: scopedGrantExcluded
                         };
                         if (fighterTypeGrants.some(g => grantKey(g) === grantKey(grant))) {
@@ -1317,17 +1337,9 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                         closeScopedGrantDialog();
                       }}
                       confirmText="Save"
-                      confirmDisabled={
-                        // A grant needs a fighter, and a scope the quick-add can't already give.
-                        (!scopedGrantExcluded && (
-                          (!scopedGrantFighterType && !scopedGrantSubtype)
-                          || (!scopedGrantOrigin && !scopedGrantGangSubtype && !scopedGrantSubtype)
-                        ))
-                        // A deny needs no fighter, but an all-null one would strip it everywhere.
-                        || (scopedGrantExcluded
-                            && !scopedGrantFighterType && !scopedGrantSubtype
-                            && !scopedGrantOrigin && !scopedGrantGangSubtype)
-                      }
+                      confirmDisabled={scopedGrantExcluded
+                        ? !scopedGrantHasFighter && !scopedGrantHasScope
+                        : !scopedGrantHasFighter || !scopedGrantHasScope}
                       width="sm"
                     >
                       <div className="space-y-4">
@@ -1364,28 +1376,33 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium mb-1">Gang Origin</label>
+                          <label className="block text-sm font-medium mb-1">Specialisation</label>
                           <select
-                            value={scopedGrantOrigin}
-                            onChange={(e) => setScopedGrantOrigin(e.target.value)}
+                            value={scopedGrantSpecialisation}
+                            onChange={(e) => setScopedGrantSpecialisation(e.target.value)}
                             className="w-full p-2 border rounded-md"
                           >
-                            <option key="default" value="">Any Gang Origin</option>
-                            <GangOriginOptions origins={filteredGangOrigins} />
+                            <option key="default" value="">Any Specialisation</option>
+                            {specialisationList.map((specialisation) => (
+                              <option key={specialisation.id} value={specialisation.id}>
+                                {specialisation.specialisation_name}
+                              </option>
+                            ))}
                           </select>
                         </div>
 
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Gang Subtype</label>
-                          <select
-                            value={scopedGrantGangSubtype}
-                            onChange={(e) => setScopedGrantGangSubtype(e.target.value)}
-                            className="w-full p-2 border rounded-md"
-                          >
-                            <option key="default" value="">Any Gang Subtype</option>
-                            <GangSubtypeOptions subtypes={filteredGangSubtypes} editionSlug={editionSlug} />
-                          </select>
-                        </div>
+                        <GangScopeSelects
+                          gangTypes={filteredGangTypes}
+                          origins={filteredGangOrigins}
+                          subtypes={filteredGangSubtypes}
+                          editionSlug={editionSlug}
+                          gangTypeId={scopedGrantGangType}
+                          onGangTypeChange={setScopedGrantGangType}
+                          gangOriginId={scopedGrantOrigin}
+                          onGangOriginChange={setScopedGrantOrigin}
+                          gangSubtypeId={scopedGrantGangSubtype}
+                          onGangSubtypeChange={setScopedGrantGangSubtype}
+                        />
 
                         <label className="flex items-start space-x-2">
                           <Checkbox
