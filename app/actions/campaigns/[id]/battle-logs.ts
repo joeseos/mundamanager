@@ -20,6 +20,9 @@ import {
   type BattleStatus,
 } from '@/types/campaign';
 import { checkScenarioParts } from '@/utils/scenario-parts';
+import { and, eq, ne } from 'drizzle-orm';
+import { clientErrorMessage, withUserWrite } from '@/utils/db/client';
+import { campaignBattles } from '@/utils/db/schema';
 
 /**
  * Type definition for territory claim
@@ -973,36 +976,28 @@ export async function reorderChallengeRound(
       return { success: false, error: 'Only the campaign arbitrator can reorder a challenge round' };
     }
 
-    // Refuse a stale order (a challenge added, played or deleted since the modal
-    // opened) rather than renumber only some of the open challenges.
-    const { data: open, error: openError } = await supabase
-      .from('campaign_battles')
-      .select('id')
-      .eq('campaign_id', campaignId)
-      .neq('status', 'played');
-    if (openError) throw openError;
-    const openIds = new Set((open ?? []).map((battle) => battle.id));
-    if (openIds.size !== battleIds.length || !battleIds.every((id) => openIds.has(id))) {
-      return { success: false, error: 'The round has changed. Reopen Challenge Round and try again.' };
-    }
+    // One transaction with the open challenges locked, so a challenge added,
+    // played or deleted since the modal opened refuses the whole order rather
+    // than renumbering only some of them. RLS limits the update to arbitrators.
+    const saved = await withUserWrite(user.id, async (tx) => {
+      const open = await tx
+        .select({ id: campaignBattles.id })
+        .from(campaignBattles)
+        .where(and(eq(campaignBattles.campaign_id, campaignId), ne(campaignBattles.status, 'played')))
+        .for('update');
+      const openIds = new Set(open.map((battle) => battle.id));
+      if (openIds.size !== battleIds.length || !battleIds.every((id) => openIds.has(id))) return false;
 
-    const results = await Promise.all(
-      battleIds.map((battleId, i) =>
-        supabase
-          .from('campaign_battles')
-          .update({ challenge_order: i + 1 })
-          .eq('id', battleId)
-          .eq('campaign_id', campaignId)
-          .neq('status', 'played')
-          .select('id')
-      )
-    );
-    const failed = results.find((result) => result.error);
-    if (failed?.error) throw failed.error;
-    // A challenge played between the check above and its update is skipped by the filter.
-    if (results.some((result) => result.data?.length !== 1)) {
-      invalidateCampaignBattles(campaignId);
-      return { success: false, error: 'The round changed while saving. Reopen Challenge Round and try again.' };
+      for (const [i, battleId] of battleIds.entries()) {
+        await tx
+          .update(campaignBattles)
+          .set({ challenge_order: i + 1 })
+          .where(eq(campaignBattles.id, battleId));
+      }
+      return true;
+    });
+    if (!saved) {
+      return { success: false, error: 'The round has changed. Reopen Challenge Round and try again.' };
     }
 
     invalidateCampaignBattles(campaignId);
@@ -1011,7 +1006,7 @@ export async function reorderChallengeRound(
     console.error('Error reordering challenge round:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Failed to reorder challenge round',
+      error: clientErrorMessage(error, 'Failed to reorder challenge round'),
     };
   }
 }
