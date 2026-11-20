@@ -733,11 +733,18 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     );
   };
 
-  // A challenge's challenger or challenged gang, with its role in the battle
-  const renderChallengeGang = (battle: Battle, gangId: string | null | undefined, showRating: boolean) => {
-    if (!gangId) return <span className="text-muted-foreground">-</span>;
-    const role = parseParticipants(battle.participants).find((p) => p.gang_id === gangId)?.role;
-    return renderGangWithRole(gangId, role, getGangName(gangId), showRating ? gangRatings.get(gangId) : undefined);
+  // A challenge's challenger, or every other gang in it, each with its role and rating
+  const renderChallengeGangs = (battle: Battle, challenger: boolean) => {
+    const gangs = parseParticipants(battle.participants)
+      .filter((p) => p.gang_id && (p.gang_id === battle.challenger_gang_id) === challenger);
+    if (gangs.length === 0) return <span className="text-muted-foreground">-</span>;
+    return (
+      <div className="space-y-1">
+        {gangs.map((p) => (
+          <div key={p.gang_id}>{renderGangWithRole(p.gang_id, p.role, getGangName(p.gang_id), gangRatings.get(p.gang_id))}</div>
+        ))}
+      </div>
+    );
   };
 
   // Get all gangs with their roles for a battle
@@ -1008,10 +1015,10 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                 {isChallengeTable ? (
                   <>
                     <td className="p-1 md:p-2 align-top">
-                      {renderChallengeGang(battle, battle.challenger_gang_id, true)}
+                      {renderChallengeGangs(battle, true)}
                     </td>
                     <td className="p-1 md:p-2 align-top">
-                      {renderChallengeGang(battle, battle.challenged_gang_id, false)}
+                      {renderChallengeGangs(battle, false)}
                     </td>
                   </>
                 ) : (
