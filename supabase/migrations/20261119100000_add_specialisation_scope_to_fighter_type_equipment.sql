@@ -654,10 +654,10 @@ BEGIN
             -- Trading post only
             ($4 IS NULL AND $5 IS NOT NULL AND COALESCE(tp.has_access, false) = $5)
         )
-        -- Unrestricted: only equipment from the gang's edition
+        -- Only equipment from the gang's edition, like custom equipment below:
+        -- a type-less grant (e.g. Subtype: Leader) has no edition of its own
         AND (
-            NOT ($4 IS NULL AND $5 IS NULL)
-            OR gd.edition_id IS NULL
+            gd.edition_id IS NULL
             OR e.edition_id = gd.edition_id
         )
 
