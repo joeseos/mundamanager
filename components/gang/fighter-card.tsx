@@ -22,6 +22,7 @@ import { useViewportWidth } from '@/hooks/use-viewport-width';
 import { dragSurfaceProps } from '@/hooks/use-dnd-sensors';
 import { GangViewMode, isCompactGangViewMode } from './ViewModeDropdown';
 import { CgMoreVerticalO } from "react-icons/cg";
+import { isCardInactive } from '@/utils/fighter-status';
 
 const COMPACT_SCALE_PERCENT = {
   '4-card': 32,
@@ -132,6 +133,8 @@ const FighterCard = memo(function FighterCard({
   viewMode = 'normal',
   scaleToContent = false,
   owner_name,
+  owner_inactive,
+  owner_status,
   captured_by_gang_name,
   image_url,
   isDragging = false,
@@ -407,7 +410,15 @@ const FighterCard = memo(function FighterCard({
     };
   }, [isCrew, vehicleStats, adjustedStats, xp, starting_xp, edition_slug]);
 
-  const isInactive = killed || retired || enslaved || recovery;
+  const isInactive = isCardInactive({ killed, retired, enslaved, recovery }) || !!owner_inactive;
+  const ownerDisplay = owner_name
+    ? `${owner_name}${owner_status ? ` (${owner_status})` : ''}`
+    : null;
+  const ownerLine = ownerDisplay ? (
+    <div className="text-sm italic">
+      Owner: <span className="font-semibold">{ownerDisplay}</span>
+    </div>
+  ) : null;
 
   // Advancements earned but not yet taken. Zero in editions that do not rank by
   // XP, so the icon is N26-only without an explicit edition check here.
@@ -605,11 +616,15 @@ const FighterCard = memo(function FighterCard({
           )}
         </div>
       </div>
+
+      {isInactive && ownerLine && (
+        <div className="-mt-5">{ownerLine}</div>
+      )}
         
       {!isInactive && (
         <>
           {/* Show active loadout and owner information */}
-          {(active_loadout_name || owner_name || (captured && captured_by_gang_name)) && (
+          {(active_loadout_name || ownerDisplay || (captured && captured_by_gang_name)) && (
             <div className="-mt-5 flex items-center gap-2">
               {/* Active loadout badge on the left */}
               {active_loadout_name && (
@@ -618,15 +633,10 @@ const FighterCard = memo(function FighterCard({
                 </div>
               )}
               {/* Em dash separator */}
-              {active_loadout_name && (owner_name || (captured && captured_by_gang_name)) && (
+              {active_loadout_name && (ownerDisplay || (captured && captured_by_gang_name)) && (
                 <span className="text-sm italic">—</span>
               )}
-              {/* Owner information */}
-              {owner_name && (
-                <div className="text-sm italic">
-                  Owned by <span className="font-semibold">{owner_name}</span>
-                </div>
-              )}
+              {ownerLine}
               {/* Em dash separator */}
               {owner_name && captured && captured_by_gang_name && (
                 <span className="text-sm italic">—</span>

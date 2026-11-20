@@ -7,6 +7,7 @@ import { WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import { gangRulesForWeapon } from '@/utils/gang-rules';
 import { beastCost, effectsCost, fighterTotalCost, type BeastCostRows } from '@/utils/fighter-cost';
+import { fighterStatusLabel, isCardInactive } from '@/utils/fighter-status';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -667,6 +668,8 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       captured_by_gang_name: fighter.captured_by_gang_id ? capturedByGangNameMap.get(fighter.captured_by_gang_id) : undefined,
       owner_id: ownershipInfo?.owner_id,
       owner_name: ownershipInfo?.owner_name,
+      owner_inactive: isCardInactive(fighterLookup.get(ownershipInfo?.owner_id)),
+      owner_status: fighterStatusLabel(fighterLookup.get(ownershipInfo?.owner_id)),
       beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
       active_loadout_id: activeLoadoutId || undefined,
       active_loadout_name: activeLoadoutId ? (loadoutCtx?.loadoutName ?? loadoutNameMap.get(activeLoadoutId)) : undefined,

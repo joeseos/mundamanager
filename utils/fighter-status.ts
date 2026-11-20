@@ -37,6 +37,72 @@ export function countsTowardRating(fighter: FighterStatus | null | undefined): b
 }
 
 /**
+ * Whether a fighter card is collapsed. Recovery is included; captured is not
+ * (a captured fighter still shows a full card).
+ */
+export function isCardInactive(fighter: FighterStatus | null | undefined): boolean {
+  if (!fighter) return false;
+  return !!(fighter.killed || fighter.retired || fighter.enslaved || fighter.recovery);
+}
+
+/**
+ * The owner's primary status label for pet/beast cards, or null when they
+ * have none. One label: killed, retired, enslaved, captured, recovery, then
+ * starved.
+ */
+export function fighterStatusLabel(fighter: FighterStatus | null | undefined): string | null {
+  if (!fighter) return null;
+  if (fighter.killed) return 'Killed';
+  if (fighter.retired) return 'Retired';
+  if (fighter.enslaved) return 'Enslaved';
+  if (fighter.captured) return 'Captured';
+  if (fighter.recovery) return 'Recovery';
+  if (fighter.starved) return 'Starved';
+  return null;
+}
+
+/** Print "inactive fighters" toggle: killed / retired / enslaved, including via owner. */
+export function isPrintInactiveFighter(
+  fighter: FighterStatus & { owner_status?: string | null }
+): boolean {
+  return !!(
+    fighter.killed ||
+    fighter.enslaved ||
+    fighter.retired ||
+    fighter.owner_status === 'Killed' ||
+    fighter.owner_status === 'Retired' ||
+    fighter.owner_status === 'Enslaved'
+  );
+}
+
+/** Print "fighters in recovery" toggle, including pets of a recovering owner. */
+export function isPrintRecoveryFighter(fighter: {
+  recovery?: boolean;
+  owner_status?: string | null;
+}): boolean {
+  return !!(fighter.recovery || fighter.owner_status === 'Recovery');
+}
+
+/**
+ * Pets/beasts collapse when their owner is card-inactive. Recomputes
+ * `owner_inactive` and `owner_status` from the owner's current flags;
+ * non-pets are unchanged.
+ */
+export function withPetsOwnerInactive<
+  T extends { id: string; owner_id?: string; owner_inactive?: boolean; owner_status?: string | null } & FighterStatus
+>(fighters: T[]): T[] {
+  const byId = new Map(fighters.map((f) => [f.id, f]));
+  return fighters.map((f) => {
+    if (!f.owner_id) return f;
+    const owner = byId.get(f.owner_id);
+    const ownerInactive = isCardInactive(owner);
+    const ownerStatus = fighterStatusLabel(owner);
+    if (f.owner_inactive === ownerInactive && f.owner_status === ownerStatus) return f;
+    return { ...f, owner_inactive: ownerInactive, owner_status: ownerStatus };
+  });
+}
+
+/**
  * Columns to select on `fighters` for costCountsTowardRating: the fighter's
  * status and, for an exotic beast, its owner's status.
  */

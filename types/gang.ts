@@ -193,6 +193,10 @@ export interface GangFighter {
   captured_by_gang_name?: string;
   owner_id?: string;
   owner_name?: string;
+  /** Derived: the owner is killed, retired, enslaved, or in recovery. */
+  owner_inactive?: boolean;
+  /** Derived: the owner's primary status label, e.g. Recovery. */
+  owner_status?: string | null;
   beast_equipment_stashed?: boolean;
   active_loadout_id?: string;
   active_loadout_name?: string;
