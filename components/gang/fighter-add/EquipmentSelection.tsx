@@ -190,7 +190,7 @@ export function EquipmentSelection({
                 <label className="block text-sm font-medium text-muted-foreground">
                   {isOptional
                     ? (replacementMode === 'strict'
-                      ? `Optional ${categoryName} (replace all ${totalSlots})`
+                      ? `Optional ${categoryName} (replace all)`
                       : `Optional ${categoryName} (replace up to ${totalSlots})`)
                     : isOptionalSingle ? `Optional ${categoryName} (Choose one replacement)`
                     : isSingle ? `Select ${categoryName} (Choose one)`
