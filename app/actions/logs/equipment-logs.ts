@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
+import { clientErrorMessage, getAppDb } from "@/utils/db/client";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatFinancialChanges } from "./log-helpers";
 
@@ -24,31 +25,19 @@ export interface EquipmentLogParams {
 
 export async function logEquipmentAction(params: EquipmentLogParams): Promise<GangLogActionResult> {
   try {
-    const supabase = await createClient();
-
-    // Get fighter/vehicle names for logging
-    let fighterName = 'Unknown Fighter';
-    let vehicleName = 'Unknown Vehicle';
-
-    if (params.fighter_id) {
-      const { data: fighter } = await supabase
-        .from('fighters')
-        .select('fighter_name')
-        .eq('id', params.fighter_id)
-        .single();
-      
-      if (fighter) fighterName = fighter.fighter_name;
-    }
-
-    if (params.vehicle_id) {
-      const { data: vehicle } = await supabase
-        .from('vehicles')
-        .select('vehicle_name')
-        .eq('id', params.vehicle_id)
-        .single();
-      
-      if (vehicle) vehicleName = vehicle.vehicle_name;
-    }
+    // Names for the log text. Every signed-in user may read fighters and vehicles, and
+    // createGangLog below checks who is asking before anything is written.
+    const db = getAppDb();
+    const [fighter, vehicle] = await Promise.all([
+      params.fighter_id
+        ? db.query.fighters.findFirst({ columns: { fighter_name: true }, where: (row, { eq }) => eq(row.id, params.fighter_id!) })
+        : undefined,
+      params.vehicle_id
+        ? db.query.vehicles.findFirst({ columns: { vehicle_name: true }, where: (row, { eq }) => eq(row.id, params.vehicle_id!) })
+        : undefined,
+    ]);
+    const fighterName = fighter?.fighter_name ?? 'Unknown Fighter';
+    const vehicleName = vehicle?.vehicle_name ?? 'Unknown Vehicle';
 
     // Determine action type and description
     let actionType: string;
@@ -129,9 +118,9 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
 
   } catch (error) {
     console.error('Error in logEquipmentAction:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to log equipment action'
+    return {
+      success: false,
+      error: clientErrorMessage(error, 'Failed to log equipment action')
     };
   }
 }

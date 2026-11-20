@@ -551,6 +551,14 @@ export const fighterEffectModifiers = pgTable('fighter_effect_modifiers', {
   user_id: uuid('user_id'),
 });
 
+export const exoticBeasts = pgTable('exotic_beasts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fighter_type_id: uuid('fighter_type_id'),
+  equipment_id: uuid('equipment_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
+});
+
 export const fighterExoticBeasts = pgTable('fighter_exotic_beasts', {
   id: uuid('id').defaultRandom().primaryKey(),
   fighter_owner_id: uuid('fighter_owner_id'),

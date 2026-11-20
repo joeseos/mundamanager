@@ -2,12 +2,16 @@
 
 import { invalidateGang, invalidateGangRoster, invalidateFighter, invalidateGangCampaignMembership, invalidateGangStash, invalidateGangFinancials } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
+import { sql } from 'drizzle-orm';
+import { clientErrorMessage, getAppDb, withUserWrite } from '@/utils/db/client';
+import { fighterEquipment } from '@/utils/db/schema';
+import { WEAPON_PROFILE_COLUMNS } from '@/app/lib/shared/gang-data';
 
 import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-rating-and-wealth';
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { countsTowardRating, costCountsTowardRating, FighterRatingStatus, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { countsTowardRating, costCountsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -252,9 +256,6 @@ export async function insertEffectWithModifiers(
   }
 }
 
-const WEAPON_PROFILE_COLUMNS =
-  'id, profile_name, range_short, range_long, acc_short, acc_long, strength, ap, damage, lethality, ammo, traits, sort_order';
-
 export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promise<EquipmentActionResult> {
   try {
     const supabase = await createClient();
@@ -272,138 +273,101 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       throw new Error('fighter_id or vehicle_id is required for non-stash purchases');
     }
 
-    // PARALLEL: Gang info and vehicle data
-    // Note: Authorization is enforced by RLS policies on fighter_equipment table
-    const [gangResult, vehicleResult, fighterResult] = await Promise.all([
-      // Gang info
-      supabase
-        .from('gangs')
-        .select(`
-          id, credits, gang_type_id, custom_gang_type_id, user_id, rating, wealth, trade_points,
-          gang_types ( editions:edition_id ( slug ) ),
-          custom_gang_types ( editions:edition_id ( slug ) )
-        `)
-        .eq('id', params.gang_id)
-        .single(),
+    // Every signed-in user may read these tables, so they are read over the direct
+    // connection with no claims; the fighter_equipment insert below runs as the user.
+    // Authorization is enforced by that table's RLS policies.
+    const db = getAppDb();
+    const forFighterOrVehicle = !params.buy_for_gang_stash;
+    const customEquipmentId = params.custom_equipment_id;
+    const [gang, vehicle, fighterRow, equipmentDetails] = await Promise.all([
+      db.query.gangs.findFirst({
+        columns: { credits: true, user_id: true, rating: true, wealth: true, trade_points: true },
+        where: (row, { eq }) => eq(row.id, params.gang_id),
+        with: {
+          gang_types: { columns: {}, with: { editions: { columns: { slug: true } } } },
+          custom_gang_type: { columns: {}, with: { editions: { columns: { slug: true } } } },
+        },
+      }),
 
       // Vehicle assignment check (only if needed)
-      (params.vehicle_id && !params.buy_for_gang_stash)
-        ? supabase
-            .from('vehicles')
-            .select('fighter_id, fighters (killed, retired, enslaved, captured)')
-            .eq('id', params.vehicle_id)
-            .single()
-        : Promise.resolve({ data: null, error: null }),
+      params.vehicle_id && forFighterOrVehicle
+        ? db.query.vehicles.findFirst({
+            columns: { fighter_id: true },
+            where: (row, { eq }) => eq(row.id, params.vehicle_id!),
+            with: { fighter: { columns: { killed: true, retired: true, enslaved: true, captured: true } } },
+          })
+        : undefined,
 
       // Fighter row: fighter_name feeds beast creation, fighter_pet_id lets the
       // owner-cache invalidation below skip its lookup for the 97% of fighters
       // that are not pets, and its status (or an exotic beast's owner's) decides
-      // whether the purchase counts toward rating. Fetched here so it overlaps
-      // the gang read instead of costing a serial round trip later.
-      (params.fighter_id && !params.buy_for_gang_stash)
-        ? supabase
-            .from('fighters')
-            .select(`fighter_name, fighter_pet_id, ${RATING_STATUS_COLUMNS}`)
-            .eq('id', params.fighter_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null })
+      // whether the purchase counts toward rating.
+      params.fighter_id && forFighterOrVehicle
+        ? db.query.fighters.findFirst({
+            columns: { fighter_name: true, fighter_pet_id: true, killed: true, retired: true, enslaved: true, captured: true },
+            where: (row, { eq }) => eq(row.id, params.fighter_id!),
+            with: {
+              beast_link: {
+                columns: {},
+                with: { fighters: { columns: { killed: true, retired: true, enslaved: true, captured: true } } },
+              },
+            },
+          })
+        : undefined,
+
+      params.equipment_id
+        ? db.query.equipment.findFirst({
+            columns: { equipment_name: true, equipment_type: true, cost: true, trade_points: true, is_editable: true, grants_equipment: true },
+            where: (row, { eq }) => eq(row.id, params.equipment_id!),
+            with: {
+              weapon_profiles: {
+                columns: WEAPON_PROFILE_COLUMNS,
+                orderBy: (row, { asc }) => [sql`${row.sort_order} asc nulls last`, asc(row.profile_name)],
+              },
+            },
+          })
+        : customEquipmentId
+          ? Promise.all([
+              db.query.customEquipment.findFirst({
+                columns: { equipment_name: true, equipment_type: true, cost: true, trade_points: true, is_editable: true },
+                where: (row, { eq }) => eq(row.id, customEquipmentId),
+              }),
+              db.query.customWeaponProfiles.findMany({
+                columns: WEAPON_PROFILE_COLUMNS,
+                where: (row, { eq, or }) => or(eq(row.custom_equipment_id, customEquipmentId), eq(row.weapon_group_id, customEquipmentId)),
+                orderBy: (row, { asc }) => [sql`${row.sort_order} asc nulls last`, asc(row.profile_name)],
+              }),
+            ]).then(([custom, profiles]) => custom && { ...custom, grants_equipment: null, weapon_profiles: profiles })
+          : undefined,
     ]);
 
-    const { data: gang, error: gangError } = gangResult;
-    if (gangError || !gang) {
+    // Every gang has an owner; the column is only nullable in the schema
+    if (!gang?.user_id) {
       throw new Error('Gang not found');
     }
-
-    if (vehicleResult.error || fighterResult.error) {
-      throw new Error('Failed to load the fighter or vehicle');
+    if (!equipmentDetails) {
+      if (params.equipment_id) throw new Error('Equipment not found');
+      if (customEquipmentId) throw new Error('Custom equipment not found');
+      throw new Error('Either equipment_id or custom_equipment_id is required');
     }
 
-    // Extract parallel query results
-    const vehicleAssignedFighterId = vehicleResult.data?.fighter_id || null;
-    // Shape must match the fighters select in the Promise.all above; the cast is
-    // unavoidable there, so keep the two in step by hand.
-    const fighterRow = fighterResult.data as (FighterRatingStatus & {
-      fighter_name: string | null;
-      fighter_pet_id: string | null;
-    }) | null;
+    const vehicleAssignedFighterId = vehicle?.fighter_id || null;
     // Only gear on an active fighter counts toward rating: a beast's gear rolls
     // into its owner and a vehicle's into its assigned fighter. An inactive
     // fighter's whole cost is added back when they return.
+    // (costCountsTowardRating reads a beast's owner as beast_link.owner)
     const ownerIsActive = params.fighter_id
-      ? costCountsTowardRating(fighterRow)
-      : countsTowardRating(vehicleResult.data?.fighters as FighterStatus | null | undefined);
+      ? costCountsTowardRating(fighterRow && { ...fighterRow, beast_link: fighterRow.beast_link && { owner: fighterRow.beast_link.fighters } })
+      : countsTowardRating(vehicle?.fighter);
     /**
      * null only when the row was actually read and says this fighter is not a
-     * pet. A missing/failed read stays undefined so the helper falls back to
-     * its own lookup rather than silently skipping the invalidation.
+     * pet. A missing read stays undefined so the helper falls back to its own
+     * lookup rather than silently skipping the invalidation.
      */
     const fighterPetId = fighterRow ? fighterRow.fighter_pet_id ?? null : undefined;
 
-    // Get equipment details
-    let equipmentDetails: any;
-    let baseCost: number;
-    let weaponProfiles: any[] = [];
-    let customWeaponProfiles: any[] = [];
-
-    if (params.equipment_id) {
-      // Fetch Equipment details
-      const { data: equipment, error: equipError } = await supabase
-        .from('equipment')
-        .select(`
-          id,
-          equipment_name,
-          equipment_type,
-          cost,
-          trade_points,
-          is_editable,
-          grants_equipment,
-          weapon_profiles (${WEAPON_PROFILE_COLUMNS})
-        `)
-        .eq('id', params.equipment_id)
-        .single();
-
-      if (equipError || !equipment) {
-        throw new Error('Equipment not found');
-      }
-
-      equipmentDetails = equipment;
-      baseCost = equipment.cost;
-      weaponProfiles = equipment.weapon_profiles || [];
-    } else if (params.custom_equipment_id) {
-      // PARALLEL: Custom equipment and profiles
-      const [customEquipResult, profilesResult] = await Promise.all([
-        // Custom equipment details
-        supabase
-          .from('custom_equipment')
-          .select('id, equipment_name, equipment_type, cost, trade_points, is_editable')
-          .eq('id', params.custom_equipment_id)
-          .single(),
-        
-        // Custom weapon profiles (fetch even if not weapon to avoid second query)
-        supabase
-          .from('custom_weapon_profiles')
-          .select(WEAPON_PROFILE_COLUMNS)
-          .or(`custom_equipment_id.eq.${params.custom_equipment_id},weapon_group_id.eq.${params.custom_equipment_id}`)
-          .order('sort_order', { nullsFirst: false })
-          .order('profile_name')
-      ]);
-
-      const { data: customEquip, error: customError } = customEquipResult;
-      if (customError || !customEquip) {
-        throw new Error('Custom equipment not found');
-      }
-
-      equipmentDetails = customEquip;
-      baseCost = customEquip.cost;
-
-      // Only use weapon profiles if it's actually a weapon
-      if (customEquip.equipment_type === 'weapon') {
-        const { data: profiles } = profilesResult;
-        customWeaponProfiles = profiles || [];
-      }
-    } else {
-      throw new Error('Either equipment_id or custom_equipment_id is required');
-    }
+    const baseCost = equipmentDetails.cost ?? 0;
+    const weaponProfiles = equipmentDetails.equipment_type === 'weapon' ? equipmentDetails.weapon_profiles : [];
 
     // Calculate final costs
     // We trust the client's listed_cost (the adjusted price from UI) because:
@@ -433,8 +397,8 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     const isReputationPurchase = isResourcePurchase && params.resourceCost!.resourceName === REPUTATION_RESOURCE_NAME;
     const isCampaignResourcePurchase = isResourcePurchase && !isReputationPurchase;
     if (!isResourcePurchase) {
-      if (finalPurchaseCost > 0 && gang.credits < finalPurchaseCost) {
-        throw new Error(`Gang has insufficient credits. Required: ${finalPurchaseCost}, Available: ${gang.credits}`);
+      if (finalPurchaseCost > 0 && (gang.credits ?? 0) < finalPurchaseCost) {
+        throw new Error(`Gang has insufficient credits. Required: ${finalPurchaseCost}, Available: ${gang.credits ?? 0}`);
       }
     } else {
       // Validate resource amount against configured trading post cost
@@ -497,31 +461,30 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         }}
       : {};
 
-    // Insert equipment
-    const { data: insertedEquipment, error: insertError } = await supabase
-      .from('fighter_equipment')
-      .insert({
-        gang_id: params.gang_id,
-        fighter_id: params.buy_for_gang_stash ? null : params.fighter_id,
-        vehicle_id: params.buy_for_gang_stash ? null : params.vehicle_id,
-        equipment_id: params.equipment_id,
-        custom_equipment_id: params.custom_equipment_id,
-        original_cost: baseCost,
-        purchase_cost: ratingCost,
-        ...(params.buy_for_gang_stash && { gang_stash: true }),
-        user_id: gang.user_id,
-        is_master_crafted: masterCrafted,
-        is_editable: equipmentDetails.is_editable || false,
-        ...costResourcePayload
-      })
-      .select('id')
-      .single();
-
-    if (insertError) {
-      const failure = params.buy_for_gang_stash ? 'Failed to add to gang stash' : 'Failed to add equipment';
-      throw new Error(`${failure}: ${insertError.message}`);
+    // Insert equipment, as the user so fighter_equipment's RLS policies decide
+    let newEquipmentId: string;
+    try {
+      const [inserted] = await withUserWrite(user.id, (tx) =>
+        tx.insert(fighterEquipment).values({
+          gang_id: params.gang_id,
+          fighter_id: params.buy_for_gang_stash ? null : params.fighter_id,
+          vehicle_id: params.buy_for_gang_stash ? null : params.vehicle_id,
+          equipment_id: params.equipment_id,
+          custom_equipment_id: params.custom_equipment_id,
+          original_cost: baseCost,
+          purchase_cost: ratingCost,
+          ...(params.buy_for_gang_stash && { gang_stash: true }),
+          user_id: gang.user_id,
+          is_master_crafted: masterCrafted,
+          is_editable: equipmentDetails.is_editable || false,
+          ...costResourcePayload
+        }).returning({ id: fighterEquipment.id })
+      );
+      newEquipmentId = inserted.id;
+    } catch (insertError) {
+      console.error('Failed to insert fighter_equipment:', insertError);
+      throw new Error(params.buy_for_gang_stash ? 'Failed to add to gang stash' : 'Failed to add equipment');
     }
-    const newEquipmentId: string = insertedEquipment.id;
 
     // Deduct the campaign resource after a successful insert so a failed insert never costs
     // the gang anything. Reputation is not handled here — it lives on the gangs row, so it
@@ -717,7 +680,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     try {
       await logEquipmentAction({
         ...logContext,
-        equipment_name: equipmentDetails.equipment_name,
+        equipment_name: equipmentDetails.equipment_name ?? 'Unknown',
         purchase_cost: finalPurchaseCost,
         action_type: 'purchased',
         ...(isResourcePurchase && params.resourceCost && {
@@ -784,7 +747,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     // stashValueDelta is 0 outside the stash, so one wealth formula fits every response.
     const gangRecord = {
       id: params.gang_id,
-      credits: financialResult.newValues?.credits ?? (gang.credits - finalPurchaseCost),
+      credits: financialResult.newValues?.credits ?? ((gang.credits ?? 0) - finalPurchaseCost),
       rating: financialResult.newValues?.rating ?? Math.max(0, (gang.rating || 0) + totalRatingDelta),
       wealth: financialResult.newValues?.wealth ?? Math.max(0, (gang.wealth || 0) + totalRatingDelta - finalPurchaseCost + stashValueDelta)
     };
@@ -830,14 +793,13 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         }
       };
 
-      // Add weapon profiles for regular weapons
-      if (equipmentDetails.equipment_type === 'weapon' && !params.custom_equipment_id && weaponProfiles.length > 0) {
-        newEquipment.default_profile = weaponProfiles[0]; // First profile as default
-      }
-
-      // Add custom weapon profiles for custom weapons
-      if (equipmentDetails.equipment_type === 'weapon' && params.custom_equipment_id && customWeaponProfiles.length > 0) {
-        newEquipment.custom_weapon_profiles = customWeaponProfiles;
+      // A regular weapon shows its first profile, a custom weapon all of them
+      if (weaponProfiles.length > 0) {
+        if (params.custom_equipment_id) {
+          newEquipment.custom_weapon_profiles = weaponProfiles;
+        } else {
+          newEquipment.default_profile = weaponProfiles[0];
+        }
       }
 
       // Build collections data
@@ -958,9 +920,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
     };
   } catch (error) {
     console.error('Error in buyEquipmentForFighter server action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'An unknown error occurred'
+    return {
+      success: false,
+      error: clientErrorMessage(error, 'An unknown error occurred')
     };
   }
 }

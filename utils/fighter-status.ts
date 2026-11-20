@@ -6,12 +6,12 @@
  */
 
 export interface FighterStatus {
-  killed?: boolean;
-  retired?: boolean;
-  enslaved?: boolean;
-  captured?: boolean;
-  recovery?: boolean;
-  starved?: boolean;
+  killed?: boolean | null;
+  retired?: boolean | null;
+  enslaved?: boolean | null;
+  captured?: boolean | null;
+  recovery?: boolean | null;
+  starved?: boolean | null;
 }
 
 /**

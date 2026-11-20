@@ -591,7 +591,7 @@ export const getGangRules = async (): Promise<GangRuleRow[]> => {
 
 // Columns read by rosterQuery(); the equipment and effects selections are shared
 // by fighters and vehicles.
-const WEAPON_PROFILE_COLUMNS = {
+export const WEAPON_PROFILE_COLUMNS = {
   id: true,
   weapon_group_id: true,
   profile_name: true,

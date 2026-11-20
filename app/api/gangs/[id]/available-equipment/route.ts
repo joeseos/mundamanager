@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUserIdFromClaims } from '@/utils/auth';
+import { getAvailableEquipmentJson } from '@/app/lib/available-equipment';
 
 /**
  * GET /api/gangs/[id]/available-equipment
@@ -24,7 +25,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabase.rpc('get_equipment_detailed_data', {
+    const json = await getAvailableEquipmentJson(userId, {
       gang_id: gangId,
       gang_type_id: text('gang_type_id'),
       fighter_type_id: text('fighter_type_id'),
@@ -36,9 +37,8 @@ export async function GET(
       campaign_custom_trading_post_ids: ids('campaign_custom_trading_post_ids'),
     });
 
-    if (error) throw error;
-
-    return NextResponse.json(data);
+    // Already JSON from Postgres, so it is sent as it came
+    return new NextResponse(json, { headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('Error fetching available equipment:', error);
     return NextResponse.json(
