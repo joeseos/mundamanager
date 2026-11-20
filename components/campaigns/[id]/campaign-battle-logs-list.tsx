@@ -890,14 +890,14 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
             {isChallengeTable
               ? <th className="p-1 md:p-2 text-left font-medium">Status</th>
               : <th className="px-2 py-2 text-left font-medium">Winner(s)</th>}
-            <th className="p-1 md:p-2 text-left font-medium">Report</th>
+            {!isChallengeTable && <th className="p-1 md:p-2 text-left font-medium">Report</th>}
             {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={(isChallengeTable ? 9 : 8) - (isAdmin || availableGangs.length > 0 ? 0 : 1)} className="text-muted-foreground italic text-center">
+              <td colSpan={(isAdmin || availableGangs.length > 0) ? 8 : 7} className="text-muted-foreground italic text-center">
                 {emptyText}
               </td>
             </tr>
@@ -978,20 +978,22 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                   </td>
                 )}
 
-                <td className="p-1 md:p-2 align-middle">
-                  {battle.note && (
-                    <button
-                      onClick={() => {
-                        setActiveNote(battle.note || '');
-                        setShowNoteModal(true);
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label="View note"
-                    >
-                      <BiSolidNotepad className="text-lg" />
-                    </button>
-                  )}
-                </td>
+                {!isChallengeTable && (
+                  <td className="p-1 md:p-2 align-middle">
+                    {battle.note && (
+                      <button
+                        onClick={() => {
+                          setActiveNote(battle.note || '');
+                          setShowNoteModal(true);
+                        }}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="View note"
+                      >
+                        <BiSolidNotepad className="text-lg" />
+                      </button>
+                    )}
+                  </td>
+                )}
                 {canUserEditBattle(battle) && (
                   <td className="p-1 md:p-2 align-middle text-right">
                     <div className="flex justify-end gap-2">
