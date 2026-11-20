@@ -11,7 +11,7 @@ import { updateGangFinancials, updateGangRatingSimple } from '@/utils/gang-ratin
 import { logEquipmentAction } from './logs/equipment-logs';
 import { getFighterTotalCost } from '@/app/lib/shared/fighter-data';
 import { getAuthenticatedUser } from '@/utils/auth';
-import { countsTowardRating, costCountsTowardRating, FighterStatus, RATING_STATUS_COLUMNS } from '@/utils/fighter-status';
+import { countsTowardRating, costCountsTowardRating, FighterStatus, RATING_STATUS_COLUMNS, STATUS_COLUMNS } from '@/utils/fighter-status';
 import { EquipmentGrants, ResourceCost, CostResourcePayload } from '@/types/equipment';
 import { createExoticBeastsForEquipment, invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { syncSubtypeGrants } from '@/utils/fighter-subtype-grants';
@@ -294,7 +294,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
         ? db.query.vehicles.findFirst({
             columns: { fighter_id: true },
             where: (row, { eq }) => eq(row.id, params.vehicle_id!),
-            with: { fighter: { columns: { killed: true, retired: true, enslaved: true, captured: true } } },
+            with: { fighter: { columns: STATUS_COLUMNS } },
           })
         : undefined,
 
@@ -304,12 +304,12 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       // whether the purchase counts toward rating.
       params.fighter_id && forFighterOrVehicle
         ? db.query.fighters.findFirst({
-            columns: { fighter_name: true, fighter_pet_id: true, killed: true, retired: true, enslaved: true, captured: true },
+            columns: { fighter_name: true, fighter_pet_id: true, ...STATUS_COLUMNS },
             where: (row, { eq }) => eq(row.id, params.fighter_id!),
             with: {
               beast_link: {
                 columns: {},
-                with: { fighters: { columns: { killed: true, retired: true, enslaved: true, captured: true } } },
+                with: { fighters: { columns: STATUS_COLUMNS } },
               },
             },
           })
