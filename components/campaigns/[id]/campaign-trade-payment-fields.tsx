@@ -22,12 +22,13 @@ export interface CampaignTradePaymentRow {
 
 export interface CampaignTradePaymentValue {
   credits: string
-  reputation: string
   resources: CampaignTradePaymentRow[]
 }
 
+const REPUTATION_RESOURCE_ID = 'reputation'
+
 export function emptyTradePaymentValue(): CampaignTradePaymentValue {
-  return { credits: '0', reputation: '0', resources: [] }
+  return { credits: '0', resources: [] }
 }
 
 let paymentRowKey = 0
@@ -40,14 +41,23 @@ export function paymentValueFromItems(items: CampaignTradeItem[]): CampaignTrade
   const credits = items.find((item) => item.kind === 'credits')
   const reputation = items.find((item) => item.kind === 'reputation')
   const resources = items.filter((item) => item.kind === 'campaign_resource' && (item.amount ?? 0) > 0)
+  const reputationRow = reputation && (reputation.amount ?? 0) > 0
+    ? [{
+        key: nextPaymentRowKey(),
+        resourceId: REPUTATION_RESOURCE_ID,
+        amount: String(reputation.amount ?? 0),
+      }]
+    : []
   return {
     credits: String(credits?.amount ?? 0),
-    reputation: String(reputation?.amount ?? 0),
-    resources: resources.map((item) => ({
-      key: nextPaymentRowKey(),
-      resourceId: item.campaign_type_resource_id ?? item.campaign_resource_id ?? '',
-      amount: String(item.amount ?? 0),
-    })),
+    resources: [
+      ...reputationRow,
+      ...resources.map((item) => ({
+        key: nextPaymentRowKey(),
+        resourceId: item.campaign_type_resource_id ?? item.campaign_resource_id ?? '',
+        amount: String(item.amount ?? 0),
+      })),
+    ],
   }
 }
 
@@ -67,29 +77,30 @@ export function parseTradePayments(
     return { success: false, error: 'Credits must be a whole number of 0 or more.' }
   }
 
-  const reputationAmount = Number(value.reputation)
-  if (!Number.isInteger(reputationAmount) || reputationAmount < 0) {
-    return { success: false, error: 'Reputation must be a whole number of 0 or more.' }
-  }
-
   const resources: TradePaymentResourceInput[] = []
   const seen = new Set<string>()
+  let reputationAmount = 0
   for (const row of value.resources) {
-    if (!row.resourceId) {
-      return { success: false, error: 'Select a campaign resource.' }
-    }
     const amount = Number(row.amount)
+    if (!row.resourceId) {
+      if (!row.amount || amount === 0) continue
+      return { success: false, error: 'Select a resource.' }
+    }
     if (!Number.isInteger(amount) || amount < 0) {
       return { success: false, error: 'Resource amounts must be a whole number of 0 or more.' }
     }
     if (amount === 0) continue
     if (seen.has(row.resourceId)) {
-      return { success: false, error: 'Each campaign resource can only be listed once.' }
+      return { success: false, error: 'Each resource can only be listed once.' }
     }
     seen.add(row.resourceId)
+    if (row.resourceId === REPUTATION_RESOURCE_ID) {
+      reputationAmount = amount
+      continue
+    }
     const catalogItem = catalog.find((item) => item.id === row.resourceId)
     if (!catalogItem) {
-      return { success: false, error: 'Unknown campaign resource.' }
+      return { success: false, error: 'Unknown resource.' }
     }
     resources.push(
       catalogItem.isCustom
@@ -121,49 +132,61 @@ export default function CampaignTradePaymentFields({
   onChange,
   heading,
 }: CampaignTradePaymentFieldsProps) {
+  const otherResources: CampaignTradePaymentResource[] = [
+    { id: REPUTATION_RESOURCE_ID, name: 'Reputation', isCustom: false },
+    ...catalog,
+  ]
   const selectedIds = new Set(value.resources.map((row) => row.resourceId).filter(Boolean))
+  const canAddResource = value.resources.length < otherResources.length
 
   return (
     <div className={`space-y-4${heading ? ' pt-2' : ''}`}>
       <div className="space-y-1">
-        {heading && (
-          <p className="text-sm font-medium">{heading}</p>
+      {heading && (
+        <p className="text-sm font-medium">{heading}</p>
+      )}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 items-start">
+        <Label htmlFor={`${idPrefix}-credits`} className="col-start-1 text-xs">Credits</Label>
+        {canAddResource && (
+          <Label className="col-start-2 text-xs">Other resources</Label>
         )}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor={`${idPrefix}-credits`} className="text-xs">Credits</Label>
-            <Input
-              id={`${idPrefix}-credits`}
-              type="number"
-              min={0}
-              step={1}
-              value={value.credits}
-              onChange={(event) => onChange({ ...value, credits: event.target.value })}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor={`${idPrefix}-reputation`} className="text-xs">Reputation</Label>
-            <Input
-              id={`${idPrefix}-reputation`}
-              type="number"
-              min={0}
-              step={1}
-              value={value.reputation}
-              onChange={(event) => onChange({ ...value, reputation: event.target.value })}
-            />
-          </div>
-        </div>
+        <Input
+          id={`${idPrefix}-credits`}
+          type="number"
+          min={0}
+          step={1}
+          value={value.credits}
+          onChange={(event) => onChange({ ...value, credits: event.target.value })}
+          className="col-start-1"
+        />
+        {canAddResource && (
+          <Button
+            type="button"
+            variant="outline"
+            className="col-start-2 w-full"
+            onClick={() => onChange({
+              ...value,
+              resources: [
+                ...value.resources,
+                { key: nextPaymentRowKey(), resourceId: '', amount: '0' },
+              ],
+            })}
+          >
+            <LuPlus className="h-4 w-4 mr-1" />
+            Add resource
+          </Button>
+        )}
+      </div>
       </div>
 
-      {catalog.length > 0 && (
+      {value.resources.length > 0 && (
         <div className="space-y-1">
-          <Label className="block text-xs">Campaign resources</Label>
           {value.resources.map((row) => (
             <div key={row.key} className="flex gap-2 items-stretch">
               <div className="min-w-0 flex-1">
                 <Combobox
                   id={`${idPrefix}-resource-${row.key}`}
-                  options={catalog
+                  options={otherResources
                     .filter((item) => item.id === row.resourceId || !selectedIds.has(item.id))
                     .map((item) => ({ value: item.id, label: item.name }))}
                   value={row.resourceId}
@@ -205,23 +228,6 @@ export default function CampaignTradePaymentFields({
               </Button>
             </div>
           ))}
-          {value.resources.length < catalog.length && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onChange({
-                ...value,
-                resources: [
-                  ...value.resources,
-                  { key: nextPaymentRowKey(), resourceId: '', amount: '1' },
-                ],
-              })}
-            >
-              <LuPlus className="h-4 w-4 mr-1" />
-              Add resource
-            </Button>
-          )}
         </div>
       )}
     </div>
