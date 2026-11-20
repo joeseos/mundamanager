@@ -48,6 +48,9 @@ export interface EquipmentSelection {
   [key: string]: SelectionCategory;
 }
 
+const defaultSlots = (defaults: EquipmentOption[] = []) =>
+  defaults.reduce((sum, d) => sum + (d.quantity || 1), 0);
+
 interface AdminFighterEquipmentSelectionProps {
   equipment: EquipmentWithId[];
   equipmentSelection: EquipmentSelection;
@@ -338,8 +341,7 @@ export function AdminFighterEquipmentSelection({
                             const defaults = prev[categoryId].default || [];
                             if (defaults.length === 0) return prev;
                             // A strict pick gives max_quantity copies, so start at 1; flexible starts at all default slots
-                            const totalDefaultSlots = defaults.reduce((sum, d) => sum + (d.quantity || 1), 0);
-                            const max_quantity = prev[categoryId].replacement_mode === 'strict' ? 1 : totalDefaultSlots;
+                            const max_quantity = prev[categoryId].replacement_mode === 'strict' ? 1 : defaultSlots(defaults);
                             // Attach to the first default
                             const updatedDefaults = defaults.map((d, i) =>
                               i === 0
@@ -402,7 +404,7 @@ export function AdminFighterEquipmentSelection({
                           {category.select_type === 'optional_single'
                             ? 'Optional Equipment (Choose One)'
                             : (() => {
-                                const totalSlots = (category.default || []).reduce((sum, d) => sum + (d.quantity || 1), 0);
+                                const totalSlots = defaultSlots(category.default);
                                 return totalSlots > 1 ? `Optional Equipment (${totalSlots} default slots)` : 'Optional Equipment';
                               })()}
                         </label>
