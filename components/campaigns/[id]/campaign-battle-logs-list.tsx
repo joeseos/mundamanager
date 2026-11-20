@@ -715,7 +715,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleBadge.color} text-white text-[10px] font-bold`}>
           {roleBadge.letter}
         </span>
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted ${rating !== undefined ? 'whitespace-nowrap' : ''}`}
           style={{ color: getGangColour(gangId) }}
         >
           <a
@@ -726,7 +726,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
             {name}
           </a>
           {rating !== undefined && (
-            <span className="ml-1 shrink-0 whitespace-nowrap font-normal text-muted-foreground">{`\u2022 ${rating}`}</span>
+            <span className="ml-1 font-normal text-muted-foreground">{`\u2022 ${rating}`}</span>
           )}
         </span>
       </div>
