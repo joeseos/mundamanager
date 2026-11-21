@@ -21,6 +21,7 @@ import { beastSubtypeName, hasGangAdditionCategories, sameEditionForDisplay } fr
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import { fighterCountLimitDisplay } from '@/utils/countLimitPrefix';
 import { countsTowardRating } from '@/utils/fighter-status';
+import { detailGangTypeLabel } from '@/utils/gang-type-label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox } from '@/components/ui/combobox';
 import { InfoTooltip } from '@/components/ui/info-tooltip';
@@ -54,6 +55,12 @@ type AllianceOption = {
   alliance_type: string | null;
   alliance_crew_name: string | null;
   edition_slug?: string | null;
+};
+
+type GangTypeOption = {
+  id: string;
+  gang_type: string;
+  parent_gang_type_id?: string | null;
 };
 
 interface FighterAddModalProps {
@@ -217,6 +224,21 @@ export default function FighterAddModal({
     },
     enabled: showModal,
   });
+
+  const { data: gangTypes = [], isFetched: gangTypesFetched } = useQuery<GangTypeOption[]>({
+    queryKey: ['gang-types'],
+    queryFn: async () => {
+      const response = await fetch('/api/gang-types');
+      if (!response.ok) throw new Error('Failed to fetch gang types');
+      return response.json();
+    },
+    enabled: showModal && includeAllFighterTypes,
+  });
+
+  const gangTypesById = useMemo(
+    () => new Map(gangTypes.map((type) => [type.id, type])),
+    [gangTypes]
+  );
 
   const { data: alliances = [] } = useQuery<AllianceOption[]>({
     queryKey: ['alliances', editionSlug],
@@ -933,8 +955,19 @@ export default function FighterAddModal({
     };
 
     if (includeAllFighterTypes) {
+      if (!gangTypesFetched) return options;
+
       const groupedByGangType = Array.from(typeSubtypeMap.values()).reduce((groups, entry) => {
-        const gangTypeName = entry.fighter.gang_type || 'Unknown';
+        const list = entry.fighter.gang_type_id
+          ? gangTypesById.get(entry.fighter.gang_type_id)
+          : undefined;
+        const parent = list?.parent_gang_type_id
+          ? gangTypesById.get(list.parent_gang_type_id)
+          : undefined;
+        const gangTypeName = detailGangTypeLabel(
+          list?.gang_type ?? entry.fighter.gang_type,
+          parent?.gang_type
+        ) || 'Unknown';
         if (!groups[gangTypeName]) groups[gangTypeName] = [];
         groups[gangTypeName].push(entry);
         return groups;
