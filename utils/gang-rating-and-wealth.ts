@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { eq } from 'drizzle-orm';
 import { getUserIdFromClaims } from './auth';
 import { invalidateGangFinancials } from './cache-tags';
+import type { FighterCostTarget } from './fighter-status';
 import { clientErrorMessage, getAppDb, withUserWrite } from './db/client';
 import { gangs } from './db/schema';
 
@@ -16,13 +17,13 @@ const financialColumns = {
 
 export interface GangFinancialUpdateOptions {
   gangId: string;
-  ratingDelta?: number;         // Change to rating
+  ratingDelta?: number;         // Change to a fighter's cost, applied per costTarget
   creditsDelta?: number;        // Credits gained (positive) or spent (negative)
   tradePointsDelta?: number;    // N26 Trade Points gained (positive) or spent (negative)
   clearTradePoints?: boolean;   // Set Trade Points to 0, from the balance read under the row lock
   reputationDelta?: number;     // Reputation gained (positive) or spent (negative)
   stashValueDelta?: number;     // Stash value change (affects wealth only)
-  applyToRating?: boolean;      // false = skip rating update (inactive fighter)
+  costTarget?: FighterCostTarget; // Where ratingDelta goes (default 'rating'); see fighterCostTarget
 }
 
 interface GangFinancialValues {
@@ -59,7 +60,8 @@ function toFinancialValues(row: { [K in keyof GangFinancialValues]: number | nul
  * that could leave one spent and another not.
  *
  * Wealth formula: newWealth = currentWealth + effectiveRatingDelta + creditsDelta + stashValueDelta
- * Where effectiveRatingDelta = ratingDelta if applyToRating is true (default), else 0.
+ * Where effectiveRatingDelta = ratingDelta if costTarget is 'rating' (default), else 0,
+ * and a 'stash' costTarget adds ratingDelta to stashValueDelta instead.
  * Trade Points and reputation are separate currencies and deliberately do not feed wealth.
  *
  * Runs over the direct database connection as the signed-in user, so it adds no API
@@ -80,12 +82,12 @@ export async function updateGangFinancials(
     tradePointsDelta = 0,
     clearTradePoints = false,
     reputationDelta = 0,
-    stashValueDelta = 0,
-    applyToRating = true
+    stashValueDelta: itemsStashValueDelta = 0,
+    costTarget = 'rating'
   } = options;
 
-  // Calculate effective rating delta based on whether we should apply to rating
-  const effectiveRatingDelta = applyToRating ? ratingDelta : 0;
+  const effectiveRatingDelta = costTarget === 'rating' ? ratingDelta : 0;
+  const stashValueDelta = itemsStashValueDelta + (costTarget === 'stash' ? ratingDelta : 0);
 
   const userId = await getUserIdFromClaims(supabase);
   if (!userId) {

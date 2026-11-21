@@ -227,8 +227,7 @@ export async function repairVehicleDamage(params: RepairVehicleDamageParams): Pr
     const financialResult = await updateGangFinancials(supabase, {
       gangId: params.gangId,
       creditsDelta: -params.repairCost,
-      ratingDelta,
-      applyToRating: isAssignedToActiveFighter
+      ratingDelta
     });
 
     if (!financialResult.success) {
