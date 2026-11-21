@@ -6,14 +6,19 @@ BEGIN;
 
 DROP INDEX IF EXISTS public.campaign_trades_one_open_bid;
 
+COMMENT ON TABLE public.campaign_trades IS
+  'A campaign trade: a direct proposal, an open listing, or a bid on a listing or a direct aimed at the bidder (parent_trade_id). Completes only when fulfilled.';
+COMMENT ON COLUMN public.campaign_trades.parent_trade_id IS
+  'Set on a bid, pointing at the listing or the direct aimed at the bidder. Null on a listing or a direct.';
+
 -- Accept an open trade in one transaction. Direct trades settle as before.
 -- Accepting a bid locks the parent (open listing or open direct aimed at
 -- the bidder) and all open bids in id order, moves listing goods (selling)
 -- or listing payment (buying) together with the bid counterpart, skips a
 -- selling listing's asking-price rows, declines sibling bids, then marks
 -- parent and winning bid fulfilled. Accepting an open listing row is
--- invalid. Accepting a direct row fulfills it first, then declines open
--- child offers. Does not check allow_trading so an open trade can still
+-- invalid. Accepting a direct row declines open child offers, then marks
+-- the direct fulfilled. Does not check allow_trading so an open trade can still
 -- complete after the flag is turned off.
 --
 -- Once credits, reputation or resources have been written, a later failure
@@ -38,6 +43,7 @@ DECLARE
     v_counterparty uuid;
     v_status text;
     v_parent uuid;
+    v_root uuid;
     v_listing_proposer uuid;
     v_listing_counterparty uuid;
     v_listing_status text;
@@ -90,22 +96,15 @@ BEGIN
         RETURN 'not_found';
     END IF;
 
-    IF v_parent IS NOT NULL THEN
-        PERFORM 1
-        FROM campaign_trades
-        WHERE id = v_parent
-           OR id = p_trade_id
-           OR (parent_trade_id = v_parent AND status = 'open')
-        ORDER BY id
-        FOR UPDATE;
-    ELSE
-        PERFORM 1
-        FROM campaign_trades
-        WHERE id = p_trade_id
-           OR (parent_trade_id = p_trade_id AND status = 'open')
-        ORDER BY id
-        FOR UPDATE;
-    END IF;
+    v_root := COALESCE(v_parent, p_trade_id);
+
+    PERFORM 1
+    FROM campaign_trades
+    WHERE id = v_root
+       OR id = p_trade_id
+       OR (parent_trade_id = v_root AND status = 'open')
+    ORDER BY id
+    FOR UPDATE;
 
     SELECT campaign_id, proposer_gang_id, counterparty_gang_id, status, parent_trade_id
     INTO v_campaign_id, v_proposer, v_counterparty, v_status, v_parent
@@ -114,6 +113,7 @@ BEGIN
     IF NOT FOUND THEN
         RETURN 'not_found';
     END IF;
+    v_root := COALESCE(v_parent, p_trade_id);
     IF v_status IS DISTINCT FROM 'open' THEN
         RETURN 'not_open';
     END IF;
@@ -517,65 +517,35 @@ BEGIN
            OR granted_by_equipment_id = v_equip_id;
     END IF;
 
-    IF v_parent IS NOT NULL THEN
-        UPDATE campaign_trade_items
-        SET locked = false,
-            updated_at = now()
-        WHERE locked
-          AND trade_id IN (
-              SELECT id FROM campaign_trades
-              WHERE parent_trade_id = v_parent
-                AND id IS DISTINCT FROM p_trade_id
-                AND status = 'open'
-          );
+    UPDATE campaign_trade_items
+    SET locked = false,
+        updated_at = now()
+    WHERE locked
+      AND trade_id IN (
+          SELECT id FROM campaign_trades
+          WHERE parent_trade_id = v_root
+            AND id IS DISTINCT FROM p_trade_id
+            AND status = 'open'
+      );
 
-        UPDATE campaign_trades
-        SET status = 'declined',
-            resolved_at = now(),
-            updated_at = now()
-        WHERE parent_trade_id = v_parent
-          AND id IS DISTINCT FROM p_trade_id
-          AND status = 'open';
+    UPDATE campaign_trades
+    SET status = 'declined',
+        resolved_at = now(),
+        updated_at = now()
+    WHERE parent_trade_id = v_root
+      AND id IS DISTINCT FROM p_trade_id
+      AND status = 'open';
 
-        UPDATE campaign_trades
-        SET status = 'fulfilled',
-            resolved_at = now(),
-            updated_at = now()
-        WHERE id IN (p_trade_id, v_parent);
+    UPDATE campaign_trades
+    SET status = 'fulfilled',
+        resolved_at = now(),
+        updated_at = now()
+    WHERE id IN (p_trade_id, v_root);
 
-        UPDATE campaign_trade_items
-        SET locked = false,
-            updated_at = now()
-        WHERE trade_id IN (p_trade_id, v_parent) AND locked;
-    ELSE
-        UPDATE campaign_trades
-        SET status = 'fulfilled',
-            resolved_at = now(),
-            updated_at = now()
-        WHERE id = p_trade_id;
-
-        UPDATE campaign_trade_items
-        SET locked = false,
-            updated_at = now()
-        WHERE trade_id = p_trade_id AND locked;
-
-        UPDATE campaign_trade_items
-        SET locked = false,
-            updated_at = now()
-        WHERE locked
-          AND trade_id IN (
-              SELECT id FROM campaign_trades
-              WHERE parent_trade_id = p_trade_id
-                AND status = 'open'
-          );
-
-        UPDATE campaign_trades
-        SET status = 'declined',
-            resolved_at = now(),
-            updated_at = now()
-        WHERE parent_trade_id = p_trade_id
-          AND status = 'open';
-    END IF;
+    UPDATE campaign_trade_items
+    SET locked = false,
+        updated_at = now()
+    WHERE trade_id IN (p_trade_id, v_root) AND locked;
 
     RETURN 'ok';
 EXCEPTION
