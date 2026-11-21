@@ -20,11 +20,11 @@ import {
   SessionMarkerGlyph,
   groupFighterRowConditionBadges,
   markerName,
-} from '@/components/battle-session/session-markers';
-import FighterActionModal from '@/components/battle-session/fighter-action-modal';
+} from '@/components/live-battle/session-markers';
+import FighterActionModal from '@/components/live-battle/fighter-action-modal';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import FighterCard from '@/components/gang/fighter-card';
-import type { BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
+import type { LiveBattleFighter, SessionCondition, SessionInjuryRecord } from '@/types/live-battle';
 import { hasN26CompositeBattleMarkers } from '@/types/edition';
 
 function ConditionBadge({
@@ -147,7 +147,7 @@ export default function FighterRow({
   onNoteChanged,
   onBroadcast,
 }: {
-  fighter: BattleSessionFighter;
+  fighter: LiveBattleFighter;
   name: string;
   loadoutName: string | undefined;
   cost: number | undefined;

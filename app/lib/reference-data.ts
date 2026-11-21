@@ -110,7 +110,7 @@ export type CatalogTerritory = Awaited<ReturnType<typeof getAllTerritories>>[num
 
 /**
  * Every edition's scenario tables with their entries, for the N26 battle log
- * and battle session pickers. Also tagged with gang types: a house table lists
+ * and live battle pickers. Also tagged with gang types: a house table lists
  * the gang types that roll on it, its alternate lists included. The direct
  * connection reads the same rows whoever asks, so a signed-out caller (the
  * battle data route has no sign-in check) can never fill the shared cache with

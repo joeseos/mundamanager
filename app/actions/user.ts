@@ -1,7 +1,7 @@
 "use server";
 
 import {
-  invalidateBattleSession,
+  invalidateLiveBattle,
   invalidateCampaignBattles,
   invalidateCampaignCore,
   invalidateCampaignGang,
@@ -254,7 +254,7 @@ export const deleteAccountAction = async (formData: FormData) => {
       invalidateGang(gangId);
       invalidateGangStash(gangId);
     });
-    cacheTargets.battleSessionIds.forEach(invalidateBattleSession);
+    cacheTargets.liveBattleIds.forEach(invalidateLiveBattle);
     // Thread headers and lists name their author and last poster, now Unknown User.
     forumThreads.forEach((thread) =>
       invalidateForumThreadList(thread.category_id, thread.number, thread.article_published_at !== null)

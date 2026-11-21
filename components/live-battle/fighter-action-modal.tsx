@@ -16,13 +16,13 @@ import {
   markerName,
   markersForEdition,
   type SessionMarkerDef,
-} from '@/components/battle-session/session-markers';
+} from '@/components/live-battle/session-markers';
 import { InjuriesList } from '@/components/fighter/fighter-injury-list';
-import { addSessionInjury, removeSessionInjury } from '@/app/actions/battle-sessions';
+import { addSessionInjury, removeSessionInjury } from '@/app/actions/live-battles';
 import type { GangFighter } from '@/types/gang';
 import type { WeaponProps } from '@/types/fighter';
 import type { WeaponProfile } from '@/types/equipment';
-import type { BattleSessionFighter, SessionCondition, SessionInjuryRecord } from '@/types/battle-session';
+import type { LiveBattleFighter, SessionCondition, SessionInjuryRecord } from '@/types/live-battle';
 import {
   canLeaveBattlefield,
   hasFleshWoundCondition,
@@ -229,7 +229,7 @@ export default function FighterActionModal({
   onBroadcast,
   onClose,
 }: {
-  fighter: BattleSessionFighter;
+  fighter: LiveBattleFighter;
   gangId: string;
   campaignId?: string | null;
   editionSlug?: string | null;

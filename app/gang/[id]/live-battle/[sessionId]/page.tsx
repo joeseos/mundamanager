@@ -1,17 +1,17 @@
 import { createClient } from '@/utils/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { getAuthenticatedUser, signInPath } from '@/utils/auth';
-import { getBattleSessionCached } from '@/app/lib/battle-sessions/get-battle-session-data';
+import { getLiveBattleCached } from '@/app/lib/live-battles/get-live-battle-data';
 import { getGangFightersList, getGangPositioning } from '@/app/lib/shared/gang-data';
 import type { GangFighter } from '@/types/gang';
 import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-data';
 import { getScenariosCached, getScenarioTablesCached } from '@/app/lib/reference-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
-import ActiveSession from '@/components/battle-session/active-session';
-import CompletedSession from '@/components/battle-session/completed-session';
+import ActiveSession from '@/components/live-battle/active-session';
+import CompletedSession from '@/components/live-battle/completed-session';
 
-export async function renderBattleSessionPage(sessionId: string, currentPath: string) {
+export async function renderLiveBattlePage(sessionId: string, currentPath: string) {
   const supabase = await createClient();
 
   let user: { id: string };
@@ -21,7 +21,7 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
     redirect(signInPath(currentPath));
   }
 
-  const session = await getBattleSessionCached(sessionId);
+  const session = await getLiveBattleCached(sessionId);
 
   if (!session) {
     notFound();
@@ -84,9 +84,9 @@ export async function renderBattleSessionPage(sessionId: string, currentPath: st
   );
 }
 
-export default async function BattleSessionPage(props: {
+export default async function LiveBattlePage(props: {
   params: Promise<{ id: string; sessionId: string }>;
 }) {
   const params = await props.params;
-  return renderBattleSessionPage(params.sessionId, `/gang/${params.id}/battle-session/${params.sessionId}`);
+  return renderLiveBattlePage(params.sessionId, `/gang/${params.id}/live-battle/${params.sessionId}`);
 }

@@ -1,7 +1,7 @@
 'use server';
 
 // Battle log API operations
-import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateBattleSession } from '@/utils/cache-tags';
+import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateLiveBattle } from '@/utils/cache-tags';
 import { createClient } from "@/utils/supabase/server";
 import { cache } from 'react';
 import { logBattleResult, logTerritoryClaimed } from "../../logs/gang-campaign-logs";
@@ -448,11 +448,11 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
       nextStatus = challengedGangId ? 'challenge_issued' : 'challenge_pending';
     }
 
-    // A challenge being played in a battle session is filed when that session completes,
+    // A challenge being played in a live battle is filed when that session completes,
     // so its opponent and status stay as the session was started with.
     const { data: linkedSession } = isOpenChallenge
       ? await supabase
-          .from('battle_sessions')
+          .from('live_battles')
           .select('id')
           .eq('campaign_battle_id', battleId)
           .neq('status', 'completed')
@@ -462,7 +462,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     if (linkedSession && (opponentChanged || (!!nextStatus && nextStatus !== existingStatus))) {
       return {
         success: false as const,
-        error: 'This challenge is being played in a battle session. Complete or cancel the session first.',
+        error: 'This challenge is being played in a live battle. Complete or cancel the session first.',
       };
     }
 
@@ -664,7 +664,7 @@ export async function updateBattleLog(campaignId: string, battleId: string, para
     invalidateCampaignBattles(campaignId);
     // The session prefills its report from the challenge.
     if (linkedSession) {
-      invalidateBattleSession(linkedSession.id);
+      invalidateLiveBattle(linkedSession.id);
     }
     if (releasedOldTerritory || claimedTerritory) {
       invalidateCampaignTerritories(campaignId);
@@ -717,14 +717,14 @@ export async function deleteBattleLog(
     // Deleting it would orphan the session, whose completion would then log the battle again.
     if (existingBattle.status !== 'played') {
       const { data: linkedSession } = await supabase
-        .from('battle_sessions')
+        .from('live_battles')
         .select('id')
         .eq('campaign_battle_id', battleId)
         .neq('status', 'completed')
         .limit(1)
         .maybeSingle();
       if (linkedSession) {
-        throw new Error('This challenge is being played in a battle session. Complete or cancel the session first.');
+        throw new Error('This challenge is being played in a live battle. Complete or cancel the session first.');
       }
     }
 

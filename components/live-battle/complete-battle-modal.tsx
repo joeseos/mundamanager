@@ -12,11 +12,11 @@ import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Textarea } from '@/components/ui/textarea';
 import {
   setSessionWinners,
-  completeBattleSession,
-} from '@/app/actions/battle-sessions';
-import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
+  completeLiveBattle,
+} from '@/app/actions/live-battles';
+import { sessionScenarioLabel, type LiveBattleFull } from '@/types/live-battle';
 import { hasCrewRating } from '@/types/edition';
-import { splitInjuryCounts } from '@/components/battle-session/participant-card';
+import { splitInjuryCounts } from '@/components/live-battle/participant-card';
 import type { GangFighter } from '@/types/gang';
 import {
   getSessionClaimerGangId,
@@ -34,7 +34,7 @@ interface CompleteBattleTerritory {
 }
 
 interface CompleteBattleModalProps {
-  session: BattleSessionFull;
+  session: LiveBattleFull;
   gangFightersMap: Record<string, GangFighter[]>;
   territories?: CompleteBattleTerritory[];
   onClose: () => void;
@@ -149,7 +149,7 @@ export default function CompleteBattleModal({
       if (!isNaN(parsed) && parsed > 0) cycleValue = parsed;
     }
 
-    const completeResult = await completeBattleSession(session.id, {
+    const completeResult = await completeLiveBattle(session.id, {
       campaign_territory_id: selectedTerritory || undefined,
       note: notes || undefined,
       cycle: cycleValue,

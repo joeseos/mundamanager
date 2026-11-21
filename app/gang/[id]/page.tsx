@@ -16,7 +16,7 @@ import {
   getUserProfile
 } from '@/app/lib/shared/gang-data';
 import { assembleGangFighters, assembleGangVehicles } from '@/utils/gang-assembly';
-import { getGangBattleSessionsCached } from '@/app/lib/battle-sessions/get-battle-session-data';
+import { getGangLiveBattlesCached } from '@/app/lib/live-battles/get-live-battle-data';
 import { hasGangTacticsCards } from '@/types/edition';
 import { getCampaignTrades } from '@/app/lib/campaigns/[id]/get-campaign-data';
 
@@ -64,7 +64,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       gangSubtypes,
       userProfile,
       userPermissions,
-      battleSessions,
+      liveBattles,
       tacticsCards
     ] = await Promise.all([
       getGangPositioning(params.id),
@@ -90,7 +90,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       getGangSubtypes(gangBasic.gang_subtypes || []),
       getUserProfile(gangBasic.user_id),
       checkPermissionCached(user.id, params.id, gangBasic.user_id),
-      getGangBattleSessionsCached(params.id),
+      getGangLiveBattlesCached(params.id),
       // Editions without Gang Tactics never render the section.
       hasGangTacticsCards(gangBasic.edition_slug)
         ? getGangTacticsCards(params.id)
@@ -158,7 +158,7 @@ export default async function GangPage(props: { params: Promise<{ id: string }> 
       patreon_tier_title: userProfile?.patreon_tier_title,
       patron_status: userProfile?.patron_status,
       hidden: gangBasic.hidden,
-      battleSessions: battleSessions,
+      liveBattles: liveBattles,
       tacticsCards: tacticsCards
     };
 

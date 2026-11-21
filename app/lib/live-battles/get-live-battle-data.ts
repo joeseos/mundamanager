@@ -3,24 +3,24 @@ import { unstable_cache } from 'next/cache';
 
 import { desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { getAppDb } from '@/utils/db/client';
-import { battleSessionParticipants, battleSessions } from '@/utils/db/schema';
-import { normalizeSessionRecord, type BattleSession, type BattleSessionFull } from '@/types/battle-session';
+import { liveBattleParticipants, liveBattles } from '@/utils/db/schema';
+import { normalizeSessionRecord, type LiveBattle, type LiveBattleFull } from '@/types/live-battle';
 import { getCampaignResources } from '@/app/lib/campaigns/[id]/get-campaign-data';
 import { withEditionSlug } from '@/types/edition';
 import { isUuid } from '@/utils/uuid';
 
 /** N26: the names of a session's Deployment, Objective and Crew, for display. */
 export const SESSION_SCENARIO_PARTS_SELECT =
-  'deployment:scenario_table_entries!battle_sessions_deployment_id_fkey ( name ), ' +
-  'objective:scenario_table_entries!battle_sessions_objective_id_fkey ( name ), ' +
-  'crew_selection:scenario_table_entries!battle_sessions_crew_selection_id_fkey ( name )';
+  'deployment:scenario_table_entries!live_battles_deployment_id_fkey ( name ), ' +
+  'objective:scenario_table_entries!live_battles_objective_id_fkey ( name ), ' +
+  'crew_selection:scenario_table_entries!live_battles_crew_selection_id_fkey ( name )';
 
-/** A session row as BattleSession has it, before withEditionSlug. */
+/** A session row as LiveBattle has it, before withEditionSlug. */
 const SESSION_ROW = {
   columns: { created_at: false, updated_at: false },
   extras: {
-    created_at: sql<string>`to_json(${battleSessions.created_at})`.as('created_at'),
-    updated_at: sql<string>`to_json(${battleSessions.updated_at})`.as('updated_at'),
+    created_at: sql<string>`to_json(${liveBattles.created_at})`.as('created_at'),
+    updated_at: sql<string>`to_json(${liveBattles.updated_at})`.as('updated_at'),
   },
   with: {
     editions: { columns: { slug: true } },
@@ -30,13 +30,13 @@ const SESSION_ROW = {
   },
 } as const;
 
-export async function fetchBattleSessionDirect(sessionId: string): Promise<BattleSessionFull | null> {
+export async function fetchLiveBattleDirect(sessionId: string): Promise<LiveBattleFull | null> {
   if (!isUuid(sessionId)) return null;
 
   const db = getAppDb();
-  const session = await db.query.battleSessions.findFirst({
+  const session = await db.query.liveBattles.findFirst({
     ...SESSION_ROW,
-    where: eq(battleSessions.id, sessionId),
+    where: eq(liveBattles.id, sessionId),
     with: {
       ...SESSION_ROW.with,
       linked_battle: { columns: { campaign_territory_id: true, cycle: true, note: true } },
@@ -49,9 +49,9 @@ export async function fetchBattleSessionDirect(sessionId: string): Promise<Battl
               inArray(
                 campaignGang.gang_id,
                 db
-                  .select({ gang_id: battleSessionParticipants.gang_id })
-                  .from(battleSessionParticipants)
-                  .where(eq(battleSessionParticipants.battle_session_id, sessionId))
+                  .select({ gang_id: liveBattleParticipants.gang_id })
+                  .from(liveBattleParticipants)
+                  .where(eq(liveBattleParticipants.live_battle_id, sessionId))
               ),
           },
         },
@@ -104,45 +104,45 @@ export async function fetchBattleSessionDirect(sessionId: string): Promise<Battl
   };
 }
 
-export const getBattleSessionCached = async (sessionId: string): Promise<BattleSessionFull | null> => {
+export const getLiveBattleCached = async (sessionId: string): Promise<LiveBattleFull | null> => {
   return unstable_cache(
-    () => fetchBattleSessionDirect(sessionId),
-    [`battle-session-${sessionId}`],
+    () => fetchLiveBattleDirect(sessionId),
+    [`live-battle-${sessionId}`],
     {
-      tags: [TAGS.battleSession(sessionId)],
+      tags: [TAGS.liveBattle(sessionId)],
       revalidate: false,
     }
   )();
 };
 
-async function listBattleSessions(where: SQL): Promise<BattleSession[]> {
-  const sessions = await getAppDb().query.battleSessions.findMany({
+async function listLiveBattles(where: SQL): Promise<LiveBattle[]> {
+  const sessions = await getAppDb().query.liveBattles.findMany({
     ...SESSION_ROW,
     where,
-    orderBy: desc(battleSessions.updated_at),
+    orderBy: desc(liveBattles.updated_at),
   });
   return sessions.map(withEditionSlug);
 }
 
-export const getGangBattleSessionsCached = async (gangId: string): Promise<BattleSession[]> => {
+export const getGangLiveBattlesCached = async (gangId: string): Promise<LiveBattle[]> => {
   return unstable_cache(
     () =>
-      listBattleSessions(
+      listLiveBattles(
         inArray(
-          battleSessions.id,
+          liveBattles.id,
           getAppDb()
-            .select({ id: battleSessionParticipants.battle_session_id })
-            .from(battleSessionParticipants)
-            .where(eq(battleSessionParticipants.gang_id, gangId))
+            .select({ id: liveBattleParticipants.live_battle_id })
+            .from(liveBattleParticipants)
+            .where(eq(liveBattleParticipants.gang_id, gangId))
         )
       ),
-    [`gang-battle-sessions-${gangId}`],
+    [`gang-live-battles-${gangId}`],
     {
-      tags: [TAGS.gangBattleSessions(gangId)],
+      tags: [TAGS.gangLiveBattles(gangId)],
       revalidate: false,
     }
   )();
 };
 
-export const getCampaignBattleSessions = (campaignId: string): Promise<BattleSession[]> =>
-  listBattleSessions(eq(battleSessions.campaign_id, campaignId));
+export const getCampaignLiveBattles = (campaignId: string): Promise<LiveBattle[]> =>
+  listLiveBattles(eq(liveBattles.campaign_id, campaignId));

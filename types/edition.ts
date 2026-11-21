@@ -222,37 +222,37 @@ const EDITION_CAPABILITIES = {
   scenarioTables: { n23: false, n26: true },
   /** A battle crew is rated by its selected fighters' value; when false, by the gang's rating. */
   crewRating:               { n23: true,  n26: false },
-  /** Fighters can catch fire — the Blaze condition token in a battle session. */
+  /** Fighters can catch fire — the Blaze condition token in a live battle. */
   blazeCondition:           { n23: true,  n26: false },
-  /** Fighters can be intoxicated — the Intoxicated condition token in a battle session. */
+  /** Fighters can be intoxicated — the Intoxicated condition token in a live battle. */
   intoxicatedCondition:     { n23: true,  n26: true  },
   /** Damage short of a lost wound leaves a Flesh Wound, counted per fighter. */
   fleshWoundCondition:      { n23: true,  n26: false },
-  /** Fighters can be broken — the Broken condition token in a battle session. */
+  /** Fighters can be broken — the Broken condition token in a live battle. */
   brokenCondition:          { n23: true,  n26: false },
-  /** Fighters can be gunked — the Gunked condition token in a battle session. */
+  /** Fighters can be gunked — the Gunked condition token in a live battle. */
   gunkedCondition:          { n23: true,  n26: false },
-  /** Battle-session tokens use an outlined shape with a centred inner symbol. */
+  /** Live-battle tokens use an outlined shape with a centred inner symbol. */
   n26CompositeBattleMarkers:{ n23: false, n26: true  },
-  /** Fighters can be suppressed — an N26 status token in a battle session. */
+  /** Fighters can be suppressed — an N26 status token in a live battle. */
   suppressedCondition:      { n23: false, n26: true  },
-  /** Fighters can be seriously injured — an N26 status token in a battle session. */
+  /** Fighters can be seriously injured — an N26 status token in a live battle. */
   seriouslyInjuredCondition:{ n23: false, n26: true  },
-  /** Fighters can be injured or damaged — an N26 condition token in a battle session. */
+  /** Fighters can be injured or damaged — an N26 condition token in a live battle. */
   injuredCondition:         { n23: false, n26: true  },
-  /** Fighters can be rad-poisoned — an N26 condition token in a battle session. */
+  /** Fighters can be rad-poisoned — an N26 condition token in a live battle. */
   radPoisonedCondition:     { n23: false, n26: true  },
-  /** A fighter's weapon can jam — an N26 condition token in a battle session. */
+  /** A fighter's weapon can jam — an N26 condition token in a live battle. */
   jammedCondition:          { n23: false, n26: true  },
   /** Out of Ammo is marked per weapon profile; N23 marks the whole weapon. */
   outOfAmmoPerProfile:      { n23: false, n26: true  },
-  /** Fighters can be fearsome — an N26 condition token in a battle session. */
+  /** Fighters can be fearsome — an N26 condition token in a live battle. */
   fearsomeCondition:        { n23: false, n26: true  },
-  /** Fighters can be in a frenzy — an N26 condition token in a battle session. */
+  /** Fighters can be in a frenzy — an N26 condition token in a live battle. */
   frenzyCondition:          { n23: false, n26: true  },
-  /** Fighters can be terrifying — an N26 condition token in a battle session. */
+  /** Fighters can be terrifying — an N26 condition token in a live battle. */
   terrifyingCondition:      { n23: false, n26: true  },
-  /** A fighter can leave the battlefield without going Out of Action — removed from play in a battle session. */
+  /** A fighter can leave the battlefield without going Out of Action — removed from play in a live battle. */
   leaveBattlefield:         { n23: false, n26: true  },
   venatorSkillAccess:       { n23: false, n26: true  },
   /**

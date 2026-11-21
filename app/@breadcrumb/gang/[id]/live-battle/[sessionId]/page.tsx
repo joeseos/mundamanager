@@ -1,7 +1,7 @@
 import { BreadcrumbBar } from "@/components/breadcrumb-bar";
 import { createClient } from "@/utils/supabase/server";
 
-export default async function BattleSessionBreadcrumb({
+export default async function LiveBattleBreadcrumb({
   params,
 }: {
   params: Promise<{ id: string; sessionId: string }>;
@@ -12,7 +12,7 @@ export default async function BattleSessionBreadcrumb({
   const [{ data: gangData }, { data: session }] = await Promise.all([
     supabase.from("gangs").select("name").eq("id", id).maybeSingle(),
     supabase
-      .from("battle_sessions")
+      .from("live_battles")
       .select("created_at")
       .eq("id", sessionId)
       .maybeSingle(),
@@ -22,7 +22,7 @@ export default async function BattleSessionBreadcrumb({
     <BreadcrumbBar
       items={[
         { label: gangData?.name || 'Gang', href: `/gang/${id}` },
-        { label: `Battle Sessions - ${session?.created_at ? new Date(session.created_at).toISOString().slice(0, 10) : 'Battle Session'}` },
+        { label: `Live Battles - ${session?.created_at ? new Date(session.created_at).toISOString().slice(0, 10) : 'Live Battle'}` },
       ]}
     />
   );

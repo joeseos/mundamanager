@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { HiX } from 'react-icons/hi';
-import { createBattleSession, addParticipant } from '@/app/actions/battle-sessions';
+import { createLiveBattle, addParticipant } from '@/app/actions/live-battles';
 import Modal from '@/components/ui/modal';
 import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
@@ -270,7 +270,7 @@ export default function CreateBattleModal({
         return { success: false, error: 'At least one gang is required' };
       }
 
-      return createBattleSession({
+      return createLiveBattle({
         campaign_id: campaignId,
         ...(usesScenarioTables ? scenarioParts : { scenario: scenarioName }),
         gang_ids: allGangIds,
@@ -284,8 +284,8 @@ export default function CreateBattleModal({
         } else if ('session_id' in result && result.session_id) {
           setNavigating(true);
           const url = campaignId
-            ? `/campaigns/${campaignId}/battle-session/${result.session_id}`
-            : `/gang/${effectiveGangId}/battle-session/${result.session_id}`;
+            ? `/campaigns/${campaignId}/live-battle/${result.session_id}`
+            : `/gang/${effectiveGangId}/live-battle/${result.session_id}`;
           router.push(url);
         }
       } else {
@@ -309,7 +309,7 @@ export default function CreateBattleModal({
 
   const modalContent = (
     <Modal
-      title={isAddMode ? 'Add Player' : 'New Battle Session'}
+      title={isAddMode ? 'Add Player' : 'New Live Battle'}
       onClose={onClose}
       onConfirm={async () => {
         createMutation.mutate();

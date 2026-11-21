@@ -5,7 +5,7 @@ import type { GangFighter } from '@/types/gang';
 import { Counter } from '@/components/ui/counter';
 import Modal from '@/components/ui/modal';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import type { BattleSessionFighter } from '@/types/battle-session';
+import type { LiveBattleFighter } from '@/types/live-battle';
 
 export default function BattleParticipationModal({
   crewFighters,
@@ -14,7 +14,7 @@ export default function BattleParticipationModal({
   onConfirm,
   onClose,
 }: {
-  crewFighters: BattleSessionFighter[];
+  crewFighters: LiveBattleFighter[];
   gangFightersList: GangFighter[];
   editionSlug?: string | null;
   /**

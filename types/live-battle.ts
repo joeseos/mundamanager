@@ -1,23 +1,23 @@
 import type { CampaignResource } from '@/utils/campaigns/resources';
 import { scenarioLabel } from '@/types/campaign';
 
-export type BattleSessionStatus = 'pre_battle' | 'active' | 'post_battle' | 'completed';
+export type LiveBattleStatus = 'pre_battle' | 'active' | 'post_battle' | 'completed';
 
-export const statusLabels: Record<BattleSessionStatus, string> = {
+export const statusLabels: Record<LiveBattleStatus, string> = {
   pre_battle: 'Pre-Battle',
   active: 'Active',
   post_battle: 'Post-Battle',
   completed: 'Completed',
 };
 
-export const statusColors: Record<BattleSessionStatus, string> = {
+export const statusColors: Record<LiveBattleStatus, string> = {
   pre_battle: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
   active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   post_battle: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   completed: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
 };
 
-export function formatBattleSessionDate(dateStr: string) {
+export function formatLiveBattleDate(dateStr: string) {
   const date = new Date(dateStr);
   const d = date.toISOString().slice(0, 10);
   const t = date.toLocaleTimeString(undefined, {
@@ -27,7 +27,7 @@ export function formatBattleSessionDate(dateStr: string) {
   return `${d} ${t}`;
 }
 
-export interface BattleSession {
+export interface LiveBattle {
   id: string;
   created_at: string;
   updated_at: string;
@@ -46,13 +46,13 @@ export interface BattleSession {
   deployment?: { name: string } | null;
   objective?: { name: string } | null;
   crew_selection?: { name: string } | null;
-  status: BattleSessionStatus;
+  status: LiveBattleStatus;
   winner_gang_id: string | null;
   round: number;
   campaign_battle_id: string | null;
   claimed_territory: string | null;
   /**
-   * Ruleset the session is played under, flattened from battle_sessions.edition_id
+   * Ruleset the session is played under, flattened from live_battles.edition_id
    * by the loader. Null means no edition-specific behaviour applies.
    */
   edition_slug?: string | null;
@@ -60,7 +60,7 @@ export interface BattleSession {
 
 /** What a session is called: its scenario name, or else its Deployment and Objective on N26, picked or custom. */
 export function sessionScenarioLabel(
-  session: Pick<BattleSession, 'scenario' | 'deployment' | 'objective' | 'deployment_name' | 'objective_name'>
+  session: Pick<LiveBattle, 'scenario' | 'deployment' | 'objective' | 'deployment_name' | 'objective_name'>
 ): string {
   return scenarioLabel(
     session.scenario,
@@ -69,9 +69,9 @@ export function sessionScenarioLabel(
   );
 }
 
-export interface BattleSessionParticipant {
+export interface LiveBattleParticipant {
   id: string;
-  battle_session_id: string;
+  live_battle_id: string;
   user_id: string;
   gang_id: string;
   role: 'attacker' | 'defender' | 'none';
@@ -222,9 +222,9 @@ export function applyConditionsUpdate(
   };
 }
 
-export interface BattleSessionFighter {
+export interface LiveBattleFighter {
   id: string;
-  battle_session_id: string;
+  live_battle_id: string;
   participant_id: string;
   fighter_id: string;
   loadout_id?: string | null;
@@ -239,9 +239,9 @@ export interface BattleSessionFighter {
   };
 }
 
-export interface BattleSessionFull extends BattleSession {
-  participants: (BattleSessionParticipant & {
-    fighters: BattleSessionFighter[];
+export interface LiveBattleFull extends LiveBattle {
+  participants: (LiveBattleParticipant & {
+    fighters: LiveBattleFighter[];
   })[];
   campaign_name?: string | null;
   /** The challenge this session plays, which its completion files. */

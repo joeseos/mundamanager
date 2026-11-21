@@ -1,10 +1,10 @@
 'use client';
 
-import BattleSessionsList from '@/components/gang/battle-sessions-tab';
-import type { BattleSession } from '@/types/battle-session';
-import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
+import LiveBattlesList from '@/components/gang/live-battles-tab';
+import type { LiveBattle } from '@/types/live-battle';
+import type { CampaignGang } from '@/components/live-battle/create-battle-modal';
 
-export default function CampaignBattleSessions({
+export default function CampaignLiveBattles({
   sessions,
   campaignId,
   userId,
@@ -12,7 +12,7 @@ export default function CampaignBattleSessions({
   campaignGangs,
   editionSlug,
 }: {
-  sessions: BattleSession[];
+  sessions: LiveBattle[];
   campaignId: string;
   userId?: string;
   canAdd?: boolean;
@@ -20,7 +20,7 @@ export default function CampaignBattleSessions({
   editionSlug?: string | null;
 }) {
   return (
-    <BattleSessionsList
+    <LiveBattlesList
       sessions={sessions}
       campaignId={campaignId}
       canAdd={canAdd}
@@ -28,7 +28,7 @@ export default function CampaignBattleSessions({
       campaignGangs={campaignGangs}
       editionSlug={editionSlug}
       variant="table"
-      sessionUrl={(id) => `/campaigns/${campaignId}/battle-session/${id}`}
+      sessionUrl={(id) => `/campaigns/${campaignId}/live-battle/${id}`}
       embedded
     />
   );

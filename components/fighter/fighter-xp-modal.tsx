@@ -46,15 +46,15 @@ interface FighterXpModalProps {
   gangId?: string;
   /** The campaign to scope target gangs to (the fighter gang's first campaign). */
   campaignId?: string;
-  /** Limits the target gangs to these, e.g. a battle session's opponents. */
+  /** Limits the target gangs to these, e.g. a live battle's opponents. */
   targetGangIds?: string[];
   /**
-   * The gang's (or battle session's) edition, which decides the award list.
+   * The gang's (or live battle's) edition, which decides the award list.
    * Taken from the gang rather than the fighter type: a fighter-derived slug is
    * null for custom fighter types. Unset/unknown → manual XP entry only.
    */
   editionSlug?: string | null;
-  /** Battle sessions award participation XP from the post-battle view instead. */
+  /** Live battles award participation XP from the post-battle view instead. */
   hideBattleParticipation?: boolean;
   onClose: () => void;
   onXpUpdated: (newXp: number, newTotalXp: number, newKills: number, newKillCount?: number) => void;

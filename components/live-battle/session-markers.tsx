@@ -31,8 +31,8 @@ import { PiArrowFatLinesDownFill } from 'react-icons/pi';
 import { TbArrowBigUpFilled, TbSlash } from 'react-icons/tb';
 import { WiStars } from 'react-icons/wi';
 import { cn } from '@/app/lib/utils';
-import type { SessionCondition } from '@/types/battle-session';
-import { MarkerIcon } from '@/components/battle-session/marker-icon';
+import type { SessionCondition } from '@/types/live-battle';
+import { MarkerIcon } from '@/components/live-battle/marker-icon';
 import {
   hasBlazeCondition,
   hasBrokenCondition,

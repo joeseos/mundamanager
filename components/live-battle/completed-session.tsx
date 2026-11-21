@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { sessionScenarioLabel, type BattleSessionFull, type SessionRecord } from '@/types/battle-session';
+import { sessionScenarioLabel, type LiveBattleFull, type SessionRecord } from '@/types/live-battle';
 import { getSessionWinnerIds } from '@/utils/battle-winners';
 
 interface CompletedSessionProps {
-  session: BattleSessionFull;
+  session: LiveBattleFull;
   userId: string;
 }
 
@@ -30,7 +30,7 @@ export default function CompletedSession({
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold">Battle Complete</h1>
         <p className="mt-1 text-neutral-500">
-          {sessionScenarioLabel(session) || 'Battle Session'}
+          {sessionScenarioLabel(session) || 'Live Battle'}
         </p>
         {session.campaign_name && (
           <p className="text-sm text-neutral-400">{session.campaign_name}</p>

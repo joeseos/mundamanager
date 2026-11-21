@@ -7,20 +7,20 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  fetchBattleSession,
+  fetchLiveBattle,
   setSessionScenario,
   setSessionScenarioParts,
   advanceRound,
   changeSessionPhase,
-  cancelBattleSession,
-} from '@/app/actions/battle-sessions';
-import { useBattleSessionRealtime } from '@/hooks/use-battle-session-realtime';
+  cancelLiveBattle,
+} from '@/app/actions/live-battles';
+import { useLiveBattleRealtime } from '@/hooks/use-live-battle-realtime';
 import ParticipantCard from './participant-card';
 import CompletedSession from './completed-session';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
-import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
+import { sessionScenarioLabel, type LiveBattleFull } from '@/types/live-battle';
 import type { Scenario, ScenarioTableWithEntries } from '@/types/campaign';
 import type { ScenarioPartEdit } from '@/utils/scenario-parts';
 import { sameEditionForDisplay, hasCrewRating, hasScenarioTables } from '@/types/edition';
@@ -31,7 +31,7 @@ const CreateBattleModal = dynamic(() => import('./create-battle-modal'), { ssr: 
 const CompleteBattleModal = dynamic(() => import('./complete-battle-modal'), { ssr: false });
 
 interface ActiveSessionProps {
-  session: BattleSessionFull;
+  session: LiveBattleFull;
   userId: string;
   isArbitrator?: boolean;
   scenarios: Scenario[];
@@ -55,9 +55,9 @@ export default function ActiveSession({
   const router = useRouter();
   const queryClient = useQueryClient();
   const { data: session = initialSession } = useQuery({
-    queryKey: ['battle-session', initialSession.id],
+    queryKey: ['live-battle', initialSession.id],
     queryFn: async () => {
-      const data = await fetchBattleSession(initialSession.id);
+      const data = await fetchLiveBattle(initialSession.id);
       if (!data) throw new Error('Session not found');
       return data;
     },
@@ -65,7 +65,7 @@ export default function ActiveSession({
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
-  const { broadcast, suppressRefetch } = useBattleSessionRealtime(session.id);
+  const { broadcast, suppressRefetch } = useLiveBattleRealtime(session.id);
 
   const editionScenarios = useMemo(
     () => scenarios.filter((s) => sameEditionForDisplay(s.edition_slug, session.edition_slug)),
@@ -84,7 +84,7 @@ export default function ActiveSession({
       setSessionScenario(session.id, scenario),
     onSuccess: () => {
       broadcast();
-      queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+      queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
     },
     onError: () => toast.error('Failed to update scenario'),
   });
@@ -98,16 +98,16 @@ export default function ActiveSession({
     },
     onSuccess: () => {
       broadcast();
-      queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+      queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
     },
     onError: (error) => toast.error(error.message || 'Failed to update scenario'),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelBattleSession(session.id),
+    mutationFn: () => cancelLiveBattle(session.id),
     onSuccess: (result) => {
       if (result.success) {
-        queryClient.removeQueries({ queryKey: ['battle-session', session.id] });
+        queryClient.removeQueries({ queryKey: ['live-battle', session.id] });
         setShowCancelModal(false);
         toast.success('Battle cancelled');
         broadcast();
@@ -132,7 +132,7 @@ export default function ActiveSession({
       if (result.success) {
         toast.success(`Round ${result.newRound} started`);
         broadcast();
-        queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
       } else {
         toast.error(result.error || 'Failed to advance round');
       }
@@ -146,7 +146,7 @@ export default function ActiveSession({
       if (result.success) {
         toast.success(`Reverted to round ${result.newRound}`);
         broadcast();
-        queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
       } else {
         toast.error(result.error || 'Failed to revert round');
       }
@@ -159,7 +159,7 @@ export default function ActiveSession({
     onSuccess: (result) => {
       if (result.success) {
         broadcast();
-        queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
       } else {
         toast.error(result.error || 'Failed to change phase');
       }
@@ -201,7 +201,7 @@ export default function ActiveSession({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold">
-              {sessionScenarioLabel(session) || 'Battle Session'}
+              {sessionScenarioLabel(session) || 'Live Battle'}
             </h1>
             {session.campaign_name && (
               <p className="text-sm text-neutral-500">{session.campaign_name}</p>
@@ -404,7 +404,7 @@ export default function ActiveSession({
               scenarioTables={scenarioTables}
               onBroadcast={() => {
                 broadcast();
-                queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+                queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
               }}
             />
           ))}
@@ -413,7 +413,7 @@ export default function ActiveSession({
 
       {showCancelModal && createPortal(
         <Modal
-          title="Cancel Battle Session"
+          title="Cancel Live Battle"
           onClose={() => setShowCancelModal(false)}
           onConfirm={async () => {
             cancelMutation.mutate();
@@ -422,7 +422,7 @@ export default function ActiveSession({
           confirmText="Delete Session"
           confirmDisabled={cancelMutation.isPending}
         >
-          <p>Are you sure you want to cancel this battle session? This will delete all records.</p>
+          <p>Are you sure you want to cancel this live battle? This will delete all records.</p>
         </Modal>,
         document.body
       )}
@@ -497,7 +497,7 @@ export default function ActiveSession({
           onSuppressRefetch={suppressRefetch}
           onBroadcast={() => {
             broadcast();
-            queryClient.invalidateQueries({ queryKey: ['battle-session', session.id] });
+            queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
           }}
         />
       )}

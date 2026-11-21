@@ -33,20 +33,20 @@ import {
   updateActivations,
   updateSessionNote,
   toggleParticipantReady,
-} from '@/app/actions/battle-sessions';
+} from '@/app/actions/live-battles';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
-import FighterRow from '@/components/battle-session/fighter-row';
-import BattleParticipationModal from '@/components/battle-session/battle-participation-modal';
-import { applyConditionsUpdate, hasDualActivation, newSessionRecord, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/battle-session';
+import FighterRow from '@/components/live-battle/fighter-row';
+import BattleParticipationModal from '@/components/live-battle/battle-participation-modal';
+import { applyConditionsUpdate, hasDualActivation, newSessionRecord, type LiveBattleFull, type LiveBattleParticipant, type LiveBattleFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/live-battle';
 import { beastSubtypeName, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
 
-const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
+const CrewSelectionModal = dynamic(() => import('@/components/live-battle/crew-selection-modal'), { ssr: false });
 
 /** Splits session injuries by fighter_types.is_spyrer; a gang can field both. */
 export function splitInjuryCounts(
-  fighters: BattleSessionFighter[],
+  fighters: LiveBattleFighter[],
   roster: GangFighter[],
 ): { totalInjuries: number; totalGlitches: number } {
   return fighters.reduce(
@@ -66,8 +66,8 @@ export function splitInjuryCounts(
 // ---------------------------------------------------------------------------
 
 interface ParticipantCardProps {
-  participant: BattleSessionParticipant & { fighters: BattleSessionFighter[] };
-  session: BattleSessionFull;
+  participant: LiveBattleParticipant & { fighters: LiveBattleFighter[] };
+  session: LiveBattleFull;
   userId: string;
   // Session creator or arbitrator: may manage participants (remove, set roles)
   canManage: boolean;
@@ -102,7 +102,7 @@ export default function ParticipantCard({
   const [localRepChange, setLocalRepChange] = useState(participant.reputation_change);
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
   const [localResourceChanges, setLocalResourceChanges] = useState(participant.resource_changes ?? []);
-  const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
+  const [localFighters, setLocalFighters] = useState<LiveBattleFighter[]>(participant.fighters);
   const setLocalInjuries = (
     sessionFighterId: string,
     update: (injuries: SessionInjuryRecord[]) => SessionInjuryRecord[]
@@ -339,13 +339,13 @@ export default function ParticipantCard({
     },
   });
 
-  const buildOptimisticFighter = (fighterId: string, loadoutId?: string): BattleSessionFighter => {
+  const buildOptimisticFighter = (fighterId: string, loadoutId?: string): LiveBattleFighter => {
     const gf = gangFighters.find((f) => f.id === fighterId && (!loadoutId || f.loadout_id === loadoutId))
       ?? gangFighters.find((f) => f.id === fighterId);
     const fullGf = gangFightersList.find((f) => f.id === fighterId);
     return {
       id: `temp-${Date.now()}-${fighterId}`,
-      battle_session_id: session.id,
+      live_battle_id: session.id,
       participant_id: participant.id,
       fighter_id: fighterId,
       loadout_id: loadoutId,

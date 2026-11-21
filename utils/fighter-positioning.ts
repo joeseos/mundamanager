@@ -77,7 +77,7 @@ export const sortFightersByPositioning = <T extends { id: string }>(
 ) => sortByPositioning(fighters, positioning, (f) => f.id, tiebreak);
 
 /**
- * Sorts Battle Session Participant Fighters (which reference their gang fighter via `.fighter_id`)
+ * Sorts Live Battle Participant Fighters (which reference their gang fighter via `.fighter_id`)
  * according to the gang's positioning map.
  */
 export const sortParticipantFightersByPositioning = <T extends { fighter_id: string }>(

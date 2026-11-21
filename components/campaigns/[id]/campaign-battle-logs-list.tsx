@@ -9,7 +9,7 @@ import { BiSolidNotepad } from "react-icons/bi";
 import { HiX } from "react-icons/hi";
 import { LuChevronLeft, LuChevronRight } from "react-icons/lu";
 import { deleteBattleLog } from "@/app/actions/campaigns/[id]/battle-logs";
-import { createBattleSession } from "@/app/actions/battle-sessions";
+import { createLiveBattle } from "@/app/actions/live-battles";
 import type { RoleChangeTarget } from "@/components/campaigns/[id]/campaign-role-modal"
 import type { CampaignRole } from "@/types/campaign";
 import Modal from "@/components/ui/modal";
@@ -60,7 +60,7 @@ interface CampaignBattleLogsListProps {
   /** The campaign edition's scenario tables: N26 battles are made from them. */
   scenarioTables?: ScenarioTableWithEntries[];
   /** Shown between the battle logs and the standings. */
-  battleSessions?: ReactNode;
+  liveBattles?: ReactNode;
 }
 
 const formatRole = (role: CampaignRole | undefined) => {
@@ -100,7 +100,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     isCampaignAdmin = false,
     currentCycle = null,
     scenarioTables = [],
-    battleSessions,
+    liveBattles,
   } = props;
   
   const [showBattleModal, setShowBattleModal] = useState(false);
@@ -467,17 +467,17 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     }
   });
 
-  // Opens the challenge's battle session, starting it on first use.
+  // Opens the challenge's live battle, starting it on first use.
   const playChallengeMutation = useMutation({
-    mutationFn: (battleId: string) => createBattleSession({ campaign_battle_id: battleId }),
+    mutationFn: (battleId: string) => createLiveBattle({ campaign_battle_id: battleId }),
     onSuccess: (result) => {
       if (!result.success || !result.session_id) {
-        toast.error(result.error || 'Failed to start battle session');
+        toast.error(result.error || 'Failed to start live battle');
         return;
       }
-      router.push(`/campaigns/${campaignId}/battle-session/${result.session_id}`);
+      router.push(`/campaigns/${campaignId}/live-battle/${result.session_id}`);
     },
-    onError: () => toast.error('Failed to start battle session'),
+    onError: () => toast.error('Failed to start live battle'),
   });
 
   // Extract gangs from members
@@ -1006,8 +1006,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                           variant="outline"
                           size="sm"
                           className="h-8 w-8 p-0"
-                          aria-label="Play as battle session"
-                          title="Play as battle session"
+                          aria-label="Play as live battle"
+                          title="Play as live battle"
                         >
                           <LuSwords className="h-4 w-4" />
                         </Button>
@@ -1239,7 +1239,7 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         </div>
       )}
 
-      {battleSessions && <div className="mt-8">{battleSessions}</div>}
+      {liveBattles && <div className="mt-8">{liveBattles}</div>}
 
       {/* Standings Table */}
       <div className="mt-8">

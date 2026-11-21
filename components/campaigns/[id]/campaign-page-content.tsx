@@ -30,8 +30,8 @@ import { formatLocalDate } from '@/utils/local-date';
 import type { CampaignPermissions } from '@/types/user-permissions';
 import type { Battle, CampaignType, ScenarioTableWithEntries } from '@/types/campaign';
 import type { CatalogTerritory } from '@/app/lib/reference-data';
-import type { BattleSession } from '@/types/battle-session';
-import CampaignBattleSessions from "@/components/campaigns/[id]/campaign-battle-sessions";
+import type { LiveBattle } from '@/types/live-battle';
+import CampaignLiveBattles from "@/components/campaigns/[id]/campaign-live-battles";
 import { requestToJoinCampaign, withdrawJoinRequest } from "@/app/actions/campaigns/[id]/campaign-join-requests";
 import { CampaignNotes } from "@/components/campaigns/[id]/campaign-notes";
 import CampaignMap from "./campaign-map"
@@ -141,7 +141,7 @@ interface CampaignPageContentProps {
     allow_join_requests?: boolean;
     allow_trading?: boolean;
     battles: Battle[];
-    battleSessions?: BattleSession[];
+    liveBattles?: LiveBattle[];
     triumphs: {
       id: string;
       triumph: string | null;
@@ -1001,9 +1001,9 @@ export default function CampaignPageContent({
                     isCampaignAdmin={!!safePermissions.isArbitrator || !!safePermissions.isAdmin}
                     currentCycle={currentCycle}
                     scenarioTables={scenarioTables}
-                    battleSessions={(campaignData.battleSessions ?? []).length > 0 || userId ? (
-                      <CampaignBattleSessions
-                        sessions={campaignData.battleSessions || []}
+                    liveBattles={(campaignData.liveBattles ?? []).length > 0 || userId ? (
+                      <CampaignLiveBattles
+                        sessions={campaignData.liveBattles || []}
                         campaignId={campaignData.id}
                         userId={userId}
                         canAdd={safePermissions.canAddBattleLogs}

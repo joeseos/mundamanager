@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-export function useBattleSessionRealtime(sessionId: string) {
+export function useLiveBattleRealtime(sessionId: string) {
   const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const broadcastChannelRef = useRef<RealtimeChannel | null>(null);
@@ -19,18 +19,18 @@ export function useBattleSessionRealtime(sessionId: string) {
       if (suppressedRef.current) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['battle-session', sessionId] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', sessionId] });
       }, 300);
     };
 
     const dbChannel = supabase
-      .channel(`battle-session-db-${sessionId}`)
+      .channel(`live-battle-db-${sessionId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'battle_sessions',
+          table: 'live_battles',
           filter: `id=eq.${sessionId}`,
         },
         debouncedRefresh
@@ -40,8 +40,8 @@ export function useBattleSessionRealtime(sessionId: string) {
         {
           event: '*',
           schema: 'public',
-          table: 'battle_session_fighters',
-          filter: `battle_session_id=eq.${sessionId}`,
+          table: 'live_battle_fighters',
+          filter: `live_battle_id=eq.${sessionId}`,
         },
         debouncedRefresh
       )
@@ -50,15 +50,15 @@ export function useBattleSessionRealtime(sessionId: string) {
         {
           event: '*',
           schema: 'public',
-          table: 'battle_session_participants',
-          filter: `battle_session_id=eq.${sessionId}`,
+          table: 'live_battle_participants',
+          filter: `live_battle_id=eq.${sessionId}`,
         },
         debouncedRefresh
       )
       .subscribe();
 
     const broadcastChannel = supabase
-      .channel(`battle-session-sync-${sessionId}`)
+      .channel(`live-battle-sync-${sessionId}`)
       .on('broadcast', { event: 'refresh' }, debouncedRefresh)
       .subscribe();
 
