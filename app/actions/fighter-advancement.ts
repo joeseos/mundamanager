@@ -7,7 +7,6 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
-  EDITION_N26,
   gangEditionSlug,
   hasChampionLeaderTypePromotion,
   hasCumulativeXp,
@@ -884,16 +883,6 @@ async function resolveCatalogSkillId(
   return { skillId: skillsByName[0].id };
 }
 
-async function isLegendaryNameSkill(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  skillId: string | null | undefined,
-  editionSlug: string | null | undefined
-): Promise<boolean> {
-  if (!skillId || editionSlug !== EDITION_N26) return false;
-  const { data } = await supabase.from('skills').select('skill_types(name)').eq('id', skillId).single();
-  return isLegendaryNameSkillSet(skillSetName(data), editionSlug);
-}
-
 /** Set name of a `skills` row embedding `skill_types(name)`: a to-one embed, typed as an array by the generated client. */
 function skillSetName(skill: unknown): string {
   return (skill as { skill_types: { name: string } | null } | null)?.skill_types?.name ?? '';
@@ -1473,13 +1462,15 @@ export async function deleteAdvancement(
       // Check if skill exists and get skill data including credits_increase
       const { data: skillData, error: skillError } = await supabase
         .from('fighter_skills')
-        .select('id, fighter_id, skill_id, custom_skill_id, xp_cost, credits_increase, is_advance')
+        .select('id, fighter_id, skill_id, custom_skill_id, xp_cost, credits_increase, is_advance, skills(name, skill_types(name))')
         .eq('id', params.advancement_id)
         .single();
 
       if (skillError || !skillData) {
         return { success: false, error: 'Skill not found' };
       }
+      // A to-one embed, typed as an array by the generated client.
+      const deletedSkill = skillData.skills as unknown as { name: string } | null;
 
       if (skillData.fighter_id !== params.fighter_id) {
         return { success: false, error: 'Skill does not belong to this fighter' };
@@ -1498,19 +1489,7 @@ export async function deleteAdvancement(
           .single();
         deletedSkillName = customSkillData?.skill_name || 'Unknown Custom Skill';
       } else {
-        const { data: fighterSkillData } = await supabase
-          .from('fighter_skills')
-          .select(`
-            skills!inner(name)
-          `)
-          .eq('id', params.advancement_id)
-          .single();
-        if (fighterSkillData && fighterSkillData.skills) {
-          const skills = Array.isArray(fighterSkillData.skills)
-            ? fighterSkillData.skills
-            : [fighterSkillData.skills];
-          deletedSkillName = skills[0].name;
-        }
+        deletedSkillName = deletedSkill?.name ?? '';
       }
 
       const currentSubtypesForGrant: string[] = Array.isArray(fighter.fighter_subtypes)
@@ -1599,7 +1578,7 @@ export async function deleteAdvancement(
         isProspectPromotionGrant ||
         isGangerChampionPromotionGrant ||
         isLeaderPromotionGrant ||
-        (refundStash && (await isLegendaryNameSkill(supabase, skillData.skill_id, editionSlugForUndo)))
+        (refundStash && isLegendaryNameSkillSet(skillSetName(deletedSkill), editionSlugForUndo))
       ) {
         refundStash = false;
       }
