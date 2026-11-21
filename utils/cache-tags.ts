@@ -292,8 +292,8 @@ export const invalidateUserPermissions = (userId: string) => {
 };
 
 /** A single live battle's data changed. */
-export const invalidateLiveBattle = (sessionId: string) => {
-  bust(TAGS.liveBattle(sessionId));
+export const invalidateLiveBattle = (liveBattleId: string) => {
+  bust(TAGS.liveBattle(liveBattleId));
 };
 
 /** A gang's live battle list changed. */

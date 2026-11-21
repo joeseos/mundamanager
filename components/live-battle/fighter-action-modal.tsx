@@ -12,17 +12,17 @@ import Modal from '@/components/ui/modal';
 import type { CampaignGangWithFighters } from '@/types/fighter-ooa-record';
 import {
   markerSizeClass,
-  SessionMarkerGlyph,
+  LiveBattleMarkerGlyph,
   markerName,
   markersForEdition,
-  type SessionMarkerDef,
-} from '@/components/live-battle/session-markers';
+  type LiveBattleMarkerDef,
+} from '@/components/live-battle/live-battle-markers';
 import { InjuriesList } from '@/components/fighter/fighter-injury-list';
-import { addSessionInjury, removeSessionInjury } from '@/app/actions/live-battles';
+import { addLiveBattleInjury, removeLiveBattleInjury } from '@/app/actions/live-battles';
 import type { GangFighter } from '@/types/gang';
 import type { WeaponProps } from '@/types/fighter';
 import type { WeaponProfile } from '@/types/equipment';
-import type { LiveBattleFighter, SessionCondition, SessionInjuryRecord } from '@/types/live-battle';
+import type { LiveBattleFighter, LiveBattleCondition, LiveBattleInjuryRecord } from '@/types/live-battle';
 import {
   canLeaveBattlefield,
   hasFleshWoundCondition,
@@ -42,7 +42,7 @@ function MarkerToggleButton({
   onToggle,
   count,
 }: {
-  condition: SessionMarkerDef;
+  condition: LiveBattleMarkerDef;
   editionSlug?: string | null;
   isActive: boolean;
   onToggle: () => void;
@@ -57,7 +57,7 @@ function MarkerToggleButton({
       className="min-w-[140px] flex-1 max-w-[calc(50%-0.25rem)] justify-start pl-2 text-left text-xs md:pl-6 md:text-sm"
     >
       <span className={`${condition.colorClass} mr-1.5 ${markerSizeClass(useComposite, 'text-xl')}`}>
-        <SessionMarkerGlyph def={condition} editionSlug={editionSlug} decorative />
+        <LiveBattleMarkerGlyph def={condition} editionSlug={editionSlug} decorative />
       </span>
       {name}
     </Button>
@@ -69,8 +69,8 @@ function MarkerToggleButton({
 // Jammed on a whole weapon (N26)
 // ---------------------------------------------------------------------------
 
-type WeaponTarget = Required<Pick<SessionCondition, 'fighter_weapon_id' | 'target_name'>> &
-  Pick<SessionCondition, 'weapon_profile_id'> & { profile_name?: string };
+type WeaponTarget = Required<Pick<LiveBattleCondition, 'fighter_weapon_id' | 'target_name'>> &
+  Pick<LiveBattleCondition, 'weapon_profile_id'> & { profile_name?: string };
 
 interface TargetWeapon {
   fighter_weapon_id: string;
@@ -78,7 +78,7 @@ interface TargetWeapon {
   targets: WeaponTarget[];
 }
 
-const weaponTargetId = (t: Pick<SessionCondition, 'fighter_weapon_id' | 'weapon_profile_id'>) =>
+const weaponTargetId = (t: Pick<LiveBattleCondition, 'fighter_weapon_id' | 'weapon_profile_id'>) =>
   `${t.fighter_weapon_id}:${t.weapon_profile_id ?? ''}`;
 
 // N23 keeps the roll in the Ammo column ("4+", or "*" for special ammo); profiles
@@ -156,7 +156,7 @@ function WeaponConditionModal({
   conditionName: string;
   weapons: TargetWeapon[];
   perProfile: boolean;
-  selected: SessionCondition[];
+  selected: LiveBattleCondition[];
   onConfirm: (targets: WeaponTarget[]) => void;
   onClose: () => void;
 }) {
@@ -236,24 +236,24 @@ export default function FighterActionModal({
   candidateGangs: CampaignGangWithFighters[];
   gangFighter: GangFighter | undefined;
   onXpChanged: (delta: number) => void;
-  onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
-  onInjuryAdded: (injury: SessionInjuryRecord) => void;
+  onConditionsChanged: (conditions: LiveBattleCondition[], leftBattlefield?: boolean) => void;
+  onInjuryAdded: (injury: LiveBattleInjuryRecord) => void;
   onInjuryRemoved: (injuryId: string) => void;
   onBroadcast?: () => void;
   onClose: () => void;
 }) {
   const [showXpModal, setShowXpModal] = useState(false);
   const [showInjuryModal, setShowInjuryModal] = useState(false);
-  const [injuryToRemove, setInjuryToRemove] = useState<SessionInjuryRecord | null>(null);
-  const sessionInjuries = fighter.session_record?.injuries ?? [];
+  const [injuryToRemove, setInjuryToRemove] = useState<LiveBattleInjuryRecord | null>(null);
+  const liveBattleInjuries = fighter.live_battle_record?.injuries ?? [];
   const [weaponConditionKey, setWeaponConditionKey] = useState<string | null>(null);
   const isSpyrer = gangFighter?.is_spyrer ?? false;
-  const [draftConditions, setDraftConditions] = useState<SessionCondition[]>(
-    fighter.session_record?.conditions ?? []
+  const [draftConditions, setDraftConditions] = useState<LiveBattleCondition[]>(
+    fighter.live_battle_record?.conditions ?? []
   );
   // Compared against the value the modal opened with, not the live prop, so a
   // realtime change made elsewhere while it is open isn't sent back reversed.
-  const [initialLeftBattlefield] = useState(fighter.session_record?.left_battlefield === true);
+  const [initialLeftBattlefield] = useState(fighter.live_battle_record?.left_battlefield === true);
   const [draftLeftBattlefield, setDraftLeftBattlefield] = useState(initialLeftBattlefield);
 
   // Conditions the edition doesn't use aren't offered. CONDITION_BY_KEY still
@@ -270,7 +270,7 @@ export default function FighterActionModal({
     .sort((a, b) => markerName(a, editionSlug).localeCompare(markerName(b, editionSlug)));
   const visibilityMarkers = conditionMarkers.filter((c) => visibilityMarkerKeys.has(c.key));
 
-  const currentConditions = fighter.session_record?.conditions ?? [];
+  const currentConditions = fighter.live_battle_record?.conditions ?? [];
 
   // Out of Ammo is on a weapon (N23) or a weapon profile (N26), Jammed on a whole
   // weapon; one entry each. A fighter with no weapon to offer keeps the plain toggle.
@@ -281,7 +281,7 @@ export default function FighterActionModal({
     jammed: { perProfile: false, weapons: targetWeapons(fighterWeapons, false, isRangedProfile) },
   };
   const entriesFor = (key: string) => draftConditions.filter((c) => c.key === key);
-  const setWeaponTargets = (condition: SessionMarkerDef, targets: WeaponTarget[]) =>
+  const setWeaponTargets = (condition: LiveBattleMarkerDef, targets: WeaponTarget[]) =>
     setDraftConditions([
       ...draftConditions.filter((c) => c.key !== condition.key),
       ...targets.map(({ fighter_weapon_id, weapon_profile_id, target_name }) => ({
@@ -301,7 +301,7 @@ export default function FighterActionModal({
     revealed: 'hidden',
   };
 
-  const toggleCondition = (condition: SessionMarkerDef) => {
+  const toggleCondition = (condition: LiveBattleMarkerDef) => {
     const exists = draftConditions.some((item) => item.key === condition.key);
     const name = markerName(condition, editionSlug);
     if (exists) {
@@ -362,13 +362,13 @@ export default function FighterActionModal({
               {isSpyrer ? 'Add Rig Glitch' : 'Add Lasting Injury'}
             </Button>
           </div>
-          {sessionInjuries.length > 0 && (
+          {liveBattleInjuries.length > 0 && (
             <div className="space-y-2 border-t pt-3 text-left">
               <h4 className="text-sm font-medium text-neutral-500">
                 {isSpyrer ? 'Rig Glitches This Battle' : 'Lasting Injuries This Battle'}
               </h4>
               <ul className="space-y-1">
-                {sessionInjuries.map((injury) => (
+                {liveBattleInjuries.map((injury) => (
                   <li key={injury.fighter_effect_id} className="flex items-center justify-between gap-2">
                     <span className="text-sm">{injury.effect_name}</span>
                     <Button
@@ -417,7 +417,7 @@ export default function FighterActionModal({
                   <div key={nc.key} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className={`${nc.colorClass} ${markerSizeClass(useCompositeMarkers, 'text-2xl')}`}>
-                        <SessionMarkerGlyph def={nc} editionSlug={editionSlug} decorative />
+                        <LiveBattleMarkerGlyph def={nc} editionSlug={editionSlug} decorative />
                       </span>
                       <span className="text-sm">{name}</span>
                     </div>
@@ -566,16 +566,16 @@ export default function FighterActionModal({
               effect_names: w.effect_names,
             }))}
             onInjuryAdded={(injury, status) => {
-              const sessionInjury: SessionInjuryRecord = {
+              const liveBattleInjury: LiveBattleInjuryRecord = {
                 fighter_effect_id: injury.id,
                 fighter_effect_type_id: injury.fighter_effect_type_id,
                 effect_name: injury.effect_name,
                 ...status,
               };
-              addSessionInjury({ session_fighter_id: fighter.id, injury: sessionInjury })
+              addLiveBattleInjury({ live_battle_fighter_id: fighter.id, injury: liveBattleInjury })
                 .then((result) => {
                   if (!result.success) throw new Error(result.error);
-                  onInjuryAdded(sessionInjury);
+                  onInjuryAdded(liveBattleInjury);
                   onBroadcast?.();
                 })
                 .catch((err) =>
@@ -600,8 +600,8 @@ export default function FighterActionModal({
           }
           onClose={() => setInjuryToRemove(null)}
           onConfirm={async () => {
-            const result = await removeSessionInjury({
-              session_fighter_id: fighter.id,
+            const result = await removeLiveBattleInjury({
+              live_battle_fighter_id: fighter.id,
               injury_id: injuryToRemove.fighter_effect_id,
             });
             if (!result.success) {

@@ -1003,7 +1003,7 @@ export default function CampaignPageContent({
                     scenarioTables={scenarioTables}
                     liveBattles={(campaignData.liveBattles ?? []).length > 0 || userId ? (
                       <CampaignLiveBattles
-                        sessions={campaignData.liveBattles || []}
+                        liveBattles={campaignData.liveBattles || []}
                         campaignId={campaignData.id}
                         userId={userId}
                         canAdd={safePermissions.canAddBattleLogs}

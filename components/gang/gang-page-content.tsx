@@ -850,12 +850,12 @@ export default function GangPageContent({
             />
           )}
           <GangLiveBattles
-            sessions={gangData.processedData.liveBattles || []}
+            liveBattles={gangData.processedData.liveBattles || []}
             gangId={gangId}
             gangName={gangData.processedData.name}
             editionSlug={gangData.processedData.edition_slug}
             campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
-            sessionUrl={(id) => `/gang/${gangId}/live-battle/${id}`}
+            liveBattleUrl={(id) => `/gang/${gangId}/live-battle/${id}`}
             wrapper={(children) => <div>{children}</div>}
           />
         </div>

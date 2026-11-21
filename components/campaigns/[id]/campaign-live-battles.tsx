@@ -5,14 +5,14 @@ import type { LiveBattle } from '@/types/live-battle';
 import type { CampaignGang } from '@/components/live-battle/create-battle-modal';
 
 export default function CampaignLiveBattles({
-  sessions,
+  liveBattles,
   campaignId,
   userId,
   canAdd,
   campaignGangs,
   editionSlug,
 }: {
-  sessions: LiveBattle[];
+  liveBattles: LiveBattle[];
   campaignId: string;
   userId?: string;
   canAdd?: boolean;
@@ -21,14 +21,14 @@ export default function CampaignLiveBattles({
 }) {
   return (
     <LiveBattlesList
-      sessions={sessions}
+      liveBattles={liveBattles}
       campaignId={campaignId}
       canAdd={canAdd}
       userId={userId}
       campaignGangs={campaignGangs}
       editionSlug={editionSlug}
       variant="table"
-      sessionUrl={(id) => `/campaigns/${campaignId}/live-battle/${id}`}
+      liveBattleUrl={(id) => `/campaigns/${campaignId}/live-battle/${id}`}
       embedded
     />
   );

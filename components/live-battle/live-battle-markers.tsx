@@ -31,7 +31,7 @@ import { PiArrowFatLinesDownFill } from 'react-icons/pi';
 import { TbArrowBigUpFilled, TbSlash } from 'react-icons/tb';
 import { WiStars } from 'react-icons/wi';
 import { cn } from '@/app/lib/utils';
-import type { SessionCondition } from '@/types/live-battle';
+import type { LiveBattleCondition } from '@/types/live-battle';
 import { MarkerIcon } from '@/components/live-battle/marker-icon';
 import {
   hasBlazeCondition,
@@ -50,12 +50,12 @@ import {
   hasTerrifyingCondition,
 } from '@/types/edition';
 
-export type SessionMarkerSection = 'status' | 'wounds' | 'conditions';
-export type SessionMarkerKind = 'boolean' | 'numeric';
+export type LiveBattleMarkerSection = 'status' | 'wounds' | 'conditions';
+export type LiveBattleMarkerKind = 'boolean' | 'numeric';
 
-export type SessionMarkerName = string | { n23?: string; n26?: string };
+export type LiveBattleMarkerName = string | { n23?: string; n26?: string };
 
-export interface SessionMarkerN26 {
+export interface LiveBattleMarkerN26 {
   shape: IconType;
   symbol: IconType | ReactNode;
   secondary?: IconType;
@@ -64,15 +64,15 @@ export interface SessionMarkerN26 {
   secondaryClassName?: string;
 }
 
-export interface SessionMarkerDef {
+export interface LiveBattleMarkerDef {
   key: string;
-  name: SessionMarkerName;
-  section: SessionMarkerSection;
-  kind: SessionMarkerKind;
+  name: LiveBattleMarkerName;
+  section: LiveBattleMarkerSection;
+  kind: LiveBattleMarkerKind;
   colorClass: string;
   /** N23/plain glyph. N26-only markers omit this; outside composite mode they have no visible glyph. */
   icon?: ReactNode;
-  n26?: SessionMarkerN26;
+  n26?: LiveBattleMarkerN26;
   isAvailable: (editionSlug?: string | null) => boolean;
 }
 
@@ -143,7 +143,7 @@ export const N26_REQUIRED_KEYS = {
   ],
 } as const;
 
-export const SESSION_MARKERS = [
+export const LIVE_BATTLE_MARKERS = [
   {
     key: 'blaze',
     name: 'Blaze',
@@ -347,11 +347,11 @@ export const SESSION_MARKERS = [
     n26: { shape: BsOctagon, symbol: IoMdEye },
     isAvailable: () => true,
   },
-] as const satisfies readonly SessionMarkerDef[];
+] as const satisfies readonly LiveBattleMarkerDef[];
 
-type SessionMarkerEntry = (typeof SESSION_MARKERS)[number];
+type LiveBattleMarkerEntry = (typeof LIVE_BATTLE_MARKERS)[number];
 type KeysIn<S extends keyof typeof N26_REQUIRED_KEYS> = Extract<
-  SessionMarkerEntry,
+  LiveBattleMarkerEntry,
   { section: S }
 >['key'];
 type AssertContains<Required extends readonly string[], Actual> =
@@ -373,18 +373,18 @@ const N23_SECTION_ORDER = {
   wounds: ['flesh_wound', 'wounds'],
 } as const;
 
-export const CONDITION_BY_KEY = new Map<string, SessionMarkerDef>(
-  SESSION_MARKERS.map((marker) => [marker.key, marker])
+export const CONDITION_BY_KEY = new Map<string, LiveBattleMarkerDef>(
+  LIVE_BATTLE_MARKERS.map((marker) => [marker.key, marker])
 );
 
 export interface MarkersForEdition {
-  status: SessionMarkerDef[];
-  wounds: SessionMarkerDef[];
-  conditions: SessionMarkerDef[];
+  status: LiveBattleMarkerDef[];
+  wounds: LiveBattleMarkerDef[];
+  conditions: LiveBattleMarkerDef[];
 }
 
 export function markerName(
-  def: Pick<SessionMarkerDef, 'name' | 'key'>,
+  def: Pick<LiveBattleMarkerDef, 'name' | 'key'>,
   editionSlug?: string | null
 ): string {
   if (typeof def.name === 'string') return def.name;
@@ -394,9 +394,9 @@ export function markerName(
 }
 
 function sortSection(
-  markers: SessionMarkerDef[],
+  markers: LiveBattleMarkerDef[],
   order: readonly string[]
-): SessionMarkerDef[] {
+): LiveBattleMarkerDef[] {
   const rank = new Map(order.map((key, index) => [key, index]));
   return [...markers].sort((a, b) => {
     const aRank = rank.get(a.key) ?? Number.MAX_SAFE_INTEGER;
@@ -407,7 +407,7 @@ function sortSection(
 
 export function markersForEdition(editionSlug?: string | null): MarkersForEdition {
   const grouped: MarkersForEdition = { status: [], wounds: [], conditions: [] };
-  for (const marker of SESSION_MARKERS) {
+  for (const marker of LIVE_BATTLE_MARKERS) {
     if (!marker.isAvailable(editionSlug)) continue;
     grouped[marker.section].push(marker);
   }
@@ -426,13 +426,13 @@ const FIGHTER_ROW_VISIBILITY_KEYS = ['hidden', 'revealed'] as const;
 
 /** Badge order on the fighter row: status, wounds, injured, other conditions A–Z, hidden/revealed. */
 export function groupFighterRowConditionBadges(
-  conditions: SessionCondition[],
+  conditions: LiveBattleCondition[],
   editionSlug?: string | null
-): SessionCondition[][] {
+): LiveBattleCondition[][] {
   const pick = (keys: readonly string[]) =>
     keys
       .map((key) => conditions.find((condition) => condition.key === key))
-      .filter((condition): condition is SessionCondition => condition != null);
+      .filter((condition): condition is LiveBattleCondition => condition != null);
 
   const reserved = new Set<string>([
     ...FIGHTER_ROW_STATUS_KEYS,
@@ -459,14 +459,14 @@ export function groupFighterRowConditionBadges(
   ].filter((group) => group.length > 0);
 }
 
-export function SessionMarkerGlyph({
+export function LiveBattleMarkerGlyph({
   def,
   editionSlug,
   className,
   title,
   decorative = false,
 }: {
-  def: SessionMarkerDef;
+  def: LiveBattleMarkerDef;
   editionSlug?: string | null;
   className?: string;
   title?: string;

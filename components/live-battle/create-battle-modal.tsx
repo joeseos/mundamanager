@@ -42,7 +42,7 @@ export default function CreateBattleModal({
   userId,
   campaignId,
   campaignGangs: campaignGangsProp,
-  existingSessionId,
+  existingLiveBattleId,
   existingGangIds = [],
   editionSlug,
   onClose,
@@ -52,10 +52,10 @@ export default function CreateBattleModal({
   userId?: string;
   campaignId?: string;
   campaignGangs?: CampaignGang[];
-  existingSessionId?: string;
+  existingLiveBattleId?: string;
   existingGangIds?: string[];
   /**
-   * Edition the battle is played under — the session's when adding to an
+   * Edition the battle is played under — the live battle's when adding to an
    * existing one, otherwise the creating gang's. Scopes the skirmish opponent
    * picker, since a battle runs on exactly one ruleset. Campaign opponents need
    * no filtering: campaign membership is already edition-gated. The server
@@ -65,7 +65,7 @@ export default function CreateBattleModal({
   onClose: () => void;
 }) {
   const router = useRouter();
-  const isAddMode = !!existingSessionId;
+  const isAddMode = !!existingLiveBattleId;
 
   const [selectedScenario, setSelectedScenario] = useState('');
   const [customScenario, setCustomScenario] = useState('');
@@ -205,7 +205,7 @@ export default function CreateBattleModal({
     removeCampaignGang(campaignGangId);
   };
 
-  // Filter out gangs already added as opponents, already in the session, or from
+  // Filter out gangs already added as opponents, already in the live battle, or from
   // another edition. Skirmish opponents are searched across all users, so unlike
   // campaign gangs nothing upstream has constrained them to one ruleset.
   const availableUserGangs = (selectedUserGangs ?? []).filter(
@@ -226,7 +226,7 @@ export default function CreateBattleModal({
           const results = await Promise.all(
             gangsToAdd.map((g) =>
               addParticipant({
-                session_id: existingSessionId,
+                live_battle_id: existingLiveBattleId,
                 gang_id: g.id,
                 user_id: g.user_id ?? '',
               })
@@ -242,7 +242,7 @@ export default function CreateBattleModal({
         const results = await Promise.all(
           opponents.map((o) =>
             addParticipant({
-              session_id: existingSessionId,
+              live_battle_id: existingLiveBattleId,
               gang_id: o.gangId,
               user_id: o.userId,
             })
@@ -281,11 +281,11 @@ export default function CreateBattleModal({
         if (isAddMode) {
           toast.success('Player(s) added');
           onClose();
-        } else if ('session_id' in result && result.session_id) {
+        } else if ('live_battle_id' in result && result.live_battle_id) {
           setNavigating(true);
           const url = campaignId
-            ? `/campaigns/${campaignId}/live-battle/${result.session_id}`
-            : `/gang/${effectiveGangId}/live-battle/${result.session_id}`;
+            ? `/campaigns/${campaignId}/live-battle/${result.live_battle_id}`
+            : `/gang/${effectiveGangId}/live-battle/${result.live_battle_id}`;
           router.push(url);
         }
       } else {

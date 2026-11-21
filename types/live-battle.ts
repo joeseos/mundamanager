@@ -42,7 +42,7 @@ export interface LiveBattle {
   deployment_name?: string | null;
   objective_name?: string | null;
   crew_selection_name?: string | null;
-  /** N26: the rolled entries' names, embedded by the session loaders. */
+  /** N26: the rolled entries' names, embedded by the live battle loaders. */
   deployment?: { name: string } | null;
   objective?: { name: string } | null;
   crew_selection?: { name: string } | null;
@@ -52,20 +52,20 @@ export interface LiveBattle {
   campaign_battle_id: string | null;
   claimed_territory: string | null;
   /**
-   * Ruleset the session is played under, flattened from live_battles.edition_id
+   * Ruleset the live battle is played under, flattened from live_battles.edition_id
    * by the loader. Null means no edition-specific behaviour applies.
    */
   edition_slug?: string | null;
 }
 
-/** What a session is called: its scenario name, or else its Deployment and Objective on N26, picked or custom. */
-export function sessionScenarioLabel(
-  session: Pick<LiveBattle, 'scenario' | 'deployment' | 'objective' | 'deployment_name' | 'objective_name'>
+/** What a live battle is called: its scenario name, or else its Deployment and Objective on N26, picked or custom. */
+export function liveBattleScenarioLabel(
+  liveBattle: Pick<LiveBattle, 'scenario' | 'deployment' | 'objective' | 'deployment_name' | 'objective_name'>
 ): string {
   return scenarioLabel(
-    session.scenario,
-    session.deployment?.name ?? session.deployment_name,
-    session.objective?.name ?? session.objective_name
+    liveBattle.scenario,
+    liveBattle.deployment?.name ?? liveBattle.deployment_name,
+    liveBattle.objective?.name ?? liveBattle.objective_name
   );
 }
 
@@ -84,14 +84,14 @@ export interface LiveBattleParticipant {
   reputation_change: number;
   ready: boolean | null;
   /**
-   * Multi-winner support: any number of participants in a session may be flagged
+   * Multi-winner support: any number of participants in a live battle may be flagged
    * as a winner. Defaults to `false`. Draws have no participants with
    * `is_winner = true`.
    */
   is_winner?: boolean;
   /**
    * The single winner that claimed the battle's territory (if any). Only one
-   * participant per session may have `claimed_territory = true`, and they must
+   * participant per live battle may have `claimed_territory = true`, and they must
    * also be flagged as `is_winner`.
    */
   claimed_territory?: boolean;
@@ -118,7 +118,7 @@ export interface LiveBattleParticipant {
   };
 }
 
-export interface SessionInjuryRecord {
+export interface LiveBattleInjuryRecord {
   fighter_effect_id: string;
   fighter_effect_type_id: string;
   effect_name: string;
@@ -126,7 +126,7 @@ export interface SessionInjuryRecord {
   set_captured: boolean;
 }
 
-export interface SessionCondition {
+export interface LiveBattleCondition {
   key: string;
   name: string;
   value?: number;
@@ -137,17 +137,17 @@ export interface SessionCondition {
   target_name?: string;
 }
 
-export interface SessionRecord {
+export interface LiveBattleRecord {
   xp_earned: number;
   /**
    * Participation XP the fighter gains when the battle is completed. A fighter
    * joins the crew at 1 (0 if their type can't gain XP); players lower or raise
-   * it in the Participation XP modal. Missing on sessions crewed before it
+   * it in the Participation XP modal. Missing on live battles crewed before it
    * existed, which award none.
    */
   participation_xp?: number;
   /**
-   * Set once completion has added participation_xp to the fighter, so a session
+   * Set once completion has added participation_xp to the fighter, so a live battle
    * put back into post-battle and completed again doesn't pay it twice, and the
    * amount can't change after it was paid.
    */
@@ -157,8 +157,8 @@ export interface SessionRecord {
    * pays confirmed participation XP, so nothing is added without a confirm.
    */
   participation_xp_confirmed?: boolean;
-  injuries: SessionInjuryRecord[];
-  conditions: SessionCondition[];
+  injuries: LiveBattleInjuryRecord[];
+  conditions: LiveBattleCondition[];
   note?: string;
   activations: number;
   /** N26: removed from play without going Out of Action, so no fresh activations. */
@@ -172,13 +172,13 @@ export const hasDualActivation = (rules?: string[] | null) =>
   rules?.some((r) => DUAL_ACTIVATION_RULES.includes(r)) ?? false;
 
 /**
- * A fighter's record when they join the session. A type that can't gain XP
+ * A fighter's record when they join the live battle. A type that can't gain XP
  * (starting XP N/A) joins with 0 participation XP instead of 1.
  */
-export function newSessionRecord(
+export function newLiveBattleRecord(
   fighter: { special_rules?: string[] | null; starting_xp?: number | null },
   participationXp = fighter.starting_xp === null ? 0 : 1
-): SessionRecord {
+): LiveBattleRecord {
   return {
     xp_earned: 0,
     participation_xp: participationXp,
@@ -189,11 +189,11 @@ export function newSessionRecord(
 }
 
 /**
- * A stored session_record with its defaults filled in. Spreads the stored
+ * A stored live_battle_record with its defaults filled in. Spreads the stored
  * record first, so an optional field survives every rewrite without each
  * caller having to list it.
  */
-export function normalizeSessionRecord(raw?: Partial<SessionRecord> | null): SessionRecord {
+export function normalizeLiveBattleRecord(raw?: Partial<LiveBattleRecord> | null): LiveBattleRecord {
   return {
     ...raw,
     xp_earned: raw?.xp_earned ?? 0,
@@ -209,10 +209,10 @@ export function normalizeSessionRecord(raw?: Partial<SessionRecord> | null): Ses
  * fighter's remaining activations for the round; undefined leaves it as is.
  */
 export function applyConditionsUpdate(
-  record: SessionRecord,
-  conditions: SessionCondition[],
+  record: LiveBattleRecord,
+  conditions: LiveBattleCondition[],
   leftBattlefield?: boolean
-): SessionRecord {
+): LiveBattleRecord {
   if (leftBattlefield === undefined) return { ...record, conditions };
   return {
     ...record,
@@ -228,7 +228,7 @@ export interface LiveBattleFighter {
   participant_id: string;
   fighter_id: string;
   loadout_id?: string | null;
-  session_record: SessionRecord;
+  live_battle_record: LiveBattleRecord;
   created_at: string;
   fighter?: {
     id: string;
@@ -244,7 +244,7 @@ export interface LiveBattleFull extends LiveBattle {
     fighters: LiveBattleFighter[];
   })[];
   campaign_name?: string | null;
-  /** The challenge this session plays, which its completion files. */
+  /** The challenge this live battle plays, which its completion files. */
   linked_battle?: { campaign_territory_id: string | null; cycle: number | null; note: string | null } | null;
   campaign_resources?: CampaignResource[];
   campaign_gang_ids?: Record<string, string>;

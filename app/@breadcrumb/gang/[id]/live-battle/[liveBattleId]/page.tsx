@@ -4,17 +4,17 @@ import { createClient } from "@/utils/supabase/server";
 export default async function LiveBattleBreadcrumb({
   params,
 }: {
-  params: Promise<{ id: string; sessionId: string }>;
+  params: Promise<{ id: string; liveBattleId: string }>;
 }) {
-  const { id, sessionId } = await params;
+  const { id, liveBattleId } = await params;
   const supabase = await createClient();
 
-  const [{ data: gangData }, { data: session }] = await Promise.all([
+  const [{ data: gangData }, { data: liveBattle }] = await Promise.all([
     supabase.from("gangs").select("name").eq("id", id).maybeSingle(),
     supabase
       .from("live_battles")
       .select("created_at")
-      .eq("id", sessionId)
+      .eq("id", liveBattleId)
       .maybeSingle(),
   ]);
 
@@ -22,7 +22,7 @@ export default async function LiveBattleBreadcrumb({
     <BreadcrumbBar
       items={[
         { label: gangData?.name || 'Gang', href: `/gang/${id}` },
-        { label: `Live Battles - ${session?.created_at ? new Date(session.created_at).toISOString().slice(0, 10) : 'Live Battle'}` },
+        { label: `Live Battles - ${liveBattle?.created_at ? new Date(liveBattle.created_at).toISOString().slice(0, 10) : 'Live Battle'}` },
       ]}
     />
   );

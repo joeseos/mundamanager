@@ -21,7 +21,7 @@ import {
  */
 export async function getAccountDeleteCacheTargets(userId: string) {
   const db = getAppDb();
-  const [typeGangs, equipmentGangs, skillGangs, captiveGangs, participantSessions, hostedSessions] = await Promise.all([
+  const [typeGangs, equipmentGangs, skillGangs, captiveGangs, participantLiveBattles, hostedLiveBattles] = await Promise.all([
     db.selectDistinct({ gang_id: fighters.gang_id }).from(fighters)
       .where(inArray(fighters.custom_fighter_type_id,
         db.select({ id: customFighterTypes.id }).from(customFighterTypes).where(eq(customFighterTypes.user_id, userId)))),
@@ -41,6 +41,6 @@ export async function getAccountDeleteCacheTargets(userId: string) {
   ]);
 
   const gangIds = new Set([...typeGangs, ...equipmentGangs, ...skillGangs, ...captiveGangs].flatMap(({ gang_id }) => (gang_id ? [gang_id] : [])));
-  const liveBattleIds = new Set([...participantSessions, ...hostedSessions].map(({ id }) => id));
+  const liveBattleIds = new Set([...participantLiveBattles, ...hostedLiveBattles].map(({ id }) => id));
   return { gangIds: [...gangIds], liveBattleIds: [...liveBattleIds] };
 }

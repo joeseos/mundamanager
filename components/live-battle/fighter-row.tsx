@@ -17,14 +17,14 @@ import {
   N26_MARKER_SIZE_CLASS,
   markerSizeClass,
   ReadyActivatedIcon,
-  SessionMarkerGlyph,
+  LiveBattleMarkerGlyph,
   groupFighterRowConditionBadges,
   markerName,
-} from '@/components/live-battle/session-markers';
+} from '@/components/live-battle/live-battle-markers';
 import FighterActionModal from '@/components/live-battle/fighter-action-modal';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
 import FighterCard from '@/components/gang/fighter-card';
-import type { LiveBattleFighter, SessionCondition, SessionInjuryRecord } from '@/types/live-battle';
+import type { LiveBattleFighter, LiveBattleCondition, LiveBattleInjuryRecord } from '@/types/live-battle';
 import { hasN26CompositeBattleMarkers } from '@/types/edition';
 
 function ConditionBadge({
@@ -32,7 +32,7 @@ function ConditionBadge({
   iconOnly = false,
   editionSlug,
 }: {
-  condition: SessionCondition;
+  condition: LiveBattleCondition;
   iconOnly?: boolean;
   editionSlug?: string | null;
 }) {
@@ -65,7 +65,7 @@ function ConditionBadge({
         aria-label={condition.target_name ? undefined : title}
       >
         <span className={`${config.colorClass} ${markerSizeClass(useComposite, 'text-xl md:text-2xl', 'size-full')}`}>
-          <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
+          <LiveBattleMarkerGlyph def={config} editionSlug={editionSlug} decorative />
         </span>
         {condition.value != null && condition.value > 0 && (
           <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-neutral-700 text-[10px] font-bold leading-none text-white dark:bg-neutral-200 dark:text-neutral-900">
@@ -86,7 +86,7 @@ function ConditionBadge({
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-neutral-100 px-2 py-1 text-sm text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
       <span className={`${config.colorClass} text-base`}>
-        <SessionMarkerGlyph def={config} editionSlug={editionSlug} decorative />
+        <LiveBattleMarkerGlyph def={config} editionSlug={editionSlug} decorative />
       </span>
       {conditionLabel}
     </span>
@@ -97,7 +97,7 @@ function FighterRowConditionBadges({
   conditions,
   editionSlug,
 }: {
-  conditions: SessionCondition[];
+  conditions: LiveBattleCondition[];
   editionSlug?: string | null;
 }) {
   return groupFighterRowConditionBadges(conditions, editionSlug).map((group, index) => (
@@ -164,9 +164,9 @@ export default function FighterRow({
   editionSlug?: string | null;
   candidateGangs: CampaignGangWithFighters[];
   onXpChanged: (delta: number) => void;
-  onConditionsChanged: (conditions: SessionCondition[], leftBattlefield?: boolean) => void;
+  onConditionsChanged: (conditions: LiveBattleCondition[], leftBattlefield?: boolean) => void;
   onActivationsChange: (activations: number) => void;
-  onInjuryAdded: (injury: SessionInjuryRecord) => void;
+  onInjuryAdded: (injury: LiveBattleInjuryRecord) => void;
   onInjuryRemoved: (injuryId: string) => void;
   onNoteChanged: (note: string) => void;
   onBroadcast?: () => void;
@@ -175,16 +175,16 @@ export default function FighterRow({
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteDraft, setNoteDraft] = useState('');
-  const injuries = fighter.session_record?.injuries ?? [];
-  const conditions = fighter.session_record?.conditions ?? [];
-  const note = fighter.session_record?.note ?? '';
+  const injuries = fighter.live_battle_record?.injuries ?? [];
+  const conditions = fighter.live_battle_record?.conditions ?? [];
+  const note = fighter.live_battle_record?.note ?? '';
   // Not hasTwoActivations — that's a special-rules flag some non-Spyrers carry.
   const isSpyrer = gangFighter?.is_spyrer ?? false;
   const injuryCountLabel = isSpyrer
     ? `${injuryCount} ${injuryCount === 1 ? 'Glitch' : 'Glitches'}`
     : `${injuryCount} ${injuryCount === 1 ? 'Injury' : 'Injuries'}`;
-  const leftBattlefield = fighter.session_record?.left_battlefield === true;
-  const activations = fighter.session_record?.activations ?? 1;
+  const leftBattlefield = fighter.live_battle_record?.left_battlefield === true;
+  const activations = fighter.live_battle_record?.activations ?? 1;
   const isReady = activations > 0;
   const maxActivations = hasTwoActivations ? 2 : 1;
 

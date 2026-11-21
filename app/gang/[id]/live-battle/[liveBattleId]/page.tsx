@@ -8,10 +8,10 @@ import { getCampaignTerritories } from '@/app/lib/campaigns/[id]/get-campaign-da
 import { getScenariosCached, getScenarioTablesCached } from '@/app/lib/reference-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { sortFightersByPositioning } from '@/utils/fighter-positioning';
-import ActiveSession from '@/components/live-battle/active-session';
-import CompletedSession from '@/components/live-battle/completed-session';
+import ActiveLiveBattle from '@/components/live-battle/active-live-battle';
+import CompletedLiveBattle from '@/components/live-battle/completed-live-battle';
 
-export async function renderLiveBattlePage(sessionId: string, currentPath: string) {
+export async function renderLiveBattlePage(liveBattleId: string, currentPath: string) {
   const supabase = await createClient();
 
   let user: { id: string };
@@ -21,29 +21,29 @@ export async function renderLiveBattlePage(sessionId: string, currentPath: strin
     redirect(signInPath(currentPath));
   }
 
-  const session = await getLiveBattleCached(sessionId);
+  const liveBattle = await getLiveBattleCached(liveBattleId);
 
-  if (!session) {
+  if (!liveBattle) {
     notFound();
   }
 
-  if (session.status === 'completed') {
+  if (liveBattle.status === 'completed') {
     return (
       <div className="space-y-4">
-        <CompletedSession session={session} userId={user.id} />
+        <CompletedLiveBattle liveBattle={liveBattle} userId={user.id} />
       </div>
     );
   }
 
-  // Site admins and campaign OWNERs/ARBITRATORs can manage the session like
+  // Site admins and campaign OWNERs/ARBITRATORs can manage the live battle like
   // the creator and edit participants like the gang owners (gang page model)
   const isArb = await checkCampaignArbitrator(
     user.id,
-    session.campaign_id
+    liveBattle.campaign_id
   );
 
   const uniqueGangIds = Array.from(
-    new Set(session.participants.map((p) => p.gang_id))
+    new Set(liveBattle.participants.map((p) => p.gang_id))
   );
 
   const [gangFighterLists, gangPositioningList, scenarios, scenarioTables, campaignTerritories] = await Promise.all([
@@ -51,7 +51,7 @@ export async function renderLiveBattlePage(sessionId: string, currentPath: strin
     Promise.all(uniqueGangIds.map((gId) => getGangPositioning(gId))),
     getScenariosCached(),
     getScenarioTablesCached(),
-    session.campaign_id ? getCampaignTerritories(session.campaign_id) : Promise.resolve([]),
+    liveBattle.campaign_id ? getCampaignTerritories(liveBattle.campaign_id) : Promise.resolve([]),
   ]);
 
   const gangFightersMap: Record<string, GangFighter[]> = {};
@@ -65,12 +65,12 @@ export async function renderLiveBattlePage(sessionId: string, currentPath: strin
 
   return (
     <div className="space-y-4">
-      <ActiveSession
-        session={session}
+      <ActiveLiveBattle
+        liveBattle={liveBattle}
         userId={user.id}
         isArbitrator={isArb}
         scenarios={scenarios || []}
-        scenarioTables={scenarioTables.filter((table) => table.edition_slug === session.edition_slug)}
+        scenarioTables={scenarioTables.filter((table) => table.edition_slug === liveBattle.edition_slug)}
         gangFightersMap={gangFightersMap}
         gangPositioningMap={gangPositioningMap}
         territories={(campaignTerritories || []).map((t: any) => ({
@@ -85,8 +85,8 @@ export async function renderLiveBattlePage(sessionId: string, currentPath: strin
 }
 
 export default async function LiveBattlePage(props: {
-  params: Promise<{ id: string; sessionId: string }>;
+  params: Promise<{ id: string; liveBattleId: string }>;
 }) {
   const params = await props.params;
-  return renderLiveBattlePage(params.sessionId, `/gang/${params.id}/live-battle/${params.sessionId}`);
+  return renderLiveBattlePage(params.liveBattleId, `/gang/${params.id}/live-battle/${params.liveBattleId}`);
 }

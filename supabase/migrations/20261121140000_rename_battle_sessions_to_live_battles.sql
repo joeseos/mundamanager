@@ -8,6 +8,7 @@ ALTER TABLE public.battle_session_fighters RENAME TO live_battle_fighters;
 
 ALTER TABLE public.live_battle_participants RENAME COLUMN battle_session_id TO live_battle_id;
 ALTER TABLE public.live_battle_fighters RENAME COLUMN battle_session_id TO live_battle_id;
+ALTER TABLE public.live_battle_fighters RENAME COLUMN session_record TO live_battle_record;
 
 -- Constraints (renaming a primary key or unique constraint renames its index)
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_pkey TO live_battles_pkey;
@@ -87,7 +88,7 @@ ALTER POLICY "Allow authenticated users to view battle session fighters" ON publ
   RENAME TO "Allow authenticated users to view live battle fighters";
 
 -- Comments that name the old tables
-COMMENT ON COLUMN public.live_battle_fighters.session_record IS 'Tracks xp gained and injuries added in this live battle';
+COMMENT ON COLUMN public.live_battle_fighters.live_battle_record IS 'Tracks xp gained and injuries added in this live battle';
 COMMENT ON COLUMN public.live_battles.edition_id IS 'Ruleset the live battle is played under. Derived server-side at creation from the campaign type, or from the creating gang for skirmish live battles. Nullable: a null edition resolves to NO_CAPABILITIES in the app rather than silently serving another edition''s rules.';
 COMMENT ON COLUMN public.live_battles.deployment_id IS 'N26 Deployment for this live battle. Copied to campaign_battles.deployment_id on completion.';
 COMMENT ON COLUMN public.live_battles.objective_id IS 'N26 Objective for this live battle. Copied to campaign_battles.objective_id on completion.';
@@ -113,7 +114,7 @@ SELECT id, live_battle_id AS battle_session_id, user_id, gang_id, role, gang_rat
 FROM public.live_battle_participants;
 
 CREATE VIEW public.battle_session_fighters WITH (security_invoker = true) AS
-SELECT id, live_battle_id AS battle_session_id, participant_id, fighter_id, session_record, created_at, loadout_id
+SELECT id, live_battle_id AS battle_session_id, participant_id, fighter_id, live_battle_record AS session_record, created_at, loadout_id
 FROM public.live_battle_fighters;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.battle_sessions, public.battle_session_participants, public.battle_session_fighters

@@ -8,19 +8,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   fetchLiveBattle,
-  setSessionScenario,
-  setSessionScenarioParts,
+  setLiveBattleScenario,
+  setLiveBattleScenarioParts,
   advanceRound,
-  changeSessionPhase,
+  changeLiveBattlePhase,
   cancelLiveBattle,
 } from '@/app/actions/live-battles';
 import { useLiveBattleRealtime } from '@/hooks/use-live-battle-realtime';
 import ParticipantCard from './participant-card';
-import CompletedSession from './completed-session';
+import CompletedLiveBattle from './completed-live-battle';
 import Modal from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Combobox } from '@/components/ui/combobox';
-import { sessionScenarioLabel, type LiveBattleFull } from '@/types/live-battle';
+import { liveBattleScenarioLabel, type LiveBattleFull } from '@/types/live-battle';
 import type { Scenario, ScenarioTableWithEntries } from '@/types/campaign';
 import type { ScenarioPartEdit } from '@/utils/scenario-parts';
 import { sameEditionForDisplay, hasCrewRating, hasScenarioTables } from '@/types/edition';
@@ -30,20 +30,20 @@ import type { GangFighter } from '@/types/gang';
 const CreateBattleModal = dynamic(() => import('./create-battle-modal'), { ssr: false });
 const CompleteBattleModal = dynamic(() => import('./complete-battle-modal'), { ssr: false });
 
-interface ActiveSessionProps {
-  session: LiveBattleFull;
+interface ActiveLiveBattleProps {
+  liveBattle: LiveBattleFull;
   userId: string;
   isArbitrator?: boolean;
   scenarios: Scenario[];
   gangFightersMap: Record<string, GangFighter[]>;
   gangPositioningMap: Record<string, Record<string, any> | null>;
   territories?: { id: string; name: string; controlled_by?: string; default_gang_territory?: boolean }[];
-  /** The session edition's scenario tables: an N26 battle is made from them. */
+  /** The scenario tables of the live battle's edition: an N26 battle is made from them. */
   scenarioTables?: ScenarioTableWithEntries[];
 }
 
-export default function ActiveSession({
-  session: initialSession,
+export default function ActiveLiveBattle({
+  liveBattle: initialLiveBattle,
   userId,
   isArbitrator = false,
   scenarios,
@@ -51,25 +51,25 @@ export default function ActiveSession({
   gangPositioningMap,
   territories = [],
   scenarioTables = [],
-}: ActiveSessionProps) {
+}: ActiveLiveBattleProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: session = initialSession } = useQuery({
-    queryKey: ['live-battle', initialSession.id],
+  const { data: liveBattle = initialLiveBattle } = useQuery({
+    queryKey: ['live-battle', initialLiveBattle.id],
     queryFn: async () => {
-      const data = await fetchLiveBattle(initialSession.id);
-      if (!data) throw new Error('Session not found');
+      const data = await fetchLiveBattle(initialLiveBattle.id);
+      if (!data) throw new Error('Live battle not found');
       return data;
     },
-    initialData: initialSession,
+    initialData: initialLiveBattle,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
-  const { broadcast, suppressRefetch } = useLiveBattleRealtime(session.id);
+  const { broadcast, suppressRefetch } = useLiveBattleRealtime(liveBattle.id);
 
   const editionScenarios = useMemo(
-    () => scenarios.filter((s) => sameEditionForDisplay(s.edition_slug, session.edition_slug)),
-    [scenarios, session.edition_slug]
+    () => scenarios.filter((s) => sameEditionForDisplay(s.edition_slug, liveBattle.edition_slug)),
+    [scenarios, liveBattle.edition_slug]
   );
 
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -81,42 +81,42 @@ export default function ActiveSession({
 
   const scenarioMutation = useMutation({
     mutationFn: (scenario: string) =>
-      setSessionScenario(session.id, scenario),
+      setLiveBattleScenario(liveBattle.id, scenario),
     onSuccess: () => {
       broadcast();
-      queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
+      queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattle.id] });
     },
     onError: () => toast.error('Failed to update scenario'),
   });
 
   // N26: Deployment, Objective and Crew instead of a scenario.
-  const usesScenarioTables = hasScenarioTables(session.edition_slug);
+  const usesScenarioTables = hasScenarioTables(liveBattle.edition_slug);
   const scenarioPartMutation = useMutation({
     mutationFn: async (edit: ScenarioPartEdit) => {
-      const result = await setSessionScenarioParts(session.id, edit);
+      const result = await setLiveBattleScenarioParts(liveBattle.id, edit);
       if (!result.success) throw new Error(result.error);
     },
     onSuccess: () => {
       broadcast();
-      queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
+      queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattle.id] });
     },
     onError: (error) => toast.error(error.message || 'Failed to update scenario'),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => cancelLiveBattle(session.id),
+    mutationFn: () => cancelLiveBattle(liveBattle.id),
     onSuccess: (result) => {
       if (result.success) {
-        queryClient.removeQueries({ queryKey: ['live-battle', session.id] });
+        queryClient.removeQueries({ queryKey: ['live-battle', liveBattle.id] });
         setShowCancelModal(false);
         toast.success('Battle cancelled');
         broadcast();
-        const ownGangId = session.participants.find(p => p.user_id === userId)?.gang_id;
+        const ownGangId = liveBattle.participants.find(p => p.user_id === userId)?.gang_id;
         router.push(
           ownGangId
             ? `/gang/${ownGangId}`
-            : session.campaign_id
-              ? `/campaigns/${session.campaign_id}`
+            : liveBattle.campaign_id
+              ? `/campaigns/${liveBattle.campaign_id}`
               : '/'
         );
       } else {
@@ -127,12 +127,12 @@ export default function ActiveSession({
   });
 
   const roundMutation = useMutation({
-    mutationFn: () => advanceRound(session.id),
+    mutationFn: () => advanceRound(liveBattle.id),
     onSuccess: (result) => {
       if (result.success) {
         toast.success(`Round ${result.newRound} started`);
         broadcast();
-        queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattle.id] });
       } else {
         toast.error(result.error || 'Failed to advance round');
       }
@@ -141,12 +141,12 @@ export default function ActiveSession({
   });
 
   const revertRoundMutation = useMutation({
-    mutationFn: () => advanceRound(session.id, 'back'),
+    mutationFn: () => advanceRound(liveBattle.id, 'back'),
     onSuccess: (result) => {
       if (result.success) {
         toast.success(`Reverted to round ${result.newRound}`);
         broadcast();
-        queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattle.id] });
       } else {
         toast.error(result.error || 'Failed to revert round');
       }
@@ -155,11 +155,11 @@ export default function ActiveSession({
   });
 
   const changePhaseMutation = useMutation({
-    mutationFn: (direction: 'forward' | 'back') => changeSessionPhase(session.id, direction),
+    mutationFn: (direction: 'forward' | 'back') => changeLiveBattlePhase(liveBattle.id, direction),
     onSuccess: (result) => {
       if (result.success) {
         broadcast();
-        queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattle.id] });
       } else {
         toast.error(result.error || 'Failed to change phase');
       }
@@ -167,18 +167,18 @@ export default function ActiveSession({
     onError: () => toast.error('Failed to change phase'),
   });
 
-  if (session.status === 'completed') {
-    return <CompletedSession session={session} userId={userId} />;
+  if (liveBattle.status === 'completed') {
+    return <CompletedLiveBattle liveBattle={liveBattle} userId={userId} />;
   }
 
-  const isOwner = session.created_by === userId;
+  const isOwner = liveBattle.created_by === userId;
   const canManage = isOwner || isArbitrator;
-  const isPreBattle = session.status === 'pre_battle';
-  const isPostBattle = session.status === 'post_battle';
-  const battleActive = session.status === 'active';
+  const isPreBattle = liveBattle.status === 'pre_battle';
+  const isPostBattle = liveBattle.status === 'post_battle';
+  const battleActive = liveBattle.status === 'active';
 
-  const crewRated = hasCrewRating(session.edition_slug);
-  const ratings = session.participants.map((p) => {
+  const crewRated = hasCrewRating(liveBattle.edition_slug);
+  const ratings = liveBattle.participants.map((p) => {
     if (!crewRated) return p.gang?.rating ?? 0;
     const gfList = gangFightersMap[p.gang_id] || [];
     return (p.fighters ?? []).reduce((sum, f) => {
@@ -192,7 +192,7 @@ export default function ActiveSession({
   const minRating = ratings.length > 0 ? Math.min(...ratings) : 0;
   const ratingDiff = ratings.length >= 2 ? maxRating - minRating : 0;
 
-  const userGangInSession = session.participants.find((p) => p.user_id === userId);
+  const userGangInLiveBattle = liveBattle.participants.find((p) => p.user_id === userId);
 
   return (
     <>
@@ -201,16 +201,16 @@ export default function ActiveSession({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0">
             <h1 className="text-2xl font-bold">
-              {sessionScenarioLabel(session) || 'Live Battle'}
+              {liveBattleScenarioLabel(liveBattle) || 'Live Battle'}
             </h1>
-            {session.campaign_name && (
-              <p className="text-sm text-neutral-500">{session.campaign_name}</p>
+            {liveBattle.campaign_name && (
+              <p className="text-sm text-neutral-500">{liveBattle.campaign_name}</p>
             )}
           </div>
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
             {canManage && (
               <>
-                {isPreBattle && !session.campaign_battle_id && (
+                {isPreBattle && !liveBattle.campaign_battle_id && (
                   <Button className="flex-1 sm:flex-none" onClick={() => setShowAddPlayerModal(true)}>
                     Add Player
                   </Button>
@@ -237,7 +237,7 @@ export default function ActiveSession({
                 )}
               </>
             )}
-            {(canManage || userGangInSession) && (
+            {(canManage || userGangInLiveBattle) && (
               <Button
                 variant="destructive"
                 className="flex-1 sm:flex-none"
@@ -255,7 +255,7 @@ export default function ActiveSession({
             {usesScenarioTables ? (
               <ScenarioPartsPicker
                 scenarioTables={scenarioTables}
-                parts={session}
+                parts={liveBattle}
                 onChange={(_change, edit) => scenarioPartMutation.mutate(edit)}
                 saveTypedNamesOnBlur
                 disabled={!canManage}
@@ -270,7 +270,7 @@ export default function ActiveSession({
                   value: s.id,
                   label: s.scenario_number ? `${s.scenario_number}. ${s.scenario_name}` : s.scenario_name,
                 }))}
-                value={editionScenarios.find((s) => s.scenario_name === session.scenario)?.id ?? ''}
+                value={editionScenarios.find((s) => s.scenario_name === liveBattle.scenario)?.id ?? ''}
                 onValueChange={(id) => {
                   const name = editionScenarios.find((s) => s.id === id)?.scenario_name ?? id;
                   scenarioMutation.mutate(name);
@@ -279,10 +279,10 @@ export default function ActiveSession({
               />
               </>
             )}
-            {session.participants.length >= 2 && (() => {
-              const readyCount = session.participants.filter((p) => p.ready).length;
-              const total = session.participants.length;
-              const notReady = session.participants.filter((p) => !p.ready);
+            {liveBattle.participants.length >= 2 && (() => {
+              const readyCount = liveBattle.participants.filter((p) => p.ready).length;
+              const total = liveBattle.participants.length;
+              const notReady = liveBattle.participants.filter((p) => !p.ready);
               return (
                 <div className="mt-3 text-sm text-muted-foreground">
                   {readyCount === total ? (
@@ -304,9 +304,9 @@ export default function ActiveSession({
         {battleActive && (
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <span className="w-full text-sm font-medium text-neutral-700 dark:text-neutral-300 sm:w-auto">
-              Round {session.round}
+              Round {liveBattle.round}
             </span>
-            {session.round > 1 && (
+            {liveBattle.round > 1 && (
               <Button
                 size="sm"
                 variant="outline"
@@ -343,10 +343,10 @@ export default function ActiveSession({
             <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
               Post-Battle — enter reputation and income, then ready up
             </p>
-            {session.participants.length >= 2 && (() => {
-              const readyCount = session.participants.filter((p) => p.ready).length;
-              const total = session.participants.length;
-              const notReady = session.participants.filter((p) => !p.ready);
+            {liveBattle.participants.length >= 2 && (() => {
+              const readyCount = liveBattle.participants.filter((p) => p.ready).length;
+              const total = liveBattle.participants.length;
+              const notReady = liveBattle.participants.filter((p) => !p.ready);
               return (
                 <div className="mt-2 text-sm text-muted-foreground">
                   {readyCount === total ? (
@@ -368,7 +368,7 @@ export default function ActiveSession({
                   size="sm"
                   className="w-full sm:w-auto"
                   onClick={() => setShowCompleteBattleModal(true)}
-                  disabled={!session.participants.every((p) => p.ready)}
+                  disabled={!liveBattle.participants.every((p) => p.ready)}
                 >
                   Complete Battle
                 </Button>
@@ -383,17 +383,17 @@ export default function ActiveSession({
         <div className="space-y-4">
           <h2 className="text-xl md:text-2xl font-bold">
             Gangs
-            {session.participants.length >= 2 && (ratingDiff > 0 || !crewRated) && (
+            {liveBattle.participants.length >= 2 && (ratingDiff > 0 || !crewRated) && (
               <span className="ml-2 text-sm font-normal text-neutral-500 dark:text-neutral-400">
                 (Rating Difference: {ratingDiff})
               </span>
             )}
           </h2>
-          {session.participants.map((participant) => (
+          {liveBattle.participants.map((participant) => (
             <ParticipantCard
               key={participant.id}
               participant={participant}
-              session={session}
+              liveBattle={liveBattle}
               userId={userId}
               canManage={canManage}
               isArbitrator={isArbitrator}
@@ -404,7 +404,7 @@ export default function ActiveSession({
               scenarioTables={scenarioTables}
               onBroadcast={() => {
                 broadcast();
-                queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
+                queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattle.id] });
               }}
             />
           ))}
@@ -419,7 +419,7 @@ export default function ActiveSession({
             cancelMutation.mutate();
             return false;
           }}
-          confirmText="Delete Session"
+          confirmText="Delete Live Battle"
           confirmDisabled={cancelMutation.isPending}
         >
           <p>Are you sure you want to cancel this live battle? This will delete all records.</p>
@@ -439,7 +439,7 @@ export default function ActiveSession({
           confirmText="Complete Round"
           confirmDisabled={roundMutation.isPending}
         >
-          <p>Complete round {session.round} and start round {session.round + 1}? All fighters still in play will be reactivated.</p>
+          <p>Complete round {liveBattle.round} and start round {liveBattle.round + 1}? All fighters still in play will be reactivated.</p>
         </Modal>,
         document.body
       )}
@@ -455,7 +455,7 @@ export default function ActiveSession({
           }}
           confirmDisabled={revertRoundMutation.isPending}
         >
-          <p>Go back to round {session.round - 1}? All fighters still in play will be reactivated.</p>
+          <p>Go back to round {liveBattle.round - 1}? All fighters still in play will be reactivated.</p>
         </Modal>,
         document.body
       )}
@@ -476,28 +476,28 @@ export default function ActiveSession({
         document.body
       )}
 
-      {showAddPlayerModal && (userGangInSession || canManage) && (
+      {showAddPlayerModal && (userGangInLiveBattle || canManage) && (
         <CreateBattleModal
-          gangId={userGangInSession?.gang_id}
-          gangName={userGangInSession?.gang?.name ?? 'Your Gang'}
-          campaignId={session.campaign_id ?? undefined}
-          existingSessionId={session.id}
-          existingGangIds={session.participants.map((p) => p.gang_id)}
-          editionSlug={session.edition_slug}
+          gangId={userGangInLiveBattle?.gang_id}
+          gangName={userGangInLiveBattle?.gang?.name ?? 'Your Gang'}
+          campaignId={liveBattle.campaign_id ?? undefined}
+          existingLiveBattleId={liveBattle.id}
+          existingGangIds={liveBattle.participants.map((p) => p.gang_id)}
+          editionSlug={liveBattle.edition_slug}
           onClose={() => setShowAddPlayerModal(false)}
         />
       )}
 
       {showCompleteBattleModal && (
         <CompleteBattleModal
-          session={session}
+          liveBattle={liveBattle}
           gangFightersMap={gangFightersMap}
           territories={territories}
           onClose={() => setShowCompleteBattleModal(false)}
           onSuppressRefetch={suppressRefetch}
           onBroadcast={() => {
             broadcast();
-            queryClient.invalidateQueries({ queryKey: ['live-battle', session.id] });
+            queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattle.id] });
           }}
         />
       )}

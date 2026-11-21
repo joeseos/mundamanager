@@ -57,7 +57,7 @@ export interface UseWinnerSelectionResult {
  *
  * The JSX render block is intentionally kept inline per modal because the two
  * modals build their gang options differently (the campaign modal includes
- * owner usernames; the session modal doesn't).
+ * owner usernames; the live battle modal doesn't).
  */
 export function useWinnerSelection({
   initialWinnerIds = [],

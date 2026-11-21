@@ -15,7 +15,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
-import type { LiveBattleParticipant, LiveBattleStatus, SessionRecord } from '@/types/live-battle';
+import type { LiveBattleParticipant, LiveBattleStatus, LiveBattleRecord } from '@/types/live-battle';
 import type { BattleParticipant, BattleStatus, ScenarioTableType } from '@/types/campaign';
 import type { CampaignTradeItemKind, CampaignTradeStatus } from '@/types/campaign-trade';
 import type { CollectionItem } from '@/app/actions/customise/custom-collections';
@@ -960,7 +960,7 @@ export const liveBattleFighters = pgTable('live_battle_fighters', {
   live_battle_id: uuid('live_battle_id').notNull(),
   participant_id: uuid('participant_id').notNull(),
   fighter_id: uuid('fighter_id').notNull(),
-  session_record: json('session_record').$type<Partial<SessionRecord>>().default(sql`'{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb`).notNull(),
+  live_battle_record: json('live_battle_record').$type<Partial<LiveBattleRecord>>().default(sql`'{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb`).notNull(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   loadout_id: uuid('loadout_id'),
 });

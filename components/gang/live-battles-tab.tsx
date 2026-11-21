@@ -5,13 +5,13 @@ import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import type { CampaignGang } from '@/components/live-battle/create-battle-modal';
-import { statusLabels, formatLiveBattleDate, sessionScenarioLabel } from '@/types/live-battle';
+import { statusLabels, formatLiveBattleDate, liveBattleScenarioLabel } from '@/types/live-battle';
 import type { LiveBattle } from '@/types/live-battle';
 
 const CreateBattleModal = dynamic(() => import('@/components/live-battle/create-battle-modal'), { ssr: false });
 
 interface LiveBattlesListProps {
-  sessions: LiveBattle[];
+  liveBattles: LiveBattle[];
   gangId?: string;
   gangName?: string;
   campaignId?: string;
@@ -21,14 +21,14 @@ interface LiveBattlesListProps {
   /** Edition of the gang starting the battle; scopes the opponent pickers. */
   editionSlug?: string | null;
   variant?: 'cards' | 'table';
-  sessionUrl: (sessionId: string) => string;
+  liveBattleUrl: (liveBattleId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
   /** Sits inside another card: no card of its own, and a sub-header. */
   embedded?: boolean;
 }
 
 export default function LiveBattlesList({
-  sessions,
+  liveBattles,
   gangId,
   gangName,
   campaignId,
@@ -37,7 +37,7 @@ export default function LiveBattlesList({
   campaignGangs,
   editionSlug,
   variant = 'cards',
-  sessionUrl,
+  liveBattleUrl,
   wrapper,
   embedded = false,
 }: LiveBattlesListProps) {
@@ -46,9 +46,9 @@ export default function LiveBattlesList({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const showAddButton = canAdd ?? !!(gangId && gangName);
 
-  const filteredSessions = filter === 'active'
-    ? sessions.filter((s) => s.status !== 'completed')
-    : sessions;
+  const filteredLiveBattles = filter === 'active'
+    ? liveBattles.filter((s) => s.status !== 'completed')
+    : liveBattles;
 
   const content = (
     <>
@@ -91,7 +91,7 @@ export default function LiveBattlesList({
         </button>
       </div>
 
-      {filteredSessions.length === 0 ? (
+      {filteredLiveBattles.length === 0 ? (
         <p className="py-8 text-center text-neutral-500">
           {filter === 'active'
             ? 'No active live battles.'
@@ -108,16 +108,16 @@ export default function LiveBattlesList({
               </tr>
             </thead>
             <tbody>
-              {filteredSessions.map((session) => (
+              {filteredLiveBattles.map((liveBattle) => (
                 <tr
-                  key={session.id}
-                  onClick={() => router.push(sessionUrl(session.id))}
+                  key={liveBattle.id}
+                  onClick={() => router.push(liveBattleUrl(liveBattle.id))}
                   className="border-b cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <td className="p-1 md:p-2">{formatLiveBattleDate(session.updated_at)}</td>
-                  <td className="p-1 md:p-2">{sessionScenarioLabel(session) || '-'}</td>
+                  <td className="p-1 md:p-2">{formatLiveBattleDate(liveBattle.updated_at)}</td>
+                  <td className="p-1 md:p-2">{liveBattleScenarioLabel(liveBattle) || '-'}</td>
                   <td className="p-1 md:p-2 text-sm">
-                    {statusLabels[session.status]}
+                    {statusLabels[liveBattle.status]}
                   </td>
                 </tr>
               ))}
@@ -126,18 +126,18 @@ export default function LiveBattlesList({
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredSessions.map((session) => (
+          {filteredLiveBattles.map((liveBattle) => (
             <button
-              key={session.id}
-              onClick={() => router.push(sessionUrl(session.id))}
+              key={liveBattle.id}
+              onClick={() => router.push(liveBattleUrl(liveBattle.id))}
               className="flex w-full items-center justify-between rounded-lg border border-neutral-200 p-4 text-left transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium">
-                  {formatLiveBattleDate(session.updated_at)}
+                  {formatLiveBattleDate(liveBattle.updated_at)}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {statusLabels[session.status]}
+                  {statusLabels[liveBattle.status]}
                 </span>
               </div>
               <span className="text-neutral-400">&rarr;</span>

@@ -471,11 +471,11 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   const playChallengeMutation = useMutation({
     mutationFn: (battleId: string) => createLiveBattle({ campaign_battle_id: battleId }),
     onSuccess: (result) => {
-      if (!result.success || !result.session_id) {
+      if (!result.success || !result.live_battle_id) {
         toast.error(result.error || 'Failed to start live battle');
         return;
       }
-      router.push(`/campaigns/${campaignId}/live-battle/${result.session_id}`);
+      router.push(`/campaigns/${campaignId}/live-battle/${result.live_battle_id}`);
     },
     onError: () => toast.error('Failed to start live battle'),
   });

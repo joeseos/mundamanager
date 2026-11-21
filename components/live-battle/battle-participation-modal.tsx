@@ -18,8 +18,8 @@ export default function BattleParticipationModal({
   gangFightersList: GangFighter[];
   editionSlug?: string | null;
   /**
-   * The amounts: by session fighter id for every crew fighter, and by
-   * fighter id for fighters outside the crew raised above 0, who join the session.
+   * The amounts: by live battle fighter id for every crew fighter, and by
+   * fighter id for fighters outside the crew raised above 0, who join the live battle.
    */
   onConfirm: (changes: { crew: Record<string, number>; added: Record<string, number> }) => void;
   onClose: () => void;
@@ -35,7 +35,7 @@ export default function BattleParticipationModal({
   }, [crewFighters, gangFightersList]);
 
   const [crewXp, setCrewXp] = useState<Record<string, number>>(() =>
-    Object.fromEntries(crewFighters.map((f) => [f.id, f.session_record?.participation_xp ?? 0]))
+    Object.fromEntries(crewFighters.map((f) => [f.id, f.live_battle_record?.participation_xp ?? 0]))
   );
   const [otherXp, setOtherXp] = useState<Record<string, number>>({});
 

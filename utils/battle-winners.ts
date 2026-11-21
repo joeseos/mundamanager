@@ -1,8 +1,8 @@
 /**
- * Shared helpers for reading multi-winner state from battles and battle
- * sessions. Campaign battles keep it in the participants flags; live battle
+ * Shared helpers for reading multi-winner state from campaign battles and
+ * live battles. Campaign battles keep it in the participants flags; live battle
  * readers fall back to the legacy `winner_gang_id` column so existing
- * single-winner sessions continue to render identically.
+ * single-winner live battles continue to render identically.
  */
 
 import type { BattleParticipant } from '@/types/campaign';
@@ -91,12 +91,12 @@ export function enrichWinners(
  * Falls back to `[winner_gang_id]` when no participants are flagged but the
  * legacy column is populated.
  */
-export function getSessionWinnerIds(session: LiveBattleLike): string[] {
-  const flagged = (session.participants ?? [])
+export function getLiveBattleWinnerIds(liveBattle: LiveBattleLike): string[] {
+  const flagged = (liveBattle.participants ?? [])
     .filter((p) => p?.is_winner === true && !!p.gang_id)
     .map((p) => p.gang_id);
   if (flagged.length > 0) return flagged;
-  return session.winner_gang_id ? [session.winner_gang_id] : [];
+  return liveBattle.winner_gang_id ? [liveBattle.winner_gang_id] : [];
 }
 
 /**
@@ -104,12 +104,12 @@ export function getSessionWinnerIds(session: LiveBattleLike): string[] {
  * `null` when no claim was made. Prefers the participant flagged with
  * `claimed_territory: true`; falls back to the legacy `winner_gang_id` column.
  */
-export function getSessionClaimerGangId(
-  session: LiveBattleLike
+export function getLiveBattleClaimerGangId(
+  liveBattle: LiveBattleLike
 ): string | null {
-  const claimer = (session.participants ?? []).find(
+  const claimer = (liveBattle.participants ?? []).find(
     (p) => p?.claimed_territory === true && !!p.gang_id
   );
   if (claimer) return claimer.gang_id;
-  return session.winner_gang_id ?? null;
+  return liveBattle.winner_gang_id ?? null;
 }

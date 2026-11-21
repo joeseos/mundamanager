@@ -1,27 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { sessionScenarioLabel, type LiveBattleFull, type SessionRecord } from '@/types/live-battle';
-import { getSessionWinnerIds } from '@/utils/battle-winners';
+import { liveBattleScenarioLabel, type LiveBattleFull, type LiveBattleRecord } from '@/types/live-battle';
+import { getLiveBattleWinnerIds } from '@/utils/battle-winners';
 
-interface CompletedSessionProps {
-  session: LiveBattleFull;
+interface CompletedLiveBattleProps {
+  liveBattle: LiveBattleFull;
   userId: string;
 }
 
 // Participation XP only counts once completion has added it.
-const earnedXp = (record?: Partial<SessionRecord>) =>
+const earnedXp = (record?: Partial<LiveBattleRecord>) =>
   (record?.xp_earned ?? 0) + (record?.participation_xp_awarded ? (record.participation_xp ?? 0) : 0);
 
-export default function CompletedSession({
-  session,
+export default function CompletedLiveBattle({
+  liveBattle,
   userId,
-}: CompletedSessionProps) {
+}: CompletedLiveBattleProps) {
   // Multi-winner aware: derive every flagged winner from the participants list,
-  // falling back to the legacy winner_gang_id for historical sessions.
-  const winnerIds = getSessionWinnerIds(session);
+  // falling back to the legacy winner_gang_id for historical live battles.
+  const winnerIds = getLiveBattleWinnerIds(liveBattle);
   const winnerSet = new Set(winnerIds);
-  const winnerParticipants = session.participants.filter((p) =>
+  const winnerParticipants = liveBattle.participants.filter((p) =>
     winnerSet.has(p.gang_id)
   );
 
@@ -30,10 +30,10 @@ export default function CompletedSession({
       <div className="mb-6 text-center">
         <h1 className="text-2xl font-bold">Battle Complete</h1>
         <p className="mt-1 text-neutral-500">
-          {sessionScenarioLabel(session) || 'Live Battle'}
+          {liveBattleScenarioLabel(liveBattle) || 'Live Battle'}
         </p>
-        {session.campaign_name && (
-          <p className="text-sm text-neutral-400">{session.campaign_name}</p>
+        {liveBattle.campaign_name && (
+          <p className="text-sm text-neutral-400">{liveBattle.campaign_name}</p>
         )}
       </div>
 
@@ -56,16 +56,16 @@ export default function CompletedSession({
             </ul>
           </div>
         )}
-        {session.claimed_territory && (
+        {liveBattle.claimed_territory && (
           <p className="mt-1 text-sm text-neutral-500">
-            Claimed Territory: <span className="font-medium text-foreground">{session.claimed_territory}</span>
+            Claimed Territory: <span className="font-medium text-foreground">{liveBattle.claimed_territory}</span>
           </p>
         )}
       </div>
 
       {/* Results per gang */}
       <div className="mb-6 space-y-4">
-        {session.participants.map((p) => (
+        {liveBattle.participants.map((p) => (
           <div
             key={p.id}
             className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-700"
@@ -114,12 +114,12 @@ export default function CompletedSession({
                     <span className="font-medium">
                       {f.fighter?.fighter_name ?? 'Unknown Fighter'}
                     </span>
-                    {earnedXp(f.session_record) > 0 && (
+                    {earnedXp(f.live_battle_record) > 0 && (
                       <span className="text-neutral-500">
-                        +{earnedXp(f.session_record)} XP
+                        +{earnedXp(f.live_battle_record)} XP
                       </span>
                     )}
-                    {(f.session_record?.injuries ?? []).map((injury: { effect_name: string }, idx: number) => (
+                    {(f.live_battle_record?.injuries ?? []).map((injury: { effect_name: string }, idx: number) => (
                       <span
                         key={idx}
                         className="rounded-full bg-red-50 px-2 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-300"
@@ -149,15 +149,15 @@ export default function CompletedSession({
       {/* Links */}
       <div className="flex justify-center gap-4">
         <Link
-          href={`/gang/${session.participants.find((p) => p.user_id === userId)?.gang_id || ''}`}
+          href={`/gang/${liveBattle.participants.find((p) => p.user_id === userId)?.gang_id || ''}`}
           prefetch={false}
           className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
         >
           Back to Gang
         </Link>
-        {session.campaign_id && (
+        {liveBattle.campaign_id && (
           <Link
-            href={`/campaigns/${session.campaign_id}`}
+            href={`/campaigns/${liveBattle.campaign_id}`}
             prefetch={false}
             className="rounded-lg border border-neutral-300 px-4 py-2 text-sm hover:bg-neutral-100 dark:border-neutral-600 dark:hover:bg-neutral-800"
           >
