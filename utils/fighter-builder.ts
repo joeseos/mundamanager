@@ -133,7 +133,7 @@ export interface FamiliarServerData {
   fighter_gang_type_id?: string | null;
   fighter_custom_gang_type_id?: string | null;
   credits: number;
-  owner?: { fighter_name: string } | null;
+  owner?: { id: string; fighter_name: string } | null;
   movement: number;
   weapon_skill: number;
   ballistic_skill: number;
@@ -330,6 +330,7 @@ export function buildFamiliarFromServerData(familiar: FamiliarServerData): Fight
     fighter_gang_type_id: familiar.fighter_gang_type_id ?? null,
     fighter_custom_gang_type_id: familiar.fighter_custom_gang_type_id ?? null,
     credits: familiar.credits,
+    owner_id: familiar.owner?.id,
     owner_name: familiar.owner?.fighter_name,
     movement: stats.movement,
     weapon_skill: stats.weapon_skill,

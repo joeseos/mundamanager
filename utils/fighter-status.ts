@@ -37,6 +37,87 @@ export function countsTowardRating(fighter: FighterStatus | null | undefined): b
 }
 
 /**
+ * Whether a fighter card is collapsed. Recovery is included; captured is not
+ * (a captured fighter still shows a full card).
+ */
+export function isCardInactive(fighter: FighterStatus | null | undefined): boolean {
+  if (!fighter) return false;
+  return !!(fighter.killed || fighter.retired || fighter.enslaved || fighter.recovery);
+}
+
+/**
+ * The owner's primary status for pet/beast owner lines, or null when they
+ * have none. One label, in this order: killed, retired, enslaved, captured,
+ * recovery, then starved.
+ *
+ * Starved is included on purpose even though it does not collapse the pet
+ * card: the suffix is how you see how the owner is doing, same as Recovery
+ * or Captured on an otherwise expanded card.
+ */
+export function fighterStatusLabel(fighter: FighterStatus | null | undefined): string | null {
+  if (!fighter) return null;
+  if (fighter.killed) return 'Killed';
+  if (fighter.retired) return 'Retired';
+  if (fighter.enslaved) return 'Enslaved';
+  if (fighter.captured) return 'Captured';
+  if (fighter.recovery) return 'Recovery';
+  if (fighter.starved) return 'Starved';
+  return null;
+}
+
+/** `Name` or `Name (Recovery)` for pet/beast owner lines. */
+export function formatOwnerDisplay(
+  name: string | null | undefined,
+  status?: string | null
+): string | null {
+  if (!name) return null;
+  return status ? `${name} (${status})` : name;
+}
+
+/**
+ * Whether a pet/beast card collapses from its owner's status label.
+ * Maps the label back to flags and uses `isCardInactive`, so adding a
+ * collapsing status there also collapses pets (Captured/Starved stay
+ * expanded unless `isCardInactive` starts treating those flags as inactive).
+ *
+ * Print filters the owner's flags instead. They only disagree on legacy
+ * rows that have both captured and recovery set (the label prefers Captured,
+ * so the card stays expanded while print can still hide the pet).
+ */
+export function ownerStatusCollapsesCard(status: string | null | undefined): boolean {
+  return isCardInactive({
+    killed: status === 'Killed',
+    retired: status === 'Retired',
+    enslaved: status === 'Enslaved',
+    captured: status === 'Captured',
+    recovery: status === 'Recovery',
+    starved: status === 'Starved',
+  });
+}
+
+/** Print "inactive fighters" toggle: killed / retired / enslaved. */
+export function isPrintInactive(fighter: FighterStatus | null | undefined): boolean {
+  if (!fighter) return false;
+  return !!(fighter.killed || fighter.enslaved || fighter.retired);
+}
+
+/**
+ * Pets/beasts: copy the owner's current status label onto `owner_status`.
+ * Call at render over the roster, not in each state updater.
+ */
+export function withPetOwnerStatus<
+  T extends { id: string; owner_id?: string; owner_status?: string | null } & FighterStatus
+>(fighters: T[]): T[] {
+  const byId = new Map(fighters.map((f) => [f.id, f]));
+  return fighters.map((f) => {
+    if (!f.owner_id) return f;
+    const ownerStatus = fighterStatusLabel(byId.get(f.owner_id));
+    if (f.owner_status === ownerStatus) return f;
+    return { ...f, owner_status: ownerStatus };
+  });
+}
+
+/**
  * Columns to select on `fighters` for costCountsTowardRating: the fighter's
  * status and, for an exotic beast, its owner's status.
  */
