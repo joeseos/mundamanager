@@ -19,7 +19,7 @@ import CampaignTradePaymentFields, {
   type CampaignTradePaymentResource,
   type CampaignTradePaymentValue,
 } from '@/components/campaigns/[id]/campaign-trade-payment-fields'
-import { isPaymentKind, type CampaignTrade } from '@/types/campaign-trade'
+import { canMakeOffer, isPaymentKind, type CampaignTrade } from '@/types/campaign-trade'
 import type { CampaignResource } from '@/utils/campaigns/resources'
 import type { TradeableStashItem } from '@/utils/campaign-trade-stash'
 
@@ -142,7 +142,7 @@ export default function CampaignTradeModal({
       if (actorGangId) return gang.id === actorGangId
       const allowed = isCampaignArb || (!!userId && gang.user_id === userId)
       if (!allowed) return false
-      if (mode === 'bid' && listing) return gang.id !== listing.proposer_gang_id
+      if (mode === 'bid' && listing) return canMakeOffer(listing, gang.id)
       return true
     })
     return gangs.map((gang) => ({

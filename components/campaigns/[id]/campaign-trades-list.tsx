@@ -24,6 +24,7 @@ import {
   campaignTradeKind,
   campaignTradeKindLabels,
   campaignTradeShape,
+  canMakeOffer,
   campaignTradeStatusColors,
   campaignTradeStatusLabels,
   isPaymentKind,
@@ -367,8 +368,7 @@ export default function CampaignTradesList({
                 const showCounterparty = trade.status === 'open' && canActFor(trade.counterparty_gang_id)
                 const showPlaceBid = allowTrading
                   && trade.status === 'open'
-                  && shape === 'listing'
-                  && actorGangIds.some((gangId) => gangId !== trade.proposer_gang_id)
+                  && actorGangIds.some((gangId) => canMakeOffer(trade, gangId))
                 const priceItems = trade.items.filter((item) => isPaymentKind(item.kind))
                 const goodsItems = trade.items.filter((item) => !isPaymentKind(item.kind))
                 const hiddenOfferCount = hiddenOfferCountByParent.get(trade.id) ?? 0

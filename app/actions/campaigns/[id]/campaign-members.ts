@@ -178,58 +178,36 @@ async function cancelOpenCampaignTradesForGang(campaignId: string, gangId: strin
   const writer = createServiceRoleClient();
   const { data: open, error } = await writer
     .from('campaign_trades')
-    .select('id, proposer_gang_id, counterparty_gang_id, parent_trade_id')
+    .select('id, proposer_gang_id')
     .eq('campaign_id', campaignId)
     .eq('status', 'open')
     .or(`proposer_gang_id.eq.${gangId},counterparty_gang_id.eq.${gangId}`);
   if (error) throw error;
   if (!open?.length) return;
 
-  const listingIds = open
-    .filter((trade) => !trade.parent_trade_id && !trade.counterparty_gang_id)
-    .map((trade) => trade.id);
-
-  let childBids: Array<{ id: string }> = [];
-  if (listingIds.length > 0) {
-    const { data: bids, error: bidsError } = await writer
-      .from('campaign_trades')
-      .select('id')
-      .in('parent_trade_id', listingIds)
-      .eq('status', 'open');
-    if (bidsError) throw bidsError;
-    childBids = bids ?? [];
-  }
-
-  const knownIds = new Set(open.map((trade) => trade.id));
-  const extraBids = childBids.filter((bid) => !knownIds.has(bid.id));
+  // Bids set counterparty to the parent proposer, so this query already has
+  // every open child of this gang's listings and directs.
   const cancelIds = open
     .filter((trade) => trade.proposer_gang_id === gangId)
     .map((trade) => trade.id);
-  const declineIds = [
-    ...open
-      .filter((trade) => trade.proposer_gang_id !== gangId)
-      .map((trade) => trade.id),
-    ...extraBids.map((bid) => bid.id),
-  ];
+  const declineIds = open
+    .filter((trade) => trade.proposer_gang_id !== gangId)
+    .map((trade) => trade.id);
   const resolvedAt = new Date().toISOString();
   const idsToUnlock = [...cancelIds, ...declineIds];
 
-  if (cancelIds.length > 0) {
-    const { error: cancelError } = await writer
+  async function applyStatus(ids: string[], status: 'cancelled' | 'declined') {
+    if (ids.length === 0) return;
+    const { error: statusError } = await writer
       .from('campaign_trades')
-      .update({ status: 'cancelled', resolved_at: resolvedAt, updated_at: resolvedAt })
-      .in('id', cancelIds)
+      .update({ status, resolved_at: resolvedAt, updated_at: resolvedAt })
+      .in('id', ids)
       .eq('status', 'open');
-    if (cancelError) throw cancelError;
+    if (statusError) throw statusError;
   }
-  if (declineIds.length > 0) {
-    const { error: declineError } = await writer
-      .from('campaign_trades')
-      .update({ status: 'declined', resolved_at: resolvedAt, updated_at: resolvedAt })
-      .in('id', declineIds)
-      .eq('status', 'open');
-    if (declineError) throw declineError;
-  }
+
+  await applyStatus(cancelIds, 'cancelled');
+  await applyStatus(declineIds, 'declined');
 
   if (idsToUnlock.length > 0) {
     const { error: unlockError } = await writer

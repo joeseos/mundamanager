@@ -16,7 +16,7 @@ import {
   invalidateGangStash,
 } from '@/utils/cache-tags';
 import { isTradeableStashEquipment } from '@/utils/campaign-trade-stash';
-import { isPaymentKind } from '@/types/campaign-trade';
+import { canMakeOffer, isPaymentKind } from '@/types/campaign-trade';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
 
 const TRADE_OUTCOME_MESSAGES: Record<string, string> = {
@@ -30,7 +30,6 @@ const TRADE_OUTCOME_MESSAGES: Record<string, string> = {
   insufficient_reputation: 'That gang does not have enough reputation.',
   insufficient_resources: 'That gang does not have enough of that campaign resource.',
   alignment_blocked: 'Law Abiding gangs cannot trade captives to Outlaw gangs.',
-  bid_exists: 'You already have an open bid on this listing.',
   invalid: 'This trade could not be completed.',
 };
 
@@ -100,6 +99,27 @@ type TradeGangInfo = {
 
 function uniqueGangIds(ids: Array<string | null | undefined>): string[] {
   return [...new Set(ids.filter((id): id is string => typeof id === 'string' && isUuid(id)))];
+}
+
+async function openChildProposers(
+  client: UserClient | WriterClient,
+  parentId: string,
+  excludeId?: string
+): Promise<{ ids: string[]; proposerGangIds: string[] }> {
+  const query = client
+    .from('campaign_trades')
+    .select('id, proposer_gang_id')
+    .eq('parent_trade_id', parentId)
+    .eq('status', 'open');
+  const { data, error } = excludeId
+    ? await query.neq('id', excludeId)
+    : await query;
+  if (error) throw error;
+  const rows = data ?? [];
+  return {
+    ids: rows.map((row) => row.id),
+    proposerGangIds: uniqueGangIds(rows.map((row) => row.proposer_gang_id)),
+  };
 }
 
 function quotedTradeTitle(title: string | undefined): string {
@@ -643,8 +663,7 @@ export async function createCampaignTrade(params: CreateCampaignTradeParams) {
       if (!listing) return fail('not_found');
       if (listing.campaign_id !== campaignId) return fail('invalid');
       if (listing.status !== 'open') return fail('not_open');
-      if (listing.counterparty_gang_id || listing.parent_trade_id) return fail('invalid');
-      if (listing.proposer_gang_id === proposerGangId) return fail('invalid');
+      if (!canMakeOffer(listing, proposerGangId)) return fail('invalid');
 
       const { data: listingItems, error: listingItemsError } = await supabase
         .from('campaign_trade_items')
@@ -754,13 +773,11 @@ export async function createCampaignTrade(params: CreateCampaignTradeParams) {
         note,
       },
       [...goodsRows, ...paymentRows],
-      followKind === 'bid'
-        ? 'bid_exists'
-        : goodsKind === 'captive'
-          ? 'captive_unavailable'
-          : goodsKind === 'equipment'
-            ? 'equipment_unavailable'
-            : 'invalid'
+      goodsKind === 'captive'
+        ? 'captive_unavailable'
+        : goodsKind === 'equipment'
+          ? 'equipment_unavailable'
+          : 'invalid'
     );
     if ('error' in inserted) return { success: false, error: inserted.error };
 
@@ -867,6 +884,7 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
     if (trade.status !== 'open') return fail('not_open');
 
     const isListing = !trade.parent_trade_id && !trade.counterparty_gang_id;
+    const isParentRow = !trade.parent_trade_id;
     if (action === 'decline' && isListing) return fail('invalid');
 
     const actorGangId = action === 'cancel' ? trade.proposer_gang_id : trade.counterparty_gang_id;
@@ -878,15 +896,10 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
     const relatedIds: string[] = [];
     const relatedGangIds: string[] = [];
 
-    if (action === 'cancel' && isListing) {
-      const { data: bids, error: bidsError } = await writer
-        .from('campaign_trades')
-        .select('id, proposer_gang_id')
-        .eq('parent_trade_id', tradeId)
-        .eq('status', 'open');
-      if (bidsError) throw bidsError;
-      relatedIds.push(...(bids ?? []).map((bid) => bid.id));
-      relatedGangIds.push(...uniqueGangIds((bids ?? []).map((bid) => bid.proposer_gang_id)));
+    if (isParentRow) {
+      const children = await openChildProposers(writer, tradeId);
+      relatedIds.push(...children.ids);
+      relatedGangIds.push(...children.proposerGangIds);
     }
 
     const { data: updated, error: updateError } = await writer
@@ -963,19 +976,17 @@ export async function acceptCampaignTrade(tradeId: string) {
     if (tradeError) throw tradeError;
     if (!trade) return fail('not_found');
 
-    let relatedGangIds: string[] = [];
-    if (trade.parent_trade_id) {
-      const { data: siblings, error: siblingsError } = await supabase
-        .from('campaign_trades')
-        .select('proposer_gang_id')
-        .eq('parent_trade_id', trade.parent_trade_id)
-        .eq('status', 'open')
-        .neq('id', tradeId);
-      if (siblingsError) throw siblingsError;
-      relatedGangIds = uniqueGangIds((siblings ?? []).map((row) => row.proposer_gang_id));
-    }
-
-    const captive = await loadCaptiveHome(supabase, trade);
+    const relatedParentId = trade.parent_trade_id
+      ?? (trade.counterparty_gang_id ? trade.id : null);
+    const [related, captive] = await Promise.all([
+      relatedParentId
+        ? openChildProposers(supabase, relatedParentId, tradeId)
+        : Promise.resolve({ ids: [] as string[], proposerGangIds: [] as string[] }),
+      loadCaptiveHome(supabase, trade),
+    ]);
+    const relatedGangIds = related.proposerGangIds.filter(
+      (id) => id !== trade.proposer_gang_id && id !== trade.counterparty_gang_id
+    );
 
     const { data: outcome, error } = await supabase.rpc('accept_campaign_trade', {
       p_trade_id: tradeId,
@@ -989,6 +1000,7 @@ export async function acceptCampaignTrade(tradeId: string) {
       campaignId: trade.campaign_id,
       proposerGangId: trade.proposer_gang_id,
       counterpartyGangId: trade.counterparty_gang_id,
+      relatedGangIds,
       accepted: true,
     });
     if (captive) {

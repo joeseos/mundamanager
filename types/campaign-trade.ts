@@ -70,6 +70,15 @@ export function campaignTradeShape(
   return 'direct';
 }
 
+export function canMakeOffer(
+  trade: Pick<CampaignTrade, 'parent_trade_id' | 'proposer_gang_id' | 'counterparty_gang_id'>,
+  gangId: string
+): boolean {
+  if (trade.parent_trade_id) return false;
+  return gangId !== trade.proposer_gang_id
+    && (!trade.counterparty_gang_id || gangId === trade.counterparty_gang_id);
+}
+
 export function campaignTradeKind(trade: CampaignTrade): CampaignTradeKind {
   const shape = campaignTradeShape(trade);
   if (shape === 'bid') return 'bid';
