@@ -36,21 +36,6 @@ const nextConfig = {
       },
     ];
   },
-  // Battle sessions were renamed to live battles
-  async redirects() {
-    return [
-      {
-        source: '/gang/:id/battle-session/:liveBattleId',
-        destination: '/gang/:id/live-battle/:liveBattleId',
-        permanent: true,
-      },
-      {
-        source: '/campaigns/:id/battle-session/:liveBattleId',
-        destination: '/campaigns/:id/live-battle/:liveBattleId',
-        permanent: true,
-      },
-    ];
-  },
   images: {
     unoptimized: true,
     minimumCacheTTL: 3600,
