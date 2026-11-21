@@ -539,9 +539,7 @@ async function addSkillAdvancementInternal(
     };
     
     const isAdvance = params.is_advance ?? true;
-    // N26: a Legendary Name outside an Advancement is never the free starting skill
-    // (a Leader or Champion picks one when recruited on top of it), and one gained for
-    // earning 5+ XP in one battle puts its credits on the fighter's worth, not the stash.
+    // N26 Legendary Names are never the free starting skill, and their credits go on the fighter's worth, not the stash.
     const isLegendaryName =
       !isAdvance && (await isLegendaryNameSkill(supabase, params.skill_id, gangEditionSlug(fighter.gangs)));
     const ratingOnly = Boolean(params.ratingOnly) || (isLegendaryName && params.credits_increase > 0);
@@ -549,7 +547,7 @@ async function addSkillAdvancementInternal(
     // Set free_skill to false only for regular skills (is_advance: false) when fighter currently has free_skill: true (missing starting skill)
     // Do NOT set free_skill to false for advancement skills (is_advance: true) as those are purchased with XP, not starting skills
     // ratingOnly grants (N26 Prospect promotion) and Legendary Names also leave free_skill alone
-    if (!isAdvance && !ratingOnly && !isLegendaryName && fighter.free_skill) {
+    if (!isAdvance && !params.ratingOnly && !isLegendaryName && fighter.free_skill) {
       updateData.free_skill = false;
     }
     
@@ -891,9 +889,12 @@ async function isLegendaryNameSkill(
 ): Promise<boolean> {
   if (!skillId || editionSlug !== EDITION_N26) return false;
   const { data } = await supabase.from('skills').select('skill_types(name)').eq('id', skillId).single();
-  // A to-one embed, typed as an array by the generated client.
-  const setName = (data?.skill_types as unknown as { name: string } | null)?.name ?? '';
-  return isLegendaryNameSkillSet(setName, editionSlug);
+  return isLegendaryNameSkillSet(skillSetName(data), editionSlug);
+}
+
+/** Set name of a `skills` row embedding `skill_types(name)`: a to-one embed, typed as an array by the generated client. */
+function skillSetName(skill: unknown): string {
+  return (skill as { skill_types: { name: string } | null } | null)?.skill_types?.name ?? '';
 }
 
 async function fighterAlreadyHasSkill(
@@ -1728,11 +1729,9 @@ export async function deleteAdvancement(
             .select('skills(skill_types(name))')
             .eq('fighter_id', params.fighter_id)
             .is('fighter_effect_id', null);
-          const remainingSkillCount = (remainingSkills ?? []).filter((row) => {
-            // A to-one embed, typed as an array by the generated client.
-            const setName = (row.skills as unknown as { skill_types: { name: string } | null } | null)?.skill_types?.name ?? '';
-            return !isLegendaryNameSkillSet(setName, editionSlugForUndo);
-          }).length;
+          const remainingSkillCount = (remainingSkills ?? []).filter(
+            (row) => !isLegendaryNameSkillSet(skillSetName(row.skills), editionSlugForUndo)
+          ).length;
 
           // Check if deleted skill was a default skill
           const { count: wasDefaultSkill } = await supabase

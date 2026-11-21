@@ -145,20 +145,21 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     [availableSkills, selectedCategory]
   );
 
-  // N26: a Leader or Champion picks a Legendary Name when recruited (+0), on top of their
-  // free starting skill. One gained for earning 5+ XP in one battle adds 5 to the fighter's
-  // worth. Neither is paid for, so the server never takes the value from the gang.
+  // N26 Legendary Names are never paid from the gang's credits.
   const inLegendaryNames = isLegendaryNameSkillSet(
     categories.find((c) => c.id === selectedCategory)?.name ?? '',
     editionSlug
   );
   const isLegendaryName = inLegendaryNames && !isCustomSkillSelected;
-  const hasRecruitmentLegendaryName = skillsInSet?.some((s) => {
-    const owned = skills[s.skill_name];
-    return owned && !owned.is_advance && !owned.credits_increase;
-  });
-  const legendaryNameValue =
-    (catalogSubtypes.includes('Leader') || catalogSubtypes.includes('Champion')) && !hasRecruitmentLegendaryName ? 0 : 5;
+  /** 0 for the Legendary Name a Leader or Champion picks when recruited, otherwise 5 (earned with 5+ XP in one battle). */
+  const legendaryNameValue = () => {
+    const recruited = catalogSubtypes.includes('Leader') || catalogSubtypes.includes('Champion');
+    const hasRecruitmentName = skillsInSet?.some((s) => {
+      const owned = skills[s.skill_name];
+      return owned && !owned.is_advance && !owned.credits_increase;
+    });
+    return recruited && !hasRecruitmentName ? 0 : 5;
+  };
 
   const queryClient = useQueryClient();
 
@@ -337,7 +338,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
               const skill = skillsInSet?.find((s) => s.skill_id === v);
               setSelectedSkill(v);
               setIsCustomSkillSelected(skill?.is_custom ?? false);
-              setEditableCost(inLegendaryNames && !skill?.is_custom ? legendaryNameValue : skill?.cost || 0);
+              setEditableCost(inLegendaryNames && !skill?.is_custom ? legendaryNameValue() : skill?.cost || 0);
             }}
             placeholder="Select a skill"
             options={skillComboboxOptions}
