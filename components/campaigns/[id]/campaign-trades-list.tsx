@@ -8,7 +8,11 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { Label } from '@/components/ui/label'
 import Modal from '@/components/ui/modal'
-import { LuChevronLeft, LuChevronRight } from 'react-icons/lu'
+import { LuBan, LuCheck, LuChevronLeft, LuChevronRight, LuX } from 'react-icons/lu'
+import { TbLayoutBottombarCollapse, TbLayoutNavbarCollapse, TbMoneybagPlus } from 'react-icons/tb'
+import { BiSolidNotepad } from 'react-icons/bi'
+import { Tooltip } from 'react-tooltip'
+import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers'
 import { formatLocalDate } from '@/utils/local-date'
 import {
   acceptCampaignTrade,
@@ -17,66 +21,140 @@ import {
 } from '@/app/actions/campaigns/[id]/campaign-trades'
 import CampaignTradeModal from '@/components/campaigns/[id]/campaign-trade-modal'
 import {
+  campaignTradeKind,
+  campaignTradeKindLabels,
   campaignTradeShape,
-  campaignTradeShapeLabels,
   campaignTradeStatusColors,
   campaignTradeStatusLabels,
+  isPaymentKind,
   type CampaignTrade,
   type CampaignTradeItem,
-  type CampaignTradeShape,
+  type CampaignTradeKind,
   type CampaignTradeStatus,
 } from '@/types/campaign-trade'
 
 const STATUS_OPTIONS: CampaignTradeStatus[] = ['open', 'fulfilled', 'declined', 'cancelled']
-const SHAPE_OPTIONS: CampaignTradeShape[] = ['direct', 'listing', 'bid']
-const itemsPerPage = 10
+const KIND_OPTIONS: CampaignTradeKind[] = ['selling', 'looking-for', 'direct', 'bid']
+const groupsPerPage = 10
 
 function formatDate(dateString: string | null) {
   if (!dateString) return 'N/A'
   return formatLocalDate(new Date(dateString))
 }
 
-function isPaymentKind(kind: CampaignTradeItem['kind']) {
-  return kind === 'credits' || kind === 'reputation' || kind === 'campaign_resource'
-}
-
-function tradeHasGoods(trade: CampaignTrade) {
-  return trade.items.some((item) => item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom')
-}
-
-function itemSummary(item: CampaignTradeItem, trade: CampaignTrade): string {
-  let text: string
+function itemSummary(item: CampaignTradeItem): string {
   switch (item.kind) {
     case 'credits':
-      text = `${item.amount ?? 0} credits`
-      break
+      return `${item.amount ?? 0} credits`
     case 'reputation':
-      text = `${item.amount ?? 0} reputation`
-      break
+      return `${item.amount ?? 0} reputation`
     case 'campaign_resource':
-      text = item.description
+      return item.description
         ? `${item.amount ?? 0} ${item.description}`
         : `${item.amount ?? 0} resource`
-      break
     case 'custom':
-      text = item.description?.trim()
+      return item.description?.trim()
         ? `Custom: ${item.description.trim()}`
         : 'Custom'
-      break
     default:
-      text = item.description?.trim() || item.kind
+      return item.description?.trim() || item.kind
   }
-  const isAsking = campaignTradeShape(trade) === 'listing'
-    && tradeHasGoods(trade)
-    && isPaymentKind(item.kind)
-  return isAsking ? `Asking: ${text}` : text
+}
+
+function summarizeItems(items: CampaignTradeItem[]): string {
+  if (items.length === 0) return '—'
+  return items.map(itemSummary).join(', ')
+}
+
+function groupTradeBlocks(trades: CampaignTrade[]): CampaignTrade[][] {
+  const filteredIds = new Set(trades.map((trade) => trade.id))
+  const childrenByParent = new Map<string, CampaignTrade[]>()
+  for (const trade of trades) {
+    if (!trade.parent_trade_id || !filteredIds.has(trade.parent_trade_id)) continue
+    const children = childrenByParent.get(trade.parent_trade_id) ?? []
+    children.push(trade)
+    childrenByParent.set(trade.parent_trade_id, children)
+  }
+  for (const children of childrenByParent.values()) {
+    children.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  }
+
+  const blocks: CampaignTrade[][] = []
+  for (const trade of trades) {
+    if (trade.parent_trade_id && filteredIds.has(trade.parent_trade_id)) continue
+    const children = childrenByParent.get(trade.id)
+    blocks.push(children ? [trade, ...children] : [trade])
+  }
+  return blocks
 }
 
 type PendingTradeAction = 'accept' | 'decline' | 'cancel'
 
-function confirmCopy(action: PendingTradeAction, title: string): string {
-  const verb = action === 'accept' ? 'Accept' : action === 'decline' ? 'Decline' : 'Cancel'
-  return `${verb} "${title}"?`
+function confirmCopy(action: PendingTradeAction, trade: CampaignTrade): string {
+  if (action === 'cancel') {
+    const kind = campaignTradeShape(trade) === 'bid' ? 'offer' : 'listing'
+    return `Are you sure you want to cancel the ${kind} for ${trade.title}?`
+  }
+  const verb = action === 'accept' ? 'Accept' : 'Decline'
+  return `${verb} "${trade.title}"?`
+}
+
+function cancelTitle(trade: CampaignTrade): string {
+  return campaignTradeShape(trade) === 'bid' ? 'Cancel offer' : 'Cancel listing'
+}
+
+const nestedOfferStatusTextColors: Record<CampaignTradeStatus, string> = {
+  open: 'text-green-700/70 dark:text-green-400/60',
+  fulfilled: 'text-blue-700/70 dark:text-blue-400/60',
+  declined: 'text-red-700/70 dark:text-red-400/60',
+  cancelled: 'text-muted-foreground/70',
+}
+
+function NestedOfferStatus({
+  isLast,
+  status,
+}: {
+  isLast: boolean
+  status: CampaignTradeStatus
+}) {
+  return (
+    <td className="relative p-1 md:p-2">
+      <span
+        aria-hidden
+        className={
+          isLast
+            ? 'pointer-events-none absolute left-2 top-0 h-[1.15rem] w-px bg-border'
+            : 'pointer-events-none absolute left-2 top-0 bottom-0 w-px bg-border'
+        }
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute left-2 top-[1.1rem] h-px w-2.5 bg-border"
+      />
+      <div className="pl-4">
+        <div className="text-[10px] md:text-xs font-normal text-muted-foreground">
+          {campaignTradeKindLabels.bid}
+        </div>
+        <div className={`text-[10px] md:text-xs font-normal ${nestedOfferStatusTextColors[status]}`}>
+          {campaignTradeStatusLabels[status]}
+        </div>
+      </div>
+    </td>
+  )
+}
+
+function GangNameLink({ gangId, name }: { gangId: string; name: string }) {
+  return (
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted">
+      <Link
+        href={`/gang/${gangId}`}
+        prefetch={false}
+        className="hover:text-muted-foreground transition-colors"
+      >
+        {name}
+      </Link>
+    </span>
+  )
 }
 
 interface CampaignTradesListProps {
@@ -110,10 +188,11 @@ export default function CampaignTradesList({
   })
   const [filterStatus, setFilterStatus] = useState('')
   const [filterGang, setFilterGang] = useState(involvedGangId ?? '')
-  const [filterShape, setFilterShape] = useState('')
+  const [filterKind, setFilterKind] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [pending, setPending] = useState<{ action: PendingTradeAction; trade: CampaignTrade } | null>(null)
   const [bidListing, setBidListing] = useState<CampaignTrade | null>(null)
+  const [expandedOfferParents, setExpandedOfferParents] = useState<Set<string>>(new Set())
 
   const canActFor = (gangId: string | null) => {
     if (!gangId) return false
@@ -138,13 +217,13 @@ export default function CampaignTradesList({
     return STATUS_OPTIONS.filter((status) => present.has(status))
   }, [trades])
 
-  const shapeOptions = useMemo(() => {
-    const present = new Set(trades.map((trade) => campaignTradeShape(trade)))
-    return SHAPE_OPTIONS.filter((shape) => present.has(shape))
+  const kindOptions = useMemo(() => {
+    const present = new Set(trades.map((trade) => campaignTradeKind(trade)))
+    return KIND_OPTIONS.filter((kind) => present.has(kind))
   }, [trades])
 
-  const filteredTrades = useMemo(() => {
-    return trades.filter((trade) => {
+  const filteredBlocks = useMemo(() => {
+    const matched = trades.filter((trade) => {
       if (filterStatus && trade.status !== filterStatus) return false
       if (filterGang) {
         const involvesGang = trade.proposer_gang_id === filterGang
@@ -153,23 +232,43 @@ export default function CampaignTradesList({
           return false
         }
       }
-      if (filterShape && campaignTradeShape(trade) !== filterShape) return false
+      if (filterKind && campaignTradeKind(trade) !== filterKind) return false
       return true
     })
-  }, [trades, filterStatus, filterGang, filterShape])
+    return groupTradeBlocks(matched)
+  }, [trades, filterStatus, filterGang, filterKind])
 
-  const pageResetKey = JSON.stringify([filterStatus, filterGang, filterShape])
+  const pageResetKey = JSON.stringify([filterStatus, filterGang, filterKind])
   const [lastPageResetKey, setLastPageResetKey] = useState(pageResetKey)
   if (pageResetKey !== lastPageResetKey) {
     setLastPageResetKey(pageResetKey)
     setCurrentPage(1)
   }
 
-  const totalPages = Math.ceil(filteredTrades.length / itemsPerPage)
+  const totalPages = Math.ceil(filteredBlocks.length / groupsPerPage)
+  const pageBlocks = useMemo(() => {
+    const start = (currentPage - 1) * groupsPerPage
+    return filteredBlocks.slice(start, start + groupsPerPage)
+  }, [filteredBlocks, currentPage])
+  const hiddenOfferCountByParent = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const block of pageBlocks) {
+      const parent = block[0]
+      if (!parent || parent.status !== 'fulfilled') continue
+      const hidden = block.slice(1).filter((child) => child.status !== 'fulfilled').length
+      if (hidden > 0) counts.set(parent.id, hidden)
+    }
+    return counts
+  }, [pageBlocks])
   const currentTrades = useMemo(() => {
-    const end = currentPage * itemsPerPage
-    return filteredTrades.slice(end - itemsPerPage, end)
-  }, [filteredTrades, currentPage])
+    return pageBlocks.flatMap((block) => {
+      const parent = block[0]
+      if (!parent || parent.status !== 'fulfilled' || expandedOfferParents.has(parent.id)) {
+        return block
+      }
+      return [parent, ...block.slice(1).filter((child) => child.status === 'fulfilled')]
+    })
+  }, [pageBlocks, expandedOfferParents])
 
   const emptyText = trades.length === 0
     ? 'No trades yet.'
@@ -214,19 +313,19 @@ export default function CampaignTradesList({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="filter-trade-shape" className="text-xs">Shape</Label>
+            <Label htmlFor="filter-trade-kind" className="text-xs">Trade type</Label>
             <Combobox
-              id="filter-trade-shape"
+              id="filter-trade-kind"
               options={[
-                { value: '', label: 'All shapes' },
-                ...shapeOptions.map((shape) => ({
-                  value: shape,
-                  label: campaignTradeShapeLabels[shape],
+                { value: '', label: 'All trade types' },
+                ...kindOptions.map((kind) => ({
+                  value: kind,
+                  label: campaignTradeKindLabels[kind],
                 })),
               ]}
-              value={filterShape}
-              onValueChange={setFilterShape}
-              placeholder="All shapes"
+              value={filterKind}
+              onValueChange={setFilterKind}
+              placeholder="All trade types"
               className="h-9"
             />
           </div>
@@ -237,89 +336,135 @@ export default function CampaignTradesList({
         {currentTrades.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground italic">{emptyText}</p>
         ) : (
-          <table className="w-full text-xs md:text-sm">
+          <table className="w-full text-xs md:text-sm [&_td]:align-top">
             <thead>
               <tr className="bg-muted border-b">
-                <th className="p-1 md:p-2 text-left font-medium">Date</th>
-                <th className="p-1 md:p-2 text-left font-medium">Title</th>
                 <th className="p-1 md:p-2 text-left font-medium">Status</th>
-                <th className="p-1 md:p-2 text-left font-medium">From</th>
-                <th className="p-1 md:p-2 text-left font-medium">To</th>
-                <th className="p-1 md:p-2 text-left font-medium">Items</th>
-                <th className="p-1 md:p-2 text-left font-medium">Actions</th>
+                <th className="p-1 md:p-2 text-left font-medium">Title</th>
+                <th className="p-1 md:p-2 text-left font-medium">Goods & services</th>
+                <th className="p-1 md:p-2 text-left font-medium">Price</th>
+                <th className="p-1 md:p-2 text-left font-medium">
+                  <span className="md:hidden">Desc.</span>
+                  <span className="hidden md:inline">Description</span>
+                </th>
+                <th className="p-1 md:p-2 text-right font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {currentTrades.map((trade) => {
+              {currentTrades.map((trade, index) => {
                 const shape = campaignTradeShape(trade)
+                const kind = campaignTradeKind(trade)
                 const parent = trade.parent_trade_id
                   ? trades.find((candidate) => candidate.id === trade.parent_trade_id)
                   : undefined
+                const parentOnPage = !!trade.parent_trade_id
+                  && currentTrades.some((candidate) => candidate.id === trade.parent_trade_id)
+                const isNestedOffer = shape === 'bid' && parentOnPage
+                const nextTrade = currentTrades[index + 1]
+                const isLastNestedOffer = isNestedOffer
+                  && nextTrade?.parent_trade_id !== trade.parent_trade_id
                 const showCancel = trade.status === 'open' && canActFor(trade.proposer_gang_id)
                 const showCounterparty = trade.status === 'open' && canActFor(trade.counterparty_gang_id)
                 const showPlaceBid = allowTrading
                   && trade.status === 'open'
                   && shape === 'listing'
                   && actorGangIds.some((gangId) => gangId !== trade.proposer_gang_id)
+                const priceItems = trade.items.filter((item) => isPaymentKind(item.kind))
+                const goodsItems = trade.items.filter((item) => !isPaymentKind(item.kind))
+                const hiddenOfferCount = hiddenOfferCountByParent.get(trade.id) ?? 0
+                const otherOffersExpanded = expandedOfferParents.has(trade.id)
                 return (
-                <tr key={trade.id} className="border-b last:border-0">
-                  <td className="p-1 md:p-2 whitespace-nowrap">{formatDate(trade.created_at)}</td>
+                <tr
+                  key={trade.id}
+                  className={`border-b last:border-0${isNestedOffer ? ' bg-muted/40' : ''}`}
+                >
+                  {isNestedOffer ? (
+                    <NestedOfferStatus
+                      isLast={isLastNestedOffer}
+                      status={trade.status}
+                    />
+                  ) : (
                   <td className="p-1 md:p-2">
-                    <div className="font-medium">{trade.title}</div>
-                    <div className="text-muted-foreground">
-                      {campaignTradeShapeLabels[shape]}
-                      {parent ? ` · ${parent.title}` : ''}
+                    <div className="font-normal text-muted-foreground">
+                      {campaignTradeKindLabels[kind]}
                     </div>
-                  </td>
-                  <td className="p-1 md:p-2">
-                    <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium ${campaignTradeStatusColors[trade.status]}`}>
+                    <span className={`inline-flex rounded px-1.5 py-0.5 text-xs font-medium mt-0.5 ${campaignTradeStatusColors[trade.status]}`}>
                       {campaignTradeStatusLabels[trade.status]}
                     </span>
                   </td>
-                  <td className="p-1 md:p-2">
-                    <Link
-                      href={`/gang/${trade.proposer_gang_id}`}
-                      prefetch={false}
-                      className="hover:underline"
-                    >
-                      {trade.proposer_gang_name}
-                    </Link>
+                  )}
+                  <td className={`p-1 md:p-2${isNestedOffer ? ' pl-4 md:pl-6' : ''}`}>
+                    {!isNestedOffer && (
+                      <div className={shape === 'bid' ? 'text-xs font-normal' : 'font-medium'}>
+                        {shape === 'bid' ? (parent?.title ?? trade.title) : trade.title}
+                      </div>
+                    )}
+                    <div className={`flex items-center gap-1.5${!isNestedOffer ? ' mt-0.5' : ''}`}>
+                      <GangNameLink
+                        gangId={trade.proposer_gang_id}
+                        name={trade.proposer_gang_name}
+                      />
+                      <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">
+                        on {formatDate(trade.created_at)}
+                      </span>
+                    </div>
                   </td>
                   <td className="p-1 md:p-2">
-                    {trade.counterparty_gang_id ? (
-                      <Link
-                        href={`/gang/${trade.counterparty_gang_id}`}
-                        prefetch={false}
-                        className="hover:underline"
+                    {shape !== 'bid' && trade.counterparty_gang_id && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-muted-foreground">For:</span>
+                        <GangNameLink
+                          gangId={trade.counterparty_gang_id}
+                          name={trade.counterparty_gang_name ?? 'Unknown'}
+                        />
+                      </div>
+                    )}
+                    <div className={`text-muted-foreground${shape === 'bid' ? ' text-[10px] md:text-xs' : ''}${shape !== 'bid' && trade.counterparty_gang_id ? ' mt-0.5' : ''}`}>
+                      {summarizeItems(goodsItems)}
+                    </div>
+                  </td>
+                  <td className={`p-1 md:p-2 text-muted-foreground${shape === 'bid' ? ' text-[10px] md:text-xs' : ''}`}>
+                    {priceItems.length === 0
+                      ? '—'
+                      : priceItems.map((item) => (
+                          <div key={item.id}>{itemSummary(item)}</div>
+                        ))}
+                  </td>
+                  <td className="p-1 md:p-2">
+                    {trade.note?.trim() && (
+                      <span
+                        className="inline-flex text-muted-foreground hover:text-foreground cursor-help"
+                        data-tooltip-id="trade-description-tooltip"
+                        data-tooltip-title={trade.title}
+                        data-tooltip-description={trade.note}
                       >
-                        {trade.counterparty_gang_name ?? 'Unknown'}
-                      </Link>
-                    ) : (
-                      <span className="text-muted-foreground">Open to everyone</span>
+                        <BiSolidNotepad className="text-lg" aria-label="View trade description" />
+                      </span>
                     )}
                   </td>
-                  <td className="p-1 md:p-2 text-muted-foreground">
-                    {trade.items.length === 0
-                      ? '—'
-                      : trade.items.map((item) => itemSummary(item, trade)).join(', ')}
-                  </td>
-                    <td className="p-1 md:p-2">
-                      <div className="flex flex-wrap gap-1">
+                    <td className="p-1 md:p-2 text-right">
+                      <div className="flex justify-end gap-1">
                         {showCounterparty && (
                           <>
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="outline_accept"
+                              className="h-8 w-8 p-0"
+                              aria-label="Accept"
+                              title="Accept"
                               onClick={() => setPending({ action: 'accept', trade })}
                             >
-                              Accept
+                              <LuCheck className="h-4 w-4" />
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
+                              variant="outline_remove"
+                              className="h-8 w-8 p-0"
+                              aria-label="Decline"
+                              title="Decline"
                               onClick={() => setPending({ action: 'decline', trade })}
                             >
-                              Decline
+                              <LuX className="h-4 w-4" />
                             </Button>
                           </>
                         )}
@@ -327,18 +472,47 @@ export default function CampaignTradesList({
                           <Button
                             size="sm"
                             variant="outline"
+                            className="h-8 w-8 p-0"
+                            aria-label="Make an offer"
+                            title="Make an offer"
                             onClick={() => setBidListing(trade)}
                           >
-                            Place bid
+                              <TbMoneybagPlus className="h-4 w-4" />
                           </Button>
                         )}
                         {showCancel && (
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="outline_cancel"
+                            className="h-8 w-8 p-0"
+                            aria-label="Cancel"
+                            title="Cancel"
                             onClick={() => setPending({ action: 'cancel', trade })}
                           >
-                            Cancel
+                            <LuBan className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {hiddenOfferCount > 0 && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0"
+                            aria-label={otherOffersExpanded ? 'Hide other offers' : 'Show other offers'}
+                            title={otherOffersExpanded ? 'Hide other offers' : 'Show other offers'}
+                            onClick={() => {
+                              setExpandedOfferParents((current) => {
+                                const next = new Set(current)
+                                if (next.has(trade.id)) next.delete(trade.id)
+                                else next.add(trade.id)
+                                return next
+                              })
+                            }}
+                          >
+                            {otherOffersExpanded ? (
+                              <TbLayoutNavbarCollapse className="h-5 w-5" />
+                            ) : (
+                              <TbLayoutBottombarCollapse className="h-5 w-5" />
+                            )}
                           </Button>
                         )}
                       </div>
@@ -386,7 +560,7 @@ export default function CampaignTradesList({
               ? 'Accept trade'
               : pending.action === 'decline'
                 ? 'Decline trade'
-                : 'Cancel trade'
+                : cancelTitle(pending.trade)
           }
           confirmText={
             pending.action === 'accept'
@@ -421,11 +595,25 @@ export default function CampaignTradesList({
           }}
           content={
             <p>
-              {confirmCopy(pending.action, pending.trade.title)}
+              {confirmCopy(pending.action, pending.trade)}
             </p>
           }
         />
       )}
+      <Tooltip
+        id="trade-description-tooltip"
+        place="top"
+        className="bg-neutral-900! text-white! text-xs! z-[2000]!"
+        delayHide={100}
+        clickable={true}
+        render={renderDescriptionTooltip}
+        style={{
+          padding: '6px',
+          width: '24rem',
+          maxWidth: '90vw',
+          maxHeight: '60vh'
+        }}
+      />
       {bidListing && (
         <CampaignTradeModal
           campaignId={campaignId}

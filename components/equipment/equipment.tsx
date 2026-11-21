@@ -314,7 +314,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
   }
 
   // Filter equipment based on cost and availability / trade points ranges
-  const filterEquipment = (items: Equipment[]) => {
+  const filterEquipment = useCallback((items: Equipment[]) => {
     return items.filter(item => {
       const cost = item.adjusted_cost ?? item.cost;
       const availability = availabilityLevel(item.availability);
@@ -329,7 +329,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
       return costInRange && rarityInRange &&
         item.equipment_name.toLowerCase().includes(searchQuery);
     });
-  };
+  }, [costRange, availabilityRange, tradePointsRange, rarityFilter, searchQuery]);
 
   const useN26CategoryFormation = hasEquipmentSuperCategories(editionSlug);
 
@@ -365,10 +365,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     allowedCategories,
     searchQuery,
     equipment,
-    costRange,
-    availabilityRange,
-    tradePointsRange,
-    rarityFilter,
+    filterEquipment,
     useN26CategoryFormation,
     editionSlug,
   ]);

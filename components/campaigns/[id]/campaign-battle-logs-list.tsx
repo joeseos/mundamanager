@@ -21,7 +21,7 @@ import { useMutation } from '@tanstack/react-query';
 import { formatLocalDate } from '@/utils/local-date';
 import { Battle, BattleParticipant, CampaignGang, Territory, Member, ScenarioTableWithEntries, scenarioLabel as scenarioLabelOf, battleStatusColors, battleStatusLabels, battleStatusOf, isPlayedBattle } from '@/types/campaign';
 import CampaignChallengeRoundModal from '@/components/campaigns/[id]/campaign-challenge-round-modal';
-import { getWinnerIds } from '@/utils/battle-winners';
+import { getWinnerIds, parseParticipants } from '@/utils/battle-winners';
 import { Combobox } from "@/components/ui/combobox";
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Checkbox } from "@/components/ui/checkbox";
@@ -127,8 +127,8 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   const [filterWinningGang, setFilterWinningGang] = useState<string>('');
   const [filterDraws, setFilterDraws] = useState<boolean>(false);
 
-  // Sorting state
-  const [sortField, setSortField] = useState<string>('date');
+  // Sorting state. Until a column is picked, challenges are in challenge order and battle logs newest first.
+  const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Standings sort state (separate from battle log sorting)
@@ -220,6 +220,19 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     members.forEach((m) => m.gangs?.forEach((g) => map.set(g.id, g.rating ?? 0)));
     return map;
   }, [members]);
+
+  // Challenge order: the arbitrator's saved order, then challenges without one
+  // (added since) by challenger rating, lowest first as the rules have it.
+  const compareChallengeOrder = useCallback((a: Battle, b: Battle) => {
+    if ((a.challenge_order == null) !== (b.challenge_order == null)) {
+      return a.challenge_order == null ? 1 : -1;
+    }
+    if (a.challenge_order != null && b.challenge_order != null && a.challenge_order !== b.challenge_order) {
+      return a.challenge_order - b.challenge_order;
+    }
+    return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
+      - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
+  }, [gangRatings]);
 
   // Sort and filter battles
   const sortedAndFilteredBattles = useMemo(() => {
@@ -322,19 +335,10 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           ? aValue.localeCompare(bValue)
           : aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
       if (comparison !== 0) return sortDirection === 'asc' ? comparison : -comparison;
-
-      // Slots created together tie on every column, so list them in the round's
-      // challenge order. Rounds created before it was set fall back to challenger rating.
-      if (!isPlayedBattle(a) && !isPlayedBattle(b)) {
-        if (a.challenge_order != null && b.challenge_order != null) {
-          return a.challenge_order - b.challenge_order;
-        }
-        return (gangRatings.get(a.challenger_gang_id ?? '') ?? 0)
-          - (gangRatings.get(b.challenger_gang_id ?? '') ?? 0);
-      }
-      return 0;
+      // A round's slots tie on most columns, so keep them in challenge order.
+      return !isPlayedBattle(a) && !isPlayedBattle(b) ? compareChallengeOrder(a, b) : 0;
     });
-  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, gangRatings, scenarioLabel]);
+  }, [battles, filterCycle, filterScenario, filterParticipatingGang, filterWinningGang, filterDraws, sortField, sortDirection, scenarioLabel, compareChallengeOrder]);
 
   // Handle sorting
   const handleSort = (field: string) => {
@@ -375,10 +379,10 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
   }
 
   // Challenges are the outstanding work and get their own table above the played battles
-  const challenges = useMemo(
-    () => sortedAndFilteredBattles.filter(battle => !isPlayedBattle(battle)),
-    [sortedAndFilteredBattles]
-  );
+  const challenges = useMemo(() => {
+    const open = sortedAndFilteredBattles.filter(battle => !isPlayedBattle(battle));
+    return sortField === null ? open.sort(compareChallengeOrder) : open;
+  }, [sortedAndFilteredBattles, sortField, compareChallengeOrder]);
   const battleLogs = useMemo(
     () => sortedAndFilteredBattles.filter(isPlayedBattle),
     [sortedAndFilteredBattles]
@@ -656,6 +660,23 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     [members]
   );
 
+  // Every open challenge, in challenge order, for the arbitrator to reorder.
+  const currentRound = useMemo(
+    () => battles
+      .filter((battle) => !isPlayedBattle(battle))
+      .sort(compareChallengeOrder)
+      .map((battle) => {
+        const gangId = battle.challenger_gang_id ?? '';
+        return {
+          id: battle.id,
+          name: gangNameMap.get(gangId) || 'Unknown',
+          secondary: acceptedGangs.find((g) => g.id === gangId)?.secondary,
+          detail: battleStatusLabels[battleStatusOf(battle)],
+        };
+      }),
+    [battles, acceptedGangs, gangNameMap, compareChallengeOrder]
+  );
+
   const ownsGang = useCallback((gangId: string | null | undefined): boolean => {
     if (!gangId) return false;
     return availableGangs.find(g => g.id === gangId)?.user_id === userId;
@@ -684,148 +705,69 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
     return participants.some((p) => ownsGang(p.gang_id));
   }, [isAdmin, ownsGang]);
 
-  // Get all gangs with their roles for a battle
-  const getGangsWithRoles = (battle: Battle): React.ReactNode => {
-    // Parse participants if it's a string
-    let participants = battle.participants;
-    if (participants && typeof participants === 'string') {
-      try {
-        participants = JSON.parse(participants);
-      } catch (e) {
-        console.error('Error parsing participants:', e);
-        participants = [];
-      }
-    }
+  // A gang's pill with its scenario role (A, D or blank) beside it
+  const renderGangWithRole = (gangId: string, role: BattleParticipant['role'] | undefined, name: string, rating?: number) => {
+    const roleBadge = role === 'attacker' ? { color: 'bg-red-500', letter: 'A' }
+      : role === 'defender' ? { color: 'bg-blue-500', letter: 'D' }
+      : { color: '', letter: '' };
+    return (
+      <div className="flex items-center space-x-1">
+        <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleBadge.color} text-white text-[10px] font-bold`}>
+          {roleBadge.letter}
+        </span>
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
+          style={{ color: getGangColour(gangId) }}
+        >
+          <span>
+            <a
+              href={`/gang/${gangId}`}
+              className="hover:text-muted-foreground transition-colors"
+              onClick={(e) => handleGangClick(e, gangId)}
+            >
+              {name}
+            </a>
+            {rating !== undefined && (
+              <span className="whitespace-nowrap font-normal text-muted-foreground">{`\u00a0\u2022 ${rating}`}</span>
+            )}
+          </span>
+        </span>
+      </div>
+    );
+  };
 
-    // If using the new data structure with participants
-    if (participants && Array.isArray(participants) && participants.length > 0) {
-      // If no gangs with roles, return None
-      if (participants.every(p => !p.gang_id)) {
-        return <span className="text-muted-foreground">None</span>;
-      }
-
-      // Create a map of gang IDs to gang names from battle data
-      const battleGangNames = new Map<string, string>();
-      if (battle.attacker?.id && battle.attacker?.name) {
-        battleGangNames.set(battle.attacker.id, battle.attacker.name);
-      }
-      if (battle.defender?.id && battle.defender?.name) {
-        battleGangNames.set(battle.defender.id, battle.defender.name);
-      }
-
-      participants = [...participants].sort((a, b) => {
-        const roleOrder: Record<'attacker' | 'defender' | 'none', number> = { attacker: 0, defender: 1, none: 99 };
-        const roleA = roleOrder[a.role] ?? 99;
-        const roleB = roleOrder[b.role] ?? 99;
-
-        if (roleA !== roleB) return roleA - roleB;
-
-        const nameA = getGangName(a.gang_id, battleGangNames.get(a.gang_id)).toLowerCase();
-        const nameB = getGangName(b.gang_id, battleGangNames.get(b.gang_id)).toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
-
-      return (
-        <div className="space-y-1">
-          {participants.map((participant, index) => {
-            if (!participant.gang_id) return null;
-            
-            // Role indicator
-            let roleColor = "";
-            let roleLetter = "";
-            if (participant.role === 'attacker') {
-              roleColor = "bg-red-500";
-              roleLetter = "A";
-            } else if (participant.role === 'defender') {
-              roleColor = "bg-blue-500";
-              roleLetter = "D";
-            }
-            
-            const gangName = getGangName(participant.gang_id, battleGangNames.get(participant.gang_id));
-            
-            return (
-              <div key={index}>
-                <div className="flex items-center space-x-1">
-                  <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
-                    {roleLetter}
-                  </span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted"
-                    style={{ color: getGangColour(participant.gang_id) }}
-                  >
-                    <a
-                      href={`/gang/${participant.gang_id}`}
-                      className="hover:text-muted-foreground transition-colors"
-                      onClick={(e) => handleGangClick(e, participant.gang_id)}
-                    >
-                      {gangName}
-                    </a>
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
-    
-    // Fallback to enriched attacker/defender objects
-    const gangs = [];
-
-    if (battle.attacker?.id) {
-      gangs.push({
-        id: battle.attacker.id,
-        name: battle.attacker.name || getGangName(battle.attacker.id),
-        role: 'attacker'
-      });
-    }
-
-    if (battle.defender?.id) {
-      gangs.push({
-        id: battle.defender.id,
-        name: battle.defender.name || getGangName(battle.defender.id),
-        role: 'defender'
-      });
-    }
-    
-    if (gangs.length === 0) {
-      return <span className="text-muted-foreground">None</span>;
-    }
-
-    gangs.sort((a, b) => {
-      const roleOrder = { attacker: 0, defender: 1 };
-      const roleA = roleOrder[a.role as 'attacker' | 'defender'] ?? 99;
-      const roleB = roleOrder[b.role as 'attacker' | 'defender'] ?? 99;
-
-      if (roleA !== roleB) return roleA - roleB;
-
-      return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
-    });
-    
+  // A challenge's challenger, or every other gang in it, each with its role and rating
+  const renderChallengeGangs = (battle: Battle, challenger: boolean) => {
+    const gangs = parseParticipants(battle.participants)
+      .filter((p) => p.gang_id && (p.gang_id === battle.challenger_gang_id) === challenger);
+    if (gangs.length === 0) return <span className="text-muted-foreground">-</span>;
     return (
       <div className="space-y-1">
-        {gangs.map((gang, index) => {
-          const roleColor = gang.role === 'attacker' ? 'bg-red-500' : 'bg-blue-500';
-          const roleLetter = gang.role === 'attacker' ? 'A' : 'D';
-          
-          return (
-            <div key={index}>
-              <div className="flex items-center space-x-1">
-                <span className={`inline-flex shrink-0 items-center justify-center w-5 h-5 min-w-5 min-h-5 rounded-full ${roleColor} text-white text-[10px] font-bold`}>
-                  {roleLetter}
-                </span>
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted text-foreground">
-                  <a
-                    href={`/gang/${gang.id}`}
-                    className="hover:text-muted-foreground transition-colors"
-                    onClick={(e) => handleGangClick(e, gang.id)}
-                  >
-                    {gang.name}
-                  </a>
-                </span>
-              </div>
-            </div>
-          );
-        })}
+        {gangs.map((p) => (
+          <div key={p.gang_id}>{renderGangWithRole(p.gang_id, p.role, battleGangName(battle, p.gang_id), gangRatings.get(p.gang_id))}</div>
+        ))}
+      </div>
+    );
+  };
+
+  // A gang's name in a battle, preferring the name the battle was loaded with
+  const battleGangName = (battle: Battle, gangId: string) => getGangName(
+    gangId,
+    [battle.attacker, battle.defender].find((gang) => gang?.id === gangId)?.name
+  );
+
+  // Every gang in a battle: attackers, then defenders, then the rest, each by name
+  const getGangsWithRoles = (battle: Battle): React.ReactNode => {
+    const roleOrder: Record<BattleParticipant['role'], number> = { attacker: 0, defender: 1, none: 2 };
+    const gangs = parseParticipants(battle.participants)
+      .filter((p) => p.gang_id)
+      .sort((a, b) => (roleOrder[a.role] ?? 2) - (roleOrder[b.role] ?? 2)
+        || battleGangName(battle, a.gang_id).toLowerCase().localeCompare(battleGangName(battle, b.gang_id).toLowerCase()));
+    if (gangs.length === 0) return <span className="text-muted-foreground">None</span>;
+    return (
+      <div className="space-y-1">
+        {gangs.map((p, index) => (
+          <div key={index}>{renderGangWithRole(p.gang_id, p.role, battleGangName(battle, p.gang_id))}</div>
+        ))}
       </div>
     );
   };
@@ -939,11 +881,18 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                 )}
               </div>
             </th>
-            <th className="px-7 py-2 text-left font-medium">Gangs</th>
+            {isChallengeTable ? (
+              <>
+                <th className="px-7 py-2 text-left font-medium">Challenger</th>
+                <th className="px-7 py-2 text-left font-medium">Challenged</th>
+              </>
+            ) : (
+              <th className="px-7 py-2 text-left font-medium">Gangs</th>
+            )}
             {isChallengeTable
               ? <th className="p-1 md:p-2 text-left font-medium">Status</th>
               : <th className="px-2 py-2 text-left font-medium">Winner(s)</th>}
-            <th className="p-1 md:p-2 text-left font-medium">Report</th>
+            {!isChallengeTable && <th className="p-1 md:p-2 text-left font-medium">Report</th>}
             {(isAdmin || availableGangs.length > 0) && <th className="p-1 md:p-2 text-right font-medium">Actions</th>}
           </tr>
         </thead>
@@ -957,34 +906,45 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
           ) : (
             rows.map((battle) => (
               <tr key={battle.id} className="border-b">
-                <td className="p-1 md:p-2 align-top max-w-[5rem]">
+                <td className="p-1 md:p-2 align-middle max-w-[5rem]">
                   {formatDate(battle.created_at)}
                 </td>
 
-                <td className="p-1 md:p-2 align-top text-right">
+                <td className="p-1 md:p-2 align-middle text-right">
                   {battle.cycle || '-'}
                 </td>
 
-                <td className="p-1 md:p-2 align-top max-w-[8rem]">
+                <td className="p-1 md:p-2 align-middle max-w-[8rem]">
                   {scenarioLabel(battle) || '-'}
                 </td>
 
-                <td className="p-1 md:p-2 align-top">
+                <td className="p-1 md:p-2 align-middle">
                   {battle.territory_name || '-'}
                 </td>
 
-                <td className="p-1 md:p-2 align-top">
-                  {getGangsWithRoles(battle)}
-                </td>
+                {isChallengeTable ? (
+                  <>
+                    <td className="p-1 md:p-2 align-middle">
+                      {renderChallengeGangs(battle, true)}
+                    </td>
+                    <td className="p-1 md:p-2 align-middle">
+                      {renderChallengeGangs(battle, false)}
+                    </td>
+                  </>
+                ) : (
+                  <td className="p-1 md:p-2 align-middle">
+                    {getGangsWithRoles(battle)}
+                  </td>
+                )}
 
                 {isChallengeTable ? (
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="p-1 md:p-2 align-middle">
                     <span className={`inline-block whitespace-nowrap rounded px-1.5 py-0.5 text-xs font-medium ${battleStatusColors[battleStatusOf(battle)]}`}>
                       {battleStatusLabels[battleStatusOf(battle)]}
                     </span>
                   </td>
                 ) : (
-                  <td className="p-1 md:p-2 align-top">
+                  <td className="p-1 md:p-2 align-middle">
                     {(() => {
                       const winnerIds = getWinnerIds(battle);
                       if (winnerIds.length === 0) {
@@ -1020,22 +980,24 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
                   </td>
                 )}
 
-                <td className="p-1 md:p-2 align-top">
-                  {battle.note && (
-                    <button
-                      onClick={() => {
-                        setActiveNote(battle.note || '');
-                        setShowNoteModal(true);
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label="View note"
-                    >
-                      <BiSolidNotepad className="text-lg" />
-                    </button>
-                  )}
-                </td>
+                {!isChallengeTable && (
+                  <td className="p-1 md:p-2 align-middle">
+                    {battle.note && (
+                      <button
+                        onClick={() => {
+                          setActiveNote(battle.note || '');
+                          setShowNoteModal(true);
+                        }}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label="View note"
+                      >
+                        <BiSolidNotepad className="text-lg" />
+                      </button>
+                    )}
+                  </td>
+                )}
                 {canUserEditBattle(battle) && (
-                  <td className="p-1 md:p-2 align-top text-right">
+                  <td className="p-1 md:p-2 align-middle text-right">
                     <div className="flex justify-end gap-2">
                       {battleStatusOf(battle) === 'challenge_accepted' && (
                         <Button
@@ -1376,9 +1338,14 @@ export default function CampaignBattleLogsList(props: CampaignBattleLogsListProp
         <CampaignChallengeRoundModal
           campaignId={campaignId}
           gangs={acceptedGangs}
+          currentRound={currentRound}
           defaultCycle={currentCycle}
           onClose={() => setShowChallengeRoundModal(false)}
           onSuccess={(created) => onBattlesChange(prev => [...prev, ...created])}
+          onReorder={(battleIds) => onBattlesChange(prev => prev.map(battle => {
+            const i = battleIds.indexOf(battle.id);
+            return i === -1 ? battle : { ...battle, challenge_order: i + 1 };
+          }))}
         />
       )}
 

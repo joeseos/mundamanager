@@ -35,6 +35,7 @@ import { applySpecialRulesModifiers } from '@/utils/effect-modifiers';
 import { detailGangTypeLabel } from '@/utils/gang-type-label';
 import { N23_UNDERHIVE_OUTCASTS_GANG_TYPE_ID } from '@/utils/archetypeEligibility';
 import { withVariantGroups } from '@/utils/variantFamily';
+import { withPetOwnerStatus } from '@/utils/fighter-status';
 
 const NO_SUBTYPES: Array<{ id: string; subtype: string; edition_slug?: string | null }> = [];
 
@@ -988,14 +989,16 @@ export default function Gang({
     setFighters(newFighters);
   };
 
+  const displayFighters = useMemo(() => withPetOwnerStatus(fighters), [fighters]);
+
   const visibleFighters = useMemo(() => {
-    return fighters.filter(fighter => {
+    return displayFighters.filter(fighter => {
       if (fighter.fighter_subtypes?.some(c => c.toLowerCase().startsWith('exotic beast') || c.toLowerCase() === 'pet') && fighter.beast_equipment_stashed) {
         return false;
       }
       return true;
     });
-  }, [fighters]);
+  }, [displayFighters]);
 
   return (
     <div

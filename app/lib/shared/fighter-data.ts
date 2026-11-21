@@ -299,6 +299,7 @@ export async function getFighterPageData(fighterId: string) {
       campaigns,
       owner_name: fighter.owner_name,
       stash_value: fighter.stash_value,
+      owner_status: fighter.owner_status,
       captured_by_gang_name: fighter.captured_by_gang_name,
       refund_credits: refundCredits,
     },

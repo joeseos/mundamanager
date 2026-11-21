@@ -132,6 +132,7 @@ interface Fighter {
   wargear?: any[];
   owner_name?: string; // Name of the fighter who owns this fighter (for exotic beasts)
   stash_value?: number; // Set for a card kept in the stash by its item: its gear and effects
+  owner_status?: string | null;
   captured_by_gang_name?: string;
   captured_by_gang_id?: string | null;
   image_url?: string;
@@ -771,7 +772,8 @@ export default function FighterPage({
             campaignId={fighterData.fighter?.campaigns?.[0]?.campaign_id}
             vehicleEquipment={fighterData.vehicleEquipment}
             userPermissions={userPermissions}
-            owner_name={initialFighterData.fighter?.owner_name}
+            owner_name={fighterData.fighter?.owner_name}
+            owner_status={fighterData.fighter?.owner_status}
             captured_by_gang_name={fighterData.fighter?.captured_by_gang_name}
             captured_by_gang_id={fighterData.fighter?.captured_by_gang_id ?? null}
             fighter_gang_legacy={(fighterData as any)?.fighter?.fighter_gang_legacy}

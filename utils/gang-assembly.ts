@@ -7,6 +7,7 @@ import { isBeastWargear, WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import { gangRulesForWeapon } from '@/utils/gang-rules';
 import { beastCost, effectsCost, equipmentCost, fighterTotalCost, type BeastCostRows } from '@/utils/fighter-cost';
+import { fighterStatusLabel } from '@/utils/fighter-status';
 import type {
   GangFighter,
   GangFighterIndexEntry,
@@ -374,6 +375,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
     const effectsData = effectsByFighter[fighterId] || [];
     const vehicles = vehiclesByFighter[fighterId] || [];
     const ownershipInfo = ownershipInfoMap.get(fighter.id) || null;
+    const owner = ownershipInfo?.owner_id ? fighterLookup.get(ownershipInfo.owner_id) : undefined;
 
     const activeLoadoutId = loadoutCtx ? loadoutCtx.loadoutId : fighter.active_loadout_id;
     const activeLoadoutEquipmentIds = activeLoadoutId
@@ -668,6 +670,7 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       captured_by_gang_name: fighter.captured_by_gang_id ? capturedByGangNameMap.get(fighter.captured_by_gang_id) : undefined,
       owner_id: ownershipInfo?.owner_id,
       owner_name: ownershipInfo?.owner_name,
+      owner_status: fighterStatusLabel(owner),
       beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
       // Kept in the stash by its item (no owner): what was added to it is stash value
       stash_value: isGrantedByItem && !ownershipInfo ? equipmentCost(processedEquipment) + effectsCost(effectsData) : undefined,

@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from "@/utils/supabase/server";
+import { clientErrorMessage, getAppDb } from "@/utils/db/client";
+import { getUserIdFromClaims } from "@/utils/auth";
 import { createGangLog, GangLogActionResult } from "./gang-logs";
 import { formatFinancialChanges } from "./log-helpers";
 
@@ -24,31 +26,24 @@ export interface EquipmentLogParams {
 
 export async function logEquipmentAction(params: EquipmentLogParams): Promise<GangLogActionResult> {
   try {
-    const supabase = await createClient();
-
-    // Get fighter/vehicle names for logging
-    let fighterName = 'Unknown Fighter';
-    let vehicleName = 'Unknown Vehicle';
-
-    if (params.fighter_id) {
-      const { data: fighter } = await supabase
-        .from('fighters')
-        .select('fighter_name')
-        .eq('id', params.fighter_id)
-        .single();
-      
-      if (fighter) fighterName = fighter.fighter_name;
+    // The direct connection doesn't check who is asking, so sign-in is checked first.
+    // Every signed-in user may read fighters and vehicles.
+    if (!(await getUserIdFromClaims(await createClient()))) {
+      return { success: false, error: 'User not authenticated' };
     }
 
-    if (params.vehicle_id) {
-      const { data: vehicle } = await supabase
-        .from('vehicles')
-        .select('vehicle_name')
-        .eq('id', params.vehicle_id)
-        .single();
-      
-      if (vehicle) vehicleName = vehicle.vehicle_name;
-    }
+    // Names for the log text
+    const db = getAppDb();
+    const [fighter, vehicle] = await Promise.all([
+      params.fighter_id
+        ? db.query.fighters.findFirst({ columns: { fighter_name: true }, where: (row, { eq }) => eq(row.id, params.fighter_id!) })
+        : undefined,
+      params.vehicle_id
+        ? db.query.vehicles.findFirst({ columns: { vehicle_name: true }, where: (row, { eq }) => eq(row.id, params.vehicle_id!) })
+        : undefined,
+    ]);
+    const fighterName = fighter?.fighter_name ?? 'Unknown Fighter';
+    const vehicleName = vehicle?.vehicle_name ?? 'Unknown Vehicle';
 
     // Determine action type and description
     let actionType: string;
@@ -129,51 +124,9 @@ export async function logEquipmentAction(params: EquipmentLogParams): Promise<Ga
 
   } catch (error) {
     console.error('Error in logEquipmentAction:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to log equipment action'
+    return {
+      success: false,
+      error: clientErrorMessage(error, 'Failed to log equipment action')
     };
-  }
-}
-
-// Helper function to check if equipment move is from/to stash
-export async function checkEquipmentInStash(
-  gang_id: string, 
-  equipment_id?: string, 
-  custom_equipment_id?: string, 
-  cost?: number
-): Promise<boolean> {
-  try {
-    const supabase = await createClient();
-    
-    let query = supabase
-      .from('gang_stash')
-      .select('id')
-      .eq('gang_id', gang_id)
-      .eq('cost', cost || 0);
-
-    // Build the OR condition properly handling null values
-    if (equipment_id && custom_equipment_id) {
-      query = query.or(`equipment_id.eq.${equipment_id},custom_equipment_id.eq.${custom_equipment_id}`);
-    } else if (equipment_id) {
-      query = query.eq('equipment_id', equipment_id);
-    } else if (custom_equipment_id) {
-      query = query.eq('custom_equipment_id', custom_equipment_id);
-    } else {
-      // Neither equipment_id nor custom_equipment_id provided
-      return false;
-    }
-
-    const { data, error } = await query.limit(1);
-
-    if (error) {
-      console.error('Error checking stash:', error);
-      return false;
-    }
-
-    return data && data.length > 0;
-  } catch (error) {
-    console.error('Error in checkEquipmentInStash:', error);
-    return false;
   }
 }

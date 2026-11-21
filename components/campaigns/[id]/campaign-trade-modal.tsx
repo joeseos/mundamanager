@@ -19,7 +19,7 @@ import CampaignTradePaymentFields, {
   type CampaignTradePaymentResource,
   type CampaignTradePaymentValue,
 } from '@/components/campaigns/[id]/campaign-trade-payment-fields'
-import type { CampaignTrade } from '@/types/campaign-trade'
+import { isPaymentKind, type CampaignTrade } from '@/types/campaign-trade'
 import type { CampaignResource } from '@/utils/campaigns/resources'
 import type { TradeableStashItem } from '@/utils/campaign-trade-stash'
 
@@ -61,7 +61,7 @@ interface CampaignTradeModalProps {
 }
 
 function listingHasGoods(listing: CampaignTrade) {
-  return listing.items.some((item) => item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom')
+  return listing.items.some((item) => !isPaymentKind(item.kind))
 }
 
 function defaultRansomTitle(fighterName: string) {
@@ -111,7 +111,7 @@ export default function CampaignTradeModal({
   const [payment, setPayment] = useState<CampaignTradePaymentValue>(
     isSellingBid && listing ? paymentValueFromItems(listing.items) : emptyTradePaymentValue()
   )
-  const [title, setTitle] = useState(mode === 'bid' && listing ? `Bid: ${listing.title}` : '')
+  const [title, setTitle] = useState(mode === 'bid' && listing ? listing.title : '')
   const [note, setNote] = useState('')
 
   const { data: campaignGangs = [] } = useQuery({
@@ -191,7 +191,7 @@ export default function CampaignTradeModal({
 
   const counterpartyOptions = useMemo(
     () => [
-      { value: '', label: 'Open to everyone', displayValue: 'Open to everyone' },
+      { value: '', label: 'Everyone', displayValue: 'Everyone' },
       ...campaignGangs
         .filter((gang) => gang.id !== actingGangId)
         .map((gang) => buildGangComboboxOption({
@@ -242,13 +242,28 @@ export default function CampaignTradeModal({
     ? 'Selling goods and services'
     : mode === 'looking-for'
       ? 'Looking for goods and services'
-      : 'Place bid'
+      : 'Make an offer'
   const helper = mode === 'sell'
-    ? 'Offer equipment, a captive, or custom terms to a specific gang, or leave Counterparty as Open to everyone for others to bid.'
+    ? 'Offer equipment, a captive, or custom terms to a specific gang, or leave Counterparty as Everyone for others to make an offer.'
     : mode === 'looking-for'
-      ? "Describe what you want and what you'll pay. Other gangs bid with the goods or service."
+      ? "Describe what you want and what you'll pay. Other gangs make an offer with the goods or service."
       : undefined
-  const confirmText = mode === 'bid' ? 'Place bid' : 'Post listing'
+  const confirmText = mode === 'bid' ? 'Make an offer' : 'Post listing'
+  const titleField = (
+    <div className="space-y-1">
+      <Label htmlFor="trade-title" className="text-sm">
+        {mode === 'bid' ? 'Title' : 'Title *'}
+      </Label>
+      <Input
+        id="trade-title"
+        maxLength={100}
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        disabled={mode === 'bid'}
+        placeholder={mode === 'looking-for' ? 'What you want' : undefined}
+      />
+    </div>
+  )
 
   return (
     <Modal
@@ -302,7 +317,7 @@ export default function CampaignTradeModal({
           toast.error(result.error ?? 'Failed to post trade')
           return false
         }
-        toast.success(mode === 'bid' ? 'Bid placed' : 'Listing posted')
+        toast.success(mode === 'bid' ? 'Offer placed' : 'Listing posted')
         await queryClient.invalidateQueries({ queryKey: ['campaign-trades', campaignId] })
         await queryClient.invalidateQueries({ queryKey: ['gang-captives'] })
         await queryClient.invalidateQueries({ queryKey: ['gang-tradeable-stash'] })
@@ -311,6 +326,8 @@ export default function CampaignTradeModal({
       }}
       content={
         <div className="space-y-4">
+          {mode === 'bid' && titleField}
+
           {actors.length > 1 && (
             <div className="space-y-1">
               <Label htmlFor="trade-actor" className="text-xs">Your gang *</Label>
@@ -447,16 +464,7 @@ export default function CampaignTradeModal({
             />
           )}
 
-          <div className="space-y-1">
-            <Label htmlFor="trade-title" className="text-sm">Title *</Label>
-            <Input
-              id="trade-title"
-              maxLength={100}
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder={mode === 'looking-for' ? 'What you want' : undefined}
-            />
-          </div>
+          {mode !== 'bid' && titleField}
 
           <div className="space-y-1">
             <Label htmlFor="trade-note" className="text-xs">{mode === 'bid' ? 'Note' : 'Description'}</Label>

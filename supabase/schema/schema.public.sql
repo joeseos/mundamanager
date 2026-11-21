@@ -6787,7 +6787,8 @@ CREATE TABLE public.fighter_type_equipment (
     gang_origin_id uuid,
     gang_subtype_id uuid,
     fighter_subtype text,
-    excluded boolean DEFAULT false NOT NULL
+    excluded boolean DEFAULT false NOT NULL,
+    fighter_specialisation_id uuid
 );
 
 
@@ -6810,6 +6811,13 @@ COMMENT ON COLUMN public.fighter_type_equipment.fighter_subtype IS 'Restricts th
 --
 
 COMMENT ON COLUMN public.fighter_type_equipment.excluded IS 'false grants the item (the original meaning of a row); true denies it, removing the item from the Equipment List of fighters matching this row''s scope even when another row or a gang-wide equipment_availability entry would have granted it. Equipment List only -- it does not gate Trading Post access.';
+
+
+--
+-- Name: COLUMN fighter_type_equipment.fighter_specialisation_id; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.fighter_type_equipment.fighter_specialisation_id IS 'Restricts the row to fighters with this specialisation (fighters.fighter_specialisation_id). NULL applies regardless of specialisation. Set with fighter_type_id NULL so the row follows the fighter through a promotion.';
 
 
 --
@@ -10265,7 +10273,14 @@ CREATE INDEX fighter_type_equipment_equipment_id_idx ON public.fighter_type_equi
 -- Name: fighter_type_equipment_fighter_scope_uidx; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_type_equipment USING btree (equipment_id, fighter_type_id, custom_fighter_type_id, fighter_subtype, gang_subtype_id, gang_type_id, gang_origin_id) NULLS NOT DISTINCT WHERE (vehicle_type_id IS NULL);
+CREATE UNIQUE INDEX fighter_type_equipment_fighter_scope_uidx ON public.fighter_type_equipment USING btree (equipment_id, fighter_type_id, custom_fighter_type_id, fighter_subtype, gang_subtype_id, gang_type_id, gang_origin_id, fighter_specialisation_id) NULLS NOT DISTINCT WHERE (vehicle_type_id IS NULL);
+
+
+--
+-- Name: fighter_type_equipment_fighter_specialisation_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX fighter_type_equipment_fighter_specialisation_id_idx ON public.fighter_type_equipment USING btree (fighter_specialisation_id) WHERE (fighter_specialisation_id IS NOT NULL);
 
 
 --
@@ -13018,6 +13033,14 @@ ALTER TABLE ONLY public.fighter_type_equipment
 
 ALTER TABLE ONLY public.fighter_type_equipment
     ADD CONSTRAINT fighter_type_equipment_equipment_id_fkey FOREIGN KEY (equipment_id) REFERENCES public.equipment(id) ON DELETE CASCADE;
+
+
+--
+-- Name: fighter_type_equipment fighter_type_equipment_fighter_specialisation_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.fighter_type_equipment
+    ADD CONSTRAINT fighter_type_equipment_fighter_specialisation_id_fkey FOREIGN KEY (fighter_specialisation_id) REFERENCES public.fighter_specialisations(id) ON DELETE CASCADE;
 
 
 --

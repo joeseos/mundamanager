@@ -20,6 +20,9 @@ import {
   type BattleStatus,
 } from '@/types/campaign';
 import { checkScenarioParts } from '@/utils/scenario-parts';
+import { and, eq, ne } from 'drizzle-orm';
+import { clientErrorMessage, withUserWrite } from '@/utils/db/client';
+import { campaignBattles } from '@/utils/db/schema';
 
 /**
  * Type definition for territory claim
@@ -893,6 +896,19 @@ export async function generateChallengeRound(
     };
     gangIds.sort((a, b) => position(a) - position(b));
 
+    // Number the round after any open challenges, so earlier rounds stay first.
+    const { data: lastOpen, error: lastOpenError } = await supabase
+      .from('campaign_battles')
+      .select('challenge_order')
+      .eq('campaign_id', campaignId)
+      .neq('status', 'played')
+      .not('challenge_order', 'is', null)
+      .order('challenge_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastOpenError) throw lastOpenError;
+    const firstOrder = (lastOpen?.challenge_order ?? 0) + 1;
+
     const rows = gangIds.map((gangId, i) => {
       // Seeding the challenger is what lets the existing RLS UPDATE policy
       // ("any gang owner in participants") cover them filling the slot in.
@@ -907,7 +923,7 @@ export async function generateChallengeRound(
         challenger_gang_id: gangId,
         challenged_gang_id: null,
         cycle,
-        challenge_order: i + 1,
+        challenge_order: firstOrder + i,
         participants: JSON.stringify(participants),
       };
     });
@@ -940,6 +956,57 @@ export async function generateChallengeRound(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to create challenge round',
+    };
+  }
+}
+
+/**
+ * Renumber the campaign's open challenges in `battleIds` order, the order the
+ * arbitrator set for issuing them. Played battles keep their old number.
+ */
+export async function reorderChallengeRound(
+  campaignId: string,
+  battleIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const supabase = await createClient();
+    const user = await getAuthenticatedUser(supabase);
+
+    if (!(await checkCampaignArbitrator(user.id, campaignId))) {
+      return { success: false, error: 'Only the campaign arbitrator can reorder a challenge round' };
+    }
+
+    // One transaction with the open challenges locked, so a challenge added,
+    // played or deleted since the modal opened refuses the whole order rather
+    // than renumbering only some of them. RLS limits the update to arbitrators.
+    const saved = await withUserWrite(user.id, async (tx) => {
+      const open = await tx
+        .select({ id: campaignBattles.id })
+        .from(campaignBattles)
+        .where(and(eq(campaignBattles.campaign_id, campaignId), ne(campaignBattles.status, 'played')))
+        .for('update');
+      const openIds = new Set(open.map((battle) => battle.id));
+      if (openIds.size !== battleIds.length || !battleIds.every((id) => openIds.has(id))) return false;
+
+      for (const [i, battleId] of battleIds.entries()) {
+        await tx
+          .update(campaignBattles)
+          .set({ challenge_order: i + 1 })
+          .where(eq(campaignBattles.id, battleId));
+      }
+      return true;
+    });
+    if (!saved) {
+      return { success: false, error: 'The round has changed. Reopen Challenge Round and try again.' };
+    }
+
+    invalidateCampaignBattles(campaignId);
+    return { success: true };
+  } catch (error) {
+    console.error('Error reordering challenge round:', error);
+    return {
+      success: false,
+      error: clientErrorMessage(error, 'Failed to reorder challenge round'),
     };
   }
 }
