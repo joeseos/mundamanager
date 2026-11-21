@@ -213,7 +213,7 @@ export default function GangPageContent({
               ? prev.processedData.fighters.map(fighter =>
                   fighter.id === updatedFighter.id ? updatedFighter : fighter
                 )
-              : [...prev.processedData.fighters, updatedFighter],
+              : [...prev.processedData.fighters, updatedFighter], // Add new fighter if it doesn't exist
             // Don't modify rating when skipRatingUpdate is true
           }
         };

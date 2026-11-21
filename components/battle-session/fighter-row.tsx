@@ -368,6 +368,7 @@ export default function FighterRow({
             <div className="max-h-svh overflow-y-auto">
               <FighterCard
                 {...gangFighter}
+                owner_status={null}
                 name={gangFighter.fighter_name}
                 type={gangFighter.fighter_type}
                 skills={gangFighter.skills}

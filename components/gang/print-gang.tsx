@@ -24,7 +24,7 @@ import { PatreonSupporterIcon } from "@/components/ui/patreon-supporter-icon";
 import { decodeHtmlEntities, isHtmlEffectivelyEmpty } from "@/utils/htmlCleanUp";
 import { resolveGangImageUrl, UNKNOWN_GANG_IMAGE_URL } from "@/types/gang";
 import { detailGangTypeLabel } from "@/utils/gang-type-label";
-import { isPrintInactive, isPrintRecovery } from "@/utils/fighter-status";
+import { isPrintInactive } from "@/utils/fighter-status";
 
 const ROSTER_FIGHTER_NOTE_MAX_CHARS = 110;
 
@@ -238,7 +238,7 @@ export default function PrintGang({ gang }: PrintGangProps) {
     if (!showInactiveFighters && (isPrintInactive(f) || isPrintInactive(owner))) {
       return false;
     }
-    if (!showFightersInRecovery && (isPrintRecovery(f) || isPrintRecovery(owner))) {
+    if (!showFightersInRecovery && (f.recovery || owner?.recovery)) {
       return false;
     }
     return true;
