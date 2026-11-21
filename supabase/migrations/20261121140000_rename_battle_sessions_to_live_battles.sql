@@ -15,10 +15,10 @@ ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_pkey TO live_b
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_campaign_battle_id_fkey TO live_battles_campaign_battle_id_fkey;
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_campaign_id_fkey TO live_battles_campaign_id_fkey;
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_created_by_fkey TO live_battles_created_by_fkey;
-ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_crew_selection_id_fkey TO live_battles_crew_selection_id_fkey;
-ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_deployment_id_fkey TO live_battles_deployment_id_fkey;
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_edition_id_fkey TO live_battles_edition_id_fkey;
-ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_objective_id_fkey TO live_battles_objective_id_fkey;
+-- battle_sessions_deployment_id_fkey, _objective_id_fkey and _crew_selection_id_fkey
+-- keep their names until the old-name views below are dropped: the previous
+-- deploy names them as embed hints in its Data API selects.
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_winner_gang_id_fkey TO live_battles_winner_gang_id_fkey;
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_one_crew_selection_check TO live_battles_one_crew_selection_check;
 ALTER TABLE public.live_battles RENAME CONSTRAINT battle_sessions_one_deployment_check TO live_battles_one_deployment_check;

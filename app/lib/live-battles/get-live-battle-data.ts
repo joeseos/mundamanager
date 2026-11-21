@@ -11,9 +11,9 @@ import { isUuid } from '@/utils/uuid';
 
 /** N26: the names of a live battle's Deployment, Objective and Crew, for display. */
 export const LIVE_BATTLE_SCENARIO_PARTS_SELECT =
-  'deployment:scenario_table_entries!live_battles_deployment_id_fkey ( name ), ' +
-  'objective:scenario_table_entries!live_battles_objective_id_fkey ( name ), ' +
-  'crew_selection:scenario_table_entries!live_battles_crew_selection_id_fkey ( name )';
+  'deployment:scenario_table_entries!deployment_id ( name ), ' +
+  'objective:scenario_table_entries!objective_id ( name ), ' +
+  'crew_selection:scenario_table_entries!crew_selection_id ( name )';
 
 /** A live battle row as LiveBattle has it, before withEditionSlug. */
 const LIVE_BATTLE_ROW = {
