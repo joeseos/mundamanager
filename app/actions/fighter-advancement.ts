@@ -7,6 +7,7 @@ import { getAuthenticatedUser } from '@/utils/auth';
 import { updateGangRatingSimple, updateGangFinancials } from '@/utils/gang-rating-and-wealth';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
+  EDITION_N26,
   gangEditionSlug,
   hasChampionLeaderTypePromotion,
   hasCumulativeXp,
@@ -538,18 +539,17 @@ async function addSkillAdvancementInternal(
     };
     
     const isAdvance = params.is_advance ?? true;
-    // N26: a Legendary Name gained for earning 5+ XP in one battle is free and not
-    // an Advancement, so its credits go on the fighter's worth, not the stash.
-    const ratingOnly =
-      Boolean(params.ratingOnly) ||
-      (!isAdvance &&
-        params.credits_increase > 0 &&
-        (await isLegendaryNameSkill(supabase, params.skill_id, gangEditionSlug(fighter.gangs))));
+    // N26: a Legendary Name outside an Advancement is never the free starting skill
+    // (a Leader or Champion picks one when recruited on top of it), and one gained for
+    // earning 5+ XP in one battle puts its credits on the fighter's worth, not the stash.
+    const isLegendaryName =
+      !isAdvance && (await isLegendaryNameSkill(supabase, params.skill_id, gangEditionSlug(fighter.gangs)));
+    const ratingOnly = Boolean(params.ratingOnly) || (isLegendaryName && params.credits_increase > 0);
 
     // Set free_skill to false only for regular skills (is_advance: false) when fighter currently has free_skill: true (missing starting skill)
     // Do NOT set free_skill to false for advancement skills (is_advance: true) as those are purchased with XP, not starting skills
-    // ratingOnly grants (N26 Prospect promotion) also leave free_skill alone
-    if (!isAdvance && !ratingOnly && fighter.free_skill) {
+    // ratingOnly grants (N26 Prospect promotion) and Legendary Names also leave free_skill alone
+    if (!isAdvance && !ratingOnly && !isLegendaryName && fighter.free_skill) {
       updateData.free_skill = false;
     }
     
@@ -889,7 +889,7 @@ async function isLegendaryNameSkill(
   skillId: string | null | undefined,
   editionSlug: string | null | undefined
 ): Promise<boolean> {
-  if (!skillId) return false;
+  if (!skillId || editionSlug !== EDITION_N26) return false;
   const { data } = await supabase.from('skills').select('skill_types(name)').eq('id', skillId).single();
   // A to-one embed, typed as an array by the generated client.
   const setName = (data?.skill_types as unknown as { name: string } | null)?.name ?? '';
@@ -1721,13 +1721,18 @@ export async function deleteAdvancement(
             .not('skill_id', 'is', null);
 
           // Count remaining skills for this fighter. Effect-granted ones (injuries,
-          // equipment) are not chosen starting skills, so they must not count
-          // against the type's default allowance and strand free_skill at false.
-          const { count: remainingSkillCount } = await supabase
+          // equipment) and N26 Legendary Names are not chosen starting skills, so they
+          // must not count against the type's default allowance and strand free_skill at false.
+          const { data: remainingSkills } = await supabase
             .from('fighter_skills')
-            .select('*', { count: 'exact', head: true })
+            .select('skills(skill_types(name))')
             .eq('fighter_id', params.fighter_id)
             .is('fighter_effect_id', null);
+          const remainingSkillCount = (remainingSkills ?? []).filter((row) => {
+            // A to-one embed, typed as an array by the generated client.
+            const setName = (row.skills as unknown as { skill_types: { name: string } | null } | null)?.skill_types?.name ?? '';
+            return !isLegendaryNameSkillSet(setName, editionSlugForUndo);
+          }).length;
 
           // Check if deleted skill was a default skill
           const { count: wasDefaultSkill } = await supabase
@@ -1739,7 +1744,7 @@ export async function deleteAdvancement(
           // Determine free_skill status
           // If fighter type has free_skill = true AND remaining skills <= default skills AND deleted skill was NOT default
           newFreeSkillStatus = fighterType.free_skill &&
-                              (remainingSkillCount || 0) <= (defaultSkillCount || 0) &&
+                              remainingSkillCount <= (defaultSkillCount || 0) &&
                               (wasDefaultSkill || 0) === 0;
         }
       }

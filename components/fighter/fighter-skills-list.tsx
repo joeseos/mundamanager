@@ -97,8 +97,8 @@ interface SkillModalProps {
   gangCredits?: number;
   venatorRanksIncomplete?: boolean;
   editionSlug?: string | null;
-  /** The fighter still has its free starting skill to pick. */
-  freeSkill?: boolean;
+  skills: FighterSkills;
+  catalogSubtypes: string[];
   onClose: () => void;
   onSkillAdded: (skillId: string, skillName: string, creditsIncrease: number, isAdvance: boolean) => void;
   onSkillRollback: (skillName: string) => void;
@@ -112,7 +112,7 @@ type SkillData = SkillInSet & { is_custom: boolean; cost: number };
 const NO_SKILL_TYPES: SkillTypeOption[] = [];
 
 // SkillModal Component
-export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, freeSkill, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
+export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncomplete, editionSlug, skills, catalogSubtypes, onClose, onSkillAdded, onSkillRollback, isSubmitting, onSelectSkill, onGangCreditsUpdate }: SkillModalProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [selectedSkill, setSelectedSkill] = useState<string>('');
   const [isCustomSkillSelected, setIsCustomSkillSelected] = useState(false);
@@ -145,13 +145,20 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
     [availableSkills, selectedCategory]
   );
 
-  // N26: a Leader or Champion picks a Legendary Name as their free starting skill (+0).
-  // After that, one gained for earning 5+ XP in one battle adds 5 to the fighter's worth.
-  // Both are free, so the server never takes the cost from the gang.
-  const inEarnedLegendaryNames =
-    !freeSkill &&
-    isLegendaryNameSkillSet(categories.find((c) => c.id === selectedCategory)?.name ?? '', editionSlug);
-  const isEarnedLegendaryName = inEarnedLegendaryNames && !isCustomSkillSelected;
+  // N26: a Leader or Champion picks a Legendary Name when recruited (+0), on top of their
+  // free starting skill. One gained for earning 5+ XP in one battle adds 5 to the fighter's
+  // worth. Neither is paid for, so the server never takes the value from the gang.
+  const inLegendaryNames = isLegendaryNameSkillSet(
+    categories.find((c) => c.id === selectedCategory)?.name ?? '',
+    editionSlug
+  );
+  const isLegendaryName = inLegendaryNames && !isCustomSkillSelected;
+  const hasRecruitmentLegendaryName = skillsInSet?.some((s) => {
+    const owned = skills[s.skill_name];
+    return owned && !owned.is_advance && !owned.credits_increase;
+  });
+  const legendaryNameValue =
+    (catalogSubtypes.includes('Leader') || catalogSubtypes.includes('Champion')) && !hasRecruitmentLegendaryName ? 0 : 5;
 
   const queryClient = useQueryClient();
 
@@ -176,7 +183,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onSkillAdded(variables.skill_id || variables.custom_skill_id || '', skillName, variables.credits_increase, variables.is_advance);
 
       // Optimistically deduct gang credits for non-advancement purchases
-      const creditsDeducted = !variables.is_advance && !isEarnedLegendaryName ? variables.credits_increase : 0;
+      const creditsDeducted = !variables.is_advance && !isLegendaryName ? variables.credits_increase : 0;
       if (creditsDeducted > 0) {
         onGangCreditsUpdate?.(-creditsDeducted);
       }
@@ -330,7 +337,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
               const skill = skillsInSet?.find((s) => s.skill_id === v);
               setSelectedSkill(v);
               setIsCustomSkillSelected(skill?.is_custom ?? false);
-              setEditableCost(inEarnedLegendaryNames && !skill?.is_custom ? 5 : skill?.cost || 0);
+              setEditableCost(inLegendaryNames && !skill?.is_custom ? legendaryNameValue : skill?.cost || 0);
             }}
             placeholder="Select a skill"
             options={skillComboboxOptions}
@@ -338,10 +345,10 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
           />
 
           {/* Show editable cost when a skill with cost > 0 is selected */}
-          {selectedSkill && (isEarnedLegendaryName || (skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0) && (
+          {selectedSkill && (isLegendaryName || (skillsInSet?.find(s => s.skill_id === selectedSkill)?.cost ?? 0) > 0) && (
             <div className="space-y-1 mt-2">
               <label className="text-sm font-medium">
-                {isEarnedLegendaryName
+                {isLegendaryName
                   ? 'Credits Value Increase'
                   : `Cost${gangCredits !== undefined ? ` (Current gang credits: ${gangCredits})` : ''}`}
               </label>
@@ -358,9 +365,9 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
                 }}
                 placeholder="0"
               />
-              {isEarnedLegendaryName && (
+              {isLegendaryName && (
                 <p className="text-xs text-muted-foreground">
-                  5 for a Legendary Name gained by earning 5+ XP in one battle.
+                  0 for the Legendary Name a Leader or Champion picks when recruited, 5 for one gained by earning 5+ XP in one battle.
                 </p>
               )}
             </div>
@@ -378,7 +385,7 @@ export function SkillModal({ fighterId, userId, gangCredits, venatorRanksIncompl
       onClose={onClose}
       onConfirm={handleSubmit}
       confirmText="Add Skill"
-      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (!isEarnedLegendaryName && editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
+      confirmDisabled={!selectedSkill || addSkillMutation.isPending || (!isLegendaryName && editableCost > 0 && gangCredits !== undefined && gangCredits < editableCost)}
     />
   );
 }
@@ -809,7 +816,8 @@ export function SkillsList({
           gangCredits={gangCredits}
           venatorRanksIncomplete={venatorRanksIncomplete}
           editionSlug={editionSlug}
-          freeSkill={free_skill}
+          skills={localSkills}
+          catalogSubtypes={fighterCatalogSubtypes}
           onClose={() => setIsAddSkillModalOpen(false)}
           onSkillAdded={handleSkillAdded}
           onSkillRollback={handleSkillRollback}
