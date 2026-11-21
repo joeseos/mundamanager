@@ -10,6 +10,8 @@ export type CampaignTradeItemKind =
 
 export type CampaignTradeShape = 'direct' | 'listing' | 'bid';
 
+export type CampaignTradeKind = 'selling' | 'looking-for' | 'direct' | 'bid';
+
 export interface CampaignTradeItem {
   id: string;
   kind: CampaignTradeItemKind;
@@ -49,11 +51,16 @@ export const campaignTradeStatusColors: Record<CampaignTradeStatus, string> = {
   cancelled: 'bg-muted text-muted-foreground',
 };
 
-export const campaignTradeShapeLabels: Record<CampaignTradeShape, string> = {
-  direct: 'Direct',
-  listing: 'Listing',
-  bid: 'Bid',
+export const campaignTradeKindLabels: Record<CampaignTradeKind, string> = {
+  selling: 'Selling',
+  'looking-for': 'Looking for',
+  direct: 'Selling: direct',
+  bid: 'Offer',
 };
+
+export function isPaymentKind(kind: CampaignTradeItemKind): boolean {
+  return kind === 'credits' || kind === 'reputation' || kind === 'campaign_resource';
+}
 
 export function campaignTradeShape(
   trade: Pick<CampaignTrade, 'parent_trade_id' | 'counterparty_gang_id'>
@@ -61,4 +68,12 @@ export function campaignTradeShape(
   if (trade.parent_trade_id) return 'bid';
   if (!trade.counterparty_gang_id) return 'listing';
   return 'direct';
+}
+
+export function campaignTradeKind(trade: CampaignTrade): CampaignTradeKind {
+  const shape = campaignTradeShape(trade);
+  if (shape === 'bid') return 'bid';
+  if (shape === 'direct') return 'direct';
+  const hasGoods = trade.items.some((item) => !isPaymentKind(item.kind));
+  return hasGoods ? 'selling' : 'looking-for';
 }

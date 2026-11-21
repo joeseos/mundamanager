@@ -885,6 +885,12 @@ export default function CampaignPageContent({
             </div>
 
 
+            {/* Campaign Captured Fighters Section */}
+            <div className="mb-8">
+              <h2 className="text-xl md:text-2xl font-bold mb-4">Captured Fighters</h2>
+              <CampaignCaptivesList captives={campaignData.captives ?? []} />
+            </div>
+
             {(campaignData.allow_trading || (campaignData.trades ?? []).length > 0) && (
               <div className="mb-8">
                 <div className="flex justify-between items-center mb-4 gap-2">
@@ -910,12 +916,6 @@ export default function CampaignPageContent({
                 />
               </div>
             )}
-
-            {/* Campaign Captured Fighters Section */}
-            <div className="mb-8">
-              <h2 className="text-xl md:text-2xl font-bold mb-4">Captured Fighters</h2>
-              <CampaignCaptivesList captives={campaignData.captives ?? []} />
-            </div>
   
             {/* Campaign Territories Section */}
             <div className="mb-8">
