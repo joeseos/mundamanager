@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { createClient } from "@/utils/supabase/server";
+import { getAppDb } from '@/utils/db/client';
 import { invalidateFighter } from '@/utils/cache-tags';
 
 /**
@@ -118,10 +119,19 @@ export async function createExoticBeastsForEquipment(
   params: ExoticBeastCreationParams
 ): Promise<ExoticBeastCreationResult> {
   try {
+    // Nearly every purchase asks and almost no equipment grants a beast, so the
+    // check runs over the direct connection and the full read only when it does.
+    const grantsBeast = await getAppDb().query.exoticBeasts.findFirst({
+      columns: { id: true },
+      where: (beast, { eq }) => eq(beast.equipment_id, params.equipmentId),
+    });
+    if (!grantsBeast) {
+      return { success: true, createdFamiliars: [] };
+    }
+
     const supabase = await createClient();
     const createdFamiliars: CreatedFamiliar[] = [];
 
-    // Check if this equipment can grant exotic beasts
     const { data: beastConfigs } = await supabase
       .from('exotic_beasts')
       .select(`

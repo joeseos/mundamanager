@@ -1,183 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { eq, sql } from 'drizzle-orm';
 import { createClient } from '@/utils/supabase/server';
 import { getUserIdFromClaims } from "@/utils/auth";
+import { getAppDb } from '@/utils/db/client';
+import { fighterEffectCategories } from '@/utils/db/schema';
+import type { FighterEffectType } from '@/types/fighter-effect';
 
+const EFFECT_TYPE_COLUMNS = {
+  id: true,
+  effect_name: true,
+  fighter_effect_category_id: true,
+  type_specific_data: true,
+  sort_order: true,
+} as const;
+
+const MODIFIER_COLUMNS = {
+  id: true,
+  fighter_effect_type_id: true,
+  stat_name: true,
+  default_numeric_value: true,
+  operation: true,
+} as const;
+
+/**
+ * GET /api/fighter-effects?category=… | ?equipmentId=… | ?powerBoostTypeId=…
+ * Effect types with their modifiers: every type in a category (by category_name,
+ * e.g. 'power-boosts'), or the types an item or power boost brings. Every
+ * signed-in user reads the same admin-owned rows.
+ */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
 
   try {
-    // Check for authenticated user (not admin required)
     const userId = await getUserIdFromClaims(supabase);
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     const { searchParams } = new URL(request.url);
+    const category = searchParams.get('category');
     const equipmentId = searchParams.get('equipmentId');
     const powerBoostTypeId = searchParams.get('powerBoostTypeId');
-    const category = searchParams.get('category');
+    const db = getAppDb();
 
-    // Every effect type in a category (by category_name, e.g. 'power-boosts'),
-    // with its modifiers, in one query. The category embed is empty: it only
-    // filters. An unknown category returns an empty list.
     if (category) {
-      const { data, error } = await supabase
-        .from('fighter_effect_types')
-        .select(`
-          *,
-          fighter_effect_categories!inner(),
-          modifiers:fighter_effect_type_modifiers(*)
-        `)
-        .eq('fighter_effect_categories.category_name', category)
-        .order('effect_name', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching fighter effect types by category:', error);
-        return NextResponse.json({ error: 'Failed to fetch fighter effect types' }, { status: 500 });
-      }
-      return NextResponse.json(data ?? []);
+      const types = await db.query.fighterEffectTypes.findMany({
+        columns: { ...EFFECT_TYPE_COLUMNS, edition_id: true },
+        where: (type, { inArray }) => inArray(
+          type.fighter_effect_category_id,
+          db.select({ id: fighterEffectCategories.id })
+            .from(fighterEffectCategories)
+            .where(eq(fighterEffectCategories.category_name, category))
+        ),
+        orderBy: (type, { asc }) => asc(type.effect_name),
+        with: { fighter_effect_type_modifiers: { columns: MODIFIER_COLUMNS } },
+      });
+      return NextResponse.json(types.map(({ fighter_effect_type_modifiers, ...type }) => ({
+        ...type,
+        modifiers: fighter_effect_type_modifiers,
+      })) as FighterEffectType[]);
     }
 
-    console.log('GET request params:', { equipmentId, powerBoostTypeId });
-
-    // This route supports equipment, power boost and category filtering
     if (!equipmentId && !powerBoostTypeId) {
       return NextResponse.json({ error: 'Equipment ID, Power Boost Type ID or category is required' }, { status: 400 });
     }
 
-    const filterField = equipmentId ? 'equipment_id' : 'power_boost_type_id';
-    const filterValue = equipmentId || powerBoostTypeId;
-
-    console.log('Trying to find fighter effects for', filterField, ':', filterValue);
-    console.log('Filter value type:', typeof filterValue);
-
-    // Try a raw SQL query approach for JSONB filtering
-    try {
-      // Execute a raw SQL query to properly filter by equipment_id or power_boost_type_id in the JSONB
-      const { data, error } = await supabase.from('fighter_effect_types')
-        .select(`
-          id,
-          effect_name,
-          fighter_effect_category_id,
-          type_specific_data,
-          sort_order,
-          fighter_effect_categories(id, category_name)
-        `)
-        .eq(`type_specific_data->>${filterField}`, filterValue);
-      
-      if (error) {
-        console.error('Error with SQL query:', error);
-      } else {
-        console.log('Found fighter effects with SQL query:', data?.length || 0);
-        console.log(`${filterField} being searched:`, filterValue);
-        console.log('Effect types found:', data?.map(d => ({ id: d.id, name: d.effect_name, filter_value: d.type_specific_data?.[filterField] })));
-        
-        // If we have effect types, get the modifiers for each
-        if (data && data.length > 0) {
-          try {
-            // Get all modifiers for these effect types
-            const { data: modifiers, error: modifiersError } = await supabase
-              .from('fighter_effect_type_modifiers')
-              .select('*')
-              .in('fighter_effect_type_id', data.map(effect => effect.id));
-            
-            if (modifiersError) {
-              console.error('Error fetching modifiers:', modifiersError);
-            } else {
-              // Add modifiers to each fighter effect type
-              const fighterEffectTypes = data.map(effect => ({
-                ...effect,
-                modifiers: modifiers ? modifiers.filter(m => m.fighter_effect_type_id === effect.id) : []
-              }));
-              
-              return NextResponse.json(fighterEffectTypes);
-            }
-          } catch (e) {
-            console.error('Error processing modifiers:', e);
-          }
-        }
-        
-        // If we get here, just return the data without modifiers
-        return NextResponse.json(data || []);
-      }
-    } catch (e) {
-      console.error('Error with SQL approach:', e);
-    }
-    
-    // If SQL approach failed, try a different method
-    console.log('SQL approach failed, falling back to manual filtering');
-    try {
-      const { data, error } = await supabase.from('fighter_effect_types')
-        .select(`
-          id,
-          effect_name,
-          fighter_effect_category_id,
-          type_specific_data,
-          sort_order,
-          fighter_effect_categories(id, category_name)
-        `);
-        
-      if (error) {
-        console.error('Error fetching all fighter effects:', error);
-      } else {
-        console.log('Fetched all effects for manual filtering:', data?.length || 0);
-        // Manually filter on the client side
-        const filteredData = data.filter(item => {
-          try {
-            const typeSpecificData = item.type_specific_data;
-            const matches = typeSpecificData &&
-                   typeSpecificData[filterField] &&
-                   typeSpecificData[filterField] === filterValue;
-            if (matches) {
-              console.log('Found matching effect:', item.effect_name, 'for', filterField, ':', filterValue);
-            }
-            return matches;
-          } catch (e) {
-            return false;
-          }
-        });
-        
-        console.log('Manually filtered data count:', filteredData.length);
-        
-        // If we have effect types, get the modifiers for each
-        if (filteredData.length > 0) {
-          try {
-            // Get all modifiers for these effect types
-            const { data: modifiers, error: modifiersError } = await supabase
-              .from('fighter_effect_type_modifiers')
-              .select('*')
-              .in('fighter_effect_type_id', filteredData.map(effect => effect.id));
-            
-            if (modifiersError) {
-              console.error('Error fetching modifiers:', modifiersError);
-            } else {
-              // Add modifiers to each fighter effect type
-              const fighterEffectTypes = filteredData.map(effect => ({
-                ...effect,
-                modifiers: modifiers ? modifiers.filter(m => m.fighter_effect_type_id === effect.id) : []
-              }));
-              
-              return NextResponse.json(fighterEffectTypes);
-            }
-          } catch (e) {
-            console.error('Error processing modifiers:', e);
-          }
-        }
-        
-        // If we get here, just return the filtered data without modifiers
-        return NextResponse.json(filteredData || []);
-      }
-    } catch (e) {
-      console.error('Error with manual filtering approach:', e);
-    }
-    
-    // If all approaches failed, return empty array
-    console.log('All approaches failed, returning empty array');
-    return NextResponse.json([]);
+    // Matched on the id type_specific_data names. The key is a literal in the SQL so
+    // idx_fet_equipment_id_jsonb, built on ->> 'equipment_id', can be used.
+    const key = equipmentId ? 'equipment_id' : 'power_boost_type_id';
+    const types = await db.query.fighterEffectTypes.findMany({
+      columns: EFFECT_TYPE_COLUMNS,
+      where: (type) => sql`${type.type_specific_data} ->> ${sql.raw(`'${key}'`)} = ${equipmentId ?? powerBoostTypeId}`,
+      with: {
+        fighter_effect_category: { columns: { id: true, category_name: true } },
+        fighter_effect_type_modifiers: { columns: MODIFIER_COLUMNS },
+      },
+    });
+    return NextResponse.json(types.map(({ fighter_effect_category, fighter_effect_type_modifiers, ...type }) => ({
+      ...type,
+      fighter_effect_categories: fighter_effect_category ?? undefined,
+      modifiers: fighter_effect_type_modifiers,
+    })) as FighterEffectType[]);
   } catch (error) {
-    console.error('Unexpected error in GET /fighter-effects:', error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'An unexpected error occurred' 
-    }, { status: 500 });
+    console.error('Error in GET /fighter-effects:', error);
+    return NextResponse.json({ error: 'Failed to fetch fighter effect types' }, { status: 500 });
   }
-} 
+}

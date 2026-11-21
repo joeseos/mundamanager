@@ -126,14 +126,14 @@ export const fighters = pgTable('fighters', {
   note: text('note'),
   cost_adjustment: numeric('cost_adjustment', { mode: 'number' }).default(0),
   label: text('label'),
-  recovery: boolean('recovery').default(false),
+  recovery: boolean('recovery').default(false).notNull(),
   user_id: uuid('user_id').default(sql`auth.uid()`),
   fighter_specialisation_id: uuid('fighter_specialisation_id'),
   fighter_specialisation: text('fighter_specialisation'),
   fighter_pet_id: uuid('fighter_pet_id'),
   image_url: text('image_url'),
   note_backstory: text('note_backstory'),
-  captured: boolean('captured').default(false),
+  captured: boolean('captured').default(false).notNull(),
   fighter_gang_legacy_id: uuid('fighter_gang_legacy_id'),
   custom_fighter_type_id: uuid('custom_fighter_type_id'),
   current_loadout: integer('current_loadout'),
@@ -549,6 +549,14 @@ export const fighterEffectModifiers = pgTable('fighter_effect_modifiers', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   operation: text('operation'),
   user_id: uuid('user_id'),
+});
+
+export const exoticBeasts = pgTable('exotic_beasts', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  fighter_type_id: uuid('fighter_type_id'),
+  equipment_id: uuid('equipment_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });
 
 export const fighterExoticBeasts = pgTable('fighter_exotic_beasts', {
