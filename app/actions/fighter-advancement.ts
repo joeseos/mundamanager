@@ -539,9 +539,16 @@ async function addSkillAdvancementInternal(
     };
     
     const isAdvance = params.is_advance ?? true;
+    const { data: skillData } = params.skill_id
+      ? await supabase
+          .from('skills')
+          .select('name, grants_equipment, skill_types(name)')
+          .eq('id', params.skill_id)
+          .single()
+      : { data: null };
     // N26 Legendary Names are never the free starting skill, and their credits go on the fighter's worth, not the stash.
     const isLegendaryName =
-      !isAdvance && (await isLegendaryNameSkill(supabase, params.skill_id, gangEditionSlug(fighter.gangs)));
+      !isAdvance && isLegendaryNameSkillSet(skillSetName(skillData), gangEditionSlug(fighter.gangs));
     const ratingOnly = Boolean(params.ratingOnly) || (isLegendaryName && params.credits_increase > 0);
 
     // Set free_skill to false only for regular skills (is_advance: false) when fighter currently has free_skill: true (missing starting skill)
@@ -618,11 +625,6 @@ async function addSkillAdvancementInternal(
     let skillName = 'Unknown Skill';
     const grantedEquipmentNames: string[] = [];
     if (params.skill_id) {
-      const { data: skillData } = await supabase
-        .from('skills')
-        .select('name, grants_equipment')
-        .eq('id', params.skill_id)
-        .single();
       skillName = skillData?.name || skillName;
 
       // Granted equipment is free and linked to the skill (fighter_skill_id), so
