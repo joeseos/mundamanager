@@ -178,46 +178,23 @@ async function cancelOpenCampaignTradesForGang(campaignId: string, gangId: strin
   const writer = createServiceRoleClient();
   const { data: open, error } = await writer
     .from('campaign_trades')
-    .select('id, proposer_gang_id, counterparty_gang_id, parent_trade_id')
+    .select('id, proposer_gang_id')
     .eq('campaign_id', campaignId)
     .eq('status', 'open')
     .or(`proposer_gang_id.eq.${gangId},counterparty_gang_id.eq.${gangId}`);
   if (error) throw error;
   if (!open?.length) return;
 
-  const parents = open.filter((trade) => !trade.parent_trade_id);
-  const childrenInOpen = open.filter((trade) => trade.parent_trade_id);
-  const parentIds = parents.map((trade) => trade.id);
-
-  let extraBids: Array<{ id: string }> = [];
-  if (parentIds.length > 0) {
-    const { data: bids, error: bidsError } = await writer
-      .from('campaign_trades')
-      .select('id')
-      .in('parent_trade_id', parentIds)
-      .eq('status', 'open');
-    if (bidsError) throw bidsError;
-    const knownIds = new Set(open.map((trade) => trade.id));
-    extraBids = (bids ?? []).filter((bid) => !knownIds.has(bid.id));
-  }
-
-  const parentCancelIds = parents
+  // Bids set counterparty to the parent proposer, so this query already has
+  // every open child of this gang's listings and directs.
+  const cancelIds = open
     .filter((trade) => trade.proposer_gang_id === gangId)
     .map((trade) => trade.id);
-  const parentDeclineIds = parents
+  const declineIds = open
     .filter((trade) => trade.proposer_gang_id !== gangId)
     .map((trade) => trade.id);
-  const childCancelIds = childrenInOpen
-    .filter((trade) => trade.proposer_gang_id === gangId)
-    .map((trade) => trade.id);
-  const childDeclineIds = [
-    ...childrenInOpen
-      .filter((trade) => trade.proposer_gang_id !== gangId)
-      .map((trade) => trade.id),
-    ...extraBids.map((bid) => bid.id),
-  ];
   const resolvedAt = new Date().toISOString();
-  const idsToUnlock = [...parentCancelIds, ...parentDeclineIds, ...childCancelIds, ...childDeclineIds];
+  const idsToUnlock = [...cancelIds, ...declineIds];
 
   async function applyStatus(ids: string[], status: 'cancelled' | 'declined') {
     if (ids.length === 0) return;
@@ -229,10 +206,8 @@ async function cancelOpenCampaignTradesForGang(campaignId: string, gangId: strin
     if (statusError) throw statusError;
   }
 
-  await applyStatus(parentCancelIds, 'cancelled');
-  await applyStatus(parentDeclineIds, 'declined');
-  await applyStatus(childCancelIds, 'cancelled');
-  await applyStatus(childDeclineIds, 'declined');
+  await applyStatus(cancelIds, 'cancelled');
+  await applyStatus(declineIds, 'declined');
 
   if (idsToUnlock.length > 0) {
     const { error: unlockError } = await writer
