@@ -367,8 +367,13 @@ export default function CampaignTradesList({
                 const showCounterparty = trade.status === 'open' && canActFor(trade.counterparty_gang_id)
                 const showPlaceBid = allowTrading
                   && trade.status === 'open'
-                  && shape === 'listing'
-                  && actorGangIds.some((gangId) => gangId !== trade.proposer_gang_id)
+                  && (
+                    (shape === 'listing'
+                      && actorGangIds.some((gangId) => gangId !== trade.proposer_gang_id))
+                    || (shape === 'direct'
+                      && !!trade.counterparty_gang_id
+                      && actorGangIds.includes(trade.counterparty_gang_id))
+                  )
                 const priceItems = trade.items.filter((item) => isPaymentKind(item.kind))
                 const goodsItems = trade.items.filter((item) => !isPaymentKind(item.kind))
                 const hiddenOfferCount = hiddenOfferCountByParent.get(trade.id) ?? 0

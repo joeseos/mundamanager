@@ -30,7 +30,6 @@ const TRADE_OUTCOME_MESSAGES: Record<string, string> = {
   insufficient_reputation: 'That gang does not have enough reputation.',
   insufficient_resources: 'That gang does not have enough of that campaign resource.',
   alignment_blocked: 'Law Abiding gangs cannot trade captives to Outlaw gangs.',
-  bid_exists: 'You already have an open bid on this listing.',
   invalid: 'This trade could not be completed.',
 };
 
@@ -643,7 +642,13 @@ export async function createCampaignTrade(params: CreateCampaignTradeParams) {
       if (!listing) return fail('not_found');
       if (listing.campaign_id !== campaignId) return fail('invalid');
       if (listing.status !== 'open') return fail('not_open');
-      if (listing.counterparty_gang_id || listing.parent_trade_id) return fail('invalid');
+      if (listing.parent_trade_id) return fail('invalid');
+      if (
+        listing.counterparty_gang_id
+        && listing.counterparty_gang_id !== proposerGangId
+      ) {
+        return fail('invalid');
+      }
       if (listing.proposer_gang_id === proposerGangId) return fail('invalid');
 
       const { data: listingItems, error: listingItemsError } = await supabase
@@ -754,13 +759,11 @@ export async function createCampaignTrade(params: CreateCampaignTradeParams) {
         note,
       },
       [...goodsRows, ...paymentRows],
-      followKind === 'bid'
-        ? 'bid_exists'
-        : goodsKind === 'captive'
-          ? 'captive_unavailable'
-          : goodsKind === 'equipment'
-            ? 'equipment_unavailable'
-            : 'invalid'
+      goodsKind === 'captive'
+        ? 'captive_unavailable'
+        : goodsKind === 'equipment'
+          ? 'equipment_unavailable'
+          : 'invalid'
     );
     if ('error' in inserted) return { success: false, error: inserted.error };
 
@@ -867,6 +870,7 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
     if (trade.status !== 'open') return fail('not_open');
 
     const isListing = !trade.parent_trade_id && !trade.counterparty_gang_id;
+    const isParentRow = !trade.parent_trade_id;
     if (action === 'decline' && isListing) return fail('invalid');
 
     const actorGangId = action === 'cancel' ? trade.proposer_gang_id : trade.counterparty_gang_id;
@@ -878,7 +882,7 @@ async function resolveTrade(tradeId: string, action: 'decline' | 'cancel') {
     const relatedIds: string[] = [];
     const relatedGangIds: string[] = [];
 
-    if (action === 'cancel' && isListing) {
+    if (isParentRow) {
       const { data: bids, error: bidsError } = await writer
         .from('campaign_trades')
         .select('id, proposer_gang_id')
@@ -963,19 +967,23 @@ export async function acceptCampaignTrade(tradeId: string) {
     if (tradeError) throw tradeError;
     if (!trade) return fail('not_found');
 
-    let relatedGangIds: string[] = [];
-    if (trade.parent_trade_id) {
-      const { data: siblings, error: siblingsError } = await supabase
-        .from('campaign_trades')
-        .select('proposer_gang_id')
-        .eq('parent_trade_id', trade.parent_trade_id)
-        .eq('status', 'open')
-        .neq('id', tradeId);
-      if (siblingsError) throw siblingsError;
-      relatedGangIds = uniqueGangIds((siblings ?? []).map((row) => row.proposer_gang_id));
-    }
-
-    const captive = await loadCaptiveHome(supabase, trade);
+    const relatedParentId = trade.parent_trade_id
+      ?? (trade.counterparty_gang_id ? trade.id : null);
+    const [relatedResult, captive] = await Promise.all([
+      relatedParentId
+        ? supabase
+          .from('campaign_trades')
+          .select('proposer_gang_id')
+          .eq('parent_trade_id', relatedParentId)
+          .eq('status', 'open')
+          .neq('id', tradeId)
+        : Promise.resolve({ data: [] as Array<{ proposer_gang_id: string }>, error: null }),
+      loadCaptiveHome(supabase, trade),
+    ]);
+    if (relatedResult.error) throw relatedResult.error;
+    const relatedGangIds = uniqueGangIds(
+      (relatedResult.data ?? []).map((row) => row.proposer_gang_id)
+    );
 
     const { data: outcome, error } = await supabase.rpc('accept_campaign_trade', {
       p_trade_id: tradeId,
@@ -989,6 +997,7 @@ export async function acceptCampaignTrade(tradeId: string) {
       campaignId: trade.campaign_id,
       proposerGangId: trade.proposer_gang_id,
       counterpartyGangId: trade.counterparty_gang_id,
+      relatedGangIds,
       accepted: true,
     });
     if (captive) {

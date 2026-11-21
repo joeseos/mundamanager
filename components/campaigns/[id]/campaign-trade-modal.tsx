@@ -142,7 +142,11 @@ export default function CampaignTradeModal({
       if (actorGangId) return gang.id === actorGangId
       const allowed = isCampaignArb || (!!userId && gang.user_id === userId)
       if (!allowed) return false
-      if (mode === 'bid' && listing) return gang.id !== listing.proposer_gang_id
+      if (mode === 'bid' && listing) {
+        if (gang.id === listing.proposer_gang_id) return false
+        if (listing.counterparty_gang_id) return gang.id === listing.counterparty_gang_id
+        return true
+      }
       return true
     })
     return gangs.map((gang) => ({

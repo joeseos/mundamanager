@@ -1,10 +1,12 @@
 -- Accept an open trade in one transaction. Direct trades settle as before.
--- Accepting a bid locks the listing and all open bids in id order, moves
--- listing goods (selling) or listing payment (buying) together with the bid
--- counterpart, skips a selling listing's asking-price rows, declines sibling
--- bids, then marks listing and winning bid fulfilled. Accepting an open
--- listing row is invalid. Does not check allow_trading so an open trade
--- can still complete after the flag is turned off.
+-- Accepting a bid locks the parent (open listing or open direct aimed at
+-- the bidder) and all open bids in id order, moves listing goods (selling)
+-- or listing payment (buying) together with the bid counterpart, skips a
+-- selling listing's asking-price rows, declines sibling bids, then marks
+-- parent and winning bid fulfilled. Accepting an open listing row is
+-- invalid. Accepting a direct row fulfills it first, then declines open
+-- child offers. Does not check allow_trading so an open trade can still
+-- complete after the flag is turned off.
 --
 -- Once credits, reputation or resources have been written, a later failure
 -- RAISE-s. A plain RETURN would commit the earlier legs and leave the trade
@@ -92,6 +94,8 @@ BEGIN
         PERFORM 1
         FROM campaign_trades
         WHERE id = p_trade_id
+           OR (parent_trade_id = p_trade_id AND status = 'open')
+        ORDER BY id
         FOR UPDATE;
     END IF;
 
@@ -124,10 +128,18 @@ BEGIN
         IF v_listing_status IS DISTINCT FROM 'open' THEN
             RETURN 'not_open';
         END IF;
-        IF v_listing_counterparty IS NOT NULL
-            OR v_listing_proposer IS NULL
-            OR v_counterparty IS DISTINCT FROM v_listing_proposer THEN
+        IF v_listing_proposer IS NULL THEN
             RETURN 'invalid';
+        END IF;
+        IF v_listing_counterparty IS NULL THEN
+            IF v_counterparty IS DISTINCT FROM v_listing_proposer THEN
+                RETURN 'invalid';
+            END IF;
+        ELSE
+            IF v_proposer IS DISTINCT FROM v_listing_counterparty
+               OR v_counterparty IS DISTINCT FROM v_listing_proposer THEN
+                RETURN 'invalid';
+            END IF;
         END IF;
 
         v_listing_has_goods := EXISTS (
@@ -538,6 +550,23 @@ BEGIN
         SET locked = false,
             updated_at = now()
         WHERE trade_id = p_trade_id AND locked;
+
+        UPDATE campaign_trade_items
+        SET locked = false,
+            updated_at = now()
+        WHERE locked
+          AND trade_id IN (
+              SELECT id FROM campaign_trades
+              WHERE parent_trade_id = p_trade_id
+                AND status = 'open'
+          );
+
+        UPDATE campaign_trades
+        SET status = 'declined',
+            resolved_at = now(),
+            updated_at = now()
+        WHERE parent_trade_id = p_trade_id
+          AND status = 'open';
     END IF;
 
     RETURN 'ok';
