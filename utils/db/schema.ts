@@ -1463,7 +1463,7 @@ export const vehiclesRelations = relations(vehicles, ({ one, many }) => ({
   fighter_effects: many(fighterEffects),
 }));
 
-export const fighterEquipmentRelations = relations(fighterEquipment, ({ one }) => ({
+export const fighterEquipmentRelations = relations(fighterEquipment, ({ one, many }) => ({
   fighter: one(fighters, {
     fields: [fighterEquipment.fighter_id],
     references: [fighters.id],
@@ -1480,10 +1480,20 @@ export const fighterEquipmentRelations = relations(fighterEquipment, ({ one }) =
     fields: [fighterEquipment.custom_equipment_id],
     references: [customEquipment.id],
   }),
+  // The fighters the item comes with (a beast, or the Trazior Pattern Sentry Gun's card)
+  granted_fighters: many(fighterExoticBeasts),
 }));
 
 export const equipmentRelations = relations(equipment, ({ many }) => ({
   weapon_profiles: many(weaponProfiles),
+  exotic_beasts: many(exoticBeasts),
+}));
+
+export const exoticBeastsRelations = relations(exoticBeasts, ({ one }) => ({
+  equipment: one(equipment, {
+    fields: [exoticBeasts.equipment_id],
+    references: [equipment.id],
+  }),
 }));
 
 export const weaponProfilesRelations = relations(weaponProfiles, ({ one }) => ({

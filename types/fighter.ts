@@ -258,6 +258,7 @@ export interface FighterProps {
   /** Derived: the owner's primary status label, e.g. Recovery. */
   owner_status?: string | null;
   beast_equipment_stashed?: boolean; // Whether the equipment granting this beast is in stash
+  stash_value?: number; // Set for a fighter kept in the stash by its item: its gear and effects, counted in stash value
   image_url?: string; // URL to the fighter's image
   active_loadout_id?: string; // ID of the currently active loadout
   loadout_cost?: number; // Cost with active loadout equipment only (for fighter card display)

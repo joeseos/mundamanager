@@ -3,10 +3,10 @@ import { countAdvancementsTaken } from '@/utils/advancementRanks';
 import { readHatredTarget } from '@/utils/injuryTarget';
 import { WeaponProps, WargearItem } from '@/types/fighter';
 import type { CountLimit } from '@/types/fighter-type';
-import { WeaponProfile } from '@/types/equipment';
+import { isBeastWargear, WeaponProfile } from '@/types/equipment';
 import { applyWeaponModifiers, fighterWideWeaponEffects } from '@/utils/effect-modifiers';
 import { gangRulesForWeapon } from '@/utils/gang-rules';
-import { beastCost, effectsCost, fighterTotalCost, type BeastCostRows } from '@/utils/fighter-cost';
+import { beastCost, effectsCost, equipmentCost, fighterTotalCost, type BeastCostRows } from '@/utils/fighter-cost';
 import { fighterStatusLabel } from '@/utils/fighter-status';
 import type {
   GangFighter,
@@ -495,7 +495,9 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
 
     const beastCosts = ownedBeastCosts(fighterId);
 
-    const isOwnedBeast = !!ownershipInfo;
+    // A beast's cost rolls into its owner, and a fighter kept in the stash by its
+    // item (no owner) is stash value, so the card itself costs nothing
+    const isGrantedByItem = !!fighter.fighter_pet_id;
 
     // Process vehicles with equipment and effects for display
     const processedVehicles = vehicles.map((vehicle: any) => {
@@ -552,7 +554,6 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       };
     });
 
-    // An owned exotic beast's cost rolls into its owner's
     const costRows = {
       credits: fighter.credits,
       cost_adjustment: fighter.cost_adjustment,
@@ -564,14 +565,14 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       beasts: beastCosts.rows,
     };
     // The gang rating counts every item, skill and effect, in or out of the active loadout
-    const totalCost = isOwnedBeast ? 0 : fighterTotalCost({
+    const totalCost = isGrantedByItem ? 0 : fighterTotalCost({
       ...costRows,
       equipment: processedEquipment,
       skills: Object.values(allSkills),
       effects: effectsData,
     });
     // The fighter card shows only the active loadout's
-    const displayLoadoutCost = isOwnedBeast ? 0 : fighterTotalCost({
+    const displayLoadoutCost = isGrantedByItem ? 0 : fighterTotalCost({
       ...costRows,
       equipment: processedEquipment.filter((eq: any) => isInActiveLoadout(eq.fighter_equipment_id)),
       skills: Object.values(skills),
@@ -671,6 +672,8 @@ function fighterAssembler(bundle: GangFightersBundle, options?: GetGangFightersL
       owner_name: ownershipInfo?.owner_name,
       owner_status: fighterStatusLabel(owner),
       beast_equipment_stashed: ownershipInfo?.beast_equipment_stashed || false,
+      // Kept in the stash by its item (no owner): what was added to it is stash value
+      stash_value: isGrantedByItem && !ownershipInfo ? equipmentCost(processedEquipment) + effectsCost(effectsData) : undefined,
       active_loadout_id: activeLoadoutId || undefined,
       active_loadout_name: activeLoadoutId ? (loadoutCtx?.loadoutName ?? loadoutNameMap.get(activeLoadoutId)) : undefined,
       isActiveLoadoutForPrint: loadoutCtx?.isActiveLoadout ?? true
@@ -912,9 +915,6 @@ export function selectGangFighterIndex(bundle: GangFightersBundle): GangFighterI
 // FIGHTER PAGE VIEW - the gang page's fighter plus what only the fighter page lists
 // =============================================================================
 
-// The beast-granting item's category: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26
-const BEAST_EQUIPMENT_CATEGORIES = new Set(['status items: exotic beasts', 'pets']);
-
 export interface FighterView {
   /**
    * The fighter as the gang page assembles it, with the fighter page's vehicle
@@ -989,7 +989,7 @@ export function assembleFighterView(bundle: GangFightersBundle, fighterId: strin
     },
     equipment: equipment.map((item: any) => {
       const row = rowById.get(item.fighter_equipment_id);
-      const beastBreakdown = BEAST_EQUIPMENT_CATEGORIES.has(item.equipment_category.toLowerCase())
+      const beastBreakdown = isBeastWargear(item.equipment_category)
         ? beastCosts.byEquipmentId[item.fighter_equipment_id]
         : undefined;
       return {

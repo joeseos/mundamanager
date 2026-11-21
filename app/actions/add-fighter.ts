@@ -15,7 +15,7 @@ import { assertArchetypeAssignable } from '@/utils/assertArchetypeAssignable';
 import { editionSlugFromJoin, gangEditionSlug, type EditionJoin } from '@/types/edition';
 import { isVenatorGang } from '@/utils/venatorSkillAccess';
 import { shouldClearSpecialisationForSubtypes } from '@/utils/keepTypePromotionN26';
-import type { EquipmentGrantOption, EquipmentGrants } from '@/types/equipment';
+import { isBeastWargear, type EquipmentGrantOption, type EquipmentGrants } from '@/types/equipment';
 import { chosenGrantOptions, insertGrantedEquipment } from '@/utils/equipment-grants';
 
 interface SelectedEquipment {
@@ -983,12 +983,9 @@ export async function addFighterToGang(params: AddFighterParams): Promise<AddFig
                 customWeaponProfiles = customProfilesData || [];
               }
 
-              // Beast-granting wargear: 'Status Items: Exotic Beasts' in N23, 'Pets' in N26.
-              const exoticBeastEquipment = insertedEquipment.filter((item: any) => {
-                const category = ((item.equipment as any)?.equipment_category ??
-                  (item.custom_equipment as any)?.equipment_category)?.toLowerCase();
-                return category === 'status items: exotic beasts' || category === 'pets' || category === 'exotic beast';
-              });
+              const exoticBeastEquipment = insertedEquipment.filter((item: any) =>
+                isBeastWargear((item.equipment as any)?.equipment_category ?? (item.custom_equipment as any)?.equipment_category)
+              );
 
               // Create exotic beasts for equipment that grants them
               let createdFamiliarsRatingDelta = 0;
