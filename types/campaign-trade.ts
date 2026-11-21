@@ -58,12 +58,9 @@ export const campaignTradeKindLabels: Record<CampaignTradeKind, string> = {
   bid: 'Offer',
 };
 
-export const CAMPAIGN_TRADE_KIND_OPTIONS: CampaignTradeKind[] = [
-  'selling',
-  'looking-for',
-  'direct',
-  'bid',
-];
+export function isPaymentKind(kind: CampaignTradeItemKind): boolean {
+  return kind === 'credits' || kind === 'reputation' || kind === 'campaign_resource';
+}
 
 export function campaignTradeShape(
   trade: Pick<CampaignTrade, 'parent_trade_id' | 'counterparty_gang_id'>
@@ -77,8 +74,6 @@ export function campaignTradeKind(trade: CampaignTrade): CampaignTradeKind {
   const shape = campaignTradeShape(trade);
   if (shape === 'bid') return 'bid';
   if (shape === 'direct') return 'direct';
-  const hasGoods = trade.items.some(
-    (item) => item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom'
-  );
+  const hasGoods = trade.items.some((item) => !isPaymentKind(item.kind));
   return hasGoods ? 'selling' : 'looking-for';
 }

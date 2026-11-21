@@ -16,6 +16,7 @@ import {
   invalidateGangStash,
 } from '@/utils/cache-tags';
 import { isTradeableStashEquipment } from '@/utils/campaign-trade-stash';
+import { isPaymentKind } from '@/types/campaign-trade';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
 
 const TRADE_OUTCOME_MESSAGES: Record<string, string> = {
@@ -650,9 +651,7 @@ export async function createCampaignTrade(params: CreateCampaignTradeParams) {
         .select('kind')
         .eq('trade_id', listing.id);
       if (listingItemsError) throw listingItemsError;
-      listingHasGoods = (listingItems ?? []).some((item) => (
-        item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom'
-      ));
+      listingHasGoods = (listingItems ?? []).some((item) => !isPaymentKind(item.kind));
 
       if (listingHasGoods) {
         if (goodsKind) return fail('invalid');

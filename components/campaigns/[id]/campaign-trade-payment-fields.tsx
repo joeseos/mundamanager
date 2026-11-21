@@ -82,17 +82,13 @@ export function parseTradePayments(
   let reputationAmount = 0
   for (const row of value.resources) {
     const amount = Number(row.amount)
-    if (!row.resourceId) {
-      if (!row.amount || amount === 0) continue
-      if (Number.isNaN(amount) || !Number.isInteger(amount) || amount < 0) {
-        return { success: false, error: 'Resource amounts must be a whole number of 0 or more.' }
-      }
-      return { success: false, error: 'Select a resource.' }
-    }
-    if (Number.isNaN(amount) || !Number.isInteger(amount) || amount < 0) {
+    if (!Number.isInteger(amount) || amount < 0) {
       return { success: false, error: 'Resource amounts must be a whole number of 0 or more.' }
     }
     if (amount === 0) continue
+    if (!row.resourceId) {
+      return { success: false, error: 'Select a resource.' }
+    }
     if (seen.has(row.resourceId)) {
       return { success: false, error: 'Each resource can only be listed once.' }
     }
@@ -145,41 +141,41 @@ export default function CampaignTradePaymentFields({
   return (
     <div className={`space-y-4${heading ? ' pt-2' : ''}`}>
       <div className="space-y-1">
-      {heading && (
-        <p className="text-sm font-medium">{heading}</p>
-      )}
-      <div className={`grid gap-x-3 gap-y-1 items-start${canAddResource ? ' grid-cols-2' : ' grid-cols-1'}`}>
-        <Label htmlFor={`${idPrefix}-credits`} className="col-start-1 text-xs">Credits</Label>
-        {canAddResource && (
-          <Label className="col-start-2 text-xs">Other resources</Label>
+        {heading && (
+          <p className="text-sm font-medium">{heading}</p>
         )}
-        <Input
-          id={`${idPrefix}-credits`}
-          type="number"
-          min={0}
-          step={1}
-          value={value.credits}
-          onChange={(event) => onChange({ ...value, credits: event.target.value })}
-          className="col-start-1"
-        />
-        {canAddResource && (
-          <Button
-            type="button"
-            variant="outline"
-            className="col-start-2 w-full"
-            onClick={() => onChange({
-              ...value,
-              resources: [
-                ...value.resources,
-                { key: nextPaymentRowKey(), resourceId: '', amount: '0' },
-              ],
-            })}
-          >
-            <LuPlus className="h-4 w-4 mr-1" />
-            Add resource
-          </Button>
-        )}
-      </div>
+        <div className={`grid gap-x-3 gap-y-1 items-start${canAddResource ? ' grid-cols-2' : ' grid-cols-1'}`}>
+          <Label htmlFor={`${idPrefix}-credits`} className="col-start-1 text-xs">Credits</Label>
+          {canAddResource && (
+            <Label className="col-start-2 text-xs">Other resources</Label>
+          )}
+          <Input
+            id={`${idPrefix}-credits`}
+            type="number"
+            min={0}
+            step={1}
+            value={value.credits}
+            onChange={(event) => onChange({ ...value, credits: event.target.value })}
+            className="col-start-1"
+          />
+          {canAddResource && (
+            <Button
+              type="button"
+              variant="outline"
+              className="col-start-2 w-full"
+              onClick={() => onChange({
+                ...value,
+                resources: [
+                  ...value.resources,
+                  { key: nextPaymentRowKey(), resourceId: '', amount: '0' },
+                ],
+              })}
+            >
+              <LuPlus className="h-4 w-4 mr-1" />
+              Add resource
+            </Button>
+          )}
+        </div>
       </div>
 
       {value.resources.length > 0 && (

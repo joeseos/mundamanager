@@ -19,7 +19,7 @@ import CampaignTradePaymentFields, {
   type CampaignTradePaymentResource,
   type CampaignTradePaymentValue,
 } from '@/components/campaigns/[id]/campaign-trade-payment-fields'
-import type { CampaignTrade } from '@/types/campaign-trade'
+import { isPaymentKind, type CampaignTrade } from '@/types/campaign-trade'
 import type { CampaignResource } from '@/utils/campaigns/resources'
 import type { TradeableStashItem } from '@/utils/campaign-trade-stash'
 
@@ -61,7 +61,7 @@ interface CampaignTradeModalProps {
 }
 
 function listingHasGoods(listing: CampaignTrade) {
-  return listing.items.some((item) => item.kind === 'captive' || item.kind === 'equipment' || item.kind === 'custom')
+  return listing.items.some((item) => !isPaymentKind(item.kind))
 }
 
 function defaultRansomTitle(fighterName: string) {
@@ -249,6 +249,21 @@ export default function CampaignTradeModal({
       ? "Describe what you want and what you'll pay. Other gangs make an offer with the goods or service."
       : undefined
   const confirmText = mode === 'bid' ? 'Make an offer' : 'Post listing'
+  const titleField = (
+    <div className="space-y-1">
+      <Label htmlFor="trade-title" className="text-sm">
+        {mode === 'bid' ? 'Title' : 'Title *'}
+      </Label>
+      <Input
+        id="trade-title"
+        maxLength={100}
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        disabled={mode === 'bid'}
+        placeholder={mode === 'looking-for' ? 'What you want' : undefined}
+      />
+    </div>
+  )
 
   return (
     <Modal
@@ -311,17 +326,7 @@ export default function CampaignTradeModal({
       }}
       content={
         <div className="space-y-4">
-          {mode === 'bid' && (
-            <div className="space-y-1">
-              <Label htmlFor="trade-title" className="text-sm">Title</Label>
-              <Input
-                id="trade-title"
-                maxLength={100}
-                value={title}
-                disabled
-              />
-            </div>
-          )}
+          {mode === 'bid' && titleField}
 
           {actors.length > 1 && (
             <div className="space-y-1">
@@ -459,18 +464,7 @@ export default function CampaignTradeModal({
             />
           )}
 
-          {mode !== 'bid' && (
-            <div className="space-y-1">
-              <Label htmlFor="trade-title" className="text-sm">Title *</Label>
-              <Input
-                id="trade-title"
-                maxLength={100}
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder={mode === 'looking-for' ? 'What you want' : undefined}
-              />
-            </div>
-          )}
+          {mode !== 'bid' && titleField}
 
           <div className="space-y-1">
             <Label htmlFor="trade-note" className="text-xs">{mode === 'bid' ? 'Note' : 'Description'}</Label>

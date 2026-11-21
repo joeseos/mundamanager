@@ -21,27 +21,25 @@ import {
 } from '@/app/actions/campaigns/[id]/campaign-trades'
 import CampaignTradeModal from '@/components/campaigns/[id]/campaign-trade-modal'
 import {
-  CAMPAIGN_TRADE_KIND_OPTIONS,
   campaignTradeKind,
   campaignTradeKindLabels,
   campaignTradeShape,
   campaignTradeStatusColors,
   campaignTradeStatusLabels,
+  isPaymentKind,
   type CampaignTrade,
   type CampaignTradeItem,
+  type CampaignTradeKind,
   type CampaignTradeStatus,
 } from '@/types/campaign-trade'
 
 const STATUS_OPTIONS: CampaignTradeStatus[] = ['open', 'fulfilled', 'declined', 'cancelled']
+const KIND_OPTIONS: CampaignTradeKind[] = ['selling', 'looking-for', 'direct', 'bid']
 const groupsPerPage = 10
 
 function formatDate(dateString: string | null) {
   if (!dateString) return 'N/A'
   return formatLocalDate(new Date(dateString))
-}
-
-function isPaymentKind(kind: CampaignTradeItem['kind']) {
-  return kind === 'credits' || kind === 'reputation' || kind === 'campaign_resource'
 }
 
 function itemSummary(item: CampaignTradeItem): string {
@@ -117,7 +115,7 @@ function NestedOfferStatus({
   status,
 }: {
   isLast: boolean
-  status: CampaignTradeStatus | null
+  status: CampaignTradeStatus
 }) {
   return (
     <td className="relative p-1 md:p-2">
@@ -137,11 +135,9 @@ function NestedOfferStatus({
         <div className="text-[10px] md:text-xs font-normal text-muted-foreground">
           {campaignTradeKindLabels.bid}
         </div>
-        {status && (
-          <div className={`text-[10px] md:text-xs font-normal ${nestedOfferStatusTextColors[status]}`}>
-            {campaignTradeStatusLabels[status]}
-          </div>
-        )}
+        <div className={`text-[10px] md:text-xs font-normal ${nestedOfferStatusTextColors[status]}`}>
+          {campaignTradeStatusLabels[status]}
+        </div>
       </div>
     </td>
   )
@@ -223,7 +219,7 @@ export default function CampaignTradesList({
 
   const kindOptions = useMemo(() => {
     const present = new Set(trades.map((trade) => campaignTradeKind(trade)))
-    return CAMPAIGN_TRADE_KIND_OPTIONS.filter((kind) => present.has(kind))
+    return KIND_OPTIONS.filter((kind) => present.has(kind))
   }, [trades])
 
   const filteredBlocks = useMemo(() => {
@@ -317,9 +313,9 @@ export default function CampaignTradesList({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="filter-trade-shape" className="text-xs">Trade type</Label>
+            <Label htmlFor="filter-trade-kind" className="text-xs">Trade type</Label>
             <Combobox
-              id="filter-trade-shape"
+              id="filter-trade-kind"
               options={[
                 { value: '', label: 'All trade types' },
                 ...kindOptions.map((kind) => ({
@@ -367,7 +363,6 @@ export default function CampaignTradesList({
                 const nextTrade = currentTrades[index + 1]
                 const isLastNestedOffer = isNestedOffer
                   && nextTrade?.parent_trade_id !== trade.parent_trade_id
-                const offerOutcome = isNestedOffer ? trade.status : null
                 const showCancel = trade.status === 'open' && canActFor(trade.proposer_gang_id)
                 const showCounterparty = trade.status === 'open' && canActFor(trade.counterparty_gang_id)
                 const showPlaceBid = allowTrading
@@ -386,7 +381,7 @@ export default function CampaignTradesList({
                   {isNestedOffer ? (
                     <NestedOfferStatus
                       isLast={isLastNestedOffer}
-                      status={offerOutcome}
+                      status={trade.status}
                     />
                   ) : (
                   <td className="p-1 md:p-2">
@@ -500,7 +495,7 @@ export default function CampaignTradesList({
                         {hiddenOfferCount > 0 && (
                           <Button
                             size="sm"
-                            variant="outline_cancel"
+                            variant="outline"
                             className="h-8 w-8 p-0"
                             aria-label={otherOffersExpanded ? 'Hide other offers' : 'Show other offers'}
                             title={otherOffersExpanded ? 'Hide other offers' : 'Show other offers'}
