@@ -76,11 +76,11 @@ ALTER POLICY "Authenticated users can create battle sessions" ON public.live_bat
   RENAME TO "Authenticated users can create live battles";
 
 ALTER POLICY "Admins, arbs, session creator or self can delete participants" ON public.live_battle_participants
-  RENAME TO "Admins, arbs, live battle creator or self can delete participants";
+  RENAME TO "Admins, arbs, creator or self can delete participants";
 ALTER POLICY "Admins, arbs, session creator or self can insert participants" ON public.live_battle_participants
-  RENAME TO "Admins, arbs, live battle creator or self can insert participants";
+  RENAME TO "Admins, arbs, creator or self can insert participants";
 ALTER POLICY "Admins, arbs, session creator or self can update participants" ON public.live_battle_participants
-  RENAME TO "Admins, arbs, live battle creator or self can update participants";
+  RENAME TO "Admins, arbs, creator or self can update participants";
 ALTER POLICY "Allow authenticated users to view battle session participants" ON public.live_battle_participants
   RENAME TO "Allow authenticated users to view live battle participants";
 
