@@ -8,13 +8,14 @@ import type { ThemeProviderProps } from 'next-themes';
 // saved value uses defaultTheme (system follows prefers-color-scheme).
 const themeConfig = {
   attribute: 'class',
+  enableColorScheme: false,
   defaultTheme: 'system',
   enableSystem: true,
   disableTransitionOnChange: true,
   storageKey: 'mundamanager-theme',
 } as const satisfies Pick<
   ThemeProviderProps,
-  'attribute' | 'defaultTheme' | 'enableSystem' | 'disableTransitionOnChange' | 'storageKey'
+  'attribute' | 'enableColorScheme' | 'defaultTheme' | 'enableSystem' | 'disableTransitionOnChange' | 'storageKey'
 >;
 
 // Runs from the server HTML before first paint. On the client, React 19
