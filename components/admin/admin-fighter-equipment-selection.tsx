@@ -48,6 +48,9 @@ export interface EquipmentSelection {
   [key: string]: SelectionCategory;
 }
 
+const defaultSlots = (defaults: EquipmentOption[] = []) =>
+  defaults.reduce((sum, d) => sum + (d.quantity || 1), 0);
+
 interface AdminFighterEquipmentSelectionProps {
   equipment: EquipmentWithId[];
   equipmentSelection: EquipmentSelection;
@@ -337,8 +340,8 @@ export function AdminFighterEquipmentSelection({
                           setEquipmentSelection(prev => {
                             const defaults = prev[categoryId].default || [];
                             if (defaults.length === 0) return prev;
-                            // Compute total default slots for auto-defaulting max_quantity
-                            const totalDefaultSlots = defaults.reduce((sum, d) => sum + (d.quantity || 1), 0);
+                            // A strict pick gives max_quantity copies, so start at 1; flexible starts at all default slots
+                            const max_quantity = prev[categoryId].replacement_mode === 'strict' ? 1 : defaultSlots(defaults);
                             // Attach to the first default
                             const updatedDefaults = defaults.map((d, i) =>
                               i === 0
@@ -346,7 +349,7 @@ export function AdminFighterEquipmentSelection({
                                     ...d,
                                     replacements: [
                                       ...(d.replacements || []),
-                                      { id: value, cost: 0, max_quantity: totalDefaultSlots }
+                                      { id: value, cost: 0, max_quantity }
                                     ]
                                   }
                                 : d
@@ -401,7 +404,7 @@ export function AdminFighterEquipmentSelection({
                           {category.select_type === 'optional_single'
                             ? 'Optional Equipment (Choose One)'
                             : (() => {
-                                const totalSlots = (category.default || []).reduce((sum, d) => sum + (d.quantity || 1), 0);
+                                const totalSlots = defaultSlots(category.default);
                                 return totalSlots > 1 ? `Optional Equipment (${totalSlots} default slots)` : 'Optional Equipment';
                               })()}
                         </label>
@@ -445,7 +448,7 @@ export function AdminFighterEquipmentSelection({
                                     />
                                   </div>
                                   <div>
-                                    <label className="block text-xs text-muted-foreground">Max Number</label>
+                                    <label className="block text-xs text-muted-foreground">{category.replacement_mode === 'strict' ? 'Number Given' : 'Max Number'}</label>
                                     <input
                                       type="number"
                                       value={item.max_quantity}

@@ -32,7 +32,7 @@ interface EquipmentSelectionProps {
  * Shared starting-equipment picker for the fighter-add flows. Renders four
  * selection patterns driven by each category's `select_type` / `replacement_mode`:
  *  - optional + flexible → checkboxes with per-slot accounting
- *  - optional + strict   → radios that replace all slots
+ *  - optional + strict   → radios that replace all slots with the option's max_quantity copies
  *  - single / optional_single → radios (with a "Keep Default" option)
  *  - multiple → checkboxes
  */
@@ -188,7 +188,7 @@ export function EquipmentSelection({
                 <label className="block text-sm font-medium text-muted-foreground">
                   {isOptional
                     ? (replacementMode === 'strict'
-                      ? `Optional ${categoryName} (replace all ${totalSlots})`
+                      ? `Optional ${categoryName} (replace all)`
                       : `Optional ${categoryName} (replace up to ${totalSlots})`)
                     : isOptionalSingle ? `Optional ${categoryName} (Choose one replacement)`
                     : isSingle ? `Select ${categoryName} (Choose one)`
@@ -231,7 +231,7 @@ export function EquipmentSelection({
                           setSelectedEquipment(withCategoryDefaults);
                           if (selectedOption) {
                             setFighterCost((prevCost) =>
-                              String(parseInt(prevCost || '0') - (selectedOption.cost || 0) * totalSlots)
+                              String(parseInt(prevCost || '0') - (selectedOption.cost || 0) * selectedOption.max_quantity)
                             );
                           }
                         }}
@@ -314,6 +314,8 @@ export function EquipmentSelection({
 
                     // === OPTIONAL + STRICT MODE: radio buttons ===
                     if (isOptional && replacementMode === 'strict') {
+                      // A strict pick grants its own count: one shotgun for a pistol + club, two matrices for two launchers.
+                      const quantity = option.max_quantity;
                       return (
                         <div key={uniqueOptionId} className="flex items-center gap-2">
                           <input
@@ -323,20 +325,20 @@ export function EquipmentSelection({
                             checked={selectedOptionId === uniqueOptionId}
                             onChange={() => {
                               const optionCost = option.cost || 0;
-                              const prevCostPerUnit = selectedOption?.cost || 0;
+                              const prevCost = selectedOption ? (selectedOption.cost || 0) * selectedOption.max_quantity : 0;
 
                               setSelectedEquipmentIds((prev) => [...withoutCategoryIds(prev), uniqueOptionId]);
 
-                              setSelectedEquipment((prev) => [...withoutCategoryItems(prev), categoryItem(option, optionCost, totalSlots)]);
+                              setSelectedEquipment((prev) => [...withoutCategoryItems(prev), categoryItem(option, optionCost, quantity)]);
 
-                              setFighterCost((prevCost) =>
-                                String(parseInt(prevCost || '0') - (prevCostPerUnit * totalSlots) + (optionCost * totalSlots))
+                              setFighterCost((cost) =>
+                                String(parseInt(cost || '0') - prevCost + optionCost * quantity)
                               );
                             }}
                           />
                           <label htmlFor={uniqueOptionId} className="text-sm">
-                            {totalSlots}x {option.equipment_name || 'Loading...'}
-                            {` ${option.cost * totalSlots >= 0 ? '+' : ''}${option.cost * totalSlots} credits`}
+                            {quantity}x {option.equipment_name || 'Loading...'}
+                            {` ${option.cost * quantity >= 0 ? '+' : ''}${option.cost * quantity} credits`}
                           </label>
                         </div>
                       );
