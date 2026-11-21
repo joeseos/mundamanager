@@ -113,6 +113,7 @@ DECLARE
     v_counterparty uuid;
     v_status text;
     v_parent uuid;
+    v_root uuid;
     v_listing_proposer uuid;
     v_listing_counterparty uuid;
     v_listing_status text;
@@ -165,20 +166,15 @@ BEGIN
         RETURN 'not_found';
     END IF;
 
-    IF v_parent IS NOT NULL THEN
-        PERFORM 1
-        FROM campaign_trades
-        WHERE id = v_parent
-           OR id = p_trade_id
-           OR (parent_trade_id = v_parent AND status = 'open')
-        ORDER BY id
-        FOR UPDATE;
-    ELSE
-        PERFORM 1
-        FROM campaign_trades
-        WHERE id = p_trade_id
-        FOR UPDATE;
-    END IF;
+    v_root := COALESCE(v_parent, p_trade_id);
+
+    PERFORM 1
+    FROM campaign_trades
+    WHERE id = v_root
+       OR id = p_trade_id
+       OR (parent_trade_id = v_root AND status = 'open')
+    ORDER BY id
+    FOR UPDATE;
 
     SELECT campaign_id, proposer_gang_id, counterparty_gang_id, status, parent_trade_id
     INTO v_campaign_id, v_proposer, v_counterparty, v_status, v_parent
@@ -187,6 +183,7 @@ BEGIN
     IF NOT FOUND THEN
         RETURN 'not_found';
     END IF;
+    v_root := COALESCE(v_parent, p_trade_id);
     IF v_status IS DISTINCT FROM 'open' THEN
         RETURN 'not_open';
     END IF;
@@ -209,10 +206,18 @@ BEGIN
         IF v_listing_status IS DISTINCT FROM 'open' THEN
             RETURN 'not_open';
         END IF;
-        IF v_listing_counterparty IS NOT NULL
-            OR v_listing_proposer IS NULL
-            OR v_counterparty IS DISTINCT FROM v_listing_proposer THEN
+        IF v_listing_proposer IS NULL THEN
             RETURN 'invalid';
+        END IF;
+        IF v_listing_counterparty IS NULL THEN
+            IF v_counterparty IS DISTINCT FROM v_listing_proposer THEN
+                RETURN 'invalid';
+            END IF;
+        ELSE
+            IF v_proposer IS DISTINCT FROM v_listing_counterparty
+               OR v_counterparty IS DISTINCT FROM v_listing_proposer THEN
+                RETURN 'invalid';
+            END IF;
         END IF;
 
         v_listing_has_goods := EXISTS (
@@ -582,48 +587,35 @@ BEGIN
            OR granted_by_equipment_id = v_equip_id;
     END IF;
 
-    IF v_parent IS NOT NULL THEN
-        UPDATE campaign_trade_items
-        SET locked = false,
-            updated_at = now()
-        WHERE locked
-          AND trade_id IN (
-              SELECT id FROM campaign_trades
-              WHERE parent_trade_id = v_parent
-                AND id IS DISTINCT FROM p_trade_id
-                AND status = 'open'
-          );
+    UPDATE campaign_trade_items
+    SET locked = false,
+        updated_at = now()
+    WHERE locked
+      AND trade_id IN (
+          SELECT id FROM campaign_trades
+          WHERE parent_trade_id = v_root
+            AND id IS DISTINCT FROM p_trade_id
+            AND status = 'open'
+      );
 
-        UPDATE campaign_trades
-        SET status = 'declined',
-            resolved_at = now(),
-            updated_at = now()
-        WHERE parent_trade_id = v_parent
-          AND id IS DISTINCT FROM p_trade_id
-          AND status = 'open';
+    UPDATE campaign_trades
+    SET status = 'declined',
+        resolved_at = now(),
+        updated_at = now()
+    WHERE parent_trade_id = v_root
+      AND id IS DISTINCT FROM p_trade_id
+      AND status = 'open';
 
-        UPDATE campaign_trades
-        SET status = 'fulfilled',
-            resolved_at = now(),
-            updated_at = now()
-        WHERE id IN (p_trade_id, v_parent);
+    UPDATE campaign_trades
+    SET status = 'fulfilled',
+        resolved_at = now(),
+        updated_at = now()
+    WHERE id IN (p_trade_id, v_root);
 
-        UPDATE campaign_trade_items
-        SET locked = false,
-            updated_at = now()
-        WHERE trade_id IN (p_trade_id, v_parent) AND locked;
-    ELSE
-        UPDATE campaign_trades
-        SET status = 'fulfilled',
-            resolved_at = now(),
-            updated_at = now()
-        WHERE id = p_trade_id;
-
-        UPDATE campaign_trade_items
-        SET locked = false,
-            updated_at = now()
-        WHERE trade_id = p_trade_id AND locked;
-    END IF;
+    UPDATE campaign_trade_items
+    SET locked = false,
+        updated_at = now()
+    WHERE trade_id IN (p_trade_id, v_root) AND locked;
 
     RETURN 'ok';
 EXCEPTION
@@ -5078,36 +5070,51 @@ COMMENT ON COLUMN public.alliances.tithe_cost IS 'N26 Tithe Price: credits a gan
 
 
 --
--- Name: battle_session_fighters; Type: TABLE; Schema: public; Owner: -
+-- Name: live_battle_fighters; Type: TABLE; Schema: public; Owner: -
 --
 
-CREATE TABLE public.battle_session_fighters (
+CREATE TABLE public.live_battle_fighters (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    battle_session_id uuid NOT NULL,
+    live_battle_id uuid NOT NULL,
     participant_id uuid NOT NULL,
     fighter_id uuid NOT NULL,
-    session_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb NOT NULL,
+    live_battle_record jsonb DEFAULT '{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     loadout_id uuid
 );
 
-ALTER TABLE ONLY public.battle_session_fighters REPLICA IDENTITY FULL;
+ALTER TABLE ONLY public.live_battle_fighters REPLICA IDENTITY FULL;
 
 
 --
--- Name: COLUMN battle_session_fighters.session_record; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN live_battle_fighters.live_battle_record; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.battle_session_fighters.session_record IS 'Tracks xp gained and injuries added in this battle session';
+COMMENT ON COLUMN public.live_battle_fighters.live_battle_record IS 'Tracks xp gained and injuries added in this live battle';
 
 
 --
--- Name: battle_session_participants; Type: TABLE; Schema: public; Owner: -
+-- Name: battle_session_fighters; Type: VIEW; Schema: public; Owner: -
 --
 
-CREATE TABLE public.battle_session_participants (
+CREATE VIEW public.battle_session_fighters WITH (security_invoker='true') AS
+ SELECT id,
+    live_battle_id AS battle_session_id,
+    participant_id,
+    fighter_id,
+    live_battle_record AS session_record,
+    created_at,
+    loadout_id
+   FROM public.live_battle_fighters;
+
+
+--
+-- Name: live_battle_participants; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.live_battle_participants (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
-    battle_session_id uuid NOT NULL,
+    live_battle_id uuid NOT NULL,
     user_id uuid NOT NULL,
     gang_id uuid NOT NULL,
     role text DEFAULT 'none'::text NOT NULL,
@@ -5122,32 +5129,56 @@ CREATE TABLE public.battle_session_participants (
     side_job_id uuid,
     side_job_completed boolean DEFAULT false NOT NULL,
     side_job_name text,
-    CONSTRAINT battle_session_participants_one_side_job_check CHECK (((side_job_id IS NULL) OR (side_job_name IS NULL))),
-    CONSTRAINT battle_session_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
+    CONSTRAINT live_battle_participants_one_side_job_check CHECK (((side_job_id IS NULL) OR (side_job_name IS NULL))),
+    CONSTRAINT live_battle_participants_role_check CHECK ((role = ANY (ARRAY['attacker'::text, 'defender'::text, 'none'::text])))
 );
 
-ALTER TABLE ONLY public.battle_session_participants REPLICA IDENTITY FULL;
+ALTER TABLE ONLY public.live_battle_participants REPLICA IDENTITY FULL;
 
 
 --
--- Name: COLUMN battle_session_participants.side_job_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN live_battle_participants.side_job_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.battle_session_participants.side_job_id IS 'N26 Side Job this gang rolled: a scenario_table_entries row of the core side_job table or of its house''s. Copied into campaign_battles.participants on completion.';
-
-
---
--- Name: COLUMN battle_session_participants.side_job_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.battle_session_participants.side_job_name IS 'N26 custom Side Job this gang named by hand instead of rolling one. NULL while side_job_id is set. Copied into campaign_battles.participants on completion.';
+COMMENT ON COLUMN public.live_battle_participants.side_job_id IS 'N26 Side Job this gang rolled: a scenario_table_entries row of the core side_job table or of its house''s. Copied into campaign_battles.participants on completion.';
 
 
 --
--- Name: battle_sessions; Type: TABLE; Schema: public; Owner: -
+-- Name: COLUMN live_battle_participants.side_job_name; Type: COMMENT; Schema: public; Owner: -
 --
 
-CREATE TABLE public.battle_sessions (
+COMMENT ON COLUMN public.live_battle_participants.side_job_name IS 'N26 custom Side Job this gang named by hand instead of rolling one. NULL while side_job_id is set. Copied into campaign_battles.participants on completion.';
+
+
+--
+-- Name: battle_session_participants; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.battle_session_participants WITH (security_invoker='true') AS
+ SELECT id,
+    live_battle_id AS battle_session_id,
+    user_id,
+    gang_id,
+    role,
+    gang_rating_snapshot,
+    credits_earned,
+    reputation_change,
+    created_at,
+    ready,
+    is_winner,
+    claimed_territory,
+    resource_changes,
+    side_job_id,
+    side_job_completed,
+    side_job_name
+   FROM public.live_battle_participants;
+
+
+--
+-- Name: live_battles; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.live_battles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -5166,62 +5197,88 @@ CREATE TABLE public.battle_sessions (
     crew_selection_name text,
     deployment_name text,
     objective_name text,
-    CONSTRAINT battle_sessions_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
-    CONSTRAINT battle_sessions_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
-    CONSTRAINT battle_sessions_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
-    CONSTRAINT battle_sessions_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
+    CONSTRAINT live_battles_one_crew_selection_check CHECK (((crew_selection_id IS NULL) OR (crew_selection_name IS NULL))),
+    CONSTRAINT live_battles_one_deployment_check CHECK (((deployment_id IS NULL) OR (deployment_name IS NULL))),
+    CONSTRAINT live_battles_one_objective_check CHECK (((objective_id IS NULL) OR (objective_name IS NULL))),
+    CONSTRAINT live_battles_status_check CHECK ((status = ANY (ARRAY['pre_battle'::text, 'active'::text, 'post_battle'::text, 'completed'::text])))
 );
 
-ALTER TABLE ONLY public.battle_sessions REPLICA IDENTITY FULL;
+ALTER TABLE ONLY public.live_battles REPLICA IDENTITY FULL;
 
 
 --
--- Name: COLUMN battle_sessions.edition_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN live_battles.edition_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.battle_sessions.edition_id IS 'Ruleset the session is played under. Derived server-side at creation from the campaign type, or from the creating gang for skirmish sessions. Nullable: a null edition resolves to NO_CAPABILITIES in the app rather than silently serving another edition''s rules.';
-
-
---
--- Name: COLUMN battle_sessions.deployment_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.battle_sessions.deployment_id IS 'N26 Deployment for this session. Copied to campaign_battles.deployment_id on completion.';
+COMMENT ON COLUMN public.live_battles.edition_id IS 'Ruleset the live battle is played under. Derived server-side at creation from the campaign type, or from the creating gang for skirmish live battles. Nullable: a null edition resolves to NO_CAPABILITIES in the app rather than silently serving another edition''s rules.';
 
 
 --
--- Name: COLUMN battle_sessions.objective_id; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN live_battles.deployment_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.battle_sessions.objective_id IS 'N26 Objective for this session. Copied to campaign_battles.objective_id on completion.';
-
-
---
--- Name: COLUMN battle_sessions.crew_selection_id; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.battle_sessions.crew_selection_id IS 'N26 Crew selection for this session. Its scenario_crew_selection_rules fill in the crew picker.';
+COMMENT ON COLUMN public.live_battles.deployment_id IS 'N26 Deployment for this live battle. Copied to campaign_battles.deployment_id on completion.';
 
 
 --
--- Name: COLUMN battle_sessions.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN live_battles.objective_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.battle_sessions.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set. Copied into campaign_battles on completion.';
-
-
---
--- Name: COLUMN battle_sessions.deployment_name; Type: COMMENT; Schema: public; Owner: -
---
-
-COMMENT ON COLUMN public.battle_sessions.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set. Copied into campaign_battles on completion.';
+COMMENT ON COLUMN public.live_battles.objective_id IS 'N26 Objective for this live battle. Copied to campaign_battles.objective_id on completion.';
 
 
 --
--- Name: COLUMN battle_sessions.objective_name; Type: COMMENT; Schema: public; Owner: -
+-- Name: COLUMN live_battles.crew_selection_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.battle_sessions.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set. Copied into campaign_battles on completion.';
+COMMENT ON COLUMN public.live_battles.crew_selection_id IS 'N26 Crew selection for this live battle. Its scenario_crew_selection_rules fill in the crew picker.';
+
+
+--
+-- Name: COLUMN live_battles.crew_selection_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_battles.crew_selection_name IS 'N26 custom Crew named by hand instead of rolled. NULL while crew_selection_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN live_battles.deployment_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_battles.deployment_name IS 'N26 custom Deployment named by hand instead of rolled. NULL while deployment_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: COLUMN live_battles.objective_name; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.live_battles.objective_name IS 'N26 custom Objective named by hand instead of rolled. NULL while objective_id is set. Copied into campaign_battles on completion.';
+
+
+--
+-- Name: battle_sessions; Type: VIEW; Schema: public; Owner: -
+--
+
+CREATE VIEW public.battle_sessions WITH (security_invoker='true') AS
+ SELECT id,
+    created_at,
+    updated_at,
+    created_by,
+    campaign_id,
+    scenario,
+    status,
+    winner_gang_id,
+    campaign_battle_id,
+    round,
+    claimed_territory,
+    edition_id,
+    deployment_id,
+    objective_id,
+    crew_selection_id,
+    crew_selection_name,
+    deployment_name,
+    objective_name
+   FROM public.live_battles;
 
 
 --
@@ -5649,7 +5706,7 @@ CREATE TABLE public.campaign_trades (
 -- Name: TABLE campaign_trades; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON TABLE public.campaign_trades IS 'A campaign trade: a direct proposal, an open listing, or a bid on a listing (parent_trade_id). Completes only when fulfilled.';
+COMMENT ON TABLE public.campaign_trades IS 'A campaign trade: a direct proposal, an open listing, or a bid on a listing or a direct aimed at the bidder (parent_trade_id). Completes only when fulfilled.';
 
 
 --
@@ -5663,7 +5720,7 @@ COMMENT ON COLUMN public.campaign_trades.counterparty_gang_id IS 'The gang that 
 -- Name: COLUMN campaign_trades.parent_trade_id; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.campaign_trades.parent_trade_id IS 'Set on a bid, pointing at the listing. Null on a direct trade or an open listing.';
+COMMENT ON COLUMN public.campaign_trades.parent_trade_id IS 'Set on a bid, pointing at the listing or the direct aimed at the bidder. Null on a listing or a direct.';
 
 
 --
@@ -6975,14 +7032,14 @@ CREATE TABLE public.fighters (
     note text,
     cost_adjustment numeric DEFAULT '0'::numeric,
     label text,
-    recovery boolean DEFAULT false,
+    recovery boolean DEFAULT false NOT NULL,
     user_id uuid DEFAULT auth.uid(),
     fighter_specialisation_id uuid,
     fighter_specialisation text,
     fighter_pet_id uuid,
     image_url text,
     note_backstory text,
-    captured boolean DEFAULT false,
+    captured boolean DEFAULT false NOT NULL,
     fighter_gang_legacy_id uuid,
     custom_fighter_type_id uuid,
     current_loadout integer,
@@ -7732,7 +7789,7 @@ CREATE TABLE public.scenario_crew_selection_rules (
 -- Name: COLUMN scenario_crew_selection_rules.role; Type: COMMENT; Schema: public; Owner: -
 --
 
-COMMENT ON COLUMN public.scenario_crew_selection_rules.role IS 'Scenario role this row applies to (attacker or defender, as in battle_session_participants.role). NULL applies to both gangs.';
+COMMENT ON COLUMN public.scenario_crew_selection_rules.role IS 'Scenario role this row applies to (attacker or defender, as in live_battle_participants.role). NULL applies to both gangs.';
 
 
 --
@@ -8114,46 +8171,6 @@ COMMENT ON COLUMN public.weapon_profiles.lethality IS 'N26 Lethality characteris
 
 ALTER TABLE ONLY public.alliances
     ADD CONSTRAINT alliances_pkey PRIMARY KEY (id);
-
-
---
--- Name: battle_session_fighters battle_session_fighters_battle_session_id_fighter_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_fighters
-    ADD CONSTRAINT battle_session_fighters_battle_session_id_fighter_id_key UNIQUE (battle_session_id, fighter_id);
-
-
---
--- Name: battle_session_fighters battle_session_fighters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_fighters
-    ADD CONSTRAINT battle_session_fighters_pkey PRIMARY KEY (id);
-
-
---
--- Name: battle_session_participants battle_session_participants_battle_session_id_gang_id_key; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_participants
-    ADD CONSTRAINT battle_session_participants_battle_session_id_gang_id_key UNIQUE (battle_session_id, gang_id);
-
-
---
--- Name: battle_session_participants battle_session_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_participants
-    ADD CONSTRAINT battle_session_participants_pkey PRIMARY KEY (id);
-
-
---
--- Name: battle_sessions battle_sessions_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_sessions
-    ADD CONSTRAINT battle_sessions_pkey PRIMARY KEY (id);
 
 
 --
@@ -9053,6 +9070,46 @@ ALTER TABLE ONLY public.gangs
 
 
 --
+-- Name: live_battle_fighters live_battle_fighters_live_battle_id_fighter_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_fighters
+    ADD CONSTRAINT live_battle_fighters_live_battle_id_fighter_id_key UNIQUE (live_battle_id, fighter_id);
+
+
+--
+-- Name: live_battle_fighters live_battle_fighters_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_fighters
+    ADD CONSTRAINT live_battle_fighters_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: live_battle_participants live_battle_participants_live_battle_id_gang_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_participants
+    ADD CONSTRAINT live_battle_participants_live_battle_id_gang_id_key UNIQUE (live_battle_id, gang_id);
+
+
+--
+-- Name: live_battle_participants live_battle_participants_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_participants
+    ADD CONSTRAINT live_battle_participants_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: live_battles live_battles_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battles
+    ADD CONSTRAINT live_battles_pkey PRIMARY KEY (id);
+
+
+--
 -- Name: notification_sends notification_sends_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -9339,146 +9396,6 @@ CREATE INDEX alliances_edition_id_idx ON public.alliances USING btree (edition_i
 
 
 --
--- Name: battle_session_fighters_created_at_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_fighters_created_at_idx ON public.battle_session_fighters USING btree (created_at);
-
-
---
--- Name: battle_session_fighters_fighter_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_fighters_fighter_idx ON public.battle_session_fighters USING btree (fighter_id);
-
-
---
--- Name: battle_session_fighters_loadout_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_fighters_loadout_id_idx ON public.battle_session_fighters USING btree (loadout_id) WHERE (loadout_id IS NOT NULL);
-
-
---
--- Name: battle_session_fighters_participant_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_fighters_participant_idx ON public.battle_session_fighters USING btree (participant_id);
-
-
---
--- Name: battle_session_fighters_session_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_fighters_session_idx ON public.battle_session_fighters USING btree (battle_session_id);
-
-
---
--- Name: battle_session_participants_gang_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_participants_gang_idx ON public.battle_session_participants USING btree (gang_id);
-
-
---
--- Name: battle_session_participants_session_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_participants_session_idx ON public.battle_session_participants USING btree (battle_session_id);
-
-
---
--- Name: battle_session_participants_side_job_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_participants_side_job_id_idx ON public.battle_session_participants USING btree (side_job_id) WHERE (side_job_id IS NOT NULL);
-
-
---
--- Name: battle_session_participants_user_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_session_participants_user_idx ON public.battle_session_participants USING btree (user_id);
-
-
---
--- Name: battle_sessions_campaign_battle_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_campaign_battle_id_idx ON public.battle_sessions USING btree (campaign_battle_id);
-
-
---
--- Name: battle_sessions_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_campaign_id_idx ON public.battle_sessions USING btree (campaign_id);
-
-
---
--- Name: battle_sessions_created_by_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_created_by_idx ON public.battle_sessions USING btree (created_by);
-
-
---
--- Name: battle_sessions_crew_selection_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_crew_selection_id_idx ON public.battle_sessions USING btree (crew_selection_id) WHERE (crew_selection_id IS NOT NULL);
-
-
---
--- Name: battle_sessions_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_deployment_id_idx ON public.battle_sessions USING btree (deployment_id) WHERE (deployment_id IS NOT NULL);
-
-
---
--- Name: battle_sessions_edition_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_edition_id_idx ON public.battle_sessions USING btree (edition_id);
-
-
---
--- Name: battle_sessions_objective_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_objective_id_idx ON public.battle_sessions USING btree (objective_id) WHERE (objective_id IS NOT NULL);
-
-
---
--- Name: battle_sessions_round_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_round_idx ON public.battle_sessions USING btree (round);
-
-
---
--- Name: battle_sessions_status_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_status_idx ON public.battle_sessions USING btree (status);
-
-
---
--- Name: battle_sessions_updated_at_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_updated_at_idx ON public.battle_sessions USING btree (updated_at);
-
-
---
--- Name: battle_sessions_winner_gang_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX battle_sessions_winner_gang_id_idx ON public.battle_sessions USING btree (winner_gang_id);
-
-
---
 -- Name: campaign_battles_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -9665,13 +9582,6 @@ CREATE INDEX campaign_trades_campaign_created_idx ON public.campaign_trades USIN
 --
 
 CREATE INDEX campaign_trades_counterparty_gang_id_idx ON public.campaign_trades USING btree (counterparty_gang_id);
-
-
---
--- Name: campaign_trades_one_open_bid; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE UNIQUE INDEX campaign_trades_one_open_bid ON public.campaign_trades USING btree (parent_trade_id, proposer_gang_id) WHERE ((parent_trade_id IS NOT NULL) AND (status = 'open'::text));
 
 
 --
@@ -11187,6 +11097,146 @@ CREATE INDEX idx_vehicles_gang_id ON public.vehicles USING btree (gang_id);
 
 
 --
+-- Name: live_battle_fighters_created_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_fighters_created_at_idx ON public.live_battle_fighters USING btree (created_at);
+
+
+--
+-- Name: live_battle_fighters_fighter_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_fighters_fighter_idx ON public.live_battle_fighters USING btree (fighter_id);
+
+
+--
+-- Name: live_battle_fighters_live_battle_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_fighters_live_battle_idx ON public.live_battle_fighters USING btree (live_battle_id);
+
+
+--
+-- Name: live_battle_fighters_loadout_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_fighters_loadout_id_idx ON public.live_battle_fighters USING btree (loadout_id) WHERE (loadout_id IS NOT NULL);
+
+
+--
+-- Name: live_battle_fighters_participant_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_fighters_participant_idx ON public.live_battle_fighters USING btree (participant_id);
+
+
+--
+-- Name: live_battle_participants_gang_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_participants_gang_idx ON public.live_battle_participants USING btree (gang_id);
+
+
+--
+-- Name: live_battle_participants_live_battle_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_participants_live_battle_idx ON public.live_battle_participants USING btree (live_battle_id);
+
+
+--
+-- Name: live_battle_participants_side_job_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_participants_side_job_id_idx ON public.live_battle_participants USING btree (side_job_id) WHERE (side_job_id IS NOT NULL);
+
+
+--
+-- Name: live_battle_participants_user_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battle_participants_user_idx ON public.live_battle_participants USING btree (user_id);
+
+
+--
+-- Name: live_battles_campaign_battle_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_campaign_battle_id_idx ON public.live_battles USING btree (campaign_battle_id);
+
+
+--
+-- Name: live_battles_campaign_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_campaign_id_idx ON public.live_battles USING btree (campaign_id);
+
+
+--
+-- Name: live_battles_created_by_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_created_by_idx ON public.live_battles USING btree (created_by);
+
+
+--
+-- Name: live_battles_crew_selection_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_crew_selection_id_idx ON public.live_battles USING btree (crew_selection_id) WHERE (crew_selection_id IS NOT NULL);
+
+
+--
+-- Name: live_battles_deployment_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_deployment_id_idx ON public.live_battles USING btree (deployment_id) WHERE (deployment_id IS NOT NULL);
+
+
+--
+-- Name: live_battles_edition_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_edition_id_idx ON public.live_battles USING btree (edition_id);
+
+
+--
+-- Name: live_battles_objective_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_objective_id_idx ON public.live_battles USING btree (objective_id) WHERE (objective_id IS NOT NULL);
+
+
+--
+-- Name: live_battles_round_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_round_idx ON public.live_battles USING btree (round);
+
+
+--
+-- Name: live_battles_status_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_status_idx ON public.live_battles USING btree (status);
+
+
+--
+-- Name: live_battles_updated_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_updated_at_idx ON public.live_battles USING btree (updated_at);
+
+
+--
+-- Name: live_battles_winner_gang_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX live_battles_winner_gang_id_idx ON public.live_battles USING btree (winner_gang_id);
+
+
+--
 -- Name: notification_sends_campaign_created_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -11556,131 +11606,27 @@ ALTER TABLE ONLY public.alliances
 
 
 --
--- Name: battle_session_fighters battle_session_fighters_battle_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: live_battles battle_sessions_crew_selection_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.battle_session_fighters
-    ADD CONSTRAINT battle_session_fighters_battle_session_id_fkey FOREIGN KEY (battle_session_id) REFERENCES public.battle_sessions(id) ON DELETE CASCADE;
-
-
---
--- Name: battle_session_fighters battle_session_fighters_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_fighters
-    ADD CONSTRAINT battle_session_fighters_fighter_id_fkey FOREIGN KEY (fighter_id) REFERENCES public.fighters(id) ON DELETE CASCADE;
-
-
---
--- Name: battle_session_fighters battle_session_fighters_loadout_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_fighters
-    ADD CONSTRAINT battle_session_fighters_loadout_id_fkey FOREIGN KEY (loadout_id) REFERENCES public.fighter_loadouts(id) ON DELETE SET NULL;
-
-
---
--- Name: battle_session_fighters battle_session_fighters_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_fighters
-    ADD CONSTRAINT battle_session_fighters_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.battle_session_participants(id) ON DELETE CASCADE;
-
-
---
--- Name: battle_session_participants battle_session_participants_battle_session_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_participants
-    ADD CONSTRAINT battle_session_participants_battle_session_id_fkey FOREIGN KEY (battle_session_id) REFERENCES public.battle_sessions(id) ON DELETE CASCADE;
-
-
---
--- Name: battle_session_participants battle_session_participants_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_participants
-    ADD CONSTRAINT battle_session_participants_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
-
-
---
--- Name: battle_session_participants battle_session_participants_side_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_participants
-    ADD CONSTRAINT battle_session_participants_side_job_id_fkey FOREIGN KEY (side_job_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: battle_session_participants battle_session_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_session_participants
-    ADD CONSTRAINT battle_session_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
-
-
---
--- Name: battle_sessions battle_sessions_campaign_battle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_sessions
-    ADD CONSTRAINT battle_sessions_campaign_battle_id_fkey FOREIGN KEY (campaign_battle_id) REFERENCES public.campaign_battles(id) ON DELETE SET NULL;
-
-
---
--- Name: battle_sessions battle_sessions_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_sessions
-    ADD CONSTRAINT battle_sessions_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE SET NULL;
-
-
---
--- Name: battle_sessions battle_sessions_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_sessions
-    ADD CONSTRAINT battle_sessions_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
-
-
---
--- Name: battle_sessions battle_sessions_crew_selection_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_sessions
+ALTER TABLE ONLY public.live_battles
     ADD CONSTRAINT battle_sessions_crew_selection_id_fkey FOREIGN KEY (crew_selection_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: battle_sessions battle_sessions_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: live_battles battle_sessions_deployment_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.battle_sessions
+ALTER TABLE ONLY public.live_battles
     ADD CONSTRAINT battle_sessions_deployment_id_fkey FOREIGN KEY (deployment_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
 
 
 --
--- Name: battle_sessions battle_sessions_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: live_battles battle_sessions_objective_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.battle_sessions
-    ADD CONSTRAINT battle_sessions_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
-
-
---
--- Name: battle_sessions battle_sessions_objective_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_sessions
+ALTER TABLE ONLY public.live_battles
     ADD CONSTRAINT battle_sessions_objective_id_fkey FOREIGN KEY (objective_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
-
-
---
--- Name: battle_sessions battle_sessions_winner_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.battle_sessions
-    ADD CONSTRAINT battle_sessions_winner_gang_id_fkey FOREIGN KEY (winner_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
 
 
 --
@@ -13676,6 +13622,110 @@ ALTER TABLE ONLY public.gangs
 
 
 --
+-- Name: live_battle_fighters live_battle_fighters_fighter_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_fighters
+    ADD CONSTRAINT live_battle_fighters_fighter_id_fkey FOREIGN KEY (fighter_id) REFERENCES public.fighters(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_battle_fighters live_battle_fighters_live_battle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_fighters
+    ADD CONSTRAINT live_battle_fighters_live_battle_id_fkey FOREIGN KEY (live_battle_id) REFERENCES public.live_battles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_battle_fighters live_battle_fighters_loadout_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_fighters
+    ADD CONSTRAINT live_battle_fighters_loadout_id_fkey FOREIGN KEY (loadout_id) REFERENCES public.fighter_loadouts(id) ON DELETE SET NULL;
+
+
+--
+-- Name: live_battle_fighters live_battle_fighters_participant_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_fighters
+    ADD CONSTRAINT live_battle_fighters_participant_id_fkey FOREIGN KEY (participant_id) REFERENCES public.live_battle_participants(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_battle_participants live_battle_participants_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_participants
+    ADD CONSTRAINT live_battle_participants_gang_id_fkey FOREIGN KEY (gang_id) REFERENCES public.gangs(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_battle_participants live_battle_participants_live_battle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_participants
+    ADD CONSTRAINT live_battle_participants_live_battle_id_fkey FOREIGN KEY (live_battle_id) REFERENCES public.live_battles(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_battle_participants live_battle_participants_side_job_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_participants
+    ADD CONSTRAINT live_battle_participants_side_job_id_fkey FOREIGN KEY (side_job_id) REFERENCES public.scenario_table_entries(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: live_battle_participants live_battle_participants_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battle_participants
+    ADD CONSTRAINT live_battle_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: live_battles live_battles_campaign_battle_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battles
+    ADD CONSTRAINT live_battles_campaign_battle_id_fkey FOREIGN KEY (campaign_battle_id) REFERENCES public.campaign_battles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: live_battles live_battles_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battles
+    ADD CONSTRAINT live_battles_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id) ON DELETE SET NULL;
+
+
+--
+-- Name: live_battles live_battles_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battles
+    ADD CONSTRAINT live_battles_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+
+
+--
+-- Name: live_battles live_battles_edition_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battles
+    ADD CONSTRAINT live_battles_edition_id_fkey FOREIGN KEY (edition_id) REFERENCES public.editions(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: live_battles live_battles_winner_gang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.live_battles
+    ADD CONSTRAINT live_battles_winner_gang_id_fkey FOREIGN KEY (winner_gang_id) REFERENCES public.gangs(id) ON DELETE SET NULL;
+
+
+--
 -- Name: notification_sends notification_sends_campaign_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -14014,89 +14064,89 @@ CREATE POLICY "Admins, arbitrators, or gang
 
 
 --
--- Name: battle_session_fighters Admins, arbs or own participant can delete fighters; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battle_fighters Admins, arbs or own participant can delete fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs or own participant can delete fighters" ON public.battle_session_fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
-   FROM public.battle_session_participants bsp
+CREATE POLICY "Admins, arbs or own participant can delete fighters" ON public.live_battle_fighters FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_fighters.live_battle_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.live_battle_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
--- Name: battle_session_fighters Admins, arbs or own participant can insert fighters; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battle_fighters Admins, arbs or own participant can insert fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs or own participant can insert fighters" ON public.battle_session_fighters FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
-   FROM public.battle_session_participants bsp
+CREATE POLICY "Admins, arbs or own participant can insert fighters" ON public.live_battle_fighters FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_fighters.live_battle_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.live_battle_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
--- Name: battle_session_fighters Admins, arbs or own participant can update fighters; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battle_fighters Admins, arbs or own participant can update fighters; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs or own participant can update fighters" ON public.battle_session_fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
-   FROM public.battle_session_participants bsp
+CREATE POLICY "Admins, arbs or own participant can update fighters" ON public.live_battle_fighters FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_fighters.live_battle_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.live_battle_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_fighters.battle_session_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
-   FROM public.battle_session_participants bsp
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_fighters.live_battle_id) AND private.is_arb(bs.campaign_id)))) OR (participant_id IN ( SELECT bsp.id
+   FROM public.live_battle_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
--- Name: battle_sessions Admins, arbs, creator or participants can delete battle session; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battles Admins, arbs, creator or participants can delete live battle; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs, creator or participants can delete battle session" ON public.battle_sessions FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.battle_session_id
-   FROM public.battle_session_participants bsp
+CREATE POLICY "Admins, arbs, creator or participants can delete live battle" ON public.live_battles FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(live_battles.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.live_battle_id AS battle_session_id
+   FROM public.live_battle_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
--- Name: battle_sessions Admins, arbs, creator or participants can update battle session; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battles Admins, arbs, creator or participants can update live battle; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs, creator or participants can update battle session" ON public.battle_sessions FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.battle_session_id
-   FROM public.battle_session_participants bsp
-  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(battle_sessions.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.battle_session_id
-   FROM public.battle_session_participants bsp
+CREATE POLICY "Admins, arbs, creator or participants can update live battle" ON public.live_battles FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(live_battles.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.live_battle_id AS battle_session_id
+   FROM public.live_battle_participants bsp
+  WHERE (bsp.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR ( SELECT private.is_arb(live_battles.campaign_id) AS is_arb) OR (created_by = ( SELECT auth.uid() AS uid)) OR (id IN ( SELECT bsp.live_battle_id AS battle_session_id
+   FROM public.live_battle_participants bsp
   WHERE (bsp.user_id = ( SELECT auth.uid() AS uid))))));
 
 
 --
--- Name: battle_session_participants Admins, arbs, session creator or self can delete participants; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battle_participants Admins, arbs, creator or self can delete participants; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs, session creator or self can delete participants" ON public.battle_session_participants FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
-
-
---
--- Name: battle_session_participants Admins, arbs, session creator or self can insert participants; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Admins, arbs, session creator or self can insert participants" ON public.battle_session_participants FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
+CREATE POLICY "Admins, arbs, creator or self can delete participants" ON public.live_battle_participants FOR DELETE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_participants.live_battle_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
 
 
 --
--- Name: battle_session_participants Admins, arbs, session creator or self can update participants; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battle_participants Admins, arbs, creator or self can insert participants; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Admins, arbs, session creator or self can update participants" ON public.battle_session_participants FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid)))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
-   FROM public.battle_sessions bs
-  WHERE ((bs.id = battle_session_participants.battle_session_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
+CREATE POLICY "Admins, arbs, creator or self can insert participants" ON public.live_battle_participants FOR INSERT TO authenticated WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_participants.live_battle_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
+
+
+--
+-- Name: live_battle_participants Admins, arbs, creator or self can update participants; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Admins, arbs, creator or self can update participants" ON public.live_battle_participants FOR UPDATE TO authenticated USING ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_participants.live_battle_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid)))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (EXISTS ( SELECT 1
+   FROM public.live_battles bs
+  WHERE ((bs.id = live_battle_participants.live_battle_id) AND ((bs.created_by = ( SELECT auth.uid() AS uid)) OR private.is_arb(bs.campaign_id))))) OR (user_id = ( SELECT auth.uid() AS uid))));
 
 
 --
@@ -14188,27 +14238,6 @@ CREATE POLICY "Allow authenticated users to create custom trading posts" ON publ
 --
 
 CREATE POLICY "Allow authenticated users to create custom weapon profiles" ON public.custom_weapon_profiles FOR INSERT TO authenticated WITH CHECK (((( SELECT auth.uid() AS uid) = user_id) OR ( SELECT private.is_admin() AS is_admin)));
-
-
---
--- Name: battle_session_fighters Allow authenticated users to view battle session fighters; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view battle session fighters" ON public.battle_session_fighters FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: battle_session_participants Allow authenticated users to view battle session participants; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view battle session participants" ON public.battle_session_participants FOR SELECT TO authenticated USING (true);
-
-
---
--- Name: battle_sessions Allow authenticated users to view battle sessions; Type: POLICY; Schema: public; Owner: -
---
-
-CREATE POLICY "Allow authenticated users to view battle sessions" ON public.battle_sessions FOR SELECT TO authenticated USING (true);
 
 
 --
@@ -14618,6 +14647,27 @@ CREATE POLICY "Allow authenticated users to view gangs" ON public.gangs FOR SELE
 
 
 --
+-- Name: live_battle_fighters Allow authenticated users to view live battle fighters; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view live battle fighters" ON public.live_battle_fighters FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: live_battle_participants Allow authenticated users to view live battle participants; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view live battle participants" ON public.live_battle_participants FOR SELECT TO authenticated USING (true);
+
+
+--
+-- Name: live_battles Allow authenticated users to view live battles; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Allow authenticated users to view live battles" ON public.live_battles FOR SELECT TO authenticated USING (true);
+
+
+--
 -- Name: fighter_loadout_equipment Allow authenticated users to view loadout equipment; Type: POLICY; Schema: public; Owner: -
 --
 
@@ -14783,10 +14833,10 @@ CREATE POLICY "App server can view campaign trades" ON public.campaign_trades FO
 
 
 --
--- Name: battle_sessions Authenticated users can create battle sessions; Type: POLICY; Schema: public; Owner: -
+-- Name: live_battles Authenticated users can create live battles; Type: POLICY; Schema: public; Owner: -
 --
 
-CREATE POLICY "Authenticated users can create battle sessions" ON public.battle_sessions FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR private.is_arb(campaign_id) OR (created_by = auth.uid())));
+CREATE POLICY "Authenticated users can create live battles" ON public.live_battles FOR INSERT TO authenticated WITH CHECK ((private.is_admin() OR private.is_arb(campaign_id) OR (created_by = auth.uid())));
 
 
 --
@@ -16740,24 +16790,6 @@ CREATE POLICY authenticated_view_vehicles ON public.vehicles FOR SELECT TO authe
 
 
 --
--- Name: battle_session_fighters; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.battle_session_fighters ENABLE ROW LEVEL SECURITY;
-
---
--- Name: battle_session_participants; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.battle_session_participants ENABLE ROW LEVEL SECURITY;
-
---
--- Name: battle_sessions; Type: ROW SECURITY; Schema: public; Owner: -
---
-
-ALTER TABLE public.battle_sessions ENABLE ROW LEVEL SECURITY;
-
---
 -- Name: campaign_allegiances; Type: ROW SECURITY; Schema: public; Owner: -
 --
 
@@ -17711,6 +17743,24 @@ ALTER TABLE public.gang_types ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.gangs ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: live_battle_fighters; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.live_battle_fighters ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: live_battle_participants; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.live_battle_participants ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: live_battles; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.live_battles ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: notification_sends; Type: ROW SECURITY; Schema: public; Owner: -
