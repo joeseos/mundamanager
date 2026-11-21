@@ -16,9 +16,9 @@ import { UserPermissions } from '@/types/user-permissions';
 import { FaUsers, FaBox, FaTruckMoving } from 'react-icons/fa';
 import { PiFlagBannerFoldBold } from 'react-icons/pi';
 import { LuClipboard, LuSwords } from 'react-icons/lu';
-import GangBattleSessions from "@/components/gang/battle-sessions-tab";
+import GangLiveBattles from "@/components/gang/live-battles-tab";
 import GangTacticsCards from "@/components/gang/gang-tactics-cards";
-import type { BattleSession } from "@/types/battle-session";
+import type { LiveBattle } from "@/types/live-battle";
 import type { GangTacticsCard } from "@/types/tactics-card";
 import { FighterCardModalsProvider } from "@/components/gang/fighter-card-modals-context";
 import { InjuriesList } from "@/components/fighter/fighter-injury-list";
@@ -92,7 +92,7 @@ interface GangDataState {
     patreon_tier_title?: string;
     patron_status?: string;
     hidden: boolean;
-    battleSessions?: BattleSession[];
+    liveBattles?: LiveBattle[];
     tacticsCards?: GangTacticsCard[];
   };
   stash: StashItem[];
@@ -849,13 +849,13 @@ export default function GangPageContent({
               userPermissions={userPermissions}
             />
           )}
-          <GangBattleSessions
-            sessions={gangData.processedData.battleSessions || []}
+          <GangLiveBattles
+            liveBattles={gangData.processedData.liveBattles || []}
             gangId={gangId}
             gangName={gangData.processedData.name}
             editionSlug={gangData.processedData.edition_slug}
             campaignId={(gangData.processedData.campaigns || [])[0]?.campaign_id}
-            sessionUrl={(id) => `/gang/${gangId}/battle-session/${id}`}
+            liveBattleUrl={(id) => `/gang/${gangId}/live-battle/${id}`}
             wrapper={(children) => <div>{children}</div>}
           />
         </div>

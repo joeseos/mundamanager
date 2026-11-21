@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-export function useBattleSessionRealtime(sessionId: string) {
+export function useLiveBattleRealtime(liveBattleId: string) {
   const queryClient = useQueryClient();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const broadcastChannelRef = useRef<RealtimeChannel | null>(null);
@@ -19,19 +19,19 @@ export function useBattleSessionRealtime(sessionId: string) {
       if (suppressedRef.current) return;
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['battle-session', sessionId] });
+        queryClient.invalidateQueries({ queryKey: ['live-battle', liveBattleId] });
       }, 300);
     };
 
     const dbChannel = supabase
-      .channel(`battle-session-db-${sessionId}`)
+      .channel(`live-battle-db-${liveBattleId}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'battle_sessions',
-          filter: `id=eq.${sessionId}`,
+          table: 'live_battles',
+          filter: `id=eq.${liveBattleId}`,
         },
         debouncedRefresh
       )
@@ -40,8 +40,8 @@ export function useBattleSessionRealtime(sessionId: string) {
         {
           event: '*',
           schema: 'public',
-          table: 'battle_session_fighters',
-          filter: `battle_session_id=eq.${sessionId}`,
+          table: 'live_battle_fighters',
+          filter: `live_battle_id=eq.${liveBattleId}`,
         },
         debouncedRefresh
       )
@@ -50,15 +50,15 @@ export function useBattleSessionRealtime(sessionId: string) {
         {
           event: '*',
           schema: 'public',
-          table: 'battle_session_participants',
-          filter: `battle_session_id=eq.${sessionId}`,
+          table: 'live_battle_participants',
+          filter: `live_battle_id=eq.${liveBattleId}`,
         },
         debouncedRefresh
       )
       .subscribe();
 
     const broadcastChannel = supabase
-      .channel(`battle-session-sync-${sessionId}`)
+      .channel(`live-battle-sync-${liveBattleId}`)
       .on('broadcast', { event: 'refresh' }, debouncedRefresh)
       .subscribe();
 
@@ -71,7 +71,7 @@ export function useBattleSessionRealtime(sessionId: string) {
       supabase.removeChannel(dbChannel);
       supabase.removeChannel(broadcastChannel);
     };
-  }, [sessionId, queryClient]);
+  }, [liveBattleId, queryClient]);
 
   const broadcast = useCallback(() => {
     broadcastChannelRef.current?.httpSend('refresh', {});

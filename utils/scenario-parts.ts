@@ -34,7 +34,7 @@ const one = <T,>(embed: T | T[] | null | undefined): T | undefined =>
  * Deployment and Objective, picked or custom. A check of only some parts gets
  * a partial one.
  *
- * Shared by the battle log and battle session actions; lives in utils/ so
+ * Shared by the battle log and live battle actions; lives in utils/ so
  * neither 'use server' file has to export it.
  */
 export async function checkScenarioParts(

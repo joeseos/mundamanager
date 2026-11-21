@@ -1,6 +1,6 @@
 'use server';
 
-import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateBattleSession, invalidateBattleSessions, invalidateFighter } from '@/utils/cache-tags';
+import { invalidateGangCampaignMembership, invalidateCampaignBattles, invalidateCampaignTerritories, invalidateLiveBattle, invalidateLiveBattles, invalidateFighter } from '@/utils/cache-tags';
 import { invalidateBeastOwnerCache } from '@/utils/exotic-beasts';
 import { formatXpBreakdown } from '@/app/actions/logs/log-helpers';
 import { createClient, createServiceRoleClient } from '@/utils/supabase/server';
@@ -11,15 +11,15 @@ import { updateGang } from '@/app/actions/update-gang';
 import {
   applyConditionsUpdate,
   hasDualActivation,
-  newSessionRecord,
-  normalizeSessionRecord,
-  sessionScenarioLabel,
-  type BattleSessionFull,
-  type SessionCondition,
-  type SessionInjuryRecord,
-  type SessionRecord,
-} from '@/types/battle-session';
-import { fetchBattleSessionDirect, SESSION_SCENARIO_PARTS_SELECT } from '@/app/lib/battle-sessions/get-battle-session-data';
+  newLiveBattleRecord,
+  normalizeLiveBattleRecord,
+  liveBattleScenarioLabel,
+  type LiveBattleFull,
+  type LiveBattleCondition,
+  type LiveBattleInjuryRecord,
+  type LiveBattleRecord,
+} from '@/types/live-battle';
+import { fetchLiveBattleDirect, LIVE_BATTLE_SCENARIO_PARTS_SELECT } from '@/app/lib/live-battles/get-live-battle-data';
 import { checkCampaignArbitrator } from '@/utils/user-permissions';
 import { deleteFighterInjury } from '@/app/actions/fighter-injury';
 import { canLeaveBattlefield, editionsConflict, editionSlugFromJoin, gangEditionJoin, gangEditionSlug } from '@/types/edition';
@@ -47,150 +47,150 @@ const GANG_EDITION_SELECT = `
 // =============================================================================
 
 // The direct connection doesn't check who is asking, so only signed-in users
-// get a session, as RLS on the Data API allowed.
-export async function fetchBattleSession(sessionId: string): Promise<BattleSessionFull | null> {
+// get a live battle, as RLS on the Data API allowed.
+export async function fetchLiveBattle(liveBattleId: string): Promise<LiveBattleFull | null> {
   const supabase = await createClient();
   if (!(await getUserIdFromClaims(supabase))) return null;
-  return fetchBattleSessionDirect(sessionId);
+  return fetchLiveBattleDirect(liveBattleId);
 }
 
 // =============================================================================
 // Authorization Helpers
 // =============================================================================
 
-// Site admins and campaign OWNERs/ARBITRATORs can act on any session in their
-// campaign. Mirrors the RLS policies on the battle session tables
+// Site admins and campaign OWNERs/ARBITRATORs can act on any live battle in their
+// campaign. Mirrors the RLS policies on the live battle tables
 // (private.is_admin() OR private.is_arb(campaign_id)) and the gang page
 // permission model.
-async function isSessionArbitrator(
+async function isLiveBattleArbitrator(
   userId: string,
   campaignId: string | null
 ): Promise<boolean> {
   return checkCampaignArbitrator(userId, campaignId);
 }
 
-async function canManageSession(
+async function canManageLiveBattle(
   userId: string,
-  session: { created_by: string | null; campaign_id: string | null }
+  liveBattle: { created_by: string | null; campaign_id: string | null }
 ): Promise<boolean> {
-  if (session.created_by === userId) return true;
-  return isSessionArbitrator(userId, session.campaign_id);
+  if (liveBattle.created_by === userId) return true;
+  return isLiveBattleArbitrator(userId, liveBattle.campaign_id);
 }
 
-async function verifySessionManager(
+async function verifyLiveBattleManager(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  sessionId: string,
+  liveBattleId: string,
   userId: string
 ): Promise<{ authorized: boolean; error?: string }> {
-  const { data: session } = await supabase
-    .from('battle_sessions')
+  const { data: liveBattle } = await supabase
+    .from('live_battles')
     .select('created_by, campaign_id')
-    .eq('id', sessionId)
+    .eq('id', liveBattleId)
     .single();
 
-  if (!session) return { authorized: false, error: 'Session not found' };
-  if (!(await canManageSession(userId, session)))
-    return { authorized: false, error: 'Only the session creator or an arbitrator can perform this action' };
+  if (!liveBattle) return { authorized: false, error: 'Live battle not found' };
+  if (!(await canManageLiveBattle(userId, liveBattle)))
+    return { authorized: false, error: 'Only the live battle creator or an arbitrator can perform this action' };
   return { authorized: true };
 }
 
-// Arbitrators (not the session creator) may act on another player's
+// Arbitrators (not the live battle creator) may act on another player's
 // participant slot — same rights they have over that player's gang page.
-async function isArbitratorForSession(
+async function isArbitratorForLiveBattle(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  sessionId: string,
+  liveBattleId: string,
   userId: string
 ): Promise<boolean> {
-  const { data: session } = await supabase
-    .from('battle_sessions')
+  const { data: liveBattle } = await supabase
+    .from('live_battles')
     .select('campaign_id')
-    .eq('id', sessionId)
+    .eq('id', liveBattleId)
     .single();
-  if (!session) return false;
-  return isSessionArbitrator(userId, session.campaign_id);
+  if (!liveBattle) return false;
+  return isLiveBattleArbitrator(userId, liveBattle.campaign_id);
 }
 
 // Authorizes the user's own participant slot, or any slot for arbitrators.
 // NOTE: callers that need a participant row MUST pass `participantId` — the
-// no-participantId form authorizes session-wide actions and returns no
-// participantId when the caller is an arbitrator without a gang in the session.
-async function verifySessionParticipant(
+// no-participantId form authorizes whole-live-battle actions and returns no
+// participantId when the caller is an arbitrator without a gang in the live battle.
+async function verifyLiveBattleParticipant(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  sessionId: string,
+  liveBattleId: string,
   userId: string,
   participantId?: string
 ): Promise<{ authorized: boolean; participantId?: string; error?: string }> {
   if (participantId) {
     const { data: participant } = await supabase
-      .from('battle_session_participants')
-      .select('id, user_id, battle_sessions(campaign_id)')
+      .from('live_battle_participants')
+      .select('id, user_id, live_battles(campaign_id)')
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId)
+      .eq('live_battle_id', liveBattleId)
       .maybeSingle();
 
     if (!participant)
-      return { authorized: false, error: 'You are not a participant in this session' };
+      return { authorized: false, error: 'You are not a participant in this live battle' };
     if (participant.user_id !== userId) {
-      const session = Array.isArray(participant.battle_sessions)
-        ? participant.battle_sessions[0]
-        : participant.battle_sessions;
-      if (!(await isSessionArbitrator(userId, session?.campaign_id ?? null)))
-        return { authorized: false, error: 'You are not a participant in this session' };
+      const liveBattle = Array.isArray(participant.live_battles)
+        ? participant.live_battles[0]
+        : participant.live_battles;
+      if (!(await isLiveBattleArbitrator(userId, liveBattle?.campaign_id ?? null)))
+        return { authorized: false, error: 'You are not a participant in this live battle' };
     }
     return { authorized: true, participantId: participant.id };
   }
 
   const { data: participants } = await supabase
-    .from('battle_session_participants')
+    .from('live_battle_participants')
     .select('id')
-    .eq('battle_session_id', sessionId)
+    .eq('live_battle_id', liveBattleId)
     .eq('user_id', userId)
     .limit(1);
 
   const participant = participants?.[0];
   if (participant) return { authorized: true, participantId: participant.id };
 
-  if (await isArbitratorForSession(supabase, sessionId, userId))
+  if (await isArbitratorForLiveBattle(supabase, liveBattleId, userId))
     return { authorized: true };
-  return { authorized: false, error: 'You are not a participant in this battle session' };
+  return { authorized: false, error: 'You are not a participant in this live battle' };
 }
 
 // =============================================================================
-// Session Lifecycle
+// Live Battle Lifecycle
 // =============================================================================
 
-export async function createBattleSession(params: {
+export async function createLiveBattle(params: {
   campaign_id?: string;
   scenario?: string;
   gang_ids?: string[];
   /** An accepted challenge to play; its gangs, roles, scenario and side jobs replace the ones above. */
   campaign_battle_id?: string;
-} & ScenarioParts): Promise<{ success: boolean; session_id?: string; error?: string }> {
+} & ScenarioParts): Promise<{ success: boolean; live_battle_id?: string; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
     let challengeRoles = new Map<string, BattleParticipant['role']>();
     let challengeSideJobs = new Map<string, ParticipantSideJob>();
-    let existingSessionId: string | undefined;
+    let existingLiveBattleId: string | undefined;
     if (params.campaign_battle_id) {
-      const [{ data: challenge }, { data: existingSession }] = await Promise.all([
+      const [{ data: challenge }, { data: existingLiveBattle }] = await Promise.all([
         supabase
           .from('campaign_battles')
           .select('campaign_id, scenario, deployment_id, objective_id, crew_selection_id, deployment_name, objective_name, crew_selection_name, status, participants')
           .eq('id', params.campaign_battle_id)
           .maybeSingle(),
         supabase
-          .from('battle_sessions')
+          .from('live_battles')
           .select('id')
           .eq('campaign_battle_id', params.campaign_battle_id)
           .limit(1)
           .maybeSingle(),
       ]);
       if (!challenge) return { success: false, error: 'Challenge not found' };
-      existingSessionId = existingSession?.id;
+      existingLiveBattleId = existingLiveBattle?.id;
       if (challenge.status !== 'challenge_accepted')
-        return { success: false, error: 'Only an accepted challenge can be played as a battle session' };
+        return { success: false, error: 'Only an accepted challenge can be played as a live battle' };
 
       const challengeParticipants = parseParticipants(challenge.participants as string);
       challengeRoles = new Map(challengeParticipants.map((p) => [p.gang_id, p.role]));
@@ -234,12 +234,12 @@ export async function createBattleSession(params: {
     if (
       params.campaign_battle_id &&
       !gangs?.some((g) => g.user_id === user.id) &&
-      !(await isSessionArbitrator(user.id, params.campaign_id ?? null))
+      !(await isLiveBattleArbitrator(user.id, params.campaign_id ?? null))
     ) {
       return { success: false, error: 'Only a gang in this challenge or an arbitrator can play it' };
     }
-    // A challenge already being played opens its session rather than starting a second one.
-    if (existingSessionId) return { success: true, session_id: existingSessionId };
+    // A challenge already being played opens its live battle rather than starting a second one.
+    if (existingLiveBattleId) return { success: true, live_battle_id: existingLiveBattleId };
 
     // Nothing stops a skirmish "New Battle" from pairing gangs of different
     // editions — the opponent pickers filter, but a server action is a public
@@ -258,11 +258,11 @@ export async function createBattleSession(params: {
     }
 
     // The ruleset is derived server-side and never accepted from the client. A
-    // campaign fixes it for every session in it; a skirmish session takes it from
+    // campaign fixes it for every live battle in it; a skirmish live battle takes it from
     // the gangs that are playing, which the check above has confirmed agree.
     // Both lookups failing leaves it null, which the app reads as "no
     // edition-specific behaviour" — worth degrading to rather than blocking
-    // session creation over.
+    // live battle creation over.
     let editionId: string | null = null;
 
     if (params.campaign_id) {
@@ -292,7 +292,7 @@ export async function createBattleSession(params: {
     if ('error' in scenarioParts) return { success: false, error: scenarioParts.error };
 
     const { data, error } = await supabase
-      .from('battle_sessions')
+      .from('live_battles')
       .insert({
         created_by: user.id,
         campaign_id: params.campaign_id || null,
@@ -310,13 +310,13 @@ export async function createBattleSession(params: {
 
     if (error) return { success: false, error: error.message };
 
-    const sessionId = data.id;
+    const liveBattleId = data.id;
 
     if (gangs && gangs.length > 0) {
       const participants = gangs.map((g) => {
         const sideJob = challengeSideJobs.get(g.id);
         return {
-          battle_session_id: sessionId,
+          live_battle_id: liveBattleId,
           user_id: g.user_id,
           gang_id: g.id,
           role: challengeRoles.get(g.id) ?? 'none',
@@ -326,7 +326,7 @@ export async function createBattleSession(params: {
         };
       });
 
-      await supabase.from('battle_session_participants').insert(participants);
+      await supabase.from('live_battle_participants').insert(participants);
 
       const otherGangs = gangs.filter((g) => g.user_id && g.user_id !== user.id);
 
@@ -336,120 +336,120 @@ export async function createBattleSession(params: {
             receiver_id: g.user_id,
             sender_id: user.id,
             type: 'battle_invite',
-            text: `${senderName} added you to a battle session.`,
-            link: `/gang/${g.id}/battle-session/${sessionId}`,
+            text: `${senderName} added you to a live battle.`,
+            link: `/gang/${g.id}/live-battle/${liveBattleId}`,
             dismissed: false,
           }))
         );
       }
-      invalidateBattleSession(sessionId);
+      invalidateLiveBattle(liveBattleId);
       for (const g of gangs) {
-        invalidateBattleSessions(g.id);
+        invalidateLiveBattles(g.id);
       }
     }
 
-    return { success: true, session_id: sessionId };
+    return { success: true, live_battle_id: liveBattleId };
   } catch (err) {
-    console.error('Error creating battle session:', err);
-    return { success: false, error: 'Failed to create battle session' };
+    console.error('Error creating live battle:', err);
+    return { success: false, error: 'Failed to create live battle' };
   }
 }
 
-export async function cancelBattleSession(
-  sessionId: string
+export async function cancelLiveBattle(
+  liveBattleId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('created_by, campaign_id, status')
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .single();
 
-    if (!session) return { success: false, error: 'Session not found' };
+    if (!liveBattle) return { success: false, error: 'Live battle not found' };
     if (
-      !(await canManageSession(user.id, session)) &&
-      !(await verifySessionParticipant(supabase, sessionId, user.id)).authorized
+      !(await canManageLiveBattle(user.id, liveBattle)) &&
+      !(await verifyLiveBattleParticipant(supabase, liveBattleId, user.id)).authorized
     )
-      return { success: false, error: 'Only a player, the session creator or an arbitrator can cancel' };
-    if (session.status === 'completed')
-      return { success: false, error: 'Cannot cancel a completed session' };
+      return { success: false, error: 'Only a player, the live battle creator or an arbitrator can cancel' };
+    if (liveBattle.status === 'completed')
+      return { success: false, error: 'Cannot cancel a completed live battle' };
 
     const { data: participants } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .select('gang_id')
-      .eq('battle_session_id', sessionId);
+      .eq('live_battle_id', liveBattleId);
 
     const { error } = await supabase
-      .from('battle_sessions')
+      .from('live_battles')
       .delete()
-      .eq('id', sessionId);
+      .eq('id', liveBattleId);
 
     if (error) return { success: false, error: error.message };
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     if (participants) {
       for (const p of participants) {
-        invalidateBattleSessions(p.gang_id);
+        invalidateLiveBattles(p.gang_id);
       }
     }
 
     return { success: true };
   } catch (err) {
-    console.error('Error cancelling battle session:', err);
-    return { success: false, error: 'Failed to cancel session' };
+    console.error('Error cancelling live battle:', err);
+    return { success: false, error: 'Failed to cancel live battle' };
   }
 }
 
-async function updateSessionAsManager(
-  sessionId: string,
+async function updateLiveBattleAsManager(
+  liveBattleId: string,
   updateFields: Record<string, unknown>,
   options?: {
     requireStatus?: string;
     statusError?: string;
-    /** Runs once the caller may manage the session; returns an error to refuse the update. */
+    /** Runs once the caller may manage the live battle; returns an error to refuse the update. */
     check?: (
       supabase: Awaited<ReturnType<typeof createClient>>,
-      session: { edition_id: string | null }
+      liveBattle: { edition_id: string | null }
     ) => Promise<string | undefined>;
   }
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
   const user = await getAuthenticatedUser(supabase);
 
-  const { data: session } = await supabase
-    .from('battle_sessions')
+  const { data: liveBattle } = await supabase
+    .from('live_battles')
     .select('created_by, campaign_id, status, edition_id')
-    .eq('id', sessionId)
+    .eq('id', liveBattleId)
     .single();
 
-  if (!session) return { success: false, error: 'Session not found' };
-  if (!(await canManageSession(user.id, session)))
-    return { success: false, error: 'Only the session creator or an arbitrator can perform this action' };
-  if (options?.requireStatus && session.status !== options.requireStatus)
-    return { success: false, error: options.statusError || 'Invalid session status' };
-  const checkError = await options?.check?.(supabase, session);
+  if (!liveBattle) return { success: false, error: 'Live battle not found' };
+  if (!(await canManageLiveBattle(user.id, liveBattle)))
+    return { success: false, error: 'Only the live battle creator or an arbitrator can perform this action' };
+  if (options?.requireStatus && liveBattle.status !== options.requireStatus)
+    return { success: false, error: options.statusError || 'Invalid live battle status' };
+  const checkError = await options?.check?.(supabase, liveBattle);
   if (checkError) return { success: false, error: checkError };
 
   const { error } = await supabase
-    .from('battle_sessions')
+    .from('live_battles')
     .update({ ...updateFields, updated_at: new Date().toISOString() })
-    .eq('id', sessionId);
+    .eq('id', liveBattleId);
 
   if (error) return { success: false, error: error.message };
 
-  invalidateBattleSession(sessionId);
+  invalidateLiveBattle(liveBattleId);
   return { success: true };
 }
 
-export async function setSessionScenario(
-  sessionId: string,
+export async function setLiveBattleScenario(
+  liveBattleId: string,
   scenario: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    return await updateSessionAsManager(sessionId, { scenario });
+    return await updateLiveBattleAsManager(liveBattleId, { scenario });
   } catch (err) {
     console.error('Error setting scenario:', err);
     return { success: false, error: 'Failed to set scenario' };
@@ -457,11 +457,11 @@ export async function setSessionScenario(
 }
 
 /**
- * N26: sets one of the session's Deployment, Objective and Crew before the
+ * N26: sets one of the live battle's Deployment, Objective and Crew before the
  * battle: picks an entry, types a custom name, or clears it.
  */
-export async function setSessionScenarioParts(
-  sessionId: string,
+export async function setLiveBattleScenarioParts(
+  liveBattleId: string,
   edit: ScenarioPartEdit
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -469,8 +469,8 @@ export async function setSessionScenarioParts(
     if (!part) return { success: false, error: 'Unknown scenario part' };
     const entryId = edit.entryId || null;
 
-    return await updateSessionAsManager(
-      sessionId,
+    return await updateLiveBattleAsManager(
+      liveBattleId,
       {
         [part.key]: entryId,
         [part.nameKey]: entryId ? null : String(edit.typedName ?? '').trim() || null,
@@ -478,8 +478,8 @@ export async function setSessionScenarioParts(
       {
         requireStatus: 'pre_battle',
         statusError: 'The scenario can only be changed during pre-battle',
-        check: async (supabase, session) => {
-          const result = await checkScenarioParts(supabase, async () => session.edition_id, { [edit.key]: entryId }, []);
+        check: async (supabase, liveBattle) => {
+          const result = await checkScenarioParts(supabase, async () => liveBattle.edition_id, { [edit.key]: entryId }, []);
           return 'error' in result ? result.error : undefined;
         },
       }
@@ -492,21 +492,21 @@ export async function setSessionScenarioParts(
 
 /**
  * Multi-winner support: persist `is_winner` and `claimed_territory` flags on
- * each `battle_session_participants` row, and keep `battle_sessions.winner_gang_id`
+ * each `live_battle_participants` row, and keep `live_battles.winner_gang_id`
  * in sync with the territory claimer (or the first winner) as a legacy fallback.
  *
  * Pass an empty array (or omit `winners`) to record a draw — every flag is cleared
  * and `winner_gang_id` is set to NULL.
  */
-export async function setSessionWinners(
-  sessionId: string,
+export async function setLiveBattleWinners(
+  liveBattleId: string,
   winners: Array<{ gang_id: string; claimed_territory?: boolean }>
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionManager(supabase, sessionId, user.id);
+    const auth = await verifyLiveBattleManager(supabase, liveBattleId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const claimers = winners.filter((w) => w.claimed_territory === true);
@@ -515,30 +515,30 @@ export async function setSessionWinners(
     }
     const claimerGangId = claimers[0]?.gang_id ?? null;
 
-    const { data: sessionParticipants } = await supabase
-      .from('battle_session_participants')
+    const { data: liveBattleParticipants } = await supabase
+      .from('live_battle_participants')
       .select('id, gang_id')
-      .eq('battle_session_id', sessionId);
+      .eq('live_battle_id', liveBattleId);
 
-    if (!sessionParticipants) {
-      return { success: false, error: 'Session has no participants' };
+    if (!liveBattleParticipants) {
+      return { success: false, error: 'Live battle has no participants' };
     }
 
     const winnerGangSet = new Set(winners.map((w) => w.gang_id));
     const invalidWinner = winners.find(
-      (w) => !sessionParticipants.some((p) => p.gang_id === w.gang_id)
+      (w) => !liveBattleParticipants.some((p) => p.gang_id === w.gang_id)
     );
     if (invalidWinner) {
-      return { success: false, error: 'A selected winner is not a session participant' };
+      return { success: false, error: 'A selected winner is not a live battle participant' };
     }
 
     // Update each participant row. Doing this row-by-row keeps things simple
     // and avoids the awkward CASE statement that a single SQL update would need
     // to write different values for is_winner / claimed_territory per row.
     const updateResults = await Promise.all(
-      sessionParticipants.map((p) =>
+      liveBattleParticipants.map((p) =>
         supabase
-          .from('battle_session_participants')
+          .from('live_battle_participants')
           .update({
             is_winner: winnerGangSet.has(p.gang_id),
             claimed_territory: claimerGangId !== null && p.gang_id === claimerGangId,
@@ -558,83 +558,83 @@ export async function setSessionWinners(
     // winner; NULL for draws. Mirrors the campaign battle action.
     const legacyWinnerGangId: string | null =
       claimerGangId ?? winners[0]?.gang_id ?? null;
-    const { error: sessionUpdateError } = await supabase
-      .from('battle_sessions')
+    const { error: liveBattleUpdateError } = await supabase
+      .from('live_battles')
       .update({
         winner_gang_id: legacyWinnerGangId,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', sessionId);
-    if (sessionUpdateError) {
-      return { success: false, error: `Failed to update session: ${sessionUpdateError.message}` };
+      .eq('id', liveBattleId);
+    if (liveBattleUpdateError) {
+      return { success: false, error: `Failed to update live battle: ${liveBattleUpdateError.message}` };
     }
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true };
   } catch (err) {
-    console.error('Error setting session winners:', err);
+    console.error('Error setting live battle winners:', err);
     return { success: false, error: 'Failed to set winners' };
   }
 }
 
 /**
- * @deprecated Use `setSessionWinners` to support multi-winner battles. This
+ * @deprecated Use `setLiveBattleWinners` to support multi-winner battles. This
  * thin shim is kept so existing callers that only know about a single winner
  * (or want to record a draw via `null`) continue to work.
  */
-export async function setSessionWinner(
-  sessionId: string,
+export async function setLiveBattleWinner(
+  liveBattleId: string,
   winnerGangId: string | null
 ): Promise<{ success: boolean; error?: string }> {
-  return setSessionWinners(
-    sessionId,
+  return setLiveBattleWinners(
+    liveBattleId,
     winnerGangId ? [{ gang_id: winnerGangId, claimed_territory: false }] : []
   );
 }
 
 export async function advanceRound(
-  sessionId: string,
+  liveBattleId: string,
   direction: 'forward' | 'back' = 'forward'
 ): Promise<{ success: boolean; newRound?: number; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id);
+    const auth = await verifyLiveBattleParticipant(supabase, liveBattleId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const serviceSupabase = createServiceRoleClient();
 
-    const { data: session, error: sessionError } = await serviceSupabase
-      .from('battle_sessions')
+    const { data: liveBattle, error: liveBattleError } = await serviceSupabase
+      .from('live_battles')
       .select('status, round')
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .single();
 
-    if (sessionError) return { success: false, error: sessionError.message };
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'active')
-      return { success: false, error: 'Session is not active' };
-    if (direction === 'back' && session.round <= 1)
+    if (liveBattleError) return { success: false, error: liveBattleError.message };
+    if (!liveBattle) return { success: false, error: 'Live battle not found' };
+    if (liveBattle.status !== 'active')
+      return { success: false, error: 'Live battle is not active' };
+    if (direction === 'back' && liveBattle.round <= 1)
       return { success: false, error: 'Already at round 1' };
 
-    const nextRound = direction === 'forward' ? session.round + 1 : session.round - 1;
+    const nextRound = direction === 'forward' ? liveBattle.round + 1 : liveBattle.round - 1;
 
     const { error: updateError } = await serviceSupabase
-      .from('battle_sessions')
+      .from('live_battles')
       .update({ round: nextRound, updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
+      .eq('id', liveBattleId);
 
     if (updateError) return { success: false, error: updateError.message };
 
     const { data: fighters, error: fightersError } = await serviceSupabase
-      .from('battle_session_fighters')
-      .select('id, fighter_id, session_record')
-      .eq('battle_session_id', sessionId);
+      .from('live_battle_fighters')
+      .select('id, fighter_id, live_battle_record')
+      .eq('live_battle_id', liveBattleId);
 
     if (fightersError) {
       console.error('[advanceRound] Failed to load fighters after round advanced:', {
-        sessionId,
+        liveBattleId,
         newRound: nextRound,
         error: fightersError.message,
       });
@@ -647,7 +647,7 @@ export async function advanceRound(
 
       if (fighterDetailsError) {
         console.error('[advanceRound] Failed to load fighter details after round advanced:', {
-          sessionId,
+          liveBattleId,
           newRound: nextRound,
           error: fighterDetailsError.message,
         });
@@ -664,12 +664,12 @@ export async function advanceRound(
             // battlefield are out of play, so neither gets a fresh activation.
             // An injured fighter can still be granted one manually via
             // updateActivations; one who left must be put back in play first.
-            const current = normalizeSessionRecord(f.session_record);
+            const current = normalizeLiveBattleRecord(f.live_battle_record);
             const outOfPlay = current.injuries.length > 0 || current.left_battlefield === true;
-            const record: SessionRecord = { ...current, activations: outOfPlay ? 0 : isDual ? 2 : 1 };
+            const record: LiveBattleRecord = { ...current, activations: outOfPlay ? 0 : isDual ? 2 : 1 };
             return serviceSupabase
-              .from('battle_session_fighters')
-              .update({ session_record: record })
+              .from('live_battle_fighters')
+              .update({ live_battle_record: record })
               .eq('id', f.id);
           })
         );
@@ -679,7 +679,7 @@ export async function advanceRound(
           .filter((error): error is NonNullable<typeof error> => Boolean(error));
         if (activationErrors.length > 0) {
           console.error('[advanceRound] Activation refresh failed after round advanced:', {
-            sessionId,
+            liveBattleId,
             newRound: nextRound,
             errors: activationErrors.map((error) => error.message),
           });
@@ -687,7 +687,7 @@ export async function advanceRound(
       }
     }
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true, newRound: nextRound };
   } catch (err) {
     console.error('Error changing round:', err);
@@ -700,44 +700,44 @@ export async function advanceRound(
 // =============================================================================
 
 export async function toggleParticipantReady(
-  sessionId: string,
+  liveBattleId: string,
   participantId: string
 ): Promise<{ success: boolean; battleStarted?: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
+    const auth = await verifyLiveBattleParticipant(supabase, liveBattleId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('status')
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .single();
-    if (!session || (session.status !== 'pre_battle' && session.status !== 'post_battle'))
+    if (!liveBattle || (liveBattle.status !== 'pre_battle' && liveBattle.status !== 'post_battle'))
       return { success: false, error: 'Can only toggle ready during pre-battle or post-battle' };
 
     const { data: myParticipant } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .select('id, ready')
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId)
+      .eq('live_battle_id', liveBattleId)
       .single();
     if (!myParticipant) return { success: false, error: 'Participant not found' };
 
     const newReady = !myParticipant.ready;
     await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .update({ ready: newReady })
       .eq('id', myParticipant.id);
 
     let battleStarted = false;
-    if (newReady && session.status === 'pre_battle') {
+    if (newReady && liveBattle.status === 'pre_battle') {
       const { data: allParticipants } = await supabase
-        .from('battle_session_participants')
+        .from('live_battle_participants')
         .select('ready')
-        .eq('battle_session_id', sessionId);
+        .eq('live_battle_id', liveBattleId);
 
       const allReady =
         allParticipants &&
@@ -746,16 +746,16 @@ export async function toggleParticipantReady(
 
       if (allReady) {
         const { data: started } = await supabase
-          .from('battle_sessions')
+          .from('live_battles')
           .update({ status: 'active', updated_at: new Date().toISOString() })
-          .eq('id', sessionId)
+          .eq('id', liveBattleId)
           .eq('status', 'pre_battle')
           .select('id');
         battleStarted = (started?.length ?? 0) > 0;
       }
     }
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true, battleStarted };
   } catch (err) {
     console.error('Error toggling ready:', err);
@@ -763,58 +763,58 @@ export async function toggleParticipantReady(
   }
 }
 
-export async function changeSessionPhase(
-  sessionId: string,
+export async function changeLiveBattlePhase(
+  liveBattleId: string,
   direction: 'forward' | 'back'
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionManager(supabase, sessionId, user.id);
+    const auth = await verifyLiveBattleManager(supabase, liveBattleId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('status')
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .single();
 
-    if (!session) return { success: false, error: 'Session not found' };
+    if (!liveBattle) return { success: false, error: 'Live battle not found' };
 
     const transitions: Record<string, Record<string, string>> = {
       forward: { active: 'post_battle' },
       back: { active: 'pre_battle', post_battle: 'active' },
     };
-    const targetStatus = transitions[direction]?.[session.status];
+    const targetStatus = transitions[direction]?.[liveBattle.status];
     if (!targetStatus)
       return { success: false, error: 'Invalid phase transition' };
 
     const { error } = await supabase
-      .from('battle_sessions')
+      .from('live_battles')
       .update({ status: targetStatus, updated_at: new Date().toISOString() })
-      .eq('id', sessionId);
+      .eq('id', liveBattleId);
 
     if (error) return { success: false, error: error.message };
 
     await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .update({ ready: false })
-      .eq('battle_session_id', sessionId);
+      .eq('live_battle_id', liveBattleId);
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true };
   } catch (err) {
-    console.error('Error changing session phase:', err);
-    return { success: false, error: 'Failed to change session phase' };
+    console.error('Error changing live battle phase:', err);
+    return { success: false, error: 'Failed to change live battle phase' };
   }
 }
 
-// Completing the session files the challenge with the session's gangs, so they must stay the challenge's.
-const CHALLENGE_GANGS_FIXED = "This session plays a challenge, so its gangs can't change. Cancel the session to change the challenge.";
+// Completing the live battle files the challenge with the live battle's gangs, so they must stay the challenge's.
+const CHALLENGE_GANGS_FIXED = "This live battle plays a challenge, so its gangs can't change. Cancel the live battle to change the challenge.";
 
 export async function addParticipant(params: {
-  session_id: string;
+  live_battle_id: string;
   gang_id: string;
   user_id: string;
   role?: 'attacker' | 'defender' | 'none';
@@ -830,19 +830,19 @@ export async function addParticipant(params: {
       .single();
     const senderName = currentProfile?.username || 'Someone';
 
-    // Verify session exists and is active
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    // Verify live battle exists and is active
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('id, status, campaign_id, created_by, campaign_battle_id, editions:edition_id ( slug )')
-      .eq('id', params.session_id)
+      .eq('id', params.live_battle_id)
       .single();
 
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'pre_battle')
+    if (!liveBattle) return { success: false, error: 'Live battle not found' };
+    if (liveBattle.status !== 'pre_battle')
       return { success: false, error: 'Can only add players during pre-battle' };
-    if (!(await canManageSession(currentUser.id, session)))
-      return { success: false, error: 'Only the session creator or an arbitrator can add participants' };
-    if (session.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
+    if (!(await canManageLiveBattle(currentUser.id, liveBattle)))
+      return { success: false, error: 'Only the live battle creator or an arbitrator can add participants' };
+    if (liveBattle.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     // Validate gang belongs to the specified user
     const { data: gangOwner } = await supabase
@@ -853,22 +853,22 @@ export async function addParticipant(params: {
     if (gangOwner?.user_id !== params.user_id)
       return { success: false, error: 'User does not own this gang' };
 
-    // The session's ruleset is already fixed; a gang from another edition would
-    // play by rules the session is not running. Same guard as createBattleSession,
-    // against the session rather than the other participants.
-    if (editionsConflict((session as any).editions?.slug, gangEditionSlug(gangOwner))) {
+    // The live battle's ruleset is already fixed; a gang from another edition would
+    // play by rules the live battle is not running. Same guard as createLiveBattle,
+    // against the live battle rather than the other participants.
+    if (editionsConflict((liveBattle as any).editions?.slug, gangEditionSlug(gangOwner))) {
       return {
         success: false,
         error: 'This gang is from a different edition than the battle',
       };
     }
 
-    // If campaign session, validate gang is in the campaign
-    if (session.campaign_id) {
+    // If campaign live battle, validate gang is in the campaign
+    if (liveBattle.campaign_id) {
       const { data: campaignGang } = await supabase
         .from('campaign_gangs')
         .select('id')
-        .eq('campaign_id', session.campaign_id)
+        .eq('campaign_id', liveBattle.campaign_id)
         .eq('gang_id', params.gang_id)
         .maybeSingle();
 
@@ -884,9 +884,9 @@ export async function addParticipant(params: {
       .single();
 
     const { error } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .insert({
-        battle_session_id: params.session_id,
+        live_battle_id: params.live_battle_id,
         user_id: params.user_id,
         gang_id: params.gang_id,
         role: params.role || 'none',
@@ -895,17 +895,17 @@ export async function addParticipant(params: {
 
     if (error) {
       if (error.code === '23505')
-        return { success: false, error: 'Gang is already in this session' };
+        return { success: false, error: 'Gang is already in this live battle' };
       return { success: false, error: error.message };
     }
 
     await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .update({ ready: false })
-      .eq('battle_session_id', params.session_id);
+      .eq('live_battle_id', params.live_battle_id);
 
-    invalidateBattleSession(params.session_id);
-    invalidateBattleSessions(params.gang_id);
+    invalidateLiveBattle(params.live_battle_id);
+    invalidateLiveBattles(params.gang_id);
 
     // Send notification if adding someone else
     if (params.user_id !== currentUser.id) {
@@ -913,8 +913,8 @@ export async function addParticipant(params: {
         receiver_id: params.user_id,
         sender_id: currentUser.id,
         type: 'battle_invite',
-        text: `${senderName} invited you to a battle session.`,
-        link: `/gang/${params.gang_id}/battle-session/${params.session_id}`,
+        text: `${senderName} invited you to a live battle.`,
+        link: `/gang/${params.gang_id}/live-battle/${params.live_battle_id}`,
         dismissed: false,
       });
     }
@@ -927,44 +927,44 @@ export async function addParticipant(params: {
 }
 
 export async function removeParticipant(
-  sessionId: string,
+  liveBattleId: string,
   participantId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    // Allow session creator or self-removal
+    // Allow live battle creator or self-removal
     const { data: participant } = await supabase
-      .from('battle_session_participants')
-      .select('user_id, gang_id, battle_sessions(campaign_battle_id)')
+      .from('live_battle_participants')
+      .select('user_id, gang_id, live_battles(campaign_battle_id)')
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId)
+      .eq('live_battle_id', liveBattleId)
       .single();
 
     if (!participant) return { success: false, error: 'Participant not found' };
 
     const isSelfRemoval = participant.user_id === user.id;
     if (!isSelfRemoval) {
-      const auth = await verifySessionManager(supabase, sessionId, user.id);
-      if (!auth.authorized) return { success: false, error: 'Only the session creator or an arbitrator can remove other participants' };
+      const auth = await verifyLiveBattleManager(supabase, liveBattleId, user.id);
+      if (!auth.authorized) return { success: false, error: 'Only the live battle creator or an arbitrator can remove other participants' };
     }
 
-    const session = Array.isArray(participant.battle_sessions)
-      ? participant.battle_sessions[0]
-      : participant.battle_sessions;
-    if (session?.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
+    const liveBattle = Array.isArray(participant.live_battles)
+      ? participant.live_battles[0]
+      : participant.live_battles;
+    if (liveBattle?.campaign_battle_id) return { success: false, error: CHALLENGE_GANGS_FIXED };
 
     const { error } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .delete()
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId);
+      .eq('live_battle_id', liveBattleId);
 
     if (error) return { success: false, error: error.message };
 
-    invalidateBattleSession(sessionId);
-    invalidateBattleSessions(participant.gang_id);
+    invalidateLiveBattle(liveBattleId);
+    invalidateLiveBattles(participant.gang_id);
     return { success: true };
   } catch (err) {
     console.error('Error removing participant:', err);
@@ -973,7 +973,7 @@ export async function removeParticipant(
 }
 
 export async function updateParticipantRole(
-  sessionId: string,
+  liveBattleId: string,
   participantId: string,
   role: 'attacker' | 'defender' | 'none'
 ): Promise<{ success: boolean; error?: string }> {
@@ -981,37 +981,37 @@ export async function updateParticipantRole(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('id, status, created_by, campaign_id')
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .single();
 
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'pre_battle')
+    if (!liveBattle) return { success: false, error: 'Live battle not found' };
+    if (liveBattle.status !== 'pre_battle')
       return { success: false, error: 'Roles can only be changed during pre-battle' };
 
     const { data: participant } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .select('user_id')
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId)
+      .eq('live_battle_id', liveBattleId)
       .single();
 
     if (!participant) return { success: false, error: 'Participant not found' };
 
-    if (participant.user_id !== user.id && !(await canManageSession(user.id, session)))
+    if (participant.user_id !== user.id && !(await canManageLiveBattle(user.id, liveBattle)))
       return { success: false, error: 'Not authorized to change this role' };
 
     const { error } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .update({ role })
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId);
+      .eq('live_battle_id', liveBattleId);
 
     if (error) return { success: false, error: error.message };
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true };
   } catch (err) {
     console.error('Error updating participant role:', err);
@@ -1021,11 +1021,11 @@ export async function updateParticipantRole(
 
 /**
  * N26: a gang's Side Job, rolled before the battle by its owner (or whoever
- * manages the session), like its role: an entry, a custom name, or neither
+ * manages the live battle), like its role: an entry, a custom name, or neither
  * to clear it. Changing it clears its completion.
  */
 export async function updateParticipantSideJob(
-  sessionId: string,
+  liveBattleId: string,
   participantId: string,
   sideJob: Pick<ParticipantSideJob, 'side_job_id' | 'side_job_name'>
 ): Promise<{ success: boolean; error?: string }> {
@@ -1034,44 +1034,44 @@ export async function updateParticipantSideJob(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const [{ data: session }, { data: participant }] = await Promise.all([
+    const [{ data: liveBattle }, { data: participant }] = await Promise.all([
       supabase
-        .from('battle_sessions')
+        .from('live_battles')
         .select('id, status, created_by, campaign_id, edition_id')
-        .eq('id', sessionId)
+        .eq('id', liveBattleId)
         .single(),
       supabase
-        .from('battle_session_participants')
+        .from('live_battle_participants')
         .select('user_id, gang_id')
         .eq('id', participantId)
-        .eq('battle_session_id', sessionId)
+        .eq('live_battle_id', liveBattleId)
         .single(),
     ]);
 
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'pre_battle')
+    if (!liveBattle) return { success: false, error: 'Live battle not found' };
+    if (liveBattle.status !== 'pre_battle')
       return { success: false, error: 'Side Jobs can only be changed during pre-battle' };
     if (!participant) return { success: false, error: 'Participant not found' };
-    if (participant.user_id !== user.id && !(await canManageSession(user.id, session)))
+    if (participant.user_id !== user.id && !(await canManageLiveBattle(user.id, liveBattle)))
       return { success: false, error: 'Not authorized to change this Side Job' };
 
     const check = await checkScenarioParts(
       supabase,
-      async () => session.edition_id,
+      async () => liveBattle.edition_id,
       {},
       [{ gang_id: participant.gang_id, side_job_id }]
     );
     if ('error' in check) return { success: false, error: check.error };
 
     const { error } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .update({ side_job_id, side_job_name, side_job_completed: false })
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId);
+      .eq('live_battle_id', liveBattleId);
 
     if (error) return { success: false, error: error.message };
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true };
   } catch (err) {
     console.error('Error updating side job:', err);
@@ -1081,7 +1081,7 @@ export async function updateParticipantSideJob(
 
 /** N26: whether a gang completed its Side Job, recorded after the battle like its credits. */
 export async function setSideJobCompleted(
-  sessionId: string,
+  liveBattleId: string,
   participantId: string,
   completed: boolean
 ): Promise<{ success: boolean; error?: string }> {
@@ -1089,19 +1089,19 @@ export async function setSideJobCompleted(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
+    const auth = await verifyLiveBattleParticipant(supabase, liveBattleId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const [{ data: session }, { data: participant }] = await Promise.all([
-      supabase.from('battle_sessions').select('status').eq('id', sessionId).single(),
+    const [{ data: liveBattle }, { data: participant }] = await Promise.all([
+      supabase.from('live_battles').select('status').eq('id', liveBattleId).single(),
       supabase
-        .from('battle_session_participants')
+        .from('live_battle_participants')
         .select('side_job_id, side_job_name')
         .eq('id', participantId)
-        .eq('battle_session_id', sessionId)
+        .eq('live_battle_id', liveBattleId)
         .single(),
     ]);
-    if (session?.status !== 'post_battle')
+    if (liveBattle?.status !== 'post_battle')
       return { success: false, error: 'A Side Job can only be completed after the battle' };
     // Only a gang with a Side Job, rolled or custom, can have completed it. The
     // update checks the one read is still there. (PostgREST also filters the
@@ -1110,17 +1110,17 @@ export async function setSideJobCompleted(
     if (!sideJobColumn) return { success: false, error: 'This gang has no Side Job' };
 
     const { data: updated, error } = await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .update({ side_job_completed: completed })
       .eq('id', participantId)
-      .eq('battle_session_id', sessionId)
+      .eq('live_battle_id', liveBattleId)
       .not(sideJobColumn, 'is', null)
       .select('id');
 
     if (error) return { success: false, error: error.message };
     if (!updated?.length) return { success: false, error: 'This gang has no Side Job' };
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true };
   } catch (err) {
     console.error('Error setting side job completed:', err);
@@ -1132,8 +1132,8 @@ export async function setSideJobCompleted(
 // Fighter Management
 // =============================================================================
 
-export async function removeFighterFromSession(
-  sessionId: string,
+export async function removeFighterFromLiveBattle(
+  liveBattleId: string,
   fighterId: string,
   participantId: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -1141,21 +1141,21 @@ export async function removeFighterFromSession(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
+    const auth = await verifyLiveBattleParticipant(supabase, liveBattleId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('status')
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .single();
-    if (session?.status !== 'pre_battle')
+    if (liveBattle?.status !== 'pre_battle')
       return { success: false, error: 'Crew can only be changed during pre-battle' };
 
     const { data: deleted, error } = await supabase
-      .from('battle_session_fighters')
+      .from('live_battle_fighters')
       .delete()
-      .eq('battle_session_id', sessionId)
+      .eq('live_battle_id', liveBattleId)
       .eq('fighter_id', fighterId)
       .eq('participant_id', auth.participantId!)
       .select('id');
@@ -1164,7 +1164,7 @@ export async function removeFighterFromSession(
     if (!deleted || deleted.length === 0)
       return { success: false, error: 'Fighter not found in your crew' };
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true };
   } catch (err) {
     console.error('Error removing fighter:', err);
@@ -1173,7 +1173,7 @@ export async function removeFighterFromSession(
 }
 
 export async function updateFighterLoadout(
-  sessionId: string,
+  liveBattleId: string,
   fighterId: string,
   loadoutId: string | undefined,
   participantId: string
@@ -1182,21 +1182,21 @@ export async function updateFighterLoadout(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, sessionId, user.id, participantId);
+    const auth = await verifyLiveBattleParticipant(supabase, liveBattleId, user.id, participantId);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('status')
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .single();
-    if (session?.status !== 'pre_battle')
+    if (liveBattle?.status !== 'pre_battle')
       return { success: false, error: 'Crew can only be changed during pre-battle' };
 
     const { data: updated, error } = await supabase
-      .from('battle_session_fighters')
+      .from('live_battle_fighters')
       .update({ loadout_id: loadoutId ?? null })
-      .eq('battle_session_id', sessionId)
+      .eq('live_battle_id', liveBattleId)
       .eq('fighter_id', fighterId)
       .eq('participant_id', auth.participantId!)
       .select('id');
@@ -1205,7 +1205,7 @@ export async function updateFighterLoadout(
     if (!updated || updated.length === 0)
       return { success: false, error: 'Fighter not found in your crew' };
 
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
     return { success: true };
   } catch (err) {
     console.error('Error updating fighter loadout:', err);
@@ -1213,19 +1213,19 @@ export async function updateFighterLoadout(
   }
 }
 
-type SessionFighterSource = { special_rules: string[] | null; starting_xp: number | null };
+type LiveBattleFighterSource = { special_rules: string[] | null; starting_xp: number | null };
 
 /**
  * The given fighters from the participant's gang, for adding them to the
- * session. Fails if any of them is in another gang.
+ * live battle. Fails if any of them is in another gang.
  */
 async function loadParticipantFighters(
   supabase: Awaited<ReturnType<typeof createClient>>,
   participantId: string,
   fighterIds: string[]
-): Promise<{ fighters: Map<string, SessionFighterSource> } | { error: string }> {
+): Promise<{ fighters: Map<string, LiveBattleFighterSource> } | { error: string }> {
   const { data: participant } = await supabase
-    .from('battle_session_participants')
+    .from('live_battle_participants')
     .select('gang_id')
     .eq('id', participantId)
     .single();
@@ -1236,7 +1236,7 @@ async function loadParticipantFighters(
     .select('id, special_rules, starting_xp')
     .eq('gang_id', participant.gang_id)
     .in('id', fighterIds);
-  const fighters = new Map<string, SessionFighterSource>(
+  const fighters = new Map<string, LiveBattleFighterSource>(
     (validFighters ?? []).map((f: any) => [f.id, { special_rules: f.special_rules ?? null, starting_xp: f.starting_xp ?? null }])
   );
   if (fighterIds.some((id) => !fighters.has(id)))
@@ -1244,8 +1244,8 @@ async function loadParticipantFighters(
   return { fighters };
 }
 
-export async function bulkAddFightersToSession(params: {
-  session_id: string;
+export async function bulkAddFightersToLiveBattle(params: {
+  live_battle_id: string;
   participant_id: string;
   fighter_entries: { fighter_id: string; loadout_id?: string }[];
 }): Promise<{ success: boolean; error?: string }> {
@@ -1253,16 +1253,16 @@ export async function bulkAddFightersToSession(params: {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, params.session_id, user.id, params.participant_id);
+    const auth = await verifyLiveBattleParticipant(supabase, params.live_battle_id, user.id, params.participant_id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('status')
-      .eq('id', params.session_id)
+      .eq('id', params.live_battle_id)
       .single();
     // Reinforcements join during the battle; changing the crew otherwise stays pre-battle only.
-    if (session?.status !== 'pre_battle' && session?.status !== 'active')
+    if (liveBattle?.status !== 'pre_battle' && liveBattle?.status !== 'active')
       return { success: false, error: 'Fighters can only be added before or during the battle' };
 
     const loaded = await loadParticipantFighters(
@@ -1274,22 +1274,22 @@ export async function bulkAddFightersToSession(params: {
 
     const rows = params.fighter_entries.map((entry) => {
       return {
-        battle_session_id: params.session_id,
+        live_battle_id: params.live_battle_id,
         participant_id: auth.participantId!,
         fighter_id: entry.fighter_id,
         ...(entry.loadout_id ? { loadout_id: entry.loadout_id } : {}),
-        session_record: newSessionRecord(loaded.fighters.get(entry.fighter_id)!),
+        live_battle_record: newLiveBattleRecord(loaded.fighters.get(entry.fighter_id)!),
       };
     });
 
     const { error } = await supabase
-      .from('battle_session_fighters')
-      // Never overwrite a fighter already in the crew: that would reset its session record.
-      .upsert(rows, { onConflict: 'battle_session_id,fighter_id', ignoreDuplicates: true });
+      .from('live_battle_fighters')
+      // Never overwrite a fighter already in the crew: that would reset its live battle record.
+      .upsert(rows, { onConflict: 'live_battle_id,fighter_id', ignoreDuplicates: true });
 
     if (error) return { success: false, error: error.message };
 
-    invalidateBattleSession(params.session_id);
+    invalidateLiveBattle(params.live_battle_id);
     return { success: true };
   } catch (err) {
     console.error('Error bulk adding fighters:', err);
@@ -1300,10 +1300,10 @@ export async function bulkAddFightersToSession(params: {
 /**
  * Post-battle: adds gang fighters who weren't in the crew (e.g. reinforcements)
  * with the participation XP they earned, which completion pays with the crew's.
- * Fighters already in the session are left as they are.
+ * Fighters already in the live battle are left as they are.
  */
 export async function addParticipationXpFighters(params: {
-  session_id: string;
+  live_battle_id: string;
   participant_id: string;
   fighter_entries: { fighter_id: string; participation_xp: number }[];
 }): Promise<{ success: boolean; error?: string }> {
@@ -1314,15 +1314,15 @@ export async function addParticipationXpFighters(params: {
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionParticipant(supabase, params.session_id, user.id, params.participant_id);
+    const auth = await verifyLiveBattleParticipant(supabase, params.live_battle_id, user.id, params.participant_id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    const { data: session } = await supabase
-      .from('battle_sessions')
+    const { data: liveBattle } = await supabase
+      .from('live_battles')
       .select('status')
-      .eq('id', params.session_id)
+      .eq('id', params.live_battle_id)
       .single();
-    if (session?.status !== 'post_battle')
+    if (liveBattle?.status !== 'post_battle')
       return { success: false, error: 'Fighters can only be added for participation XP during post-battle' };
 
     const loaded = await loadParticipantFighters(
@@ -1333,22 +1333,22 @@ export async function addParticipationXpFighters(params: {
     if ('error' in loaded) return { success: false, error: loaded.error };
 
     const rows = params.fighter_entries.map((entry) => ({
-      battle_session_id: params.session_id,
+      live_battle_id: params.live_battle_id,
       participant_id: auth.participantId!,
       fighter_id: entry.fighter_id,
-      session_record: {
-        ...newSessionRecord(loaded.fighters.get(entry.fighter_id)!, entry.participation_xp),
+      live_battle_record: {
+        ...newLiveBattleRecord(loaded.fighters.get(entry.fighter_id)!, entry.participation_xp),
         participation_xp_confirmed: true,
       },
     }));
 
     const { error } = await supabase
-      .from('battle_session_fighters')
-      .upsert(rows, { onConflict: 'battle_session_id,fighter_id', ignoreDuplicates: true });
+      .from('live_battle_fighters')
+      .upsert(rows, { onConflict: 'live_battle_id,fighter_id', ignoreDuplicates: true });
 
     if (error) return { success: false, error: error.message };
 
-    invalidateBattleSession(params.session_id);
+    invalidateLiveBattle(params.live_battle_id);
     return { success: true };
   } catch (err) {
     console.error('Error adding fighters for participation XP:', err);
@@ -1357,13 +1357,13 @@ export async function addParticipationXpFighters(params: {
 }
 
 // =============================================================================
-// Session Record — XP & Injury Tracking
+// Live Battle Record — XP & Injury Tracking
 // =============================================================================
 
 /** editionSlug is only looked up when `needsEditionSlug` is set, and is null otherwise. */
-async function withSessionRecord(
-  sessionFighterId: string,
-  updateFn: (record: SessionRecord, editionSlug: string | null) => SessionRecord | { error: string },
+async function withLiveBattleRecord(
+  liveBattleFighterId: string,
+  updateFn: (record: LiveBattleRecord, editionSlug: string | null) => LiveBattleRecord | { error: string },
   { needsEditionSlug = false }: { needsEditionSlug?: boolean } = {}
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -1371,60 +1371,60 @@ async function withSessionRecord(
     const user = await getAuthenticatedUser(supabase);
 
     const { data: fighter, error: fetchError } = await supabase
-      .from('battle_session_fighters')
-      .select('session_record, battle_session_id, participant_id')
-      .eq('id', sessionFighterId)
+      .from('live_battle_fighters')
+      .select('live_battle_record, live_battle_id, participant_id')
+      .eq('id', liveBattleFighterId)
       .single();
 
     if (fetchError || !fighter) return { success: false, error: 'Fighter not found' };
 
-    const auth = await verifySessionParticipant(supabase, fighter.battle_session_id, user.id, fighter.participant_id);
+    const auth = await verifyLiveBattleParticipant(supabase, fighter.live_battle_id, user.id, fighter.participant_id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     let editionSlug: string | null = null;
     if (needsEditionSlug) {
-      const { data: session } = await supabase
-        .from('battle_sessions')
+      const { data: liveBattle } = await supabase
+        .from('live_battles')
         .select('editions:edition_id ( slug )')
-        .eq('id', fighter.battle_session_id)
+        .eq('id', fighter.live_battle_id)
         .single();
-      editionSlug = editionSlugFromJoin(session?.editions);
+      editionSlug = editionSlugFromJoin(liveBattle?.editions);
     }
-    const result = updateFn(normalizeSessionRecord(fighter.session_record), editionSlug);
+    const result = updateFn(normalizeLiveBattleRecord(fighter.live_battle_record), editionSlug);
     if ('error' in result) return { success: false, error: result.error };
 
     const { error } = await supabase
-      .from('battle_session_fighters')
-      .update({ session_record: result })
-      .eq('id', sessionFighterId);
+      .from('live_battle_fighters')
+      .update({ live_battle_record: result })
+      .eq('id', liveBattleFighterId);
 
     if (error) return { success: false, error: error.message };
 
-    invalidateBattleSession(fighter.battle_session_id);
+    invalidateLiveBattle(fighter.live_battle_id);
     return { success: true };
   } catch (err) {
-    console.error('Error updating session record:', err);
+    console.error('Error updating live battle record:', err);
     return { success: false, error: 'Failed to update fighter' };
   }
 }
 
-export async function updateSessionXp(params: {
-  session_fighter_id: string;
+export async function updateLiveBattleXp(params: {
+  live_battle_fighter_id: string;
   xp_earned: number;
 }): Promise<{ success: boolean; error?: string }> {
-  return withSessionRecord(params.session_fighter_id, (record) => ({
+  return withLiveBattleRecord(params.live_battle_fighter_id, (record) => ({
     ...record,
     xp_earned: params.xp_earned,
   }));
 }
 
-export async function updateSessionParticipationXp(params: {
-  session_fighter_id: string;
+export async function updateLiveBattleParticipationXp(params: {
+  live_battle_fighter_id: string;
   participation_xp: number;
 }): Promise<{ success: boolean; error?: string }> {
   if (!Number.isInteger(params.participation_xp) || params.participation_xp < 0)
     return { success: false, error: 'Participation XP must be a whole number of 0 or more' };
-  return withSessionRecord(params.session_fighter_id, (record) =>
+  return withLiveBattleRecord(params.live_battle_fighter_id, (record) =>
     record.participation_xp_awarded
       ? { error: 'Participation XP was already added to this fighter' }
       : { ...record, participation_xp: params.participation_xp, participation_xp_confirmed: true }
@@ -1435,16 +1435,16 @@ export async function updateSessionParticipationXp(params: {
  * Saves the Fighter Actions modal's Confirm as one read-modify-write of the
  * record: the conditions and, on N26, whether the fighter left the battlefield.
  */
-export async function updateSessionConditions(params: {
-  session_fighter_id: string;
-  conditions: SessionCondition[];
+export async function updateLiveBattleConditions(params: {
+  live_battle_fighter_id: string;
+  conditions: LiveBattleCondition[];
   left_battlefield?: boolean;
 }): Promise<{ success: boolean; error?: string }> {
   // A server action accepts any JSON, so anything but `true` reads as false.
   const leftBattlefield =
     params.left_battlefield === undefined ? undefined : params.left_battlefield === true;
-  return withSessionRecord(
-    params.session_fighter_id,
+  return withLiveBattleRecord(
+    params.live_battle_fighter_id,
     (record, editionSlug) => {
       if (leftBattlefield !== undefined && !canLeaveBattlefield(editionSlug))
         return { error: 'Leaving the battlefield is not available in this edition' };
@@ -1455,20 +1455,20 @@ export async function updateSessionConditions(params: {
 }
 
 export async function updateActivations(params: {
-  session_fighter_id: string;
+  live_battle_fighter_id: string;
   activations: number;
 }): Promise<{ success: boolean; error?: string }> {
-  return withSessionRecord(params.session_fighter_id, (record) => ({
+  return withLiveBattleRecord(params.live_battle_fighter_id, (record) => ({
     ...record,
     activations: params.activations,
   }));
 }
 
-export async function addSessionInjury(params: {
-  session_fighter_id: string;
-  injury: SessionInjuryRecord;
+export async function addLiveBattleInjury(params: {
+  live_battle_fighter_id: string;
+  injury: LiveBattleInjuryRecord;
 }): Promise<{ success: boolean; error?: string }> {
-  return withSessionRecord(params.session_fighter_id, (record) => ({
+  return withLiveBattleRecord(params.live_battle_fighter_id, (record) => ({
     ...record,
     injuries: [...record.injuries, params.injury],
   }));
@@ -1476,46 +1476,46 @@ export async function addSessionInjury(params: {
 
 /**
  * Removes a lasting injury added in this battle from the fighter and from the
- * session record. One already deleted on the fighter page only leaves the record.
+ * live battle record. One already deleted on the fighter page only leaves the record.
  * The fighter is deleted from first, so the record's read-modify-write stays short.
  */
-export async function removeSessionInjury(params: {
-  session_fighter_id: string;
+export async function removeLiveBattleInjury(params: {
+  live_battle_fighter_id: string;
   injury_id: string;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
-  const { data: sessionFighter, error: fetchError } = await supabase
-    .from('battle_session_fighters')
-    .select('fighter_id, session_record')
-    .eq('id', params.session_fighter_id)
+  const { data: liveBattleFighter, error: fetchError } = await supabase
+    .from('live_battle_fighters')
+    .select('fighter_id, live_battle_record')
+    .eq('id', params.live_battle_fighter_id)
     .single();
-  if (fetchError || !sessionFighter) return { success: false, error: 'Fighter not found' };
-  if (!normalizeSessionRecord(sessionFighter.session_record).injuries.some((i) => i.fighter_effect_id === params.injury_id))
+  if (fetchError || !liveBattleFighter) return { success: false, error: 'Fighter not found' };
+  if (!normalizeLiveBattleRecord(liveBattleFighter.live_battle_record).injuries.some((i) => i.fighter_effect_id === params.injury_id))
     return { success: false, error: 'Injury not found' };
 
   const { data: effect, error: effectError } = await supabase
     .from('fighter_effects')
     .select('id')
     .eq('id', params.injury_id)
-    .eq('fighter_id', sessionFighter.fighter_id)
+    .eq('fighter_id', liveBattleFighter.fighter_id)
     .maybeSingle();
   if (effectError) return { success: false, error: effectError.message };
   if (effect) {
-    const deleted = await deleteFighterInjury({ fighter_id: sessionFighter.fighter_id, injury_id: params.injury_id });
+    const deleted = await deleteFighterInjury({ fighter_id: liveBattleFighter.fighter_id, injury_id: params.injury_id });
     if (!deleted.success) return { success: false, error: deleted.error ?? 'Failed to remove the injury' };
   }
 
-  return withSessionRecord(params.session_fighter_id, (record) => ({
+  return withLiveBattleRecord(params.live_battle_fighter_id, (record) => ({
     ...record,
     injuries: record.injuries.filter((i) => i.fighter_effect_id !== params.injury_id),
   }));
 }
 
-export async function updateSessionNote(params: {
-  session_fighter_id: string;
+export async function updateLiveBattleNote(params: {
+  live_battle_fighter_id: string;
   note: string;
 }): Promise<{ success: boolean; error?: string }> {
-  return withSessionRecord(params.session_fighter_id, (record) => ({
+  return withLiveBattleRecord(params.live_battle_fighter_id, (record) => ({
     ...record,
     note: params.note || undefined,
   }));
@@ -1538,15 +1538,15 @@ export async function updateGangOutcome(params: {
     const user = await getAuthenticatedUser(supabase);
 
     const { data: participant, error: fetchError } = await supabase
-      .from('battle_session_participants')
-      .select('battle_session_id, credits_earned, reputation_change')
+      .from('live_battle_participants')
+      .select('live_battle_id, credits_earned, reputation_change')
       .eq('id', params.participant_id)
       .single();
 
     if (fetchError || !participant)
       return { success: false, error: 'Participant not found' };
 
-    const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id, params.participant_id);
+    const auth = await verifyLiveBattleParticipant(supabase, participant.live_battle_id, user.id, params.participant_id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const gangUpdateParams: {
@@ -1556,38 +1556,38 @@ export async function updateGangOutcome(params: {
       reputation?: number;
       reputation_operation?: 'add' | 'subtract';
     } = { gang_id: params.gang_id };
-    const sessionUpdate: Record<string, number> = {};
+    const liveBattleUpdate: Record<string, number> = {};
 
     if (params.credits_change !== undefined && params.credits_operation) {
       gangUpdateParams.credits = params.credits_change;
       gangUpdateParams.credits_operation = params.credits_operation;
       const delta = params.credits_operation === 'add' ? params.credits_change : -params.credits_change;
-      sessionUpdate.credits_earned = participant.credits_earned + delta;
+      liveBattleUpdate.credits_earned = participant.credits_earned + delta;
     }
 
     if (params.reputation_change !== undefined && params.reputation_operation) {
       gangUpdateParams.reputation = params.reputation_change;
       gangUpdateParams.reputation_operation = params.reputation_operation;
       const delta = params.reputation_operation === 'add' ? params.reputation_change : -params.reputation_change;
-      sessionUpdate.reputation_change = participant.reputation_change + delta;
+      liveBattleUpdate.reputation_change = participant.reputation_change + delta;
     }
 
     const gangResult = await updateGang(gangUpdateParams);
     if (!gangResult.success) return { success: false, error: gangResult.error };
 
-    if (Object.keys(sessionUpdate).length > 0) {
+    if (Object.keys(liveBattleUpdate).length > 0) {
       await supabase
-        .from('battle_session_participants')
-        .update(sessionUpdate)
+        .from('live_battle_participants')
+        .update(liveBattleUpdate)
         .eq('id', params.participant_id);
     }
 
     await supabase
-      .from('battle_sessions')
+      .from('live_battles')
       .update({ updated_at: new Date().toISOString() })
-      .eq('id', participant.battle_session_id);
+      .eq('id', participant.live_battle_id);
 
-    invalidateBattleSession(participant.battle_session_id);
+    invalidateLiveBattle(participant.live_battle_id);
     return { success: true };
   } catch (err) {
     console.error('Error updating gang outcome:', err);
@@ -1615,15 +1615,15 @@ export async function updateParticipantResources(params: {
     const user = await getAuthenticatedUser(supabase);
 
     const { data: participant, error: fetchError } = await supabase
-      .from('battle_session_participants')
-      .select('battle_session_id, resource_changes')
+      .from('live_battle_participants')
+      .select('live_battle_id, resource_changes')
       .eq('id', params.participant_id)
       .single();
 
     if (fetchError || !participant)
       return { success: false, error: 'Participant not found' };
 
-    const auth = await verifySessionParticipant(supabase, participant.battle_session_id, user.id, params.participant_id);
+    const auth = await verifyLiveBattleParticipant(supabase, participant.live_battle_id, user.id, params.participant_id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
     const gangResult = await updateGang({
@@ -1656,16 +1656,16 @@ export async function updateParticipantResources(params: {
     }
 
     await supabase
-      .from('battle_session_participants')
+      .from('live_battle_participants')
       .update({ resource_changes: existing })
       .eq('id', params.participant_id);
 
     await supabase
-      .from('battle_sessions')
+      .from('live_battles')
       .update({ updated_at: new Date().toISOString() })
-      .eq('id', participant.battle_session_id);
+      .eq('id', participant.live_battle_id);
 
-    invalidateBattleSession(participant.battle_session_id);
+    invalidateLiveBattle(participant.live_battle_id);
     return { success: true };
   } catch (err) {
     console.error('Error updating participant resources:', err);
@@ -1674,11 +1674,11 @@ export async function updateParticipantResources(params: {
 }
 
 // =============================================================================
-// Complete Battle Session
+// Complete Live Battle
 // =============================================================================
 
-export async function completeBattleSession(
-  sessionId: string,
+export async function completeLiveBattle(
+  liveBattleId: string,
   options?: { campaign_territory_id?: string; note?: string; cycle?: number | null }
 ): Promise<{
   success: boolean;
@@ -1691,21 +1691,21 @@ export async function completeBattleSession(
     const supabase = await createClient();
     const user = await getAuthenticatedUser(supabase);
 
-    const auth = await verifySessionManager(supabase, sessionId, user.id);
+    const auth = await verifyLiveBattleManager(supabase, liveBattleId, user.id);
     if (!auth.authorized) return { success: false, error: auth.error };
 
-    // Parallel fetch: session, participants, profile, and territory name (if applicable)
+    // Parallel fetch: live battle, participants, profile, and territory name (if applicable)
     const [
-      { data: session },
+      { data: liveBattle },
       { data: allParticipants, error: participantsError },
       { data: userProfile },
       territoryResult,
     ] = await Promise.all([
       supabase
-        .from('battle_sessions')
+        .from('live_battles')
         .select(`
           status, campaign_id, scenario, deployment_id, objective_id, crew_selection_id,
-          deployment_name, objective_name, crew_selection_name, ${SESSION_SCENARIO_PARTS_SELECT},
+          deployment_name, objective_name, crew_selection_name, ${LIVE_BATTLE_SCENARIO_PARTS_SELECT},
           winner_gang_id, created_at, campaign_battle_id,
           challenge:campaign_battle_id (
             scenario, deployment_id, objective_id, crew_selection_id, deployment_name, objective_name, crew_selection_name,
@@ -1713,12 +1713,12 @@ export async function completeBattleSession(
             campaign_territory_id, cycle, status
           )
         `)
-        .eq('id', sessionId)
+        .eq('id', liveBattleId)
         .single(),
       supabase
-        .from('battle_session_participants')
+        .from('live_battle_participants')
         .select('id, gang_id, user_id, role, is_winner, claimed_territory, side_job_id, side_job_name, side_job_completed')
-        .eq('battle_session_id', sessionId),
+        .eq('live_battle_id', liveBattleId),
       supabase.from('profiles').select('username').eq('id', user.id).single(),
       options?.campaign_territory_id
         ? supabase
@@ -1729,11 +1729,11 @@ export async function completeBattleSession(
         : Promise.resolve({ data: null }),
     ]);
 
-    if (!session) return { success: false, error: 'Session not found' };
-    if (session.status !== 'post_battle')
-      return { success: false, error: 'Session must be in post-battle to complete' };
+    if (!liveBattle) return { success: false, error: 'Live battle not found' };
+    if (liveBattle.status !== 'post_battle')
+      return { success: false, error: 'Live battle must be in post-battle to complete' };
     if (participantsError || !allParticipants)
-      return { success: false, error: 'Failed to load session participants' };
+      return { success: false, error: 'Failed to load live battle participants' };
 
     const senderName = userProfile?.username || 'Someone';
     const claimed_territory = territoryResult?.data?.territory_name ?? null;
@@ -1747,34 +1747,34 @@ export async function completeBattleSession(
     const effectiveWinnerIds: string[] =
       flaggedWinnerIds.length > 0
         ? flaggedWinnerIds
-        : session.winner_gang_id
-          ? [session.winner_gang_id]
+        : liveBattle.winner_gang_id
+          ? [liveBattle.winner_gang_id]
           : [];
     const winnerGangSet = new Set(effectiveWinnerIds);
     const claimerGangId: string | null =
       allParticipants.find((p) => p.claimed_territory === true)?.gang_id
-      ?? session.winner_gang_id
+      ?? liveBattle.winner_gang_id
       ?? null;
 
     // --- Campaign battle log (inline write, no createBattleLog call) ---
-    // A session played from a challenge files that challenge; any other inserts a new log.
-    const challenge = Array.isArray(session.challenge) ? session.challenge[0] : session.challenge;
+    // A live battle played from a challenge files that challenge; any other inserts a new log.
+    const challenge = Array.isArray(liveBattle.challenge) ? liveBattle.challenge[0] : liveBattle.challenge;
     if (challenge?.status === 'played')
       return { success: false, error: 'This challenge has already been filed as played' };
 
-    // N26: what the session rolled, checked as it was set.
+    // N26: what the live battle rolled, checked as it was set.
     const scenarioParts = Object.fromEntries(
-      SCENARIO_PARTS.flatMap(({ key, nameKey }) => [[key, session[key] ?? null], [nameKey, session[nameKey] ?? null]])
+      SCENARIO_PARTS.flatMap(({ key, nameKey }) => [[key, liveBattle[key] ?? null], [nameKey, liveBattle[nameKey] ?? null]])
     );
     // The name embeds are to-one, though typed as lists.
-    const scenarioLabel = sessionScenarioLabel(session as any);
+    const scenarioLabel = liveBattleScenarioLabel(liveBattle as any);
 
-    let campaign_battle_id: string | undefined = session.campaign_battle_id ?? undefined;
+    let campaign_battle_id: string | undefined = liveBattle.campaign_battle_id ?? undefined;
     let dispossessedGangId: string | null = null;
     let claimedTerritory = false;
     // Undoes the log write if a later step fails.
     let rollbackBattleLog = async () => {};
-    if (session.campaign_id) {
+    if (liveBattle.campaign_id) {
       const battleParticipants = allParticipants.map((p) => ({
         role: p.role,
         gang_id: p.gang_id,
@@ -1783,7 +1783,7 @@ export async function completeBattleSession(
         ...participantSideJob(p),
       }));
       const battleLog = {
-        scenario: session.scenario || null,
+        scenario: liveBattle.scenario || null,
         ...scenarioParts,
         note: options?.note || null,
         participants: JSON.stringify(battleParticipants),
@@ -1817,8 +1817,8 @@ export async function completeBattleSession(
           .from('campaign_battles')
           .insert([{
             ...battleLog,
-            campaign_id: session.campaign_id,
-            created_at: session.created_at ?? new Date().toISOString(),
+            campaign_id: liveBattle.campaign_id,
+            created_at: liveBattle.created_at ?? new Date().toISOString(),
           }])
           .select('id')
           .single();
@@ -1852,7 +1852,7 @@ export async function completeBattleSession(
           .from('campaign_territories')
           .update({ gang_id: claimerGangId })
           .eq('id', claimTerritoryId)
-          .eq('campaign_id', session.campaign_id);
+          .eq('campaign_id', liveBattle.campaign_id);
 
         if (claimError) {
           await rollbackBattleLog();
@@ -1863,42 +1863,42 @@ export async function completeBattleSession(
 
     // --- Core state change ---
     const { data: updated, error } = await supabase
-      .from('battle_sessions')
+      .from('live_battles')
       .update({
         status: 'completed',
         campaign_battle_id: campaign_battle_id || null,
         claimed_territory,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', sessionId)
+      .eq('id', liveBattleId)
       .eq('status', 'post_battle')
       .select('id');
 
     if (error || !updated || updated.length === 0) {
       await rollbackBattleLog();
-      return { success: false, error: error?.message || 'Session was already completed' };
+      return { success: false, error: error?.message || 'Live battle was already completed' };
     }
 
     // --- Participation XP ---
     // After the status guard, so concurrent completions pay it once; the
-    // per-fighter flag covers a session put back into post-battle and completed
-    // again. Service role: the session manager may not own every gang's
+    // per-fighter flag covers a live battle put back into post-battle and completed
+    // again. Service role: the live battle manager may not own every gang's
     // fighters. Crew rows are client-writable, so a fighter is only paid when
     // they belong to the gang of the participant their row is filed under.
     const participationLogs: { gang_id: string; user_id: string; fighter_id: string; action_type: string; description: string; created_at: string }[] = [];
     let participationXpError: string | undefined;
     try {
       const serviceSupabase = createServiceRoleClient();
-      const { data: sessionFighters, error: sessionFightersError } = await serviceSupabase
-        .from('battle_session_fighters')
-        .select('id, participant_id, fighter_id, session_record')
-        .eq('battle_session_id', sessionId);
-      if (sessionFightersError) throw sessionFightersError;
+      const { data: liveBattleFighters, error: liveBattleFightersError } = await serviceSupabase
+        .from('live_battle_fighters')
+        .select('id, participant_id, fighter_id, live_battle_record')
+        .eq('live_battle_id', liveBattleId);
+      if (liveBattleFightersError) throw liveBattleFightersError;
 
       const gangByParticipant = new Map(allParticipants.map((p) => [p.id, p.gang_id]));
-      const awards = new Map<string, { rowId: string; gangId: string; xp: number; record: SessionRecord }>();
-      for (const sf of sessionFighters ?? []) {
-        const record = normalizeSessionRecord(sf.session_record);
+      const awards = new Map<string, { rowId: string; gangId: string; xp: number; record: LiveBattleRecord }>();
+      for (const sf of liveBattleFighters ?? []) {
+        const record = normalizeLiveBattleRecord(sf.live_battle_record);
         const xp = record.participation_xp;
         const gangId = gangByParticipant.get(sf.participant_id);
         if (!gangId || !record.participation_xp_confirmed || record.participation_xp_awarded) continue;
@@ -1920,8 +1920,8 @@ export async function completeBattleSession(
           // Flag first: if paying then fails, the player is told to add it by
           // hand, rather than a missing flag paying it again on a re-completion.
           const { error: markError } = await serviceSupabase
-            .from('battle_session_fighters')
-            .update({ session_record: { ...award.record, participation_xp_awarded: true } })
+            .from('live_battle_fighters')
+            .update({ live_battle_record: { ...award.record, participation_xp_awarded: true } })
             .eq('id', award.rowId);
           if (markError) {
             console.error(`Failed to mark participation XP as awarded on ${award.rowId}:`, markError);
@@ -1957,9 +1957,9 @@ export async function completeBattleSession(
       participationXpError = "Couldn't add participation XP. Add it on the fighters' pages.";
     }
 
-    // Invalidate session cache so the client renders the completed state. After
+    // Invalidate live battle cache so the client renders the completed state. After
     // the award, so a refetch can't cache the records without their awarded flag.
-    invalidateBattleSession(sessionId);
+    invalidateLiveBattle(liveBattleId);
 
     // === Everything below runs AFTER the response is sent ===
     after(async () => {
@@ -1975,11 +1975,11 @@ export async function completeBattleSession(
         );
 
         let resolvedCampaignName = 'Standalone Battle';
-        if (session.campaign_id) {
+        if (liveBattle.campaign_id) {
           const { data: campaign } = await supabase
             .from('campaigns')
             .select('campaign_name')
-            .eq('id', session.campaign_id)
+            .eq('id', liveBattle.campaign_id)
             .single();
           resolvedCampaignName = campaign?.campaign_name || 'Campaign';
         }
@@ -2041,14 +2041,14 @@ export async function completeBattleSession(
           }
         }
 
-        // Service role: the session manager may not own the other gangs, and in a
-        // standalone session gang_logs RLS denies their rows, which rolled back the
-        // whole batch. Every row is built server-side from the session's own data.
+        // Service role: the live battle manager may not own the other gangs, and in a
+        // standalone live battle gang_logs RLS denies their rows, which rolled back the
+        // whole batch. Every row is built server-side from the live battle's own data.
         if (logs.length > 0) {
           const { error: logsError } = await createServiceRoleClient()
             .from('gang_logs')
             .insert(logs);
-          if (logsError) console.error('Error writing battle session gang logs:', logsError);
+          if (logsError) console.error('Error writing live battle gang logs:', logsError);
         }
 
         // Notifications — one insert
@@ -2058,8 +2058,8 @@ export async function completeBattleSession(
             receiver_id: p.user_id,
             sender_id: user.id,
             type: 'info',
-            text: `${senderName} completed a battle session.`,
-            link: `/gang/${p.gang_id}/battle-session/${sessionId}`,
+            text: `${senderName} completed a live battle.`,
+            link: `/gang/${p.gang_id}/live-battle/${liveBattleId}`,
             dismissed: false,
           }));
         if (notifications.length > 0) {
@@ -2068,12 +2068,12 @@ export async function completeBattleSession(
 
         // Deferred cache invalidation
         for (const p of allParticipants) {
-          invalidateBattleSessions(p.gang_id);
+          invalidateLiveBattles(p.gang_id);
         }
-        if (session.campaign_id) {
-          invalidateCampaignBattles(session.campaign_id);
+        if (liveBattle.campaign_id) {
+          invalidateCampaignBattles(liveBattle.campaign_id);
           if (claimedTerritory) {
-            invalidateCampaignTerritories(session.campaign_id);
+            invalidateCampaignTerritories(liveBattle.campaign_id);
           }
           for (const wid of effectiveWinnerIds) {
             invalidateGangCampaignMembership(wid);
@@ -2089,8 +2089,8 @@ export async function completeBattleSession(
 
     return { success: true, campaign_battle_id, participation_xp_error: participationXpError };
   } catch (err) {
-    console.error('Error completing battle session:', err);
-    return { success: false, error: 'Failed to complete battle session' };
+    console.error('Error completing live battle:', err);
+    return { success: false, error: 'Failed to complete live battle' };
   }
 }
 

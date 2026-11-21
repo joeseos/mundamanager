@@ -133,8 +133,8 @@ export const notificationEmailConfig: Record<NotificationType, NotificationEmail
   info: { label: 'Account & campaign updates', supportsEmail: false, defaultEnabled: false, subject: '' },
   warning: { label: 'Warnings', supportsEmail: false, defaultEnabled: false, subject: '' },
   error: { label: 'Errors', supportsEmail: false, defaultEnabled: false, subject: '' },
-  // Battle-session invitations — in-app only (deliberately not emailed).
-  battle_invite: { label: 'Battle session invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
+  // Live-battle invitations — in-app only (deliberately not emailed).
+  battle_invite: { label: 'Live battle invitations', supportsEmail: false, defaultEnabled: false, subject: '' },
   // Forum replies to your thread and @mentions — in-app only.
   forum_reply: { label: 'Forum replies', supportsEmail: false, defaultEnabled: false, subject: '' },
   forum_mention: { label: 'Forum mentions', supportsEmail: false, defaultEnabled: false, subject: '' },
@@ -431,8 +431,8 @@ export function getNotificationLinkLabel(link: string, campaignName?: string | n
     return name ? `View campaign: ${name}` : 'View campaign';
   }
 
-  if (pathname.includes('/battle-session/')) {
-    return 'View battle session';
+  if (pathname.includes('/live-battle/')) {
+    return 'View live battle';
   }
 
   if (pathname.startsWith('/gang/')) {

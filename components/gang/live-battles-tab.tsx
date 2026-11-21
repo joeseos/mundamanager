@@ -4,14 +4,14 @@ import dynamic from 'next/dynamic';
 import { useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import type { CampaignGang } from '@/components/battle-session/create-battle-modal';
-import { statusLabels, formatBattleSessionDate, sessionScenarioLabel } from '@/types/battle-session';
-import type { BattleSession } from '@/types/battle-session';
+import type { CampaignGang } from '@/components/live-battle/create-battle-modal';
+import { statusLabels, formatLiveBattleDate, liveBattleScenarioLabel } from '@/types/live-battle';
+import type { LiveBattle } from '@/types/live-battle';
 
-const CreateBattleModal = dynamic(() => import('@/components/battle-session/create-battle-modal'), { ssr: false });
+const CreateBattleModal = dynamic(() => import('@/components/live-battle/create-battle-modal'), { ssr: false });
 
-interface BattleSessionsListProps {
-  sessions: BattleSession[];
+interface LiveBattlesListProps {
+  liveBattles: LiveBattle[];
   gangId?: string;
   gangName?: string;
   campaignId?: string;
@@ -21,14 +21,14 @@ interface BattleSessionsListProps {
   /** Edition of the gang starting the battle; scopes the opponent pickers. */
   editionSlug?: string | null;
   variant?: 'cards' | 'table';
-  sessionUrl: (sessionId: string) => string;
+  liveBattleUrl: (liveBattleId: string) => string;
   wrapper?: (children: ReactNode) => ReactNode;
   /** Sits inside another card: no card of its own, and a sub-header. */
   embedded?: boolean;
 }
 
-export default function BattleSessionsList({
-  sessions,
+export default function LiveBattlesList({
+  liveBattles,
   gangId,
   gangName,
   campaignId,
@@ -37,26 +37,26 @@ export default function BattleSessionsList({
   campaignGangs,
   editionSlug,
   variant = 'cards',
-  sessionUrl,
+  liveBattleUrl,
   wrapper,
   embedded = false,
-}: BattleSessionsListProps) {
+}: LiveBattlesListProps) {
   const router = useRouter();
   const [filter, setFilter] = useState<'active' | 'all'>('active');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const showAddButton = canAdd ?? !!(gangId && gangName);
 
-  const filteredSessions = filter === 'active'
-    ? sessions.filter((s) => s.status !== 'completed')
-    : sessions;
+  const filteredLiveBattles = filter === 'active'
+    ? liveBattles.filter((s) => s.status !== 'completed')
+    : liveBattles;
 
   const content = (
     <>
       <div className={`flex justify-between ${embedded ? 'mb-3 items-center' : 'mb-4 items-start'}`}>
         {embedded ? (
-          <h3 className="text-lg font-bold">Battle Sessions</h3>
+          <h3 className="text-lg font-bold">Live Battles</h3>
         ) : (
-          <h2 className="text-xl md:text-2xl font-bold">Battle Sessions</h2>
+          <h2 className="text-xl md:text-2xl font-bold">Live Battles</h2>
         )}
         {showAddButton && (
           <Button
@@ -91,11 +91,11 @@ export default function BattleSessionsList({
         </button>
       </div>
 
-      {filteredSessions.length === 0 ? (
+      {filteredLiveBattles.length === 0 ? (
         <p className="py-8 text-center text-neutral-500">
           {filter === 'active'
-            ? 'No active battle sessions.'
-            : 'No battle sessions yet.'}
+            ? 'No active live battles.'
+            : 'No live battles yet.'}
         </p>
       ) : variant === 'table' ? (
         <div className="rounded-md border overflow-x-auto">
@@ -108,16 +108,16 @@ export default function BattleSessionsList({
               </tr>
             </thead>
             <tbody>
-              {filteredSessions.map((session) => (
+              {filteredLiveBattles.map((liveBattle) => (
                 <tr
-                  key={session.id}
-                  onClick={() => router.push(sessionUrl(session.id))}
+                  key={liveBattle.id}
+                  onClick={() => router.push(liveBattleUrl(liveBattle.id))}
                   className="border-b cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
                 >
-                  <td className="p-1 md:p-2">{formatBattleSessionDate(session.updated_at)}</td>
-                  <td className="p-1 md:p-2">{sessionScenarioLabel(session) || '-'}</td>
+                  <td className="p-1 md:p-2">{formatLiveBattleDate(liveBattle.updated_at)}</td>
+                  <td className="p-1 md:p-2">{liveBattleScenarioLabel(liveBattle) || '-'}</td>
                   <td className="p-1 md:p-2 text-sm">
-                    {statusLabels[session.status]}
+                    {statusLabels[liveBattle.status]}
                   </td>
                 </tr>
               ))}
@@ -126,18 +126,18 @@ export default function BattleSessionsList({
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredSessions.map((session) => (
+          {filteredLiveBattles.map((liveBattle) => (
             <button
-              key={session.id}
-              onClick={() => router.push(sessionUrl(session.id))}
+              key={liveBattle.id}
+              onClick={() => router.push(liveBattleUrl(liveBattle.id))}
               className="flex w-full items-center justify-between rounded-lg border border-neutral-200 p-4 text-left transition-colors hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
             >
               <div className="flex items-center gap-2">
                 <span className="font-medium">
-                  {formatBattleSessionDate(session.updated_at)}
+                  {formatLiveBattleDate(liveBattle.updated_at)}
                 </span>
                 <span className="text-sm text-muted-foreground">
-                  {statusLabels[session.status]}
+                  {statusLabels[liveBattle.status]}
                 </span>
               </div>
               <span className="text-neutral-400">&rarr;</span>

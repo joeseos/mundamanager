@@ -21,7 +21,7 @@ export interface InjuryHatredTargetPickerProps {
   hatredTarget: HatredTargetKind | null;
   /**
    * Own gang already excluded. Supplied by the caller, not fetched here: the
-   * fighter page offers every gang in the campaign, a battle session only the
+   * fighter page offers every gang in the campaign, a live battle only the
    * gangs in that battle.
    */
   candidateGangs: CampaignGangWithFighters[];

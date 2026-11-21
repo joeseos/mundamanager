@@ -11,16 +11,16 @@ import { Combobox } from '@/components/ui/combobox';
 import { buildGangComboboxOption } from '@/utils/gang-combobox-option';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  setSessionWinners,
-  completeBattleSession,
-} from '@/app/actions/battle-sessions';
-import { sessionScenarioLabel, type BattleSessionFull } from '@/types/battle-session';
+  setLiveBattleWinners,
+  completeLiveBattle,
+} from '@/app/actions/live-battles';
+import { liveBattleScenarioLabel, type LiveBattleFull } from '@/types/live-battle';
 import { hasCrewRating } from '@/types/edition';
-import { splitInjuryCounts } from '@/components/battle-session/participant-card';
+import { splitInjuryCounts } from '@/components/live-battle/participant-card';
 import type { GangFighter } from '@/types/gang';
 import {
-  getSessionClaimerGangId,
-  getSessionWinnerIds,
+  getLiveBattleClaimerGangId,
+  getLiveBattleWinnerIds,
 } from '@/utils/battle-winners';
 import { useWinnerSelection } from '@/hooks/use-winner-selection';
 
@@ -34,7 +34,7 @@ interface CompleteBattleTerritory {
 }
 
 interface CompleteBattleModalProps {
-  session: BattleSessionFull;
+  liveBattle: LiveBattleFull;
   gangFightersMap: Record<string, GangFighter[]>;
   territories?: CompleteBattleTerritory[];
   onClose: () => void;
@@ -43,7 +43,7 @@ interface CompleteBattleModalProps {
 }
 
 export default function CompleteBattleModal({
-  session,
+  liveBattle,
   gangFightersMap,
   territories = [],
   onClose,
@@ -51,30 +51,30 @@ export default function CompleteBattleModal({
   onBroadcast,
 }: CompleteBattleModalProps) {
   // Multi-winner state. Prefill from the persisted is_winner / claimed_territory
-  // flags (with fallback to the legacy winner_gang_id for older sessions).
-  const initialWinnerIds = useMemo(() => getSessionWinnerIds(session), [session]);
-  const initialClaimerId = useMemo(() => getSessionClaimerGangId(session), [session]);
+  // flags (with fallback to the legacy winner_gang_id for older live battles).
+  const initialWinnerIds = useMemo(() => getLiveBattleWinnerIds(liveBattle), [liveBattle]);
+  const initialClaimerId = useMemo(() => getLiveBattleClaimerGangId(liveBattle), [liveBattle]);
   const initialIsDraw =
-    initialWinnerIds.length === 0 && session.winner_gang_id === null;
+    initialWinnerIds.length === 0 && liveBattle.winner_gang_id === null;
 
   // A challenge's staked territory, cycle and note carry over to its report.
   const [selectedTerritory, setSelectedTerritory] = useState(
-    session.linked_battle?.campaign_territory_id ?? ''
+    liveBattle.linked_battle?.campaign_territory_id ?? ''
   );
-  const [cycle, setCycle] = useState(session.linked_battle?.cycle?.toString() ?? '');
-  const [notes, setNotes] = useState(session.linked_battle?.note ?? '');
+  const [cycle, setCycle] = useState(liveBattle.linked_battle?.cycle?.toString() ?? '');
+  const [notes, setNotes] = useState(liveBattle.linked_battle?.note ?? '');
   const isReportOverLimit = notes.length > reportCharLimit;
-  const crewRated = hasCrewRating(session.edition_slug);
+  const crewRated = hasCrewRating(liveBattle.edition_slug);
   const [submitting, setSubmitting] = useState(false);
 
   const gangNameMap = useMemo(
-    () => new Map(session.participants.map((p) => [p.gang_id, p.gang?.name || 'Unknown'])),
-    [session.participants]
+    () => new Map(liveBattle.participants.map((p) => [p.gang_id, p.gang?.name || 'Unknown'])),
+    [liveBattle.participants]
   );
 
   const gangColourMap = useMemo(
-    () => new Map(session.participants.map((p) => [p.gang_id, p.gang?.gang_colour ?? null])),
-    [session.participants]
+    () => new Map(liveBattle.participants.map((p) => [p.gang_id, p.gang?.gang_colour ?? null])),
+    [liveBattle.participants]
   );
 
   const {
@@ -93,7 +93,7 @@ export default function CompleteBattleModal({
     initialWinnerIds,
     initialClaimerId,
     initialIsDraw,
-    maxParticipants: session.participants.length,
+    maxParticipants: liveBattle.participants.length,
     selectedTerritory,
   });
 
@@ -136,7 +136,7 @@ export default function CompleteBattleModal({
               : id === claimedByGangId),
         }));
 
-    const winnerResult = await setSessionWinners(session.id, winnerPayload);
+    const winnerResult = await setLiveBattleWinners(liveBattle.id, winnerPayload);
     if (!winnerResult.success) {
       toast.error(winnerResult.error || 'Failed to set winners');
       setSubmitting(false);
@@ -149,13 +149,13 @@ export default function CompleteBattleModal({
       if (!isNaN(parsed) && parsed > 0) cycleValue = parsed;
     }
 
-    const completeResult = await completeBattleSession(session.id, {
+    const completeResult = await completeLiveBattle(liveBattle.id, {
       campaign_territory_id: selectedTerritory || undefined,
       note: notes || undefined,
       cycle: cycleValue,
     });
     if (!completeResult.success) {
-      toast.error(completeResult.error || 'Failed to complete session');
+      toast.error(completeResult.error || 'Failed to complete live battle');
       setSubmitting(false);
       return false;
     }
@@ -186,17 +186,17 @@ export default function CompleteBattleModal({
       confirmDisabled={!hasAnyWinnerSelected || submitting || isReportOverLimit}
     >
       <div className="space-y-4">
-        {sessionScenarioLabel(session) && (
+        {liveBattleScenarioLabel(liveBattle) && (
           <div>
             <p className="text-sm font-medium text-muted-foreground">Scenario</p>
-            <p className="font-medium">{sessionScenarioLabel(session)}</p>
+            <p className="font-medium">{liveBattleScenarioLabel(liveBattle)}</p>
           </div>
         )}
 
         <div>
           <p className="mb-2 text-sm font-medium text-muted-foreground">Gangs</p>
           <div className="space-y-3">
-            {session.participants.map((p) => {
+            {liveBattle.participants.map((p) => {
               const gfList = gangFightersMap[p.gang_id] || [];
               const rating = !crewRated ? (p.gang?.rating ?? 0) : (p.fighters ?? []).reduce((sum, f) => {
                 const match =
@@ -210,10 +210,10 @@ export default function CompleteBattleModal({
 
               const fighters = p.fighters ?? [];
               // Only confirmed participation XP is added at completion.
-              const participationConfirmed = fighters.every((f) => f.session_record?.participation_xp_confirmed);
+              const participationConfirmed = fighters.every((f) => f.live_battle_record?.participation_xp_confirmed);
               const totalXp = fighters.reduce(
-                (sum, f) => sum + (f.session_record?.xp_earned ?? 0)
-                  + (f.session_record?.participation_xp_confirmed ? (f.session_record.participation_xp ?? 0) : 0),
+                (sum, f) => sum + (f.live_battle_record?.xp_earned ?? 0)
+                  + (f.live_battle_record?.participation_xp_confirmed ? (f.live_battle_record.participation_xp ?? 0) : 0),
                 0
               );
               const { totalInjuries, totalGlitches } = splitInjuryCounts(p.fighters ?? [], gfList);
@@ -287,7 +287,7 @@ export default function CompleteBattleModal({
               const excludedGangIds = new Set(
                 winners.filter((_, i) => i !== slotIndex && !!winners[i])
               );
-              const gangOptions = session.participants
+              const gangOptions = liveBattle.participants
                 .filter((p) => !excludedGangIds.has(p.gang_id))
                 .map((p) => buildGangOption(p.gang_id));
 
@@ -408,7 +408,7 @@ export default function CompleteBattleModal({
           </div>
         )}
 
-        {session.campaign_id && (
+        {liveBattle.campaign_id && (
           <>
             <div>
               <label className="mb-1 block text-sm font-medium text-muted-foreground">

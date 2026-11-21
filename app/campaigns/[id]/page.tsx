@@ -27,7 +27,7 @@ import {
   getCampaignMapWithObjects,
   getCampaignOoaCounts
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
-import { getCampaignBattleSessions } from "@/app/lib/battle-sessions/get-battle-session-data";
+import { getCampaignLiveBattles } from "@/app/lib/live-battles/get-live-battle-data";
 
 export default async function CampaignPage(props: {
   params: Promise<{ id: string }>;
@@ -91,7 +91,7 @@ export default async function CampaignPage(props: {
       campaignTerritories,
       campaignBattles,
       campaignMapBundle,
-      battleSessions,
+      liveBattles,
       campaignTypes,
       allTerritories,
       tradingPostTypes,
@@ -108,7 +108,7 @@ export default async function CampaignPage(props: {
       getCampaignTerritories(params.id),
       getCampaignBattles(params.id, 100),
       getCampaignMapWithObjects(params.id),
-      getCampaignBattleSessions(params.id),
+      getCampaignLiveBattles(params.id),
       getCampaignTypes(),
       getAllTerritories(),
       getTradingPostTypesCached(),
@@ -182,7 +182,7 @@ export default async function CampaignPage(props: {
       members: campaignMembers,
       territories: campaignTerritories,
       battles: campaignBattles,
-      battleSessions,
+      liveBattles,
       triumphs: campaignTriumphs,
       ooaCounts: campaignOoaCounts,
       captives: campaignCaptives,

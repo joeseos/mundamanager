@@ -23,35 +23,35 @@ import {
   setSideJobCompleted,
   updateGangOutcome,
   updateParticipantResources,
-  bulkAddFightersToSession,
-  removeFighterFromSession,
+  bulkAddFightersToLiveBattle,
+  removeFighterFromLiveBattle,
   updateFighterLoadout,
-  updateSessionXp,
-  updateSessionParticipationXp,
+  updateLiveBattleXp,
+  updateLiveBattleParticipationXp,
   addParticipationXpFighters,
-  updateSessionConditions,
+  updateLiveBattleConditions,
   updateActivations,
-  updateSessionNote,
+  updateLiveBattleNote,
   toggleParticipantReady,
-} from '@/app/actions/battle-sessions';
+} from '@/app/actions/live-battles';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
-import FighterRow from '@/components/battle-session/fighter-row';
-import BattleParticipationModal from '@/components/battle-session/battle-participation-modal';
-import { applyConditionsUpdate, hasDualActivation, newSessionRecord, type BattleSessionFull, type BattleSessionParticipant, type BattleSessionFighter, type SessionCondition, type SessionInjuryRecord } from '@/types/battle-session';
+import FighterRow from '@/components/live-battle/fighter-row';
+import BattleParticipationModal from '@/components/live-battle/battle-participation-modal';
+import { applyConditionsUpdate, hasDualActivation, newLiveBattleRecord, type LiveBattleFull, type LiveBattleParticipant, type LiveBattleFighter, type LiveBattleCondition, type LiveBattleInjuryRecord } from '@/types/live-battle';
 import { beastSubtypeName, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
 import type { ScenarioTableWithEntries } from '@/types/campaign';
 import { SideJobPicker } from '@/components/side-job-picker';
 
-const CrewSelectionModal = dynamic(() => import('@/components/battle-session/crew-selection-modal'), { ssr: false });
+const CrewSelectionModal = dynamic(() => import('@/components/live-battle/crew-selection-modal'), { ssr: false });
 
-/** Splits session injuries by fighter_types.is_spyrer; a gang can field both. */
+/** Splits live battle injuries by fighter_types.is_spyrer; a gang can field both. */
 export function splitInjuryCounts(
-  fighters: BattleSessionFighter[],
+  fighters: LiveBattleFighter[],
   roster: GangFighter[],
 ): { totalInjuries: number; totalGlitches: number } {
   return fighters.reduce(
     (acc, f) => {
-      const count = f.session_record?.injuries?.length ?? 0;
+      const count = f.live_battle_record?.injuries?.length ?? 0;
       const isSpyrer = roster.find((gf) => gf.id === f.fighter_id)?.is_spyrer ?? false;
       if (isSpyrer) acc.totalGlitches += count;
       else acc.totalInjuries += count;
@@ -66,26 +66,26 @@ export function splitInjuryCounts(
 // ---------------------------------------------------------------------------
 
 interface ParticipantCardProps {
-  participant: BattleSessionParticipant & { fighters: BattleSessionFighter[] };
-  session: BattleSessionFull;
+  participant: LiveBattleParticipant & { fighters: LiveBattleFighter[] };
+  liveBattle: LiveBattleFull;
   userId: string;
-  // Session creator or arbitrator: may manage participants (remove, set roles)
+  // Live battle creator or arbitrator: may manage participants (remove, set roles)
   canManage: boolean;
   // Campaign OWNER/ARBITRATOR (or site admin): may edit any participant's data,
-  // unlike the session creator who only manages the session itself
+  // unlike the live battle creator who only manages the live battle itself
   isArbitrator?: boolean;
   editable?: boolean;
   battleActive?: boolean;
   gangFightersList?: GangFighter[];
   positioning?: Record<string, any> | null;
   onBroadcast?: () => void;
-  /** The session edition's scenario tables, for an N26 gang's Side Job. */
+  /** The scenario tables of the live battle's edition, for an N26 gang's Side Job. */
   scenarioTables?: ScenarioTableWithEntries[];
 }
 
 export default function ParticipantCard({
   participant,
-  session,
+  liveBattle,
   userId,
   canManage,
   isArbitrator = false,
@@ -102,15 +102,15 @@ export default function ParticipantCard({
   const [localRepChange, setLocalRepChange] = useState(participant.reputation_change);
   const [resourceDeltas, setResourceDeltas] = useState<Record<string, string>>({});
   const [localResourceChanges, setLocalResourceChanges] = useState(participant.resource_changes ?? []);
-  const [localFighters, setLocalFighters] = useState<BattleSessionFighter[]>(participant.fighters);
+  const [localFighters, setLocalFighters] = useState<LiveBattleFighter[]>(participant.fighters);
   const setLocalInjuries = (
-    sessionFighterId: string,
-    update: (injuries: SessionInjuryRecord[]) => SessionInjuryRecord[]
+    liveBattleFighterId: string,
+    update: (injuries: LiveBattleInjuryRecord[]) => LiveBattleInjuryRecord[]
   ) =>
     setLocalFighters((cur) =>
       cur.map((lf) =>
-        lf.id === sessionFighterId
-          ? { ...lf, session_record: { ...lf.session_record, injuries: update(lf.session_record?.injuries ?? []) } }
+        lf.id === liveBattleFighterId
+          ? { ...lf, live_battle_record: { ...lf.live_battle_record, injuries: update(lf.live_battle_record?.injuries ?? []) } }
           : lf
       )
     );
@@ -138,15 +138,15 @@ export default function ParticipantCard({
   }
   const localReady = readyOverride ?? participant.ready;
   const isMyGang = participant.user_id === userId;
-  const isPostBattle = session.status === 'post_battle';
+  const isPostBattle = liveBattle.status === 'post_battle';
 
-  // Hatred (X) candidates for injuries added from this session: the gangs
+  // Hatred (X) candidates for injuries added from this live battle: the gangs
   // actually IN this battle, not every gang in the campaign — only a gang
   // present at the battle can have taken the fighter Out of Action. Already in
-  // memory on the session, so no fetch is needed.
+  // memory on the live battle, so no fetch is needed.
   const opponentGangs = useMemo<CampaignGangWithFighters[]>(
     () =>
-      session.participants
+      liveBattle.participants
         .filter((p) => p.gang_id !== participant.gang_id)
         .map((p) => ({
           gang_id: p.gang_id,
@@ -164,7 +164,7 @@ export default function ParticipantCard({
               : []
           ),
         })),
-    [session.participants, participant.gang_id]
+    [liveBattle.participants, participant.gang_id]
   );
   const canEdit = editable && (isMyGang || isArbitrator) && !isPostBattle;
   const canInteract = battleActive && (isMyGang || isArbitrator);
@@ -173,7 +173,7 @@ export default function ParticipantCard({
 
   const handleRoleChange = (role: 'attacker' | 'defender' | 'none') => {
     setLocalRole(role);
-    updateParticipantRole(session.id, participant.id, role).then((result) => {
+    updateParticipantRole(liveBattle.id, participant.id, role).then((result) => {
       if (result.success) {
         onBroadcast?.();
       } else {
@@ -236,7 +236,7 @@ export default function ParticipantCard({
   }, 0);
 
   const removeMutation = useMutation({
-    mutationFn: () => removeParticipant(session.id, participant.id),
+    mutationFn: () => removeParticipant(liveBattle.id, participant.id),
     onSuccess: () => onBroadcast?.(),
     onError: () => toast.error('Failed to remove participant'),
   });
@@ -293,7 +293,7 @@ export default function ParticipantCard({
     },
   });
 
-  const campaignGangId = session.campaign_gang_ids?.[participant.gang_id];
+  const campaignGangId = liveBattle.campaign_gang_ids?.[participant.gang_id];
 
   const resourceOutcomeMutation = useMutation({
     mutationFn: (params: { resource_id: string; resource_name: string; is_custom: boolean; deltaStr: string }) => {
@@ -339,34 +339,34 @@ export default function ParticipantCard({
     },
   });
 
-  const buildOptimisticFighter = (fighterId: string, loadoutId?: string): BattleSessionFighter => {
+  const buildOptimisticFighter = (fighterId: string, loadoutId?: string): LiveBattleFighter => {
     const gf = gangFighters.find((f) => f.id === fighterId && (!loadoutId || f.loadout_id === loadoutId))
       ?? gangFighters.find((f) => f.id === fighterId);
     const fullGf = gangFightersList.find((f) => f.id === fighterId);
     return {
       id: `temp-${Date.now()}-${fighterId}`,
-      battle_session_id: session.id,
+      live_battle_id: liveBattle.id,
       participant_id: participant.id,
       fighter_id: fighterId,
       loadout_id: loadoutId,
-      session_record: newSessionRecord({ special_rules: fullGf?.special_rules, starting_xp: fullGf?.starting_xp }),
+      live_battle_record: newLiveBattleRecord({ special_rules: fullGf?.special_rules, starting_xp: fullGf?.starting_xp }),
       created_at: new Date().toISOString(),
       fighter: gf ? { id: gf.id, fighter_name: gf.fighter_name, credits: gf.credits, special_rules: fullGf?.special_rules } : undefined,
     };
   };
 
   const updateXpMutation = useMutation({
-    mutationFn: async ({ sessionFighterId, totalXp }: { sessionFighterId: string; totalXp: number }) => {
-      const result = await updateSessionXp({ session_fighter_id: sessionFighterId, xp_earned: totalXp });
+    mutationFn: async ({ liveBattleFighterId, totalXp }: { liveBattleFighterId: string; totalXp: number }) => {
+      const result = await updateLiveBattleXp({ live_battle_fighter_id: liveBattleFighterId, xp_earned: totalXp });
       if (!result.success) throw new Error(result.error || 'Failed to record XP');
       return result;
     },
-    onMutate: ({ sessionFighterId, totalXp }) => {
+    onMutate: ({ liveBattleFighterId, totalXp }) => {
       const prev = localFighters;
       setLocalFighters((cur) =>
         cur.map((lf) =>
-          lf.id === sessionFighterId
-            ? { ...lf, session_record: { ...lf.session_record, xp_earned: totalXp } }
+          lf.id === liveBattleFighterId
+            ? { ...lf, live_battle_record: { ...lf.live_battle_record, xp_earned: totalXp } }
             : lf
         )
       );
@@ -380,17 +380,17 @@ export default function ParticipantCard({
   });
 
   const updateConditionsMutation = useMutation({
-    mutationFn: async ({ sessionFighterId, conditions, leftBattlefield }: { sessionFighterId: string; conditions: SessionCondition[]; leftBattlefield?: boolean }) => {
-      const result = await updateSessionConditions({ session_fighter_id: sessionFighterId, conditions, left_battlefield: leftBattlefield });
+    mutationFn: async ({ liveBattleFighterId, conditions, leftBattlefield }: { liveBattleFighterId: string; conditions: LiveBattleCondition[]; leftBattlefield?: boolean }) => {
+      const result = await updateLiveBattleConditions({ live_battle_fighter_id: liveBattleFighterId, conditions, left_battlefield: leftBattlefield });
       if (!result.success) throw new Error(result.error || 'Failed to update conditions');
       return result;
     },
-    onMutate: ({ sessionFighterId, conditions, leftBattlefield }) => {
+    onMutate: ({ liveBattleFighterId, conditions, leftBattlefield }) => {
       const prev = localFighters;
       setLocalFighters((cur) =>
         cur.map((lf) =>
-          lf.id === sessionFighterId
-            ? { ...lf, session_record: applyConditionsUpdate(lf.session_record, conditions, leftBattlefield) }
+          lf.id === liveBattleFighterId
+            ? { ...lf, live_battle_record: applyConditionsUpdate(lf.live_battle_record, conditions, leftBattlefield) }
             : lf
         )
       );
@@ -404,17 +404,17 @@ export default function ParticipantCard({
   });
 
   const updateActivationsMutation = useMutation({
-    mutationFn: async ({ sessionFighterId, activations }: { sessionFighterId: string; activations: number }) => {
-      const result = await updateActivations({ session_fighter_id: sessionFighterId, activations });
+    mutationFn: async ({ liveBattleFighterId, activations }: { liveBattleFighterId: string; activations: number }) => {
+      const result = await updateActivations({ live_battle_fighter_id: liveBattleFighterId, activations });
       if (!result.success) throw new Error(result.error || 'Failed to update activations');
       return result;
     },
-    onMutate: ({ sessionFighterId, activations }) => {
+    onMutate: ({ liveBattleFighterId, activations }) => {
       const prev = localFighters;
       setLocalFighters((cur) =>
         cur.map((lf) =>
-          lf.id === sessionFighterId
-            ? { ...lf, session_record: { ...lf.session_record, activations } }
+          lf.id === liveBattleFighterId
+            ? { ...lf, live_battle_record: { ...lf.live_battle_record, activations } }
             : lf
         )
       );
@@ -428,17 +428,17 @@ export default function ParticipantCard({
   });
 
   const updateNoteMutation = useMutation({
-    mutationFn: async ({ sessionFighterId, note }: { sessionFighterId: string; note: string }) => {
-      const result = await updateSessionNote({ session_fighter_id: sessionFighterId, note });
+    mutationFn: async ({ liveBattleFighterId, note }: { liveBattleFighterId: string; note: string }) => {
+      const result = await updateLiveBattleNote({ live_battle_fighter_id: liveBattleFighterId, note });
       if (!result.success) throw new Error(result.error || 'Failed to update note');
       return result;
     },
-    onMutate: ({ sessionFighterId, note }) => {
+    onMutate: ({ liveBattleFighterId, note }) => {
       const prev = localFighters;
       setLocalFighters((cur) =>
         cur.map((lf) =>
-          lf.id === sessionFighterId
-            ? { ...lf, session_record: { ...lf.session_record, note: note || undefined } }
+          lf.id === liveBattleFighterId
+            ? { ...lf, live_battle_record: { ...lf.live_battle_record, note: note || undefined } }
             : lf
         )
       );
@@ -536,7 +536,7 @@ export default function ParticipantCard({
                 )}
               </span>
               <span>
-                {hasCrewRating(session.edition_slug)
+                {hasCrewRating(liveBattle.edition_slug)
                   ? `Crew Rating: ${crewRating}`
                   : `Gang Rating: ${participant.gang?.rating ?? 0}`}
               </span>
@@ -551,7 +551,7 @@ export default function ParticipantCard({
                 }
                 const crewCount = localFighters.length - exoticBeastCount - supportCount;
                 const excluded = [
-                  exoticBeastCount > 0 && `${exoticBeastCount} ${beastSubtypeName(session.edition_slug)}${exoticBeastCount !== 1 ? 's' : ''}`,
+                  exoticBeastCount > 0 && `${exoticBeastCount} ${beastSubtypeName(liveBattle.edition_slug)}${exoticBeastCount !== 1 ? 's' : ''}`,
                   supportCount > 0 && `${supportCount} Support`,
                 ].filter(Boolean);
                 return (
@@ -576,7 +576,7 @@ export default function ParticipantCard({
               {canPostBattle && localFighters.length > 0 && (
                 <Button
                   variant="default"
-                  // Rows added from the modal have no session row id to save to until the refetch.
+                  // Rows added from the modal have no live battle row id to save to until the refetch.
                   disabled={localFighters.some((f) => f.id.startsWith('temp-'))}
                   onClick={() => setShowParticipationModal(true)}
                 >
@@ -590,7 +590,7 @@ export default function ParticipantCard({
                     const prev = localReady;
                     setReadyOverride(!prev);
                     readyTimeoutRef.current = setTimeout(() => setReadyOverride(null), 10000);
-                    const result = await toggleParticipantReady(session.id, participant.id);
+                    const result = await toggleParticipantReady(liveBattle.id, participant.id);
                     if (!result.success) {
                       if (readyTimeoutRef.current) clearTimeout(readyTimeoutRef.current);
                       setReadyOverride(null);
@@ -609,7 +609,7 @@ export default function ParticipantCard({
                   {canInteract ? 'Reinforcements' : 'Select Crew'}
                 </Button>
               )}
-              {(canManage || isMyGang) && editable && !isPostBattle && !session.campaign_battle_id && (
+              {(canManage || isMyGang) && editable && !isPostBattle && !liveBattle.campaign_battle_id && (
                 <Button
                   variant="outline_remove"
                   size="icon"
@@ -640,7 +640,7 @@ export default function ParticipantCard({
             ))}
           </div>
         )}
-        {hasScenarioTables(session.edition_slug) && (canEditRole || !!localSideJob.id || !!localSideJob.name) && (
+        {hasScenarioTables(liveBattle.edition_slug) && (canEditRole || !!localSideJob.id || !!localSideJob.name) && (
           <SideJobPicker
             className="mt-2"
             id={participant.id}
@@ -648,16 +648,16 @@ export default function ParticipantCard({
             gangTypeId={participant.gang?.gang_type_id}
             value={localSideJob.id}
             onChange={canEditRole
-              ? (id) => handleSideJobChange({ id, name: '', completed: false }, updateParticipantSideJob(session.id, participant.id, { side_job_id: id || null }))
+              ? (id) => handleSideJobChange({ id, name: '', completed: false }, updateParticipantSideJob(liveBattle.id, participant.id, { side_job_id: id || null }))
               : undefined}
             customName={localSideJob.name}
             onCustomNameChange={canEditRole
-              ? (name) => handleSideJobChange({ id: '', name, completed: false }, updateParticipantSideJob(session.id, participant.id, { side_job_name: name }))
+              ? (name) => handleSideJobChange({ id: '', name, completed: false }, updateParticipantSideJob(liveBattle.id, participant.id, { side_job_name: name }))
               : undefined}
             saveCustomNameOnBlur
             completed={localSideJob.completed}
             onCompletedChange={canPostBattle
-              ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(session.id, participant.id, completed))
+              ? (completed) => handleSideJobChange({ ...localSideJob, completed }, setSideJobCompleted(liveBattle.id, participant.id, completed))
               : undefined}
           />
         )}
@@ -683,7 +683,7 @@ export default function ParticipantCard({
             gangId={participant.gang_id}
             gangFighters={gangFighters}
             selectedFighters={selectedFighters}
-            editionSlug={session.edition_slug}
+            editionSlug={liveBattle.edition_slug}
             reinforcements={crewModalMode === 'reinforcements'}
             loading={false}
             onClose={() => setCrewModalMode(null)}
@@ -709,14 +709,14 @@ export default function ParticipantCard({
 
               const results = await Promise.all([
                 toAdd.length > 0
-                  ? bulkAddFightersToSession({
-                      session_id: session.id,
+                  ? bulkAddFightersToLiveBattle({
+                      live_battle_id: liveBattle.id,
                       participant_id: participant.id,
                       fighter_entries: toAdd,
                     })
                   : { success: true as const, error: undefined },
-                ...toRemove.map((id) => removeFighterFromSession(session.id, id, participant.id)),
-                ...toUpdate.map((entry) => updateFighterLoadout(session.id, entry.fighter_id, entry.loadout_id, participant.id)),
+                ...toRemove.map((id) => removeFighterFromLiveBattle(liveBattle.id, id, participant.id)),
+                ...toUpdate.map((entry) => updateFighterLoadout(liveBattle.id, entry.fighter_id, entry.loadout_id, participant.id)),
               ]);
 
               const failed = results.filter((r) => !r.success);
@@ -736,7 +736,7 @@ export default function ParticipantCard({
           <BattleParticipationModal
             crewFighters={localFighters}
             gangFightersList={gangFightersList}
-            editionSlug={session.edition_slug}
+            editionSlug={liveBattle.edition_slug}
             onClose={() => setShowParticipationModal(false)}
             onConfirm={({ crew, added }) => {
               const crewEntries = Object.entries(crew);
@@ -745,20 +745,20 @@ export default function ParticipantCard({
               setLocalFighters((cur) => [
                 ...cur.map((f) =>
                   f.id in crew
-                    ? { ...f, session_record: { ...f.session_record, participation_xp: crew[f.id], participation_xp_confirmed: true } }
+                    ? { ...f, live_battle_record: { ...f.live_battle_record, participation_xp: crew[f.id], participation_xp_confirmed: true } }
                     : f
                 ),
                 ...addedEntries.map(([fighterId, xp]) => {
                   const optimistic = buildOptimisticFighter(fighterId);
-                  return { ...optimistic, session_record: { ...optimistic.session_record, participation_xp: xp, participation_xp_confirmed: true } };
+                  return { ...optimistic, live_battle_record: { ...optimistic.live_battle_record, participation_xp: xp, participation_xp_confirmed: true } };
                 }),
               ]);
-              const calls: Promise<{ success: boolean }>[] = crewEntries.map(([sessionFighterId, xp]) =>
-                updateSessionParticipationXp({ session_fighter_id: sessionFighterId, participation_xp: xp })
+              const calls: Promise<{ success: boolean }>[] = crewEntries.map(([liveBattleFighterId, xp]) =>
+                updateLiveBattleParticipationXp({ live_battle_fighter_id: liveBattleFighterId, participation_xp: xp })
               );
               if (addedEntries.length > 0) {
                 calls.push(addParticipationXpFighters({
-                  session_id: session.id,
+                  live_battle_id: liveBattle.id,
                   participant_id: participant.id,
                   fighter_entries: addedEntries.map(([fighter_id, participation_xp]) => ({ fighter_id, participation_xp })),
                 }));
@@ -810,8 +810,8 @@ export default function ParticipantCard({
                       Boolean(fullMatch?.owner_id);
                     const name = isAssociatedExoticBeast ? `— ${rawName}` : rawName;
                     const cost = match?.credits ?? f.fighter?.credits ?? undefined;
-                    const xp = f.session_record?.xp_earned ?? 0;
-                    const injuryCount = f.session_record?.injuries?.length ?? 0;
+                    const xp = f.live_battle_record?.xp_earned ?? 0;
+                    const injuryCount = f.live_battle_record?.injuries?.length ?? 0;
                     return (
                       <FighterRow
                         key={f.id}
@@ -821,33 +821,33 @@ export default function ParticipantCard({
                         cost={cost}
                         xp={xp}
                         // null until confirmed: the stored default doesn't count yet.
-                        participationXp={isPostBattle ? (f.session_record?.participation_xp_confirmed ? (f.session_record.participation_xp ?? 0) : null) : undefined}
+                        participationXp={isPostBattle ? (f.live_battle_record?.participation_xp_confirmed ? (f.live_battle_record.participation_xp ?? 0) : null) : undefined}
                         injuryCount={injuryCount}
-                        // A reinforcement's optimistic row has no session row id to act on until the refetch.
+                        // A reinforcement's optimistic row has no live battle row id to act on until the refetch.
                         canInteract={canInteract && !f.id.startsWith('temp-')}
                         battleActive={battleActive}
                         hasTwoActivations={hasDualActivation(fullMatch?.special_rules) || hasDualActivation(f.fighter?.special_rules)}
                         gangFighter={fullMatch}
                         gangId={participant.gang_id}
-                        campaignId={session.campaign_id}
-                        // The session's edition, not gangFighter.edition_slug — the
+                        campaignId={liveBattle.campaign_id}
+                        // The live battle's edition, not gangFighter.edition_slug — the
                         // per-fighter slug is often null for custom fighter types.
-                        editionSlug={session.edition_slug}
+                        editionSlug={liveBattle.edition_slug}
                         candidateGangs={opponentGangs}
                         onXpChanged={(delta) => {
-                          const totalXp = (f.session_record?.xp_earned ?? 0) + delta;
-                          updateXpMutation.mutate({ sessionFighterId: f.id, totalXp });
+                          const totalXp = (f.live_battle_record?.xp_earned ?? 0) + delta;
+                          updateXpMutation.mutate({ liveBattleFighterId: f.id, totalXp });
                         }}
                         onConditionsChanged={(conditions, leftBattlefield) => {
                           updateConditionsMutation.mutate({
-                            sessionFighterId: f.id,
+                            liveBattleFighterId: f.id,
                             conditions,
                             leftBattlefield,
                           });
                         }}
                         onActivationsChange={(activations) => {
                           updateActivationsMutation.mutate({
-                            sessionFighterId: f.id,
+                            liveBattleFighterId: f.id,
                             activations,
                           });
                         }}
@@ -858,7 +858,7 @@ export default function ParticipantCard({
                           setLocalInjuries(f.id, (injuries) => injuries.filter((i) => i.fighter_effect_id !== injuryId))
                         }
                         onNoteChanged={(note) => {
-                          updateNoteMutation.mutate({ sessionFighterId: f.id, note });
+                          updateNoteMutation.mutate({ liveBattleFighterId: f.id, note });
                         }}
                         onBroadcast={onBroadcast}
                       />
@@ -905,7 +905,7 @@ export default function ParticipantCard({
 
           {canPostBattle && (
             <div className="border-t border-neutral-100 pt-3 dark:border-neutral-700 grid grid-cols-1 min-[480px]:grid-cols-2 md:grid-cols-3 gap-3">
-              {!hasTradePoints(session.edition_slug) && (
+              {!hasTradePoints(liveBattle.edition_slug) && (
                 <div className="col-span-full">
                   <div className="flex items-baseline gap-2 mb-1 flex-wrap">
                     <span className="text-sm text-neutral-500">Trading Post Roll</span>
@@ -1000,7 +1000,7 @@ export default function ParticipantCard({
                   </Button>
                 </div>
               </div>
-              {session.campaign_resources && campaignGangId && session.campaign_resources.map((res) => {
+              {liveBattle.campaign_resources && campaignGangId && liveBattle.campaign_resources.map((res) => {
                 const current = localResourceChanges.find((r) => r.resource_id === res.id);
                 const currentDelta = current?.quantity_delta ?? 0;
                 return (

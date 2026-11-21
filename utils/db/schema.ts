@@ -15,7 +15,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
-import type { BattleSessionParticipant, BattleSessionStatus, SessionRecord } from '@/types/battle-session';
+import type { LiveBattleParticipant, LiveBattleStatus, LiveBattleRecord } from '@/types/live-battle';
 import type { BattleParticipant, BattleStatus, ScenarioTableType } from '@/types/campaign';
 import type { CampaignTradeItemKind, CampaignTradeStatus } from '@/types/campaign-trade';
 import type { CollectionItem } from '@/app/actions/customise/custom-collections';
@@ -915,14 +915,14 @@ export const scenarioTableEntries = pgTable('scenario_table_entries', {
   d6_max: smallint('d6_max').notNull(),
 });
 
-export const battleSessions = pgTable('battle_sessions', {
+export const liveBattles = pgTable('live_battles', {
   id: uuid('id').defaultRandom().primaryKey(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   created_by: uuid('created_by'),
   campaign_id: uuid('campaign_id'),
   scenario: text('scenario'),
-  status: text('status').$type<BattleSessionStatus>().default(sql`'''pre_battle''::text'::text`).notNull(),
+  status: text('status').$type<LiveBattleStatus>().default(sql`'''pre_battle''::text'::text`).notNull(),
   winner_gang_id: uuid('winner_gang_id'),
   campaign_battle_id: uuid('campaign_battle_id'),
   round: integer('round').default(1).notNull(),
@@ -936,12 +936,12 @@ export const battleSessions = pgTable('battle_sessions', {
   objective_name: text('objective_name'),
 });
 
-export const battleSessionParticipants = pgTable('battle_session_participants', {
+export const liveBattleParticipants = pgTable('live_battle_participants', {
   id: uuid('id').defaultRandom().primaryKey(),
-  battle_session_id: uuid('battle_session_id').notNull(),
+  live_battle_id: uuid('live_battle_id').notNull(),
   user_id: uuid('user_id').notNull(),
   gang_id: uuid('gang_id').notNull(),
-  role: text('role').$type<BattleSessionParticipant['role']>().default(sql`'none'::text`).notNull(),
+  role: text('role').$type<LiveBattleParticipant['role']>().default(sql`'none'::text`).notNull(),
   gang_rating_snapshot: integer('gang_rating_snapshot'),
   credits_earned: integer('credits_earned').default(0).notNull(),
   reputation_change: integer('reputation_change').default(0).notNull(),
@@ -949,18 +949,18 @@ export const battleSessionParticipants = pgTable('battle_session_participants', 
   ready: boolean('ready').default(false),
   is_winner: boolean('is_winner').default(false).notNull(),
   claimed_territory: boolean('claimed_territory').default(false).notNull(),
-  resource_changes: json('resource_changes').$type<BattleSessionParticipant['resource_changes']>().default(sql`'[]'::jsonb`).notNull(),
+  resource_changes: json('resource_changes').$type<LiveBattleParticipant['resource_changes']>().default(sql`'[]'::jsonb`).notNull(),
   side_job_id: uuid('side_job_id'),
   side_job_completed: boolean('side_job_completed').default(false).notNull(),
   side_job_name: text('side_job_name'),
 });
 
-export const battleSessionFighters = pgTable('battle_session_fighters', {
+export const liveBattleFighters = pgTable('live_battle_fighters', {
   id: uuid('id').defaultRandom().primaryKey(),
-  battle_session_id: uuid('battle_session_id').notNull(),
+  live_battle_id: uuid('live_battle_id').notNull(),
   participant_id: uuid('participant_id').notNull(),
   fighter_id: uuid('fighter_id').notNull(),
-  session_record: json('session_record').$type<Partial<SessionRecord>>().default(sql`'{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb`).notNull(),
+  live_battle_record: json('live_battle_record').$type<Partial<LiveBattleRecord>>().default(sql`'{"injuries": [], "xp_earned": 0, "conditions": [], "activations": 1}'::jsonb`).notNull(),
   created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
   loadout_id: uuid('loadout_id'),
 });
@@ -1636,57 +1636,57 @@ export const gangTacticsCardsRelations = relations(gangTacticsCards, ({ one }) =
   }),
 }));
 
-export const battleSessionsRelations = relations(battleSessions, ({ one, many }) => ({
+export const liveBattlesRelations = relations(liveBattles, ({ one, many }) => ({
   campaign: one(campaigns, {
-    fields: [battleSessions.campaign_id],
+    fields: [liveBattles.campaign_id],
     references: [campaigns.id],
   }),
   linked_battle: one(campaignBattles, {
-    fields: [battleSessions.campaign_battle_id],
+    fields: [liveBattles.campaign_battle_id],
     references: [campaignBattles.id],
   }),
-  participants: many(battleSessionParticipants),
+  participants: many(liveBattleParticipants),
   editions: one(editions, {
-    fields: [battleSessions.edition_id],
+    fields: [liveBattles.edition_id],
     references: [editions.id],
   }),
   deployment: one(scenarioTableEntries, {
-    fields: [battleSessions.deployment_id],
+    fields: [liveBattles.deployment_id],
     references: [scenarioTableEntries.id],
   }),
   objective: one(scenarioTableEntries, {
-    fields: [battleSessions.objective_id],
+    fields: [liveBattles.objective_id],
     references: [scenarioTableEntries.id],
   }),
   crew_selection: one(scenarioTableEntries, {
-    fields: [battleSessions.crew_selection_id],
+    fields: [liveBattles.crew_selection_id],
     references: [scenarioTableEntries.id],
   }),
 }));
 
-export const battleSessionParticipantsRelations = relations(battleSessionParticipants, ({ one, many }) => ({
-  battle_session: one(battleSessions, {
-    fields: [battleSessionParticipants.battle_session_id],
-    references: [battleSessions.id],
+export const liveBattleParticipantsRelations = relations(liveBattleParticipants, ({ one, many }) => ({
+  live_battle: one(liveBattles, {
+    fields: [liveBattleParticipants.live_battle_id],
+    references: [liveBattles.id],
   }),
   gang: one(gangs, {
-    fields: [battleSessionParticipants.gang_id],
+    fields: [liveBattleParticipants.gang_id],
     references: [gangs.id],
   }),
   profile: one(profiles, {
-    fields: [battleSessionParticipants.user_id],
+    fields: [liveBattleParticipants.user_id],
     references: [profiles.id],
   }),
-  fighters: many(battleSessionFighters),
+  fighters: many(liveBattleFighters),
 }));
 
-export const battleSessionFightersRelations = relations(battleSessionFighters, ({ one }) => ({
-  participant: one(battleSessionParticipants, {
-    fields: [battleSessionFighters.participant_id],
-    references: [battleSessionParticipants.id],
+export const liveBattleFightersRelations = relations(liveBattleFighters, ({ one }) => ({
+  participant: one(liveBattleParticipants, {
+    fields: [liveBattleFighters.participant_id],
+    references: [liveBattleParticipants.id],
   }),
   fighter: one(fighters, {
-    fields: [battleSessionFighters.fighter_id],
+    fields: [liveBattleFighters.fighter_id],
     references: [fighters.id],
   }),
 }));

@@ -328,7 +328,7 @@ export async function GET(
 
     return Response.json({
       profile,
-      // The battle-session opponent picker needs each gang's ruleset, and these
+      // The live-battle opponent picker needs each gang's ruleset, and these
       // are other users' gangs so nothing on the client knows it. Destructured
       // out of the row so the public shape stays flat.
       gangs: (gangs || []).map(({ gang_types, custom_gang_type, ...gang }: any) => ({

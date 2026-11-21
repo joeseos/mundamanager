@@ -88,10 +88,10 @@ export const TAGS = {
   // All cached permission entries for one user, across every gang (busted on sign-in)
   userPermissions: (userId: string) => `user-permissions-${userId}`,
 
-  // Battle sessions keep their own namespace: live battles mutate frequently
+  // Live battles keep their own namespace: live battles mutate frequently
   // and must not thrash the gang bundles.
-  battleSession: (id: string) => `base-battle-session-${id}`,
-  gangBattleSessions: (gangId: string) => `gang-battle-sessions-${gangId}`,
+  liveBattle: (id: string) => `base-live-battle-${id}`,
+  gangLiveBattles: (gangId: string) => `gang-live-battles-${gangId}`,
 
   // Global reference data
   globalEditions: () => 'global-editions',
@@ -291,14 +291,14 @@ export const invalidateUserPermissions = (userId: string) => {
   bust(TAGS.userPermissions(userId));
 };
 
-/** A single battle session's data changed. */
-export const invalidateBattleSession = (sessionId: string) => {
-  bust(TAGS.battleSession(sessionId));
+/** A single live battle's data changed. */
+export const invalidateLiveBattle = (liveBattleId: string) => {
+  bust(TAGS.liveBattle(liveBattleId));
 };
 
-/** A gang's battle session list changed. */
-export const invalidateBattleSessions = (gangId: string) => {
-  bust(TAGS.gangBattleSessions(gangId));
+/** A gang's live battle list changed. */
+export const invalidateLiveBattles = (gangId: string) => {
+  bust(TAGS.gangLiveBattles(gangId));
 };
 
 /**
