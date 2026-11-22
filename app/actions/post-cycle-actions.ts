@@ -589,8 +589,9 @@ async function runHandler(
  * saved rows carry the consequence — the patient's Critical Injury is gone — so
  * the next action is validated against real state instead of against the other
  * rows of a plan. The cross-fighter rules a single call cannot see (one action
- * per fighter, the per-action caps such as a single Ritual Focus, and a patient
- * taking no action of their own) are held by the panel.
+ * per fighter and the per-action caps such as a single Ritual Focus) are held
+ * by the panel; applyPostCycleSequence refuses a patient's own action within
+ * one sequence.
  *
  * Not atomic within an action: Fit Bionics removing three injuries makes three
  * calls, and a failure partway leaves the earlier ones removed. The outcome
@@ -810,9 +811,15 @@ export async function applyPostCycleSequence({
   assignments: PostCycleAssignment[];
 }) {
   const incomeResult = income && (await collectIncome({ gangId, ...income }));
+  // A Doc patient cannot act themselves, so a patient's own action is refused.
+  const patients = new Set(assignments.map(patientOf).filter((id): id is string => id !== null));
   const actions: ResolvePostCycleActionResult[] = [];
   for (const assignment of assignments) {
-    actions.push(await resolvePostCycleAction({ gangId, assignment }));
+    actions.push(
+      patients.has(assignment.fighterId)
+        ? { success: false, error: 'A fighter taken to the Doc cannot take an action of their own.' }
+        : await resolvePostCycleAction({ gangId, assignment })
+    );
   }
   return { income: incomeResult, actions };
 }
