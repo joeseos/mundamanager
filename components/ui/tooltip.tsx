@@ -32,7 +32,8 @@ export function Tooltip({ ref, id, ...props }: TooltipProps) {
     if (!isCoarsePointer || !isOpen) return;
     // pointerup, not pointerdown: a touch that turns into a scroll ends in pointercancel.
     const closeOnTapOutside = (event: PointerEvent) => {
-      const target = event.target as Element;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
       if (target.closest(`[data-tooltip-id="${CSS.escape(id)}"]`)) return;
       if (target.closest('.react-tooltip')?.id === id) return;
       tooltipRef.current?.close();
