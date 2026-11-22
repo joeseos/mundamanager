@@ -26,7 +26,7 @@ import { FighterLoadout } from '@/types/equipment';
 import { Badge } from '@/components/ui/badge';
 import { setActiveLoadout } from '@/app/actions/loadouts';
 import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-tooltip';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { getTooltipAttribute } from '@/components/ui/tooltip-renderers';
 
 const FighterLoadoutsModal = dynamic(() => import('@/components/fighter/fighter-loadouts-modal'), { ssr: false });

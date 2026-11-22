@@ -11,7 +11,7 @@ import Modal from '@/components/ui/modal'
 import { LuBan, LuCheck, LuChevronLeft, LuChevronRight, LuX } from 'react-icons/lu'
 import { TbLayoutBottombarCollapse, TbLayoutNavbarCollapse, TbMoneybagPlus } from 'react-icons/tb'
 import { BiSolidNotepad } from 'react-icons/bi'
-import { Tooltip } from 'react-tooltip'
+import { Tooltip } from '@/components/ui/tooltip'
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers'
 import { formatLocalDate } from '@/utils/local-date'
 import {
