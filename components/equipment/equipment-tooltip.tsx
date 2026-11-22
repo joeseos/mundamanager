@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import type { TooltipRefProps } from 'react-tooltip';
 import { Tooltip } from '@/components/ui/tooltip';
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { hasLethalityStatline } from '@/types/edition';
@@ -205,36 +204,8 @@ interface EquipmentTooltipTriggerProps {
 
 export function EquipmentTooltipTrigger({ item, children, className, options, editionSlug }: EquipmentTooltipTriggerProps) {
   const tooltipId = React.useId();
-  const tooltipRef = React.useRef<TooltipRefProps>(null);
-  const touchStartRef = React.useRef<{ x: number; y: number } | null>(null);
   const isCoarsePointer = useCoarsePointer();
   const hasTooltipContent = hasEquipmentTooltipContent(item, options);
-
-  const handleMobileTooltipTouchStart = React.useCallback((event: React.TouchEvent) => {
-    const touch = event.changedTouches[0];
-    if (!touch) return;
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-  }, []);
-
-  const handleMobileTooltipTouchEnd = React.useCallback((event: React.TouchEvent) => {
-    if (!touchStartRef.current) {
-      return;
-    }
-
-    const touch = event.changedTouches[0];
-    if (!touch) return;
-    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
-    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
-    touchStartRef.current = null;
-
-    if (deltaX > 10 || deltaY > 10) {
-      return;
-    }
-
-    event.preventDefault();
-    event.stopPropagation();
-    tooltipRef.current?.close();
-  }, []);
 
   if (!hasTooltipContent) {
     return <div className={className}>{children}</div>;
@@ -249,11 +220,9 @@ export function EquipmentTooltipTrigger({ item, children, className, options, ed
         {children}
       </div>
       <Tooltip
-        ref={tooltipRef}
         id={tooltipId}
         place="top-start"
         className="bg-neutral-900! text-white! text-xs! z-[60]!"
-        clickable={isCoarsePointer}
         openOnClick={isCoarsePointer}
         delayHide={isCoarsePointer ? 100 : undefined}
         positionStrategy={isCoarsePointer ? 'fixed' : 'absolute'}
@@ -263,13 +232,7 @@ export function EquipmentTooltipTrigger({ item, children, className, options, ed
           marginLeft: '-10px'
         }}
       >
-        <div
-          className={isCoarsePointer ? 'cursor-pointer' : undefined}
-          onTouchStart={isCoarsePointer ? handleMobileTooltipTouchStart : undefined}
-          onTouchEnd={isCoarsePointer ? handleMobileTooltipTouchEnd : undefined}
-        >
-          <EquipmentTooltipContent item={item} options={options} editionSlug={editionSlug} />
-        </div>
+        <EquipmentTooltipContent item={item} options={options} editionSlug={editionSlug} />
       </Tooltip>
     </>
   );
