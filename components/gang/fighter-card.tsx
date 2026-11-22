@@ -493,9 +493,14 @@ const FighterCard = memo(function FighterCard({
 
   const hoverEffectClass = disableHoverEffects
     ? 'shadow-none'
-    : 'shadow-md [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02]';
+    : 'shadow-md [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg';
 
-  const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print:hover:scale-[1] print-fighter-card print:inline-block
+  // Scales the wrapper (card and action menu button together) so the button grows with the card
+  const hoverScaleClass = disableHoverEffects || isDragging
+    ? ''
+    : 'transition-transform duration-200 [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02] print:hover:scale-[1]';
+
+  const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print-fighter-card print:inline-block
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
         ${isLoading ? 'cursor-default' : ''}
         ${dragHandle ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''}`;
@@ -926,7 +931,7 @@ const FighterCard = memo(function FighterCard({
   // grid-stretched) height — this lets a compact-view card fill a row stretched to its tallest
   // sibling, without affecting normal/print layout (see components/gang/fighter-card-action-menu.tsx).
   const cardContent = (
-    <div className="relative flex flex-col grow min-h-0">
+    <div className={`relative flex flex-col grow min-h-0 ${hoverScaleClass}`}>
       {cardWithOptionalLink}
       {menuTrigger}
     </div>
