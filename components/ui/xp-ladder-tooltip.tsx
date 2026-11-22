@@ -1,6 +1,6 @@
 'use client';
 
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { useCoarsePointer } from '@/hooks/use-coarse-pointer';
 import {
   currentXpLadderRankFor,

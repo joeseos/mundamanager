@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { toast } from 'sonner';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { LuSquarePen, LuTrash2 } from 'react-icons/lu';
 import Modal from '@/components/ui/modal';

@@ -2,7 +2,7 @@
 
 import { useId, type ReactNode } from 'react';
 import { ImInfo } from 'react-icons/im';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { useCoarsePointer } from '@/hooks/use-coarse-pointer';
 
 interface InfoTooltipProps {

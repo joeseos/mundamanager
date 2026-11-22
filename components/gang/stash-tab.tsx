@@ -28,7 +28,7 @@ import { TbMeatOff } from 'react-icons/tb';
 import { FaMedkit } from 'react-icons/fa';
 import { Combobox } from '@/components/ui/combobox';
 import { SellConfirmModal } from '@/components/equipment/sell-confirm-modal';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { UserPermissions } from '@/types/user-permissions';
 import FighterEffectSelection from '@/components/fighter-effect-selection';
 import { applyWeaponModifiers } from '@/utils/effect-modifiers';

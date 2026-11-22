@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Tooltip, type TooltipRefProps } from 'react-tooltip';
+import type { TooltipRefProps } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Equipment, WeaponProfile } from '@/types/equipment';
 import { hasLethalityStatline } from '@/types/edition';
 import { useCoarsePointer } from '@/hooks/use-coarse-pointer';

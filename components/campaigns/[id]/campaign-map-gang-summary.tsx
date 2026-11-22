@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { getPlayingCardSortKey } from '@/utils/campaigns/territory-playing-card-options';
 import { compactGangTypeLabel } from '@/utils/gang-type-label';

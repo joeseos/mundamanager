@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { TbArrowBigUpFilled } from 'react-icons/tb';
 import { GangViewMode, isFullSizeGangViewMode } from '@/components/gang/ViewModeDropdown';
 import { initiativeAndMentalCharacteristicSuffix } from '@/types/edition';

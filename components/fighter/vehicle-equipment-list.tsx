@@ -17,7 +17,7 @@ import { MdCurrencyExchange, MdOutlineLinkOff } from 'react-icons/md';
 import { FaBox } from 'react-icons/fa';
 import { MdOutlineRemoveCircleOutline  } from 'react-icons/md';
 import { EquipmentTooltipTrigger } from '@/components/equipment/equipment-tooltip';
-import { Tooltip } from 'react-tooltip';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Equipment } from '@/types/equipment';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
