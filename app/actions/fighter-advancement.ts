@@ -20,7 +20,6 @@ import {
   N26_OUTCAST_LEADER_PET_STARTING_XP,
   N26_OUTCAST_LEADER_STARTING_XP,
   N26_PROSPECT_PROMOTION_CREDITS,
-  buildN26ChampionLeaderDemotionSubtypes,
   buildN26ChampionLeaderPromotionSubtypes,
   canPromoteToN26OutcastLeader,
   buildN26GangerChampionDemotionSubtypes,
@@ -29,7 +28,6 @@ import {
   buildN26ProspectPromotionSubtypes,
   getN26ProspectSpecialisation,
   isN26GangerChampionPromotionSkillGrant,
-  isN26LeaderPromotionSkillGrant,
   isN26ProspectPromotionSkillBlockedByHigherRank,
   isN26ProspectPromotionUndoCandidate,
 } from '@/utils/keepTypePromotionN26';
@@ -1540,7 +1538,7 @@ export async function deleteAdvancement(
         return {
           success: false,
           error: currentSubtypesForGrant.includes('Leader')
-            ? 'Undo the Leader promotion before undoing the Prospect promotion'
+            ? 'Remove the Leader subtype in Edit Fighter before undoing the Prospect promotion'
             : 'Undo the Champion promotion (Inspiring) before undoing the Prospect promotion',
         };
       }
@@ -1561,23 +1559,10 @@ export async function deleteAdvancement(
         isGangerChampionPromotionGrant = false;
       }
 
-      // N26 Champion→Leader grant: demote subtypes when catalog type is a Leader row.
-      let isLeaderPromotionGrant = isN26LeaderPromotionSkillGrant(
-        currentSubtypesForGrant,
-        skillData.skill_id,
-        deletedSkillName
-      );
-      if (isLeaderPromotionGrant && fighter.fighter_type_id) {
-        isLeaderPromotionGrant = catalogSubtypesForUndo.includes('Leader');
-      } else if (isLeaderPromotionGrant && !fighter.fighter_type_id) {
-        isLeaderPromotionGrant = false;
-      }
-
       // A free N26 Legendary Name (5+ XP in one battle) never came from the stash, so nothing goes back.
       if (
         isProspectPromotionGrant ||
         isGangerChampionPromotionGrant ||
-        isLeaderPromotionGrant ||
         (refundStash && isLegendaryNameSkillSet(skillSetName(deletedSkill), editionSlugForUndo))
       ) {
         refundStash = false;
@@ -1630,17 +1615,15 @@ export async function deleteAdvancement(
         invalidateFighter(params.fighter_id, fighter.gang_id);
       }
 
-      // Undo N26 promotion grants (subtypes; Leader undo does not restore previous type)
-      if (isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant) {
+      // Undo N26 promotion grants (subtypes)
+      if (isProspectPromotionGrant || isGangerChampionPromotionGrant) {
         const currentSubtypes: string[] = Array.isArray(fighter.fighter_subtypes)
           ? fighter.fighter_subtypes
           : [];
         const specialRules = Array.isArray(fighter.special_rules) ? fighter.special_rules : [];
         const demotedSubtypes = isProspectPromotionGrant
           ? buildN26ProspectDemotionSubtypes(currentSubtypes)
-          : isLeaderPromotionGrant
-            ? buildN26ChampionLeaderDemotionSubtypes(currentSubtypes)
-            : buildN26GangerChampionDemotionSubtypes(currentSubtypes);
+          : buildN26GangerChampionDemotionSubtypes(currentSubtypes);
         const demoteResult = await updateFighterDetails({
           fighter_id: params.fighter_id,
           fighter_subtypes: demotedSubtypes,
@@ -1660,9 +1643,7 @@ export async function deleteAdvancement(
             error: demoteResult.error
               || (isProspectPromotionGrant
                 ? 'Skill removed but Prospect demotion failed — please restore Prospect subtypes in Edit Fighter.'
-                : isLeaderPromotionGrant
-                  ? 'Skill removed but Leader demotion failed — please restore Champion subtype in Edit Fighter.'
-                  : 'Skill removed but Ganger demotion failed — please restore Ganger subtype in Edit Fighter.'),
+                : 'Skill removed but Ganger demotion failed — please restore Ganger subtype in Edit Fighter.'),
           };
         }
         if (isProspectPromotionGrant) {
