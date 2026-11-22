@@ -243,13 +243,6 @@ export default function PostCycleActions({
   /** The vehicle whose Lasting Damage is being picked for the Chop Shop, and the pick so far. */
   const [damagePickerFor, setDamagePickerFor] = useState<string | null>(null);
   const [damagePick, setDamagePick] = useState<string[]>([]);
-  /**
-   * Doc patients whose Medical Escort or Fit Bionics landed on an earlier
-   * Confirm, with why they cannot act. Recovery does not cover them: a fitting
-   * never sets it, and an escort that partly failed may not have. Kept until
-   * the page reloads, as nothing saved says who went to the Doc this cycle.
-   */
-  const [treated, setTreated] = useState<ReadonlyMap<string, string>>(new Map());
 
   const canEdit = userPermissions?.canEdit ?? false;
   const availability = useMemo(
@@ -295,28 +288,22 @@ export default function PostCycleActions({
 
   // A fighter who can no longer act (e.g. sent to Recovery meanwhile) keeps no action.
   const activeRows = useMemo(
-    () =>
-      new Map(
-        Object.entries(rows).filter(
-          ([fighterId]) => actorIds.has(fighterId) && !treated.has(fighterId)
-        )
-      ),
-    [rows, actorIds, treated]
+    () => new Map(Object.entries(rows).filter(([fighterId]) => actorIds.has(fighterId))),
+    [rows, actorIds]
   );
 
-  /**
-   * Why a fighter cannot pick an action of their own: they are a Doc patient,
-   * picked on another row or treated earlier. A patient cannot act.
-   */
+  /** A Doc patient picked on another row takes no action of their own; why, by patient. */
   const atTheDoc = useMemo(() => {
-    const reasons = new Map(treated);
+    const reasons = new Map<string, string>();
     for (const row of activeRows.values()) {
       if (!row.targetFighterId) continue;
-      if (row.action === 'fit_bionics') reasons.set(row.targetFighterId, 'Being fitted for bionics');
-      if (row.action === 'medical_escort') reasons.set(row.targetFighterId, 'Being taken to the Doc');
+      reasons.set(
+        row.targetFighterId,
+        row.action === 'fit_bionics' ? 'Being fitted for bionics' : 'Being taken to the Doc'
+      );
     }
     return reasons;
-  }, [activeRows, treated]);
+  }, [activeRows]);
 
   /** One validated assignment per pending row, keyed by the fighter taking it. */
   const rowStates = useMemo(() => {
@@ -506,11 +493,7 @@ export default function PostCycleActions({
     candidates
       .filter((f) => f.id !== performerId)
       .map((f) => {
-        const reason = activeRows.has(f.id)
-          ? 'has an action'
-          : treated.has(f.id)
-            ? 'already seen the Doc'
-            : null;
+        const reason = activeRows.has(f.id) ? 'has an action' : null;
         return {
           value: f.id,
           label: reason ? (
@@ -627,11 +610,6 @@ export default function PostCycleActions({
 
       // A partial failure still spent the action, so its row is cleared too.
       if (result.landed) {
-        const patientId = patientOf(queue[i]);
-        if (patientId) {
-          const reason = queue[i].action === 'fit_bionics' ? 'Fitted for bionics' : 'Taken to the Doc';
-          setTreated((prev) => new Map(prev).set(patientId, reason));
-        }
         setRows((prev) => {
           const { [fighterId]: _done, ...rest } = prev;
           return rest;
@@ -708,7 +686,7 @@ export default function PostCycleActions({
             </div>
             <ul>
               {actors.map((fighter) => {
-                const row = treated.has(fighter.id) ? undefined : rows[fighter.id];
+                const row = rows[fighter.id];
                 const state = rowStates.get(fighter.id);
                 const assignment = state?.assignment ?? null;
                 const effect = effectOf(assignment);
@@ -765,7 +743,7 @@ export default function PostCycleActions({
                             disabled: reason !== null && row?.action !== option.id,
                           };
                         })}
-                        value={atTheDoc.has(fighter.id) ? '' : row?.action ?? ''}
+                        value={row?.action ?? ''}
                         onValueChange={(value) => handleActionChange(fighter.id, value)}
                         placeholder={atTheDoc.get(fighter.id) ?? 'No action'}
                         clearable
