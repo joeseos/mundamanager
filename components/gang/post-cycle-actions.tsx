@@ -292,18 +292,16 @@ export default function PostCycleActions({
     [rows, actorIds]
   );
 
-  /** A Doc patient picked on another row takes no action of their own; why, by patient. */
-  const atTheDoc = useMemo(() => {
-    const reasons = new Map<string, string>();
-    for (const row of activeRows.values()) {
-      if (!row.targetFighterId) continue;
-      reasons.set(
-        row.targetFighterId,
-        row.action === 'fit_bionics' ? 'Being fitted for bionics' : 'Being taken to the Doc'
-      );
-    }
-    return reasons;
-  }, [activeRows]);
+  /** A fighter picked for Fit Bionics on another row takes no action of their own. */
+  const beingFitted = useMemo(
+    () =>
+      new Set(
+        [...activeRows.values()].flatMap((row) =>
+          row.action === 'fit_bionics' && row.targetFighterId ? [row.targetFighterId] : []
+        )
+      ),
+    [activeRows]
+  );
 
   /** One validated assignment per pending row, keyed by the fighter taking it. */
   const rowStates = useMemo(() => {
@@ -741,9 +739,9 @@ export default function PostCycleActions({
                         })}
                         value={row?.action ?? ''}
                         onValueChange={(value) => handleActionChange(fighter.id, value)}
-                        placeholder={atTheDoc.get(fighter.id) ?? 'No action'}
+                        placeholder={beingFitted.has(fighter.id) ? 'Being fitted for bionics' : 'No action'}
                         clearable
-                        disabled={!canEdit || applying || atTheDoc.has(fighter.id)}
+                        disabled={!canEdit || applying || beingFitted.has(fighter.id)}
                       />
 
                       {row?.action === 'medical_escort' && (
