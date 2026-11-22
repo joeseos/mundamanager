@@ -292,6 +292,17 @@ export default function PostCycleActions({
     [rows, actorIds]
   );
 
+  /** A fighter picked for Fit Bionics on another row takes no action of their own. */
+  const beingFitted = useMemo(
+    () =>
+      new Set(
+        [...activeRows.values()].flatMap((row) =>
+          row.action === 'fit_bionics' && row.targetFighterId ? [row.targetFighterId] : []
+        )
+      ),
+    [activeRows]
+  );
+
   /** One validated assignment per pending row, keyed by the fighter taking it. */
   const rowStates = useMemo(() => {
     const states = new Map<
@@ -728,9 +739,9 @@ export default function PostCycleActions({
                         })}
                         value={row?.action ?? ''}
                         onValueChange={(value) => handleActionChange(fighter.id, value)}
-                        placeholder="No action"
+                        placeholder={beingFitted.has(fighter.id) ? 'Being fitted for bionics' : 'No action'}
                         clearable
-                        disabled={!canEdit || applying}
+                        disabled={!canEdit || applying || beingFitted.has(fighter.id)}
                       />
 
                       {row?.action === 'medical_escort' && (
