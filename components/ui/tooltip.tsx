@@ -11,9 +11,9 @@ type TooltipProps = Omit<ITooltip, 'id' | 'afterShow' | 'afterHide'> & {
 
 /**
  * react-tooltip for the whole app. On touch screens an open tooltip closes on
- * a tap anywhere outside it and its anchors: iOS Safari sends no mouseout or
- * click for taps on plain page content, so react-tooltip's own closing never
- * fires there.
+ * a tap outside it and its anchors, and on a scroll outside it: iOS Safari
+ * sends no mouseout or click for taps on plain page content, so react-tooltip's
+ * own closing never fires there.
  */
 export function Tooltip({ ref, id, ...props }: TooltipProps) {
   const isCoarsePointer = useCoarsePointer();
@@ -30,7 +30,6 @@ export function Tooltip({ ref, id, ...props }: TooltipProps) {
 
   useEffect(() => {
     if (!isCoarsePointer || !isOpen) return;
-    // pointerup, not pointerdown: a touch that turns into a scroll ends in pointercancel.
     const closeOnTapOutside = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
@@ -38,8 +37,16 @@ export function Tooltip({ ref, id, ...props }: TooltipProps) {
       if (target.closest('.react-tooltip')?.id === id) return;
       tooltipRef.current?.close();
     };
+    const closeOnScroll = (event: Event) => {
+      if (event.target instanceof Element && event.target.closest('.react-tooltip')?.id === id) return;
+      tooltipRef.current?.close();
+    };
     document.addEventListener('pointerup', closeOnTapOutside, true);
-    return () => document.removeEventListener('pointerup', closeOnTapOutside, true);
+    document.addEventListener('scroll', closeOnScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('pointerup', closeOnTapOutside, true);
+      document.removeEventListener('scroll', closeOnScroll, true);
+    };
   }, [isCoarsePointer, isOpen, id]);
 
   return (
