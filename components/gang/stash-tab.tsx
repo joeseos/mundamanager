@@ -1083,11 +1083,6 @@ export default function GangInventory({
             if (onGangTradePointsUpdate && newGangTradePoints !== undefined) {
               onGangTradePointsUpdate(newGangTradePoints);
             }
-
-            const costDescription = boughtEquipment.cost_resource_name
-              ? `${boughtEquipment.cost_resource_amount} ${boughtEquipment.cost_resource_name}`
-              : `${boughtEquipment.cost} credits`;
-            toast.success("Equipment Purchased", { description: `${boughtEquipment.equipment_name} added to gang stash for ${costDescription}` });
           }}
         />
       )}
