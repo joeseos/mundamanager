@@ -423,10 +423,11 @@ export default function PostCycleActions({
     setRows((prev) => {
       const current = prev[fighterId];
       if (!current) return prev;
+      const updated = { ...prev, [fighterId]: { ...current, ...next } };
       // A patient takes no action of their own, so one left on a row hidden
       // meanwhile (say, while they were in Recovery) is dropped.
-      const { [next.targetFighterId ?? '']: _patientRow, ...rest } = prev;
-      return { ...rest, [fighterId]: { ...current, ...next } };
+      if (next.targetFighterId) delete updated[next.targetFighterId];
+      return updated;
     });
 
   /** Clearing a pick drops it; the picks after it move up. */
