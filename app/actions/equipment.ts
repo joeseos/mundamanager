@@ -318,7 +318,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
 
       params.equipment_id
         ? db.query.equipment.findFirst({
-            columns: { equipment_name: true, equipment_type: true, equipment_category: true, cost: true, trade_points: true, is_editable: true, grants_equipment: true },
+            columns: { equipment_name: true, equipment_type: true, equipment_category: true, cost: true, trade_points: true, is_editable: true, grants_equipment: true, stash_only: true },
             where: (row, { eq }) => eq(row.id, params.equipment_id!),
             with: {
               exotic_beasts: { columns: { id: true } },
@@ -339,7 +339,7 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
                 where: (row, { eq, or }) => or(eq(row.custom_equipment_id, customEquipmentId), eq(row.weapon_group_id, customEquipmentId)),
                 orderBy: (row, { asc }) => [sql`${row.sort_order} asc nulls last`, asc(row.profile_name)],
               }),
-            ]).then(([custom, profiles]) => custom && { ...custom, grants_equipment: null, exotic_beasts: [], weapon_profiles: profiles })
+            ]).then(([custom, profiles]) => custom && { ...custom, grants_equipment: null, stash_only: false, exotic_beasts: [], weapon_profiles: profiles })
           : undefined,
     ]);
 
@@ -354,6 +354,9 @@ export async function buyEquipmentForFighter(params: BuyEquipmentParams): Promis
       if (params.equipment_id) throw new Error('Equipment not found');
       if (customEquipmentId) throw new Error('Custom equipment not found');
       throw new Error('Either equipment_id or custom_equipment_id is required');
+    }
+    if (equipmentDetails.stash_only && forFighterOrVehicle) {
+      throw new Error('This item can only be bought into the gang stash');
     }
 
     const vehicleAssignedFighterId = vehicle?.fighter_id || null;

@@ -10,6 +10,8 @@ DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boole
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[]);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,boolean,uuid[],uuid[]);
 DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,uuid[],uuid[]);
+DROP FUNCTION IF EXISTS get_equipment_detailed_data(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,uuid[],uuid[],boolean);
+DROP FUNCTION IF EXISTS private.equipment_detailed_rows(uuid,text,uuid,boolean,boolean,uuid,uuid,uuid,uuid[],uuid[],boolean);
 
 -- The rows behind get_equipment_detailed_data. PL/pgSQL so each call is planned for
 -- its actual arguments: as a SQL function the whole query was replanned on every
@@ -51,6 +53,7 @@ RETURNS TABLE (
     cost_type_resource_id uuid,
     cost_campaign_resource_id uuid,
     banned boolean,
+    stash_only boolean,
     -- From count_limits; NULL is no limit
     min_count integer,
     max_count integer
@@ -498,6 +501,8 @@ BEGIN
 
         COALESCE(cto.banned, false) AS banned,
 
+        e.stash_only,
+
         lim.min_count,
         lim.max_count
 
@@ -686,6 +691,7 @@ BEGIN
         custom_tp.cost_type_resource_id,
         custom_tp.cost_campaign_resource_id,
         COALESCE(custom_tp.banned, false) AS banned,
+        false AS stash_only,
         NULL::integer AS min_count,
         NULL::integer AS max_count
     FROM custom_candidates cc
@@ -805,6 +811,7 @@ RETURNS TABLE (
     cost_type_resource_id uuid,
     cost_campaign_resource_id uuid,
     banned boolean,
+    stash_only boolean,
     -- From count_limits; NULL is no limit
     min_count integer,
     max_count integer

@@ -83,6 +83,7 @@ interface RawEquipmentData {
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
   banned?: boolean;
+  stash_only?: boolean;
   min_count?: number | null;
   max_count?: number | null;
 }
@@ -179,6 +180,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     equipmentListType === 'fighters-list' ? 'none' : showTradePoints ? 'tradePoints' : 'availability';
 
   const chargesTradePoints = showTradePoints && equipmentListType !== 'fighters-list';
+  const isStashPurchase = Boolean(isStashMode || (!fighterId && !vehicleId));
 
   const { purchaseEquipment } = usePurchaseEquipment({
     gangId,
@@ -230,12 +232,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
   const queryClient = useQueryClient();
   const { data: equipment = NO_EQUIPMENT, error: equipmentError } = useQuery({
-    queryKey: ['available-equipment', gangId, equipmentQuery],
+    queryKey: ['available-equipment', gangId, equipmentQuery, isStashPurchase],
     queryFn: async () => {
       const response = await fetch(`/api/gangs/${gangId}/available-equipment?${equipmentQuery}`);
       if (!response.ok) throw new Error('Failed to load equipment categories');
       const data: RawEquipmentData[] = await response.json();
-      return groupEquipmentByCategory(data, equipmentListType === 'fighters-tradingpost' && includesFightersList);
+      // A fighter or vehicle never sees items only bought into the gang stash
+      const buyable = isStashPurchase ? data : data.filter((item) => !item.stash_only);
+      return groupEquipmentByCategory(buyable, equipmentListType === 'fighters-tradingpost' && includesFightersList);
     },
     enabled: !missingTypeError,
   });
@@ -705,7 +709,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     tradePoints,
                   })
                 }}
-                isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
+                isStashPurchase={isStashPurchase}
                 fighterId={fighterId}
                 fighterWeapons={fighterWeapons}
                 equipmentListType={equipmentListType}
