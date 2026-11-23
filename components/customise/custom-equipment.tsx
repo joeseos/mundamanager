@@ -347,7 +347,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       description: equipment.description || null,
     });
 
-    // Profiles shown under this weapon, including ones owned by the user's other items (ammo)
+    // Profiles shown under this weapon, including ones owned by the user's other items (ammo).
+    // Relies on a weapon's grouped profiles sharing its owner and edition, so they're all in initialEquipment.
     setEditWeaponProfiles(
       equipment.equipment_type === 'weapon'
         ? initialEquipment

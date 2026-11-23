@@ -440,7 +440,7 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const { data: skillsInSet = NO_SKILLS } = useQuery({
     queryKey: ['skills', selectedSkillType],
     queryFn: async () => {
-      const res = await fetch(`/api/skills?skill_type_id=${selectedSkillType}`);
+      const res = await fetch(`/api/skills?${new URLSearchParams({ skill_type_id: selectedSkillType })}`);
       if (!res.ok) throw new Error('Failed to fetch skills');
       const data: { id: string; name: string }[] = await res.json();
       return data.map(skill => ({ id: skill.id, skill_name: skill.name }));
