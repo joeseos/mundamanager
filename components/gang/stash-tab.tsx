@@ -107,6 +107,8 @@ export default function GangInventory({
   const [showTradingPost, setShowTradingPost] = useState(false);
   const [sellModalItemIdx, setSellModalItemIdx] = useState<number | null>(null);
   const [deleteModalIdx, setDeleteModalIdx] = useState<number | null>(null);
+  const [sortField, setSortField] = useState<'name' | 'category' | 'value'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   
   
   // Effect selection modal state
@@ -211,6 +213,37 @@ export default function GangInventory({
     const baseName = item.vehicle_name || item.equipment_name || 'Unknown Item';
     return baseName;
   };
+
+  const getItemCategory = (item: StashItem): string =>
+    item.type === 'vehicle' ? 'Vehicle' : item.equipment_category || 'Equipment';
+
+  const handleSort = (field: 'name' | 'category' | 'value') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection(field === 'value' ? 'desc' : 'asc');
+    }
+  };
+
+  const sortedStash = useMemo(() => {
+    const withIndex = stash.map((item, originalIndex) => ({ item, originalIndex }));
+    withIndex.sort((a, b) => {
+      let comparison = 0;
+      if (sortField === 'name') {
+        comparison = getItemName(a.item).localeCompare(getItemName(b.item));
+      } else if (sortField === 'category') {
+        comparison = getItemCategory(a.item).localeCompare(getItemCategory(b.item));
+      } else {
+        comparison = (a.item.cost || 0) - (b.item.cost || 0);
+      }
+      if (comparison !== 0) {
+        return sortDirection === 'asc' ? comparison : -comparison;
+      }
+      return getItemName(a.item).localeCompare(getItemName(b.item));
+    });
+    return withIndex;
+  }, [stash, sortField, sortDirection]);
 
   // A moved item's cost goes where the fighter counts it: stash value for a card kept
   // in the stash (the Trazior Pattern Sentry Gun), otherwise the fighter's cost
@@ -870,40 +903,68 @@ export default function GangInventory({
           ) : (
             <>
               <div className="mb-2">
-                <div className="flex items-center text-sm font-medium text-muted-foreground px-0 py-2">
-                  <div className="w-4 mr-5" />
-                  <div className="grow">Name</div>
-                  <div className="w-56 text-right">Category</div>
-                  <div className="w-40 text-right">Actions</div>
-                  <div className="w-20 text-right">Value</div>
+                <div className="flex items-center text-sm font-medium text-muted-foreground px-2 py-2">
+                  <div className="w-4 mr-3" />
+                  <div
+                    className="grow min-w-0 flex items-center gap-1 cursor-pointer hover:bg-muted transition-colors select-none"
+                    onClick={() => handleSort('name')}
+                  >
+                    Name
+                    {sortField === 'name' && (
+                      <span className="text-muted-foreground">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    className="w-16 md:w-56 shrink-0 flex items-center justify-end gap-1 cursor-pointer hover:bg-muted transition-colors select-none"
+                    onClick={() => handleSort('category')}
+                  >
+                    <span className="md:hidden">Cat.</span>
+                    <span className="hidden md:inline">Category</span>
+                    {sortField === 'category' && (
+                      <span className="text-muted-foreground">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-16 md:w-40 shrink-0 text-right">Actions</div>
+                  <div
+                    className="w-14 md:w-20 shrink-0 flex items-center justify-end gap-1 cursor-pointer hover:bg-muted transition-colors select-none"
+                    onClick={() => handleSort('value')}
+                  >
+                    Value
+                    {sortField === 'value' && (
+                      <span className="text-muted-foreground">
+                        {sortDirection === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2 px-0">
-                  {stash.map((item, index) => (
+                  {sortedStash.map(({ item, originalIndex }) => (
                     <label
-                      key={index}
+                      key={item.id}
                       className="flex items-center p-2 bg-muted rounded-md cursor-pointer hover:bg-muted"
                     >
                       <Checkbox
-                        checked={selectedItems.includes(index)}
-                        onCheckedChange={(checked) => handleItemToggle(index, checked as boolean)}
+                        checked={selectedItems.includes(originalIndex)}
+                        onCheckedChange={(checked) => handleItemToggle(originalIndex, checked as boolean)}
                         // A stash-only item never moves; granted items move with the selected item that granted them
                         disabled={item.stash_only || selectedItems.some(i => stash[i].id === item.granted_by_equipment_id)}
                         className="mr-3"
                       />
-                      <span className="grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
-                      <span className="w-56 overflow-hidden text-ellipsis text-muted-foreground whitespace-nowrap text-right">
-                        {item.type === 'vehicle' 
-                          ? 'Vehicle' 
-                          : item.equipment_category || 'Equipment'
-                        }
+                      <span className="grow min-w-0 overflow-hidden text-ellipsis">{getItemName(item)}</span>
+                      <span className="w-16 md:w-56 shrink-0 overflow-hidden text-ellipsis text-sm text-muted-foreground whitespace-nowrap text-right">
+                        {getItemCategory(item)}
                       </span>
-                      <div className="w-40 flex justify-end gap-1">
+                      <div className="w-16 md:w-40 shrink-0 flex justify-end gap-1">
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-6 px-2 text-xs py-0"
                           onClick={() => {
-                            setSellModalItemIdx(index);
+                            setSellModalItemIdx(originalIndex);
                           }}
                           disabled={!userPermissions?.canEdit}
                           title="Sell"
@@ -916,7 +977,7 @@ export default function GangInventory({
                           variant="destructive"
                           size="sm"
                           className="h-6 px-2 text-xs py-0"
-                          onClick={() => setDeleteModalIdx(index)}
+                          onClick={() => setDeleteModalIdx(originalIndex)}
                           disabled={!userPermissions?.canEdit}
                           title="Delete"
                           type="button"
@@ -925,7 +986,7 @@ export default function GangInventory({
                         </Button>
                         */}
                       </div>
-                      <span className="w-20 flex items-center justify-end gap-1">
+                      <span className="w-14 md:w-20 shrink-0 flex items-center justify-end gap-1">
                         {item.cost_resource && (
                           <div
                             className="min-w-6 h-6 rounded-full flex items-center justify-center bg-amber-500 text-white px-1.5 cursor-help"
