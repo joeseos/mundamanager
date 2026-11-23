@@ -278,6 +278,7 @@ export interface PostCycleFighter {
   captured?: boolean;
   recovery?: boolean;
   kill_count?: number;
+  special_rules?: string[] | null;
   skills?: FighterSkills;
   weapons?: Pick<WeaponProps, 'fighter_weapon_id' | 'weapon_id' | 'weapon_name'>[];
   wargear?: Pick<WargearItem, 'fighter_weapon_id' | 'wargear_id' | 'wargear_name'>[];
@@ -288,9 +289,16 @@ export interface PostCycleFighter {
   };
 }
 
+/** Models with this rule, like the Trazior Pattern Sentry Gun, take no post-cycle actions. */
+const NO_POST_CYCLE_ACTIONS_RULE = 'Mechanical Platform';
+
 /** Performers only: a Doc patient is always in Recovery, so targets skip this. */
 export function canActInPostCycle(fighter: PostCycleFighter): boolean {
-  return countsTowardRating(fighter) && !fighter.recovery;
+  return (
+    countsTowardRating(fighter) &&
+    !fighter.recovery &&
+    !fighter.special_rules?.includes(NO_POST_CYCLE_ACTIONS_RULE)
+  );
 }
 
 function hasSubtype(fighter: PostCycleFighter, subtypes: readonly string[]): boolean {
