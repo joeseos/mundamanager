@@ -124,6 +124,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       return response.json() as Promise<CustomWeaponProfileRow[]>;
     },
     enabled: profilesItem?.equipment_type === 'weapon',
+    // Another user's profiles can change between opens
+    staleTime: 0,
     meta: { errorMessage: 'Failed to load weapon profiles' },
   });
   const viewProfiles = weaponProfiles

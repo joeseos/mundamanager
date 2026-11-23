@@ -14,6 +14,7 @@ import { CustomiseGangTypes } from "@/components/customise/custom-gang-types";
 import { CustomiseTradingPosts } from "@/components/customise/custom-trading-posts";
 import { CustomiseCollections } from "@/components/customise/custom-collections";
 import type { Gang } from "@/app/lib/get-user-gangs";
+import type { getUserProfile } from "@/app/lib/shared/gang-data";
 import type { Campaign } from "@/app/lib/get-user-campaigns";
 import type { CustomEquipment } from "@/app/lib/customise/custom-equipment";
 import type { CustomSkill } from "@/app/lib/customise/custom-skills";
@@ -28,14 +29,7 @@ import { sameEditionForDisplay } from "@/types/edition";
 import { compactGangTypeLabel } from "@/utils/gang-type-label";
 
 interface UserProfileProps {
-  profile: {
-    username: string;
-    user_role: string | null;
-    patreon_tier_id: string | null;
-    patreon_tier_title: string | null;
-    patron_status: string | null;
-    created_at: string | null;
-  };
+  profile: NonNullable<Awaited<ReturnType<typeof getUserProfile>>>;
   gangs: Gang[];
   campaigns: Campaign[];
   customAssets: {

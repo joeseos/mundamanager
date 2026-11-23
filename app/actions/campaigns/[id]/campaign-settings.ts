@@ -92,6 +92,14 @@ export async function updateCampaignSettings(params: UpdateCampaignSettingsParam
 
     // Use granular cache invalidation with proper taxonomy
     invalidateCampaignCore(campaignId);
+    // Members' campaign lists (home page, profile) show the name and status
+    if (campaign_name !== undefined || status !== undefined) {
+      const { data: members } = await supabase
+        .from('campaign_members')
+        .select('user_id')
+        .eq('campaign_id', campaignId);
+      new Set((members ?? []).map(member => member.user_id)).forEach(userId => invalidateUser(userId));
+    }
     if (allow_trading !== undefined) {
       invalidateCampaignTrades(campaignId);
     }
@@ -224,12 +232,12 @@ export async function deleteCampaign(campaignId: string) {
     // Authenticate user
     const user = await getAuthenticatedUser(supabase);
 
-    // Get all gangs in this campaign before deletion
-    const { data: campaignGangs } = await supabase
-      .from('campaign_gangs')
-      .select('gang_id')
-      .eq('campaign_id', campaignId);
-    
+    // Get all gangs and members in this campaign before deletion
+    const [{ data: campaignGangs }, { data: members }] = await Promise.all([
+      supabase.from('campaign_gangs').select('gang_id').eq('campaign_id', campaignId),
+      supabase.from('campaign_members').select('user_id').eq('campaign_id', campaignId),
+    ]);
+
     const { data: deleted, error } = await supabase
       .from('campaigns')
       .delete()
@@ -256,7 +264,8 @@ export async function deleteCampaign(campaignId: string) {
       });
     }
 
-    invalidateUser(user.id);
+    // Members' campaign lists (home page, profile) drop the campaign
+    new Set([user.id, ...(members ?? []).map(member => member.user_id)]).forEach(userId => invalidateUser(userId));
 
     // Invalidate global campaign count
     invalidateCampaignCount();
