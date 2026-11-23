@@ -29,7 +29,6 @@ import { compactGangTypeLabel } from "@/utils/gang-type-label";
 
 interface UserProfileProps {
   profile: {
-    id: string;
     username: string;
     user_role: string | null;
     patreon_tier_id: string | null;
@@ -47,16 +46,17 @@ interface UserProfileProps {
     tradingPosts: CustomTradingPost[];
     collections: CustomCollectionWithItems[];
   };
-  /** Signed-in viewer; share campaigns are only passed for their own profile */
   currentUserId: string;
+  /** Someone else's profile: assets can be viewed and copied, not edited */
+  readOnly: boolean;
+  /** The viewer's share campaigns, only on their own profile */
   userCampaigns: UserCampaign[];
 }
 
-export default function UserProfile({ profile, gangs, campaigns, customAssets, currentUserId, userCampaigns }: UserProfileProps) {
+export default function UserProfile({ profile, gangs, campaigns, customAssets, currentUserId, readOnly, userCampaigns }: UserProfileProps) {
   // Same edition the home Custom Assets tab is on, so a profile never renders an
   // N26 asset under N23 rules.
   const { editionSlug, setEditionSlug } = useHomeEdition();
-  const readOnly = currentUserId !== profile.id;
 
   const byEdition = <T extends { edition_slug?: string | null }>(items: T[]) =>
     items.filter(item => sameEditionForDisplay(item.edition_slug, editionSlug));
@@ -168,12 +168,10 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
                   <p className="text-sm text-muted-foreground mb-1">
                     {compactGangTypeLabel(gang.gang_type, gang.parent_gang_type_name)}
                   </p>
-                  {gang.rating !== null && gang.rating !== undefined && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Rating: </span>
-                      <span className="font-medium">{gang.rating}</span>
-                    </div>
-                  )}
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">Rating: </span>
+                    <span className="font-medium">{gang.rating}</span>
+                  </div>
                 </Link>
               ))}
             </div>

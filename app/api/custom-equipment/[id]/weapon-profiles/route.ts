@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUserIdFromClaims } from '@/utils/auth';
+import { getAppDb } from '@/utils/db/client';
 import { isUuid } from '@/utils/uuid';
 
 /** A custom weapon's own profiles plus the ones grouped under it (ammunition). */
@@ -10,19 +11,14 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     return NextResponse.json({ error: 'Invalid equipment id' }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  if (!await getUserIdFromClaims(supabase)) {
+  // The direct connection doesn't check who is asking, so only signed-in users may call this route
+  if (!await getUserIdFromClaims(await createClient())) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from('custom_weapon_profiles')
-    .select('*')
-    .or(`custom_equipment_id.eq.${id},weapon_group_id.eq.${id}`)
-    .order('sort_order');
-  if (error) {
-    console.error('Error fetching weapon profiles:', error);
-    return NextResponse.json({ error: 'Failed to fetch weapon profiles' }, { status: 500 });
-  }
-  return NextResponse.json(data);
+  const profiles = await getAppDb().query.customWeaponProfiles.findMany({
+    where: (row, { eq, or }) => or(eq(row.custom_equipment_id, id), eq(row.weapon_group_id, id)),
+    orderBy: (row, { asc }) => [asc(row.sort_order), asc(row.id)],
+  });
+  return NextResponse.json(profiles);
 }

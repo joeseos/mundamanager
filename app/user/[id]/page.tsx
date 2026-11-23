@@ -11,9 +11,11 @@ import { getUserCustomGangTypes } from "@/app/lib/customise/custom-gang-types";
 import { getUserCustomTradingPosts } from "@/app/lib/customise/custom-trading-posts";
 import { getUserCustomCollections } from "@/app/lib/customise/custom-collections";
 import UserProfile from "@/components/user-profile";
+import { isUuid } from "@/utils/uuid";
 
 export default async function UserPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  if (!isUuid(id)) notFound();
   const supabase = await createClient();
 
   let user;
@@ -23,10 +25,9 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
     redirect(signInPath(`/user/${id}`));
   }
 
-  const profile = await getUserProfile(id);
-  if (!profile) notFound();
-
-  const [gangs, campaigns, equipment, fighters, skills, gangTypes, tradingPosts, collections, userCampaigns] = await Promise.all([
+  const isOwnProfile = user.id === id;
+  const [profile, gangs, campaigns, equipment, fighters, skills, gangTypes, tradingPosts, collections, userCampaigns] = await Promise.all([
+    getUserProfile(id),
     getUserGangs(id),
     getUserCampaigns(id),
     getUserCustomEquipment(id),
@@ -36,16 +37,18 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
     getUserCustomTradingPosts(id),
     getUserCustomCollections(id),
     // Only your own profile can share custom assets to campaigns
-    user.id === id ? getUserShareCampaigns(id) : [],
+    isOwnProfile ? getUserShareCampaigns(id) : [],
   ]);
+  if (!profile) notFound();
 
   return (
     <UserProfile
-      profile={{ id, ...profile }}
+      profile={profile}
       gangs={gangs}
       campaigns={campaigns}
       customAssets={{ equipment, fighters, skills, gangTypes, tradingPosts, collections }}
       currentUserId={user.id}
+      readOnly={!isOwnProfile}
       userCampaigns={userCampaigns}
     />
   );

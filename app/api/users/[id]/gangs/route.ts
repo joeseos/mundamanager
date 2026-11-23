@@ -16,5 +16,6 @@ export async function GET(_request: Request, props: { params: Promise<{ id: stri
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  return NextResponse.json(await getUserGangs(id));
+  const gangs = await getUserGangs(id);
+  return NextResponse.json(gangs.map(({ id, name, rating, edition_slug }) => ({ id, name, rating, edition_slug })));
 }

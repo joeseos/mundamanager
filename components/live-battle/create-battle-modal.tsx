@@ -128,9 +128,10 @@ export default function CreateBattleModal({
       if (!response.ok) {
         throw new Error('Failed to fetch user gangs');
       }
-      return response.json() as Promise<Gang[]>;
+      return response.json() as Promise<Pick<Gang, 'id' | 'name' | 'rating' | 'edition_slug'>[]>;
     },
     enabled: !!selectedUser,
+    meta: { errorMessage: 'Failed to load gangs' },
     // Opponents' gang lists change outside this client; refetch on every modal open
     staleTime: 0,
   });
