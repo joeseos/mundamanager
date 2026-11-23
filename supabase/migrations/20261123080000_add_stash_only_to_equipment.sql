@@ -1,8 +1,8 @@
 -- Equipment that can only be bought into the gang stash.
 --
 -- equipment.stash_only keeps an item off fighters and vehicles: their equipment
--- lists show it greyed out, and buying it for one or moving it out of the stash
--- is refused. The N26 Trazior Pattern Sentry Gun is the first: its card stays in
+-- lists leave it out, and buying it for one or moving it out of the stash is
+-- refused. The N26 Trazior Pattern Sentry Gun is the first: its card stays in
 -- the stash, so the item must too.
 --
 -- get_equipment_detailed_data returns the flag, so its return columns change and
