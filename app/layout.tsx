@@ -58,10 +58,9 @@ export const metadata = {
     siteName: SITE_TITLE,
     images: [
       {
-        url: SITE_IMAGE,
+        url: `${SITE_IMAGE}?v=2`,
         width: 192,
         height: 192,
-        alt: SITE_TITLE,
       },
     ],
     locale: 'en_GB',
@@ -96,7 +95,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/site.webmanifest" />
+        <link rel="manifest" href="/site.webmanifest?v=2" />
         <link rel="preload" as="image" href="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif" fetchPriority="high" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
