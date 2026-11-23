@@ -118,7 +118,7 @@ export async function GET(
     const [customEquipmentResult, customFightersResult, customSkillsResult, customGangTypesResult, customTradingPostsResult] = await Promise.all([
       supabase
         .from('custom_equipment')
-        .select('*, editions:edition_id (slug), custom_weapon_profiles (*)')
+        .select('*, editions:edition_id (slug)')
         .eq('user_id', userId)
         .order('equipment_name'),
       supabase

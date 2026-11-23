@@ -20,7 +20,7 @@ import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
 import { ShareCustomEquipmentModal } from './custom-shared';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { UserCampaign } from '@/types/campaign';
-import type { EquipmentListItem } from '@/types/equipment';
+import type { EquipmentListItem, WeaponProfile } from '@/types/equipment';
 import { AvailabilityPicker, parseAvailability, combineAvailability } from '@/components/ui/availability-picker';
 import { isValidTradePoints } from '@/utils/campaigns/resources';
 import { hasLethalityStatline, hasTradePoints, sameEditionForDisplay } from '@/types/edition';
@@ -42,6 +42,9 @@ interface EquipmentCategory {
 }
 
 const NO_CATEGORIES: EquipmentCategory[] = [];
+
+type CustomWeaponProfileRow = WeaponProfile & { custom_equipment_id: string | null };
+const NO_PROFILES: CustomWeaponProfileRow[] = [];
 
 /**
  * Normalise a stored profile into the all-string form shape. lethality and traits
@@ -110,6 +113,22 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     staleTime: 10 * 60 * 1000,
     meta: { errorMessage: 'Failed to load equipment categories' },
   });
+
+  // View shows the profiles grouped under the weapon (including ammunition); Copy takes the item's own
+  const profilesItem = viewModalData ?? copyModalData;
+  const { data: weaponProfiles = NO_PROFILES, isLoading: weaponProfilesLoading } = useQuery({
+    queryKey: ['custom-weapon-profiles', profilesItem?.id],
+    queryFn: async () => {
+      const response = await fetch(`/api/custom-equipment/${profilesItem!.id}/weapon-profiles`);
+      if (!response.ok) throw new Error('Failed to fetch weapon profiles');
+      return response.json() as Promise<CustomWeaponProfileRow[]>;
+    },
+    enabled: profilesItem?.equipment_type === 'weapon',
+    meta: { errorMessage: 'Failed to load weapon profiles' },
+  });
+  const viewProfiles = weaponProfiles
+    .filter(profile => profile.weapon_group_id === viewModalData?.id)
+    .map(toProfileInput);
 
   // A category name repeats across editions (Grenades exists in both), so the form
   // holds the category id and resolves the name only for display and rules.
@@ -346,18 +365,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       is_consumable: equipment.is_consumable ?? false,
       description: equipment.description || null,
     });
-
-    // Profiles shown under this weapon, including ones owned by the user's other items (ammo).
-    // Relies on a weapon's grouped profiles sharing its owner and edition, so they're all in initialEquipment.
-    setEditWeaponProfiles(
-      equipment.equipment_type === 'weapon'
-        ? initialEquipment
-            .flatMap(item => item.custom_weapon_profiles ?? [])
-            .filter(profile => profile.weapon_group_id === equipment.id)
-            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-            .map(toProfileInput)
-        : []
-    );
   };
 
   const handleEditEquipment = async (equipment: CustomEquipment) => {
@@ -534,14 +541,14 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       // If it's a weapon, copy the weapon profiles
       let copiedProfileCount = 0;
       if (copyModalData.equipment_type === 'weapon') {
-        const weaponProfiles = copyModalData.custom_weapon_profiles ?? [];
-        if (weaponProfiles.length > 0) {
-          copiedProfileCount = weaponProfiles.length;
+        const ownProfiles = weaponProfiles.filter(profile => profile.custom_equipment_id === copyModalData.id);
+        if (ownProfiles.length > 0) {
+          copiedProfileCount = ownProfiles.length;
           // Profiles pointing at the source weapon must follow the copy; ones
           // pointing at another weapon (ammunition) keep their target.
           await saveCustomWeaponProfiles(
             createdEquipment.id,
-            weaponProfiles.map(profile => ({
+            ownProfiles.map(profile => ({
               ...toProfileInput(profile),
               id: undefined,
               weapon_group_id: profile.weapon_group_id === copyModalData.id
@@ -869,7 +876,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                     Weapon Profiles
                   </label>
                   <div className="space-y-2">
-                    {editWeaponProfiles.map((profile, index) => (
+                    {viewProfiles.map((profile, index) => (
                       <div key={index} className="p-3 border rounded-md bg-muted">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
                           <div>
@@ -909,7 +916,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
                         </div>
                       </div>
                     ))}
-                    {editWeaponProfiles.length === 0 && (
+                    {!weaponProfilesLoading && viewProfiles.length === 0 && (
                       <div className="p-3 border rounded-md bg-muted text-center text-muted-foreground">
                         No weapon profiles defined
                       </div>
@@ -955,6 +962,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           onClose={() => setCopyModalData(null)}
           onConfirm={handleCopyModalConfirm}
           confirmText="Copy Custom Asset"
+          confirmDisabled={weaponProfilesLoading}
         />
       )}
 
