@@ -347,9 +347,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       description: equipment.description || null,
     });
 
-    // Reset weapon profiles modification flag
-    setWeaponProfilesModified(false);
-
     // Profiles shown under this weapon, including ones owned by the user's other items (ammo)
     setEditWeaponProfiles(
       equipment.equipment_type === 'weapon'
