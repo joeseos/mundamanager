@@ -929,7 +929,7 @@ export const getGangFightersList = async (
 };
 
 /**
- * Get username and patreon tier from user_id
+ * Get username, role and patreon tier from user_id
  * Cache: BASE_USER_PROFILE
  */
 export const getUserProfile = async (userId: string): Promise<{
@@ -938,18 +938,23 @@ export const getUserProfile = async (userId: string): Promise<{
   patreon_tier_id: string | null;
   patreon_tier_title: string | null;
   patron_status: string | null;
+  user_role: string | null;
+  created_at: string | null;
 } | null> => {
   if (!isUuid(userId)) return null;
 
   return unstable_cache(
     async () => {
       const profile = await getAppDb().query.profiles.findFirst({
-        columns: { username: true, avatar_url: true, patreon_tier_id: true, patreon_tier_title: true, patron_status: true },
+        columns: { username: true, avatar_url: true, patreon_tier_id: true, patreon_tier_title: true, patron_status: true, user_role: true },
+        extras: (profile, { sql }) => ({
+          created_at: sql<string | null>`to_json(${profile.created_at})`.as('created_at'),
+        }),
         where: (profile, { eq }) => eq(profile.id, userId),
       });
       return profile ?? null;
     },
-    [`user-profile-v3-${userId}`],
+    [`user-profile-v4-${userId}`],
     {
       tags: [TAGS.user(userId)],
       revalidate: false
