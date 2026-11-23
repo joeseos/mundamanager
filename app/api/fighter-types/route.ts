@@ -4,6 +4,7 @@ import { getUserCustomFighterTypes } from '@/app/lib/customise/custom-fighters';
 import { getUserIdFromClaims } from "@/utils/auth";
 import { withEditionSlug } from '@/types/edition';
 import { withVariantGroups } from '@/utils/variantFamily';
+import { detailGangTypeLabel } from '@/utils/gang-type-label';
 
 type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -245,28 +246,32 @@ export async function GET(request: Request) {
 
       data = result;
 
-      // Filter out fighter types from hidden gang types
-      const { data: hiddenGangTypes, error: hiddenError } = await supabase
+      // Filter out fighter types from hidden gang types. Variant lists are
+      // relabelled from gang_types so include-all headers use House X: Variant.
+      const { data: gangTypes, error: gangTypesError } = await supabase
         .from('gang_types')
-        .select('id')
-        .eq('is_hidden', true);
-
-      if (hiddenError) {
-        console.error('Error fetching hidden gang types:', hiddenError);
-        throw hiddenError;
+        .select('id, is_hidden, gang_type, parent_gang_type_name');
+      if (gangTypesError) {
+        console.error('Error fetching gang types:', gangTypesError);
+        throw gangTypesError;
       }
 
-      if (hiddenGangTypes && hiddenGangTypes.length > 0) {
-        const hiddenIds = new Set(hiddenGangTypes.map(gt => gt.id));
-        // The 'Subtype: <name>' pools are themselves hidden gang types, so a granted fighter has
-        // to survive this filter — a rule put it in the list, not the catalogue.
-        // Only subtype-scoped grants set is_gang_subtype, so an origin- or gang-type-scoped grant
-        // pointing into a hidden pool would still be dropped here. None exist yet; widening the
-        // flag is not the fix, since fighter-edit-modal renders gang_subtype_name off it.
-        data = data.filter((fighter: any) =>
-          fighter.is_gang_subtype || !hiddenIds.has(fighter.gang_type_id)
-        );
-      }
+      const gangTypesById = new Map((gangTypes ?? []).map((gt) => [gt.id, gt]));
+      // The 'Subtype: <name>' pools are themselves hidden gang types, so a granted fighter has
+      // to survive this filter — a rule put it in the list, not the catalogue.
+      // Only subtype-scoped grants set is_gang_subtype, so an origin- or gang-type-scoped grant
+      // pointing into a hidden pool would still be dropped here. None exist yet; widening the
+      // flag is not the fix, since fighter-edit-modal renders gang_subtype_name off it.
+      data = data
+        .filter((fighter: any) =>
+          fighter.is_gang_subtype || !gangTypesById.get(fighter.gang_type_id)?.is_hidden
+        )
+        .map((fighter: any) => {
+          const list = gangTypesById.get(fighter.gang_type_id);
+          return list?.parent_gang_type_name
+            ? { ...fighter, gang_type: detailGangTypeLabel(list.gang_type, list.parent_gang_type_name) }
+            : fighter;
+        });
 
       // For a custom gang, keep its own custom fighters in the list alongside the
       // full set of system fighter types (mirrors how a regular gang's own fighters
