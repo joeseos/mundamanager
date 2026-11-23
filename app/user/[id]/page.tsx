@@ -44,8 +44,11 @@ export default async function UserPage({ params }: { params: Promise<{ id: strin
   return (
     <UserProfile
       profile={profile}
-      gangs={gangs}
-      campaigns={campaigns}
+      // Only the fields the profile shows reach the browser
+      gangs={gangs.map(({ id, name, gang_type, parent_gang_type_name, rating, edition_slug }) =>
+        ({ id, name, gang_type, parent_gang_type_name, rating, edition_slug }))}
+      campaigns={campaigns.map(({ id, campaign_name, role, status, joined_at, edition_slug }) =>
+        ({ id, campaign_name, role, status, joined_at, edition_slug }))}
       customAssets={{ equipment, fighters, skills, gangTypes, tradingPosts, collections }}
       currentUserId={user.id}
       readOnly={!isOwnProfile}

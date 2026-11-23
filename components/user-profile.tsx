@@ -30,8 +30,8 @@ import { compactGangTypeLabel } from "@/utils/gang-type-label";
 
 interface UserProfileProps {
   profile: NonNullable<Awaited<ReturnType<typeof getUserProfile>>>;
-  gangs: Gang[];
-  campaigns: Campaign[];
+  gangs: Pick<Gang, 'id' | 'name' | 'gang_type' | 'parent_gang_type_name' | 'rating' | 'edition_slug'>[];
+  campaigns: Pick<Campaign, 'id' | 'campaign_name' | 'role' | 'status' | 'joined_at' | 'edition_slug'>[];
   customAssets: {
     equipment: CustomEquipment[];
     fighters: CustomFighterType[];
