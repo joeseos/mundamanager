@@ -4,6 +4,8 @@ export type VariantFamilySource = {
   edition_slug?: string | null;
   fighter_variant?: string | null;
   specialisation?: { specialisation_name?: string | null } | null;
+  gang_type_id?: string | null;
+  custom_gang_type_id?: string | null;
 };
 
 const subtypeKey = (row: VariantFamilySource) =>
@@ -14,9 +16,11 @@ const containsAllSubtypes = (subtypes: string[], base: string[]) => {
   return base.every(name => have.has(name.toLowerCase().trim()));
 };
 
-// include_all_types returns every edition at once and is only narrowed to the gang's own
-// edition on the client, so the edition is part of the bucket: a family never spans two.
-const familyBucket = (row: VariantFamilySource) => `${row.edition_slug ?? ''}::${row.fighter_type}`;
+// include_all_types returns every list at once. Edition keeps a family from spanning
+// N23 and N26; the gang list id keeps House Escher's Gun Maiden apart from the
+// Chymist Cult's, which share a name but are different fighter types.
+const familyBucket = (row: VariantFamilySource) =>
+  `${row.edition_slug ?? ''}::${row.gang_type_id ?? row.custom_gang_type_id ?? ''}::${row.fighter_type}`;
 
 /**
  * Tags each row with its variant family — same fighter_type, and one row's subtype set
