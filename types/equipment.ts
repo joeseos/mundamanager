@@ -198,6 +198,8 @@ export interface CustomEquipment {
   updated_at?: string | null;
   is_consumable?: boolean | null;
   edition_slug?: string | null;
+  /** Only on the user profile page (/api/users/[id]), for View and Copy */
+  custom_weapon_profiles?: WeaponProfile[];
 }
 
 /**

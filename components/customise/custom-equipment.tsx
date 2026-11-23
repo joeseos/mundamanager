@@ -17,7 +17,6 @@ import { FiShare2 } from 'react-icons/fi';
 import { BiSolidNotepad } from 'react-icons/bi';
 import { Tooltip } from '@/components/ui/tooltip';
 import { renderDescriptionTooltip } from '@/components/ui/tooltip-renderers';
-import { createClient } from '@/utils/supabase/client';
 import { ShareCustomEquipmentModal } from './custom-shared';
 import { DESCRIPTION_MAX_LENGTH } from '@/app/actions/customise/custom-constants';
 import type { UserCampaign } from '@/types/campaign';
@@ -71,7 +70,6 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
   const [viewModalData, setViewModalData] = useState<CustomEquipment | null>(null);
   const [copyModalData, setCopyModalData] = useState<CustomEquipment | null>(null);
   const [shareModalData, setShareModalData] = useState<CustomEquipment | null>(null);
-  const supabase = createClient();
   const [editForm, setEditForm] = useState({
     equipment_name: '',
     cost: '',
@@ -334,7 +332,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     }
   ];
 
-  const handleViewEquipment = async (equipment: CustomEquipment) => {
+  const handleViewEquipment = (equipment: CustomEquipment) => {
     setViewModalData(equipment);
     const parsed = parseAvailability(equipment.availability || 'C');
     setEditForm({
@@ -352,29 +350,16 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
     // Reset weapon profiles modification flag
     setWeaponProfilesModified(false);
 
-    // Load weapon profiles if it's a weapon
-    if (equipment.equipment_type === 'weapon') {
-      try {
-        // Fetch weapon profiles directly from Supabase for any user's equipment
-        const { data: profiles, error } = await supabase
-          .from('custom_weapon_profiles')
-          .select('*')
-          .eq('weapon_group_id', equipment.id)
-          .order('sort_order');
-        
-        if (error) {
-          console.error('Error loading weapon profiles:', error);
-          setEditWeaponProfiles([]);
-        } else {
-          setEditWeaponProfiles((profiles || []).map(toProfileInput));
-        }
-      } catch (error) {
-        console.error('Error loading weapon profiles:', error);
-        setEditWeaponProfiles([]);
-        }
-    } else {
-      setEditWeaponProfiles([]);
-    }
+    // Profiles shown under this weapon, including ones owned by the user's other items (ammo)
+    setEditWeaponProfiles(
+      equipment.equipment_type === 'weapon'
+        ? initialEquipment
+            .flatMap(item => item.custom_weapon_profiles ?? [])
+            .filter(profile => profile.weapon_group_id === equipment.id)
+            .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+            .map(toProfileInput)
+        : []
+    );
   };
 
   const handleEditEquipment = async (equipment: CustomEquipment) => {
@@ -551,17 +536,8 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
       // If it's a weapon, copy the weapon profiles
       let copiedProfileCount = 0;
       if (copyModalData.equipment_type === 'weapon') {
-        const { data: weaponProfiles, error: profilesError } = await supabase
-          .from('custom_weapon_profiles')
-          .select('*')
-          .eq('custom_equipment_id', copyModalData.id);
-
-        if (profilesError) {
-          console.error('Error fetching weapon profiles:', profilesError);
-          throw new Error('Failed to fetch weapon profiles for copying');
-        }
-
-        if (weaponProfiles && weaponProfiles.length > 0) {
+        const weaponProfiles = copyModalData.custom_weapon_profiles ?? [];
+        if (weaponProfiles.length > 0) {
           copiedProfileCount = weaponProfiles.length;
           // Profiles pointing at the source weapon must follow the copy; ones
           // pointing at another weapon (ammunition) keep their target.

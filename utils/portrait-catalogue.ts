@@ -18,16 +18,16 @@ export const PORTRAIT_CATALOGUES = {
     table: 'gang_portraits',
     bucket: 'gang-type-images',
     publicBase: `${PUBLIC_STORAGE_BASE}gang-type-images/`,
+    columns: 'id, storage_path, credit, group_label, style, label',
     queryKey: 'gang-portraits',
-    adminQueryKey: 'admin-gang-portraits',
     requiresCampaignType: false,
   },
   campaign: {
     table: 'campaign_portraits',
     bucket: 'campaign-type-images',
     publicBase: `${PUBLIC_STORAGE_BASE}campaign-type-images/`,
+    columns: 'id, storage_path, credit, style, campaign_type_id, campaign_types(campaign_type_name)',
     queryKey: 'campaign-portraits',
-    adminQueryKey: 'admin-campaign-portraits',
     requiresCampaignType: true,
   },
 } as const;
