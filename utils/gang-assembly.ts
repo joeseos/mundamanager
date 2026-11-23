@@ -207,6 +207,7 @@ function mapSkills(skillsData: any[], activeLoadoutEquipmentIds: Set<string> | n
         credits_increase: skillData.credits_increase || 0,
         xp_cost: skillData.xp_cost || 0,
         is_advance: skillData.is_advance || false,
+        is_default: skillData.is_default || false,
         custom_skill_id: skillData.custom_skill_id || undefined,
         fighter_injury_id: skillData.fighter_effect_id || undefined,
         injury_name: injuryName || undefined,

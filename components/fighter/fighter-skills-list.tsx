@@ -29,11 +29,9 @@ import { HiExclamationTriangle } from 'react-icons/hi2';
 import Link from 'next/link';
 import { hatredTargetHref } from '@/utils/injuryTarget';
 import {
-  buildN26ChampionLeaderDemotionSubtypes,
   buildN26GangerChampionDemotionSubtypes,
   buildN26ProspectDemotionSubtypes,
   isN26GangerChampionPromotionSkillGrant,
-  isN26LeaderPromotionSkillGrant,
   isN26ProspectPromotionSkillBlockedByHigherRank,
   isN26ProspectPromotionUndoCandidate,
   N26_PROSPECT_PROMOTION_CREDITS,
@@ -49,6 +47,7 @@ interface Skill {
   credits_increase: number;
   acquired_at: string;
   is_advance: boolean;
+  is_default: boolean;
   fighter_injury_id: string | null;
   injury_name?: string;
   granted_by_equipment_id?: string;
@@ -458,18 +457,9 @@ export function SkillsList({
         editionAllowsProspectPromotion,
       });
       // Optimistic only — server also verifies catalog type for demotion.
-      const isGangerChampionPromotionGrant = isN26GangerChampionPromotionSkillGrant(
-        fighterSubtypes,
-        null,
-        skillName
-      );
-      const isLeaderPromotionGrant = isN26LeaderPromotionSkillGrant(
-        fighterSubtypes,
-        null,
-        skillName
-      );
-      const isKeepTypePromotionGrant =
-        isProspectPromotionGrant || isGangerChampionPromotionGrant || isLeaderPromotionGrant;
+      const isGangerChampionPromotionGrant =
+        !skillData.is_default && isN26GangerChampionPromotionSkillGrant(fighterSubtypes, null, skillName);
+      const isKeepTypePromotionGrant = isProspectPromotionGrant || isGangerChampionPromotionGrant;
 
       // Stash refund only for normal purchased skills — not keep-type promotion grants.
       // Applied once the server confirms it: a free N26 Legendary Name is never refunded.
@@ -509,10 +499,6 @@ export function SkillsList({
         onFighterDetailsUpdate?.({
           fighter_subtypes: buildN26GangerChampionDemotionSubtypes(fighterSubtypes),
         });
-      } else if (isLeaderPromotionGrant) {
-        onFighterDetailsUpdate?.({
-          fighter_subtypes: buildN26ChampionLeaderDemotionSubtypes(fighterSubtypes),
-        });
       }
 
       return {
@@ -522,7 +508,6 @@ export function SkillsList({
         ratingCreditsRemoved,
         isProspectPromotionGrant,
         isGangerChampionPromotionGrant,
-        isLeaderPromotionGrant,
         previousFighterDetails,
       };
     },
@@ -534,9 +519,7 @@ export function SkillsList({
       if (result.fighter_details) {
         onFighterDetailsUpdate?.(result.fighter_details);
       } else if (
-        (context?.isProspectPromotionGrant ||
-          context?.isGangerChampionPromotionGrant ||
-          context?.isLeaderPromotionGrant) &&
+        (context?.isProspectPromotionGrant || context?.isGangerChampionPromotionGrant) &&
         context.previousFighterDetails
       ) {
         // Server did not demote (false-positive optimistic / starting type with Inspiring).
@@ -553,8 +536,6 @@ export function SkillsList({
         toast.success(`${context?.skillName} removed — Prospect promotion undone`);
       } else if (context?.isGangerChampionPromotionGrant && result.fighter_details) {
         toast.success(`${context?.skillName} removed — Champion promotion undone`);
-      } else if (context?.isLeaderPromotionGrant && result.fighter_details) {
-        toast.success(`${context?.skillName} removed — Leader promotion undone`);
       } else if (creditsRefunded > 0) {
         toast.success(`${context?.skillName} removed, ${creditsRefunded} credits refunded`);
       } else {
@@ -635,6 +616,7 @@ export function SkillsList({
       credits_increase: typedData.credits_increase,
       acquired_at: typedData.acquired_at,
       is_advance: typedData.is_advance ?? false,
+      is_default: typedData.is_default ?? false,
       fighter_injury_id: typedData.fighter_injury_id,
       injury_name: typedData.injury_name,
       granted_by_equipment_id: typedData.granted_by_equipment_id,
@@ -719,14 +701,14 @@ export function SkillsList({
                   </span>
                 );
               }
-              // N26 promotion grants
-              if (isN26LeaderPromotionSkillGrant(fighterSubtypes, null, item.name)) {
+              if (item.is_default) {
                 return (
                   <span className="text-muted-foreground text-sm italic whitespace-nowrap">
-                    Promotion: Leader
+                    Default
                   </span>
                 );
               }
+              // N26 promotion grants
               if (isN26GangerChampionPromotionSkillGrant(fighterSubtypes, null, item.name)) {
                 return (
                   <span className="text-muted-foreground text-sm italic whitespace-nowrap">

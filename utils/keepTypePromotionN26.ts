@@ -309,16 +309,6 @@ export function buildN26ChampionLeaderPromotionSubtypes(currentSubtypes: string[
   return next;
 }
 
-/**
- * Reverse of Champion→Leader subtypes: drop Leader, restore Champion.
- * Does not re-add Loner/Ganger/Prospect.
- */
-export function buildN26ChampionLeaderDemotionSubtypes(currentSubtypes: string[]): string[] {
-  const next = currentSubtypes.filter((s) => s !== 'Leader');
-  if (!next.includes('Champion')) next.push('Champion');
-  return next;
-}
-
 // --- Outcast Leader ----------------------------------------------------------
 
 /** Starting XP of an Outcast Leader, as on the gang's own Leader profiles. */
@@ -342,22 +332,5 @@ export function canPromoteToN26OutcastLeader(args: {
     args.owningGangTypeId === N26_UNDERHIVE_OUTCASTS_GANG_TYPE_ID &&
     args.fighterTypeGangTypeId === N26_HIRED_GUNS_GANG_TYPE_ID &&
     !args.subtypes.includes('Leader')
-  );
-}
-
-/**
- * True when deleting this skill should undo an N26 Champion→Leader promotion grant.
- * Requires Leader (no Champion) plus Inspiring. Server also verifies catalog type.
- */
-export function isN26LeaderPromotionSkillGrant(
-  currentSubtypes: string[] | null | undefined,
-  skillId: string | null | undefined,
-  skillName: string
-): boolean {
-  const subtypes = currentSubtypes ?? [];
-  if (!subtypes.includes('Leader') || subtypes.includes('Champion')) return false;
-  return (
-    skillId === N26_CHAMPION_PROMOTION_SKILL_ID ||
-    skillName === N26_CHAMPION_PROMOTION_SKILL_NAME
   );
 }

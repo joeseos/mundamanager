@@ -123,6 +123,8 @@ export type FighterSkills = Record<string, {
   credits_increase: number;
   xp_cost: number;
   is_advance: boolean;
+  /** One of the fighter type's Default Skills */
+  is_default?: boolean;
   acquired_at: string;
   fighter_injury_id?: string | null;
   injury_name?: string;

@@ -796,6 +796,20 @@ function rosterQuery(db: AppDb, gangId: string) {
               custom_skill_id: true,
               created_at: true,
             },
+            extras: (skill, { sql }) => ({
+              // One of the fighter type's Default Skills. Two lookups, as an OR across
+              // both type columns can't use the fighter_type_id index.
+              is_default: sql<boolean>`(
+                select exists (
+                  select 1 from fighter_defaults d
+                  where d.skill_id = ${skill.skill_id} and d.fighter_type_id = f.fighter_type_id
+                ) or (f.custom_fighter_type_id is not null and exists (
+                  select 1 from fighter_defaults d
+                  where d.skill_id = ${skill.skill_id} and d.custom_fighter_type_id = f.custom_fighter_type_id
+                ))
+                from fighters f where f.id = ${skill.fighter_id}
+              )`.as('is_default'),
+            }),
             with: {
               skill: { columns: { name: true } },
               custom_skill: { columns: { skill_name: true } },
