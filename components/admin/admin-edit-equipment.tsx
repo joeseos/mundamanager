@@ -117,6 +117,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
   const [coreEquipment, setCoreEquipment] = useState(false);
   const [isEditable, setIsEditable] = useState(false);
   const [isConsumable, setIsConsumable] = useState(false);
+  const [stashOnly, setStashOnly] = useState(false);
   const [grantsEquipment, setGrantsEquipment] = useState<EquipmentGrants | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [weaponProfiles, setWeaponProfiles] = useState<WeaponProfileInput[]>([emptyWeaponProfile(1)]);
@@ -219,6 +220,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       setCoreEquipment(false);
       setIsEditable(false);
       setIsConsumable(false);
+      setStashOnly(false);
       setGrantsEquipment(null);
       setWeaponProfiles([emptyWeaponProfile(1)]);
       setGangAdjustedCosts([]);
@@ -247,6 +249,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
       setCoreEquipment(equipmentDetails.core_equipment || false);
       setIsEditable(equipmentDetails.is_editable || false);
       setIsConsumable(equipmentDetails.is_consumable || false);
+      setStashOnly(equipmentDetails.stash_only || false);
 
       if (equipmentDetails.grants_equipment) {
         setGrantsEquipment(
@@ -584,6 +587,7 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
         edition_id: editionId || null,
         is_editable: isEditable,
         is_consumable: isConsumable,
+        stash_only: stashOnly,
         grants_equipment: normalizedGrantsEquipment,
         ...(equipmentType === 'weapon' ? { 
           weapon_profiles: weaponProfiles.map(profile => ({
@@ -977,6 +981,12 @@ export function AdminEditEquipmentModal({ onClose }: AdminEditEquipmentModalProp
                   description: 'Can be consumed by the fighter (e.g. chem-alchemy, Limited ammo).',
                   checked: isConsumable,
                   onChange: setIsConsumable,
+                },
+                {
+                  label: 'Gang Stash Only',
+                  description: 'Only bought into the gang stash, and stays there (e.g. the Trazior Pattern Sentry Gun).',
+                  checked: stashOnly,
+                  onChange: setStashOnly,
                 },
               ].filter(flag => !flag.hidden).map(flag => (
                 <div key={flag.label} className="col-span-1">

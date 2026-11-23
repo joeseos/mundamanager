@@ -83,6 +83,7 @@ interface RawEquipmentData {
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
   banned?: boolean;
+  stash_only?: boolean;
   min_count?: number | null;
   max_count?: number | null;
 }
@@ -179,6 +180,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
     equipmentListType === 'fighters-list' ? 'none' : showTradePoints ? 'tradePoints' : 'availability';
 
   const chargesTradePoints = showTradePoints && equipmentListType !== 'fighters-list';
+  const isStashPurchase = Boolean(isStashMode || (!fighterId && !vehicleId));
 
   const { purchaseEquipment } = usePurchaseEquipment({
     gangId,
@@ -568,10 +570,12 @@ const ItemModal: React.FC<ItemModalProps> = ({
                           filterEquipment(equipment[category])
                             .map((item, itemIndex) => {
                               const affordable = canAffordEquipment(item);
+                              const stashOnly = !!item.stash_only && !isStashPurchase;
+                              const unavailable = item.banned || stashOnly;
                               return (
                                 <div
                                   key={`${category}-${item.equipment_id}-${itemIndex}`}
-                                  className={`flex items-center justify-between w-full px-4 py-2 text-left gap-1 ${item.banned ? 'opacity-40 grayscale' : 'hover:bg-muted'}`}
+                                  className={`flex items-center justify-between w-full px-4 py-2 text-left gap-1 ${unavailable ? 'opacity-40 grayscale' : 'hover:bg-muted'}`}
                                 >
                                   <EquipmentTooltipTrigger
                                     item={item}
@@ -588,6 +592,11 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       {item.banned && (
                                         <Badge variant="destructive" className="px-1 text-[0.6rem]">
                                           Banned
+                                        </Badge>
+                                      )}
+                                      {stashOnly && (
+                                        <Badge variant="discreet" className="px-1 text-[0.6rem]">
+                                          Gang stash only
                                         </Badge>
                                       )}
                                       {item.is_custom && (
@@ -655,13 +664,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       </div>
                                     )}
                                     <Button
-                                      disabled={item.banned}
+                                      disabled={unavailable}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setBuyModalData(item);
                                       }}
                                       className={`text-white text-xs py-0.5 px-2 h-6 ${
-                                        item.banned
+                                        unavailable
                                           ? "bg-gray-500 cursor-not-allowed"
                                           : affordable
                                             ? "bg-green-500 hover:bg-green-600"
@@ -705,7 +714,7 @@ const ItemModal: React.FC<ItemModalProps> = ({
                     tradePoints,
                   })
                 }}
-                isStashPurchase={Boolean(isStashMode || (!fighterId && !vehicleId))}
+                isStashPurchase={isStashPurchase}
                 fighterId={fighterId}
                 fighterWeapons={fighterWeapons}
                 equipmentListType={equipmentListType}

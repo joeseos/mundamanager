@@ -75,7 +75,7 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
         purchase_cost,
         is_master_crafted,
         granted_by_equipment_id,
-        equipment:equipment_id (equipment_category),
+        equipment:equipment_id (equipment_category, stash_only),
         granted_fighters:fighter_exotic_beasts!fk_fighter_equipment_cascade (fighter_pet_id)
       `)
       .in('id', stashIds)
@@ -178,8 +178,9 @@ export async function moveEquipmentFromStash(params: MoveFromStashParams): Promi
       if (!stashData.equipment_id && !stashData.custom_equipment_id) {
         return { stash_id: item.stash_id, success: false, error: 'Item has neither equipment_id nor custom_equipment_id' };
       }
-      // An item that keeps its fighter in the stash (the Trazior Pattern Sentry Gun) stays there
-      if (!isBeastWargear((stashData as any).equipment?.equipment_category) && stashData.granted_fighters.length > 0) {
+      // A stash-only item, or one that keeps its fighter in the stash (the Trazior Pattern Sentry Gun), stays there
+      const equipment = (stashData as any).equipment;
+      if (equipment?.stash_only || (!isBeastWargear(equipment?.equipment_category) && stashData.granted_fighters.length > 0)) {
         return { stash_id: item.stash_id, success: false, error: 'This item stays in the gang stash' };
       }
 

@@ -143,6 +143,8 @@ export interface Equipment {
   cost_type_resource_id?: string | null;
   cost_campaign_resource_id?: string | null;
   banned?: boolean;
+  /** Only bought into the gang stash (equipment.stash_only) */
+  stash_only?: boolean;
   min_count?: number | null;
   max_count?: number | null;
   is_consumable?: boolean;

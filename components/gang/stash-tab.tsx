@@ -886,8 +886,8 @@ export default function GangInventory({
                       <Checkbox
                         checked={selectedItems.includes(index)}
                         onCheckedChange={(checked) => handleItemToggle(index, checked as boolean)}
-                        // Granted items move with the selected item that granted them
-                        disabled={selectedItems.some(i => stash[i].id === item.granted_by_equipment_id)}
+                        // A stash-only item never moves; granted items move with the selected item that granted them
+                        disabled={item.stash_only || selectedItems.some(i => stash[i].id === item.granted_by_equipment_id)}
                         className="mr-3"
                       />
                       <span className="grow overflow-hidden text-ellipsis">{getItemName(item)}</span>
@@ -1046,6 +1046,7 @@ export default function GangInventory({
               equipment_type: boughtEquipment.equipment_type,
               equipment_category: boughtEquipment.equipment_category,
               custom_equipment_id: boughtEquipment.is_custom ? boughtEquipment.equipment_id : undefined,
+              stash_only: boughtEquipment.stash_only,
               cost_resource: boughtEquipment.cost_resource_name ? {
                 name: boughtEquipment.cost_resource_name,
                 amount: boughtEquipment.cost_resource_amount ?? 0,

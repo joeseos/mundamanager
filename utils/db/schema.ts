@@ -357,6 +357,7 @@ export const equipment = pgTable('equipment', {
   is_consumable: boolean('is_consumable').default(false),
   edition_id: uuid('edition_id'),
   trade_points: text('trade_points').default(sql`'0'::text`).notNull(),
+  stash_only: boolean('stash_only').default(false).notNull(),
 });
 
 export const weaponProfiles = pgTable('weapon_profiles', {

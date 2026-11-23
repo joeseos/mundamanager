@@ -43,6 +43,8 @@ export interface StashItem {
   cost_resource?: { name: string; amount: number } | null;
   /** Set when the item came with another stash item, e.g. an Outrider Quad's weapon */
   granted_by_equipment_id?: string | null;
+  /** Only bought into the gang stash, and stays there */
+  stash_only?: boolean;
 }
 
 export interface DefaultImageCredit {

@@ -97,6 +97,8 @@ export interface GangStashItem {
   granted_by_equipment_id: string | null;
   /** The item comes with a fighter card (a beast, or the Trazior Pattern Sentry Gun's) */
   grants_fighter: boolean;
+  /** Only bought into the gang stash, and stays there */
+  stash_only: boolean;
 }
 
 export interface GangCampaignResource {
@@ -302,7 +304,7 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
         }),
         where: (item, { and, eq }) => and(eq(item.gang_id, gangId), eq(item.gang_stash, true)),
         with: {
-          equipment: { columns: equipmentColumns },
+          equipment: { columns: { ...equipmentColumns, stash_only: true } },
           custom_equipment: { columns: equipmentColumns },
           granted_fighters: { columns: { id: true } },
         },
@@ -320,7 +322,8 @@ export const getGangStash = async (gangId: string): Promise<GangStashItem[]> => 
         type: 'equipment' as const,
         cost_resource: item.cost_resource ?? null,
         granted_by_equipment_id: item.granted_by_equipment_id,
-        grants_fighter: item.granted_fighters.length > 0
+        grants_fighter: item.granted_fighters.length > 0,
+        stash_only: item.equipment?.stash_only ?? false
       }));
     },
     [`gang-stash-v3-${gangId}`],

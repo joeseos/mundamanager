@@ -644,6 +644,7 @@ export async function PATCH(request: Request) {
       core_equipment,
       is_editable,
       is_consumable,
+      stash_only,
       weapon_profiles,
       fighter_type_grants,
       gang_adjusted_costs,
@@ -678,6 +679,7 @@ export async function PATCH(request: Request) {
         grants_equipment: grants_equipment || null,
         is_editable,
         is_consumable: is_consumable ?? false,
+        stash_only: stash_only ?? false,
         edition_id: edition_id || null,
         updated_at: new Date().toISOString()
       })
