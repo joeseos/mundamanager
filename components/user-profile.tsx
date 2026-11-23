@@ -69,6 +69,7 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
     skills: byEdition(customAssets.skills),
     collections: byEdition(customAssets.collections),
   };
+  const assetProps = { editionSlug, readOnly, userId: currentUserId, userCampaigns };
   const editionGangs = byEdition(gangs);
   const editionCampaigns = byEdition(campaigns);
   const editionAssetCount = Object.values(editionAssets).reduce(
@@ -243,10 +244,7 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
               {editionAssets.gangTypes.length > 0 && (
                 <CustomiseGangTypes
                   initialGangTypes={editionAssets.gangTypes}
-                  editionSlug={editionSlug}
-                  readOnly={readOnly}
-                  userId={currentUserId}
-                  userCampaigns={userCampaigns}
+                  {...assetProps}
                 />
               )}
 
@@ -254,10 +252,7 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
               {editionAssets.tradingPosts.length > 0 && (
                 <CustomiseTradingPosts
                   initialTradingPosts={editionAssets.tradingPosts}
-                  editionSlug={editionSlug}
-                  readOnly={readOnly}
-                  userId={currentUserId}
-                  userCampaigns={userCampaigns}
+                  {...assetProps}
                 />
               )}
 
@@ -265,10 +260,7 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
               {editionAssets.equipment.length > 0 && (
                 <CustomiseEquipment
                   initialEquipment={editionAssets.equipment}
-                  editionSlug={editionSlug}
-                  readOnly={readOnly}
-                  userId={currentUserId}
-                  userCampaigns={userCampaigns}
+                  {...assetProps}
                 />
               )}
 
@@ -276,8 +268,7 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
               {editionAssets.fighters.length > 0 && (
                 <CustomiseFighters
                   initialFighters={editionAssets.fighters}
-                  editionSlug={editionSlug}
-                  readOnly={readOnly}
+                  {...assetProps}
                 />
               )}
 
@@ -285,10 +276,7 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
               {editionAssets.skills.length > 0 && (
                 <CustomiseSkills
                   initialSkills={editionAssets.skills}
-                  editionSlug={editionSlug}
-                  readOnly={readOnly}
-                  userId={currentUserId}
-                  userCampaigns={userCampaigns}
+                  {...assetProps}
                 />
               )}
 
@@ -296,10 +284,7 @@ export default function UserProfile({ profile, gangs, campaigns, customAssets, c
               {editionAssets.collections.length > 0 && (
                 <CustomiseCollections
                   initialCollections={editionAssets.collections}
-                  editionSlug={editionSlug}
-                  readOnly={readOnly}
-                  userId={currentUserId}
-                  userCampaigns={userCampaigns}
+                  {...assetProps}
                 />
               )}
             </div>
