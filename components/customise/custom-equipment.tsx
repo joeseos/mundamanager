@@ -116,7 +116,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
 
   // View shows the profiles grouped under the weapon (including ammunition); Copy takes the item's own
   const profilesItem = viewModalData ?? copyModalData;
-  const { data: weaponProfiles = NO_PROFILES, isLoading: weaponProfilesLoading } = useQuery({
+  const { data: weaponProfiles = NO_PROFILES, isLoading: weaponProfilesLoading, isError: weaponProfilesFailed } = useQuery({
     queryKey: ['custom-weapon-profiles', profilesItem?.id],
     queryFn: async () => {
       const response = await fetch(`/api/custom-equipment/${profilesItem!.id}/weapon-profiles`);
@@ -962,7 +962,7 @@ export function CustomiseEquipment({ className, initialEquipment = [], readOnly 
           onClose={() => setCopyModalData(null)}
           onConfirm={handleCopyModalConfirm}
           confirmText="Copy Custom Asset"
-          confirmDisabled={weaponProfilesLoading}
+          confirmDisabled={weaponProfilesLoading || weaponProfilesFailed}
         />
       )}
 
