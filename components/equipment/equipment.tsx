@@ -232,12 +232,14 @@ const ItemModal: React.FC<ItemModalProps> = ({
 
   const queryClient = useQueryClient();
   const { data: equipment = NO_EQUIPMENT, error: equipmentError } = useQuery({
-    queryKey: ['available-equipment', gangId, equipmentQuery],
+    queryKey: ['available-equipment', gangId, equipmentQuery, isStashPurchase],
     queryFn: async () => {
       const response = await fetch(`/api/gangs/${gangId}/available-equipment?${equipmentQuery}`);
       if (!response.ok) throw new Error('Failed to load equipment categories');
       const data: RawEquipmentData[] = await response.json();
-      return groupEquipmentByCategory(data, equipmentListType === 'fighters-tradingpost' && includesFightersList);
+      // A fighter or vehicle never sees items only bought into the gang stash
+      const buyable = isStashPurchase ? data : data.filter((item) => !item.stash_only);
+      return groupEquipmentByCategory(buyable, equipmentListType === 'fighters-tradingpost' && includesFightersList);
     },
     enabled: !missingTypeError,
   });
@@ -570,12 +572,10 @@ const ItemModal: React.FC<ItemModalProps> = ({
                           filterEquipment(equipment[category])
                             .map((item, itemIndex) => {
                               const affordable = canAffordEquipment(item);
-                              const stashOnly = !!item.stash_only && !isStashPurchase;
-                              const unavailable = item.banned || stashOnly;
                               return (
                                 <div
                                   key={`${category}-${item.equipment_id}-${itemIndex}`}
-                                  className={`flex items-center justify-between w-full px-4 py-2 text-left gap-1 ${unavailable ? 'opacity-40 grayscale' : 'hover:bg-muted'}`}
+                                  className={`flex items-center justify-between w-full px-4 py-2 text-left gap-1 ${item.banned ? 'opacity-40 grayscale' : 'hover:bg-muted'}`}
                                 >
                                   <EquipmentTooltipTrigger
                                     item={item}
@@ -592,11 +592,6 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       {item.banned && (
                                         <Badge variant="destructive" className="px-1 text-[0.6rem]">
                                           Banned
-                                        </Badge>
-                                      )}
-                                      {stashOnly && (
-                                        <Badge variant="discreet" className="px-1 text-[0.6rem]">
-                                          Gang stash only
                                         </Badge>
                                       )}
                                       {item.is_custom && (
@@ -664,13 +659,13 @@ const ItemModal: React.FC<ItemModalProps> = ({
                                       </div>
                                     )}
                                     <Button
-                                      disabled={unavailable}
+                                      disabled={item.banned}
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setBuyModalData(item);
                                       }}
                                       className={`text-white text-xs py-0.5 px-2 h-6 ${
-                                        unavailable
+                                        item.banned
                                           ? "bg-gray-500 cursor-not-allowed"
                                           : affordable
                                             ? "bg-green-500 hover:bg-green-600"
