@@ -823,7 +823,6 @@ export function InjuriesList({
       } else {
         daringEscape();
       }
-      setCapturedOutcome('');
       return true;
     } else if (requiresCaptured) {
       // Captured injuries mark the fighter as Captured and optionally record the capturing gang.

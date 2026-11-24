@@ -590,8 +590,6 @@ export function VehicleDamagesList({
       } else {
         if (addFormOnly) onRequestClose?.();
         daringEscape();
-        setSelectedDamageId('');
-        setCapturedOutcome('');
       }
       return true;
     }
