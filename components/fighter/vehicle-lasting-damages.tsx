@@ -13,7 +13,9 @@ import {
   resolveVehicleDamageRangeByNameFor,
   vehicleRepairModelFor,
   resolveVehicleRepairFromUtil,
+  capturedOutcomeTableFor,
 } from '@/utils/dice';
+import { CapturedOutcomePicker, useDaringEscape } from '@/components/fighter/captured-outcome-picker';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
 import { addVehicleDamage, verifyAndLogRolledVehicleDamage } from '@/app/actions/add-vehicle-damage';
@@ -97,6 +99,7 @@ export function VehicleDamagesList({
   // By row id, not name: two instances of one damage are repaired separately
   const [selectedRepairIds, setSelectedRepairIds] = useState<string[]>([]);
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
+  const [capturedOutcome, setCapturedOutcome] = useState<string>('');
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
@@ -300,6 +303,7 @@ export function VehicleDamagesList({
       setSelectedHatredTargetId('');
       setSelectedHatredGangId('');
       setSelectedCapturingGangId('');
+      setCapturedOutcome('');
       setIsAddModalOpen(false);
       if (addFormOnly) onRequestClose?.();
     },
@@ -493,10 +497,16 @@ export function VehicleDamagesList({
 
   // Gang types are global, so an Eternal Enmity needs no campaign data at all.
   const selectedRequiresCaptured = selectedDamage?.type_specific_data?.captured === 'true';
+  const capturedOutcomeTable = isFighterScoped ? capturedOutcomeTableFor(editionSlug) : null;
+  const needsCapturedOutcome = selectedRequiresCaptured && capturedOutcomeTable !== null;
+  // Only a Ransomed vehicle stays captured, so only then is there a captor to name.
+  const showsCapturingGang =
+    selectedRequiresCaptured && (!needsCapturedOutcome || capturedOutcome === 'Ransomed');
+  const addDamageBlocked = !selectedDamageId || (needsCapturedOutcome && !capturedOutcome);
   const needsCampaignGangPicker =
     isFighterScoped &&
     campaignIds.length > 0 &&
-    (selectedRequiresCaptured ||
+    (showsCapturingGang ||
       selectedHatredTarget === 'gang' ||
       selectedHatredTarget === 'fighter');
 
@@ -526,7 +536,10 @@ export function VehicleDamagesList({
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
     setSelectedDamageId('');
+    setCapturedOutcome('');
   }, []);
+
+  const daringEscape = useDaringEscape(fighterId, fighterRecovery, () => onFighterStatusUpdate?.({ recovery: true }));
 
   const handleAddDamage = async () => {
     if (!selectedDamageId) {
@@ -553,6 +566,34 @@ export function VehicleDamagesList({
     if (hatredKind && hatredSelectable && !selectedHatredTargetId) {
       toast.error(`Please select the target for ${damageName}`);
       return false;
+    }
+
+    if (needsCapturedOutcome && capturedOutcome !== 'Ransomed') {
+      // Executed is destroyed like the D66 table's 66; a Daring Escape adds no damage.
+      if (capturedOutcome === 'Executed') {
+        const destroyed = availableDamages.find(
+          (d: any) => d.effect_name === resolveVehicleDamageFor(66, editionSlug)?.name
+        );
+        if (!destroyed) {
+          toast.error("This vehicle's destroyed result was not found");
+          return false;
+        }
+        if (addFormOnly) onRequestClose?.();
+        addDamageMutation.mutate({
+          vehicleId,
+          fighterId,
+          gangId,
+          damageId: destroyed.id,
+          damageName: destroyed.effect_name,
+          setKilled: true
+        });
+      } else {
+        if (addFormOnly) onRequestClose?.();
+        daringEscape();
+        setSelectedDamageId('');
+        setCapturedOutcome('');
+      }
+      return true;
     }
 
     // Recovery is the player's call, as it is for lasting injuries: ask before
@@ -725,7 +766,10 @@ export function VehicleDamagesList({
         </label>
         <Combobox
           value={selectedDamageId}
-          onValueChange={(value) => setSelectedDamageId(value)}
+          onValueChange={(value) => {
+            setSelectedDamageId(value);
+            setCapturedOutcome('');
+          }}
           placeholder={isLoadingDamages && availableDamages.length === 0
             ? "Loading damages..."
             : "Select a Lasting Damage"
@@ -767,7 +811,16 @@ export function VehicleDamagesList({
         </div>
       )}
 
-      {isFighterScoped && selectedRequiresCaptured && campaignGangs.length > 0 && (
+      {capturedOutcomeTable && selectedRequiresCaptured && (
+        <CapturedOutcomePicker
+          table={capturedOutcomeTable}
+          value={capturedOutcome}
+          onChange={setCapturedOutcome}
+          disabled={!userPermissions.canEdit}
+        />
+      )}
+
+      {isFighterScoped && showsCapturingGang && campaignGangs.length > 0 && (
         <div className="space-y-2 pt-3 border-t">
           <label className="text-sm font-medium">Captured by</label>
           <Combobox
@@ -840,7 +893,7 @@ export function VehicleDamagesList({
           </Button>
           <Button
             onClick={() => void handleAddDamage()}
-            disabled={!selectedDamageId || addDamageMutation.isPending}
+            disabled={addDamageBlocked || addDamageMutation.isPending}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
           >
             Add Lasting Damage
@@ -936,7 +989,7 @@ export function VehicleDamagesList({
           onClose={handleCloseModal}
           onConfirm={handleAddDamage}
           confirmText="Add Lasting Damage"
-          confirmDisabled={!selectedDamageId || addDamageMutation.isPending}
+          confirmDisabled={addDamageBlocked || addDamageMutation.isPending}
         />
       )}
 

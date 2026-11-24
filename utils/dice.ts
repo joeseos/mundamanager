@@ -172,6 +172,29 @@ export const LASTING_INJURY_TABLE_N26: TableEntry[] = [
 ];
 
 // ============================================================================
+// Captured follow-up - D6 table, rolled after a Captured lasting injury or damage
+// ============================================================================
+
+// N26: what the captors do with the model. Executed is the D66 table's 66 result,
+// Ransomed keeps the Captured result, Daring Escape sends the model to Recovery.
+const CAPTURED_OUTCOME_TABLE_N26: TableEntry[] = [
+  { range: [1, 1], name: 'Executed' },
+  { range: [2, 4], name: 'Ransomed' },
+  { range: [5, 6], name: 'Daring Escape' },
+];
+
+const CAPTURED_OUTCOME_BY_EDITION: Record<EditionSlug, TableEntry[] | null> = {
+  n23: null,
+  n26: CAPTURED_OUTCOME_TABLE_N26,
+};
+
+/** The Captured follow-up table, or null where Captured needs no second roll. */
+export const capturedOutcomeTableFor = (
+  editionSlug: string | null | undefined,
+): TableEntry[] | null =>
+  (editionSlug && CAPTURED_OUTCOME_BY_EDITION[editionSlug as EditionSlug]) || null;
+
+// ============================================================================
 // Medical Escort (N26 Post-cycle Action) - D6 table and resolver
 // ============================================================================
 
