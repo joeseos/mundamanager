@@ -7,10 +7,13 @@ import DiceRoller from '@/components/dice-roller';
 import { rollNd6Outcome } from '@/utils/dice';
 import type { ScenarioTableEntry } from '@/types/campaign';
 
+/** Only what the picker reads, so any short D6 table can use it. */
+type PickerEntry = Pick<ScenarioTableEntry, 'id' | 'name' | 'd6_min' | 'd6_max'>;
+
 interface ScenarioEntryPickerProps {
   label: string;
   /** One table's entries, in printed order. */
-  entries: ScenarioTableEntry[];
+  entries: PickerEntry[];
   value: string;
   onChange: (entryId: string) => void;
   /**
@@ -80,7 +83,7 @@ export function ScenarioEntryPicker({
           clearable
           disabled={disabled}
         />
-        <DiceRoller<ScenarioTableEntry>
+        <DiceRoller<PickerEntry>
           items={entries}
           getRange={(entry) => ({ min: entry.d6_min, max: entry.d6_max })}
           getName={(entry) => entry.name}
