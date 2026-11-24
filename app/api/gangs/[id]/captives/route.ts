@@ -47,6 +47,7 @@ export async function GET(
       fighterId: f.id,
       fighterName: f.fighter_name,
       fighterType: f.fighter_type ?? undefined,
+      originalGangId: f.gang_id,
       originalGangName: gangNameMap.get(f.gang_id) ?? 'Unknown'
     }));
 
