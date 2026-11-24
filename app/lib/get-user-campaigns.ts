@@ -85,7 +85,7 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
     },
-    [`user-campaigns-v4-${userId}`],
+    [`user-campaigns-v3-${userId}`],
     {
       tags: [TAGS.user(userId), TAGS.globalCampaignPortraits()],
       revalidate: false

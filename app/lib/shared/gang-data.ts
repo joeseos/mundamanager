@@ -954,7 +954,7 @@ export const getUserProfile = async (userId: string): Promise<{
       });
       return profile ?? null;
     },
-    [`user-profile-v4-${userId}`],
+    [`user-profile-v3-${userId}`],
     {
       tags: [TAGS.user(userId)],
       revalidate: false
