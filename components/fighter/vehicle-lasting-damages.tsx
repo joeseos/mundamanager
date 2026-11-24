@@ -496,7 +496,8 @@ export function VehicleDamagesList({
 
   // Gang types are global, so an Eternal Enmity needs no campaign data at all.
   const selectedRequiresCaptured = selectedDamage?.type_specific_data?.captured === 'true';
-  const captured = useCapturedOutcome(editionSlug, selectedDamageId, selectedRequiresCaptured);
+  // Only a fighter-scoped vehicle can be captured as a model
+  const captured = useCapturedOutcome(isFighterScoped ? editionSlug : null, selectedDamageId, selectedRequiresCaptured);
   const needsCampaignGangPicker =
     isFighterScoped &&
     campaignIds.length > 0 &&
