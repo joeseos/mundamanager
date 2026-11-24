@@ -19,7 +19,7 @@ import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
 import { rollD66Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor, EXECUTED_D66_ROLL } from '@/utils/dice';
-import { useCapturedOutcome, useDaringEscape } from '@/hooks/use-captured-outcome';
+import { capturedOutcomeFields, useDaringEscape } from '@/hooks/use-captured-outcome';
 import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { requiredHatredTarget, injuryAggregationLabel, type HatredTargetKind } from '@/utils/injuryTarget';
@@ -121,6 +121,7 @@ export function InjuriesList({
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
+  const [capturedOutcome, setCapturedOutcome] = useState<string>('');
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the fighter list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
@@ -140,7 +141,7 @@ export function InjuriesList({
     return typeSpecificData.captured === "true";
   }, [selectedInjury]);
 
-  const captured = useCapturedOutcome(editionSlug, selectedInjuryId, selectedInjuryRequiresCaptured);
+  const captured = capturedOutcomeFields(editionSlug, selectedInjuryRequiresCaptured, capturedOutcome);
 
   const hasCapturedInjury = useMemo(
     () => fighterCaptured || injuries.some(injury => injury.effect_name === 'Captured'),
@@ -689,6 +690,7 @@ export function InjuriesList({
   const selectRolledInjury = (injury: FighterEffect) => {
     setSelectedInjuryId(injury.id);
     setSelectedInjury(injury);
+    setCapturedOutcome('');
   };
   
   // Persists a resolved dice roll to the backend for auditing / verification.
@@ -727,6 +729,7 @@ export function InjuriesList({
     setSelectedInjuryId('');
     setSelectedInjury(null);
     setSelectedCapturingGangId('');
+    setCapturedOutcome('');
     setSelectedHatredTargetId('');
     setSelectedHatredGangId('');
   }, []);
@@ -998,6 +1001,7 @@ export function InjuriesList({
           onValueChange={(value) => {
             setSelectedInjuryId(value);
             setSelectedCapturingGangId('');
+            setCapturedOutcome('');
             setSelectedHatredTargetId('');
             setSelectedHatredGangId('');
             if (value) {
@@ -1082,8 +1086,8 @@ export function InjuriesList({
         <ScenarioEntryPicker
           label="Captured result"
           entries={captured.entries}
-          value={captured.outcome ?? ''}
-          onChange={captured.setOutcome}
+          value={captured.outcome}
+          onChange={setCapturedOutcome}
           placeholder="Select a Captured result"
           disabled={!userPermissions.canEdit}
         />

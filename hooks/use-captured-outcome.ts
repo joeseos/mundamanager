@@ -1,24 +1,20 @@
 'use client';
 
-import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { capturedOutcomeTableFor, type CapturedOutcome } from '@/utils/dice';
 import { editFighterStatus } from '@/app/actions/edit-fighter';
 
 /**
- * The D6 rolled after a Captured result, for editions that roll one. The
- * outcome belongs to the selected injury or damage, so picking another clears it.
+ * What the form shows for the D6 rolled after a Captured result, for editions
+ * that roll one. The outcome itself is form state, reset with the selection.
  */
-export function useCapturedOutcome(
+export function capturedOutcomeFields(
   editionSlug: string | null | undefined,
-  selectedId: string,
-  requiresCaptured: boolean
+  requiresCaptured: boolean,
+  outcome: string
 ) {
-  const [picked, setPicked] = useState<{ forId: string; outcome: CapturedOutcome } | null>(null);
   const table = requiresCaptured ? capturedOutcomeTableFor(editionSlug) : null;
-  const outcome = table && picked?.forId === selectedId ? picked.outcome : null;
-
   return {
     /** Entries for ScenarioEntryPicker, or null when no roll is due. */
     entries: table?.map((entry) => ({
@@ -27,10 +23,8 @@ export function useCapturedOutcome(
       d6_min: entry.range[0],
       d6_max: entry.range[1],
     })) ?? null,
-    outcome,
-    setOutcome: (name: string) =>
-      setPicked(name ? { forId: selectedId, outcome: name as CapturedOutcome } : null),
-    missing: table !== null && outcome === null,
+    outcome: table ? (outcome as CapturedOutcome | '') : '',
+    missing: table !== null && !outcome,
     // Only a Ransomed model stays captured, so only then is there a captor to name.
     showsCaptor: requiresCaptured && (table === null || outcome === 'Ransomed'),
   };

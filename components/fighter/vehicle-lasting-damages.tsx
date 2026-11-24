@@ -15,7 +15,7 @@ import {
   resolveVehicleRepairFromUtil,
   EXECUTED_D66_ROLL,
 } from '@/utils/dice';
-import { useCapturedOutcome, useDaringEscape } from '@/hooks/use-captured-outcome';
+import { capturedOutcomeFields, useDaringEscape } from '@/hooks/use-captured-outcome';
 import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
 import { UserPermissions } from '@/types/user-permissions';
 import { LuTrash2 } from 'react-icons/lu';
@@ -100,6 +100,7 @@ export function VehicleDamagesList({
   // By row id, not name: two instances of one damage are repaired separately
   const [selectedRepairIds, setSelectedRepairIds] = useState<string[]>([]);
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
+  const [capturedOutcome, setCapturedOutcome] = useState<string>('');
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
@@ -303,6 +304,7 @@ export function VehicleDamagesList({
       setSelectedHatredTargetId('');
       setSelectedHatredGangId('');
       setSelectedCapturingGangId('');
+      setCapturedOutcome('');
       setIsAddModalOpen(false);
       if (addFormOnly) onRequestClose?.();
     },
@@ -497,7 +499,7 @@ export function VehicleDamagesList({
   // Gang types are global, so an Eternal Enmity needs no campaign data at all.
   const selectedRequiresCaptured = selectedDamage?.type_specific_data?.captured === 'true';
   // Only a fighter-scoped vehicle can be captured as a model
-  const captured = useCapturedOutcome(isFighterScoped ? editionSlug : null, selectedDamageId, selectedRequiresCaptured);
+  const captured = capturedOutcomeFields(isFighterScoped ? editionSlug : null, selectedRequiresCaptured, capturedOutcome);
   const needsCampaignGangPicker =
     isFighterScoped &&
     campaignIds.length > 0 &&
@@ -531,6 +533,7 @@ export function VehicleDamagesList({
   const handleCloseModal = useCallback(() => {
     setIsAddModalOpen(false);
     setSelectedDamageId('');
+    setCapturedOutcome('');
   }, []);
 
   const daringEscape = useDaringEscape(fighterId, fighterRecovery, () => onFighterStatusUpdate?.({ recovery: true }));
@@ -707,6 +710,7 @@ export function VehicleDamagesList({
     const match = availableDamages.find((d: any) => d.effect_name === entry.name);
     if (!match) return;
     setSelectedDamageId(match.id);
+    setCapturedOutcome('');
     logResolvedDamageRollWithCooldown(match, roll);
     toast(`Roll ${roll}: ${match.effect_name}`);
   };
@@ -745,7 +749,10 @@ export function VehicleDamagesList({
         </label>
         <Combobox
           value={selectedDamageId}
-          onValueChange={(value) => setSelectedDamageId(value)}
+          onValueChange={(value) => {
+            setSelectedDamageId(value);
+            setCapturedOutcome('');
+          }}
           placeholder={isLoadingDamages && availableDamages.length === 0
             ? "Loading damages..."
             : "Select a Lasting Damage"
@@ -792,8 +799,8 @@ export function VehicleDamagesList({
           <ScenarioEntryPicker
             label="Captured result"
             entries={captured.entries}
-            value={captured.outcome ?? ''}
-            onChange={captured.setOutcome}
+            value={captured.outcome}
+            onChange={setCapturedOutcome}
             placeholder="Select a Captured result"
             disabled={!userPermissions.canEdit}
           />
