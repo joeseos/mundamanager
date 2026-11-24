@@ -2581,7 +2581,7 @@ $$;
 -- Name: get_equipment_detailed_data(uuid, text, uuid, boolean, boolean, uuid, uuid, uuid, uuid[], uuid[], boolean); Type: FUNCTION; Schema: public; Owner: -
 --
 
-CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[], include_legacy boolean DEFAULT true) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean, min_count integer, max_count integer)
+CREATE FUNCTION public.get_equipment_detailed_data(gang_type_id uuid DEFAULT NULL::uuid, equipment_category text DEFAULT NULL::text, fighter_type_id uuid DEFAULT NULL::uuid, fighter_type_equipment boolean DEFAULT NULL::boolean, equipment_tradingpost boolean DEFAULT NULL::boolean, fighter_id uuid DEFAULT NULL::uuid, only_equipment_id uuid DEFAULT NULL::uuid, gang_id uuid DEFAULT NULL::uuid, campaign_trading_post_type_ids uuid[] DEFAULT NULL::uuid[], campaign_custom_trading_post_ids uuid[] DEFAULT NULL::uuid[], include_legacy boolean DEFAULT true) RETURNS TABLE(id uuid, equipment_name text, availability text, base_cost numeric, adjusted_cost numeric, trade_points text, equipment_category text, equipment_type text, created_at timestamp with time zone, fighter_type_equipment boolean, equipment_tradingpost boolean, is_custom boolean, weapon_profiles jsonb, vehicle_upgrade_slot text, grants_equipment jsonb, is_editable boolean, trading_post_names text[], cost_resource_name text, cost_resource_amount numeric, cost_type_resource_id uuid, cost_campaign_resource_id uuid, banned boolean, stash_only boolean, min_count integer, max_count integer)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO 'public'
     AS $_$
@@ -6315,7 +6315,8 @@ CREATE TABLE public.equipment (
     grants_equipment jsonb,
     is_consumable boolean DEFAULT false,
     edition_id uuid,
-    trade_points text DEFAULT '0'::text NOT NULL
+    trade_points text DEFAULT '0'::text NOT NULL,
+    stash_only boolean DEFAULT false NOT NULL
 );
 
 
@@ -6338,6 +6339,13 @@ COMMENT ON COLUMN public.equipment.core_equipment IS 'If the equipment is a weap
 --
 
 COMMENT ON COLUMN public.equipment.trade_points IS 'N26 Trade Points cost (text: numeric string or E). Surfaced/charged only for N26 gangs.';
+
+
+--
+-- Name: COLUMN equipment.stash_only; Type: COMMENT; Schema: public; Owner: -
+--
+
+COMMENT ON COLUMN public.equipment.stash_only IS 'Only bought into the gang stash, and stays there: never bought for or moved to a fighter or vehicle.';
 
 
 --
