@@ -18,7 +18,9 @@ import {
 import { updateFighterDetails } from '@/app/actions/edit-fighter';
 import { LuTrash2 } from 'react-icons/lu';
 import DiceRoller from '@/components/dice-roller';
-import { rollD66Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor } from '@/utils/dice';
+import { rollD66Outcome, resolveInjuryFor, resolveInjuryRangeByNameFor, EXECUTED_D66_ROLL } from '@/utils/dice';
+import { capturedOutcomeFields, useDaringEscape } from '@/hooks/use-captured-outcome';
+import { ScenarioEntryPicker } from '@/components/scenario-entry-picker';
 import { lastingInjuryRankFor } from '@/utils/lastingInjuryRank';
 import { requiredHatredTarget, injuryAggregationLabel, type HatredTargetKind } from '@/utils/injuryTarget';
 import { InjuryHatredTargetPicker } from '@/components/fighter/injury-hatred-target-picker';
@@ -119,6 +121,7 @@ export function InjuriesList({
   const [isEffectSelectionValid, setIsEffectSelectionValid] = useState(false);
   const [injuryRollCooldown, setInjuryRollCooldown] = useState(false);
   const [selectedCapturingGangId, setSelectedCapturingGangId] = useState<string>('');
+  const [capturedOutcome, setCapturedOutcome] = useState<string>('');
   const [selectedHatredTargetId, setSelectedHatredTargetId] = useState<string>('');
   // First step of the fighter picker only — narrows the fighter list, never submitted.
   const [selectedHatredGangId, setSelectedHatredGangId] = useState<string>('');
@@ -137,6 +140,8 @@ export function InjuriesList({
       : {};
     return typeSpecificData.captured === "true";
   }, [selectedInjury]);
+
+  const captured = capturedOutcomeFields(editionSlug, selectedInjuryRequiresCaptured, capturedOutcome);
 
   const hasCapturedInjury = useMemo(
     () => fighterCaptured || injuries.some(injury => injury.effect_name === 'Captured'),
@@ -606,6 +611,8 @@ export function InjuriesList({
     },
   });
 
+  const daringEscape = useDaringEscape(fighterId, fighterRecovery, () => onInjuryUpdate?.(injuries, true));
+
   // TanStack Query mutation for logging rolled injury results
   const logInjuryRollMutation = useMutation({
     mutationFn: async (variables: { 
@@ -683,6 +690,7 @@ export function InjuriesList({
   const selectRolledInjury = (injury: FighterEffect) => {
     setSelectedInjuryId(injury.id);
     setSelectedInjury(injury);
+    setCapturedOutcome('');
   };
   
   // Persists a resolved dice roll to the backend for auditing / verification.
@@ -721,6 +729,7 @@ export function InjuriesList({
     setSelectedInjuryId('');
     setSelectedInjury(null);
     setSelectedCapturingGangId('');
+    setCapturedOutcome('');
     setSelectedHatredTargetId('');
     setSelectedHatredGangId('');
   }, []);
@@ -739,8 +748,17 @@ export function InjuriesList({
       return false;
     }
 
-    // Find the selected injury object
-    const injury = localAvailableInjuries.find(injury => injury.id === selectedInjuryId);
+    if (captured.outcome === 'Daring Escape') {
+      setIsAddModalOpen(false);
+      if (addFormOnly) onRequestClose?.();
+      daringEscape();
+      return true;
+    }
+
+    // Find the selected injury object; Executed adds the death in its place
+    const injury = captured.outcome === 'Executed'
+      ? localAvailableInjuries.find(i => i.effect_name === resolveInjuryFor(EXECUTED_D66_ROLL, editionSlug, injuryTableOpts)?.name)
+      : localAvailableInjuries.find(i => i.id === selectedInjuryId);
     if (!injury) {
       toast.error("Selected lasting injury not found");
       return false;
@@ -794,7 +812,7 @@ export function InjuriesList({
       if (addFormOnly) onRequestClose?.();
       addInjuryMutation.mutate({
         fighter_id: fighterId,
-        injury_type_id: selectedInjuryId,
+        injury_type_id: injury.id,
         send_to_recovery: false,
         set_killed: requiresKilled,
         set_captured: true,
@@ -815,7 +833,7 @@ export function InjuriesList({
       if (addFormOnly) onRequestClose?.();
       addInjuryMutation.mutate({
         fighter_id: fighterId,
-        injury_type_id: selectedInjuryId,
+        injury_type_id: injury.id,
         send_to_recovery: false,
         set_killed: requiresKilled,
         set_captured: false,
@@ -983,6 +1001,7 @@ export function InjuriesList({
           onValueChange={(value) => {
             setSelectedInjuryId(value);
             setSelectedCapturingGangId('');
+            setCapturedOutcome('');
             setSelectedHatredTargetId('');
             setSelectedHatredGangId('');
             if (value) {
@@ -1063,7 +1082,17 @@ export function InjuriesList({
           ])}
         />
       </div>
-      {selectedInjuryRequiresCaptured && campaignIds.length > 0 && (
+      {captured.entries && (
+        <ScenarioEntryPicker
+          label="Captured result"
+          entries={captured.entries}
+          value={captured.outcome}
+          onChange={setCapturedOutcome}
+          placeholder="Select a Captured result"
+          disabled={!userPermissions.canEdit}
+        />
+      )}
+      {captured.showsCaptor && campaignIds.length > 0 && (
         <div>
           <label className="block text-sm font-medium text-muted-foreground mb-1">
             Captured by
@@ -1110,7 +1139,7 @@ export function InjuriesList({
           </Button>
           <Button
             onClick={() => void handleAddInjury()}
-            disabled={!selectedInjuryId || addInjuryMutation.isPending || addInjuryBlockedByHatredTarget}
+            disabled={!selectedInjuryId || addInjuryMutation.isPending || addInjuryBlockedByHatredTarget || captured.missing}
             className="bg-neutral-900 hover:bg-gray-800 text-white"
           >
             {is_spyrer ? "Add Rig Glitch" : "Add Lasting Injury"}
@@ -1247,7 +1276,7 @@ export function InjuriesList({
           onClose={handleCloseModal}
           onConfirm={handleAddInjury}
           confirmText={is_spyrer ? "Add Rig Glitch" : "Add Lasting Injury"}
-          confirmDisabled={!selectedInjuryId || addInjuryMutation.isPending || addInjuryBlockedByHatredTarget}
+          confirmDisabled={!selectedInjuryId || addInjuryMutation.isPending || addInjuryBlockedByHatredTarget || captured.missing}
         />
       )}
 
