@@ -20,6 +20,7 @@ import {
   type ScenarioTableWithEntries,
 } from '@/types/campaign';
 import type { ScenarioParts } from '@/utils/scenario-parts';
+import type { Gang } from '@/app/lib/get-user-gangs';
 
 export interface CampaignGang {
   id: string;
@@ -33,7 +34,7 @@ interface Opponent {
   userId: string;
   username: string;
   gangId: string;
-  gangName: string;
+  gangName: string | null;
 }
 
 export default function CreateBattleModal({
@@ -121,23 +122,16 @@ export default function CreateBattleModal({
     : myGangs.find((g) => g.id === selectedMyGangId)?.name;
 
   const { data: selectedUserGangs, isLoading: loadingGangs } = useQuery({
-    queryKey: ['user', selectedUser?.id],
+    queryKey: ['user-gangs', selectedUser?.id],
     queryFn: async () => {
-      const response = await fetch(`/api/users/${selectedUser!.id}`);
+      const response = await fetch(`/api/users/${selectedUser!.id}/gangs`);
       if (!response.ok) {
-        throw new Error('Failed to fetch user data');
+        throw new Error('Failed to fetch user gangs');
       }
-      return response.json() as Promise<{
-        gangs: {
-          id: string;
-          name: string;
-          rating: number;
-          edition_slug?: string | null;
-        }[];
-      }>;
+      return response.json() as Promise<Pick<Gang, 'id' | 'name' | 'rating' | 'edition_slug'>[]>;
     },
-    select: (data) => data.gangs,
     enabled: !!selectedUser,
+    meta: { errorMessage: 'Failed to load gangs' },
     // Opponents' gang lists change outside this client; refetch on every modal open
     staleTime: 0,
   });

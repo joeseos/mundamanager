@@ -9,11 +9,13 @@ export type Campaign = {
   id: string;
   campaign_member_id: string;
   campaign_name: string | null;
+  status: string | null;
   campaign_type: string;
   campaign_type_id: string | null;
   created_at: string;
   updated_at: string | null;
   role?: string;
+  joined_at: string | null;
   image_url: string;
   campaign_type_image_url: string;
   campaign_portrait_url: string | null;
@@ -29,11 +31,14 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
     async () => {
       const members = await getAppDb().query.campaignMembers.findMany({
         columns: { id: true, role: true, is_favourite: true, favourite_order: true },
+        extras: (member, { sql }) => ({
+          joined_at: sql<string | null>`to_json(${member.joined_at})`.as('joined_at'),
+        }),
         where: (member, { eq }) => eq(member.user_id, userId),
         orderBy: (member, { asc }) => [asc(member.created_at), asc(member.id)],
         with: {
           campaign: {
-            columns: { id: true, campaign_name: true, campaign_type_id: true, image_url: true, created_at: true, updated_at: true },
+            columns: { id: true, campaign_name: true, status: true, campaign_type_id: true, image_url: true, created_at: true, updated_at: true },
             with: {
               campaign_type: {
                 columns: { campaign_type_name: true, image_url: true },
@@ -59,11 +64,13 @@ export const getUserCampaigns = async (userId: string): Promise<Campaign[]> => {
           id: campaign.id,
           campaign_member_id: member.id,
           campaign_name: campaign.campaign_name,
+          status: campaign.status,
           campaign_type: campaign_type?.campaign_type_name || '',
           campaign_type_id: campaign.campaign_type_id,
           created_at: campaign.created_at,
           updated_at: campaign.updated_at,
           role: member.role || '',
+          joined_at: member.joined_at,
           image_url: campaign.image_url || '',
           campaign_type_image_url: campaign_type?.image_url || '',
           campaign_portrait_url: campaignPortraitPublicUrl(campaign.campaign_portrait?.storage_path) ?? null,
