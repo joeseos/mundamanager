@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { createClient } from "@/utils/supabase/client";
 import { 
   FighterEffectType, 
   FighterEffectTypeModifier 

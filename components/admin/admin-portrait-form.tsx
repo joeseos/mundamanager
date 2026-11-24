@@ -204,9 +204,9 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
     const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(null);
 
     const { data: portraits = [], isLoading } = useQuery<Portrait[]>({
-      queryKey: [config.adminQueryKey],
+      queryKey: [config.queryKey],
       queryFn: async () => {
-        const response = await fetch(`/api/admin/portraits/${catalogue}`);
+        const response = await fetch(`/api/portraits/${catalogue}`);
         if (!response.ok) throw new Error('Failed to fetch portraits');
         return response.json();
       },
@@ -347,9 +347,8 @@ export const AdminPortraitForm = forwardRef<PortraitFormHandle, AdminPortraitFor
     };
 
     const refreshPortraits = useCallback(async () => {
-      await queryClient.invalidateQueries({ queryKey: [config.adminQueryKey] });
       await queryClient.invalidateQueries({ queryKey: [config.queryKey] });
-    }, [config.adminQueryKey, config.queryKey, queryClient]);
+    }, [config.queryKey, queryClient]);
 
     const handleSave = useCallback(async () => {
       if (!metadataValid || isBusy) return;

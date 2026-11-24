@@ -9,13 +9,8 @@ import {
   toCampaignPortrait,
   toPortrait,
   validatePortraitWrite,
-  type Portrait,
   type PortraitCatalogueKey,
 } from "@/utils/portrait-catalogue";
-
-const GANG_COLUMNS = 'id, storage_path, credit, group_label, style, label';
-const CAMPAIGN_COLUMNS =
-  'id, storage_path, credit, style, campaign_type_id, campaign_types(campaign_type_name)';
 
 const INVALIDATE = {
   gang: invalidateGangPortraits,
@@ -65,26 +60,6 @@ function rejected(result: { error: unknown }): NextResponse | null {
   return constraintResponse(result.error) ?? null;
 }
 
-async function listPortraits(supabase: Supabase, catalogue: PortraitCatalogueKey): Promise<Portrait[]> {
-  const config = PORTRAIT_CATALOGUES[catalogue];
-  if (config.requiresCampaignType) {
-    const { data, error } = await supabase
-      .from(config.table)
-      .select(CAMPAIGN_COLUMNS)
-      .order('storage_path');
-    if (error) throw error;
-    return (data ?? []).map((row) => toCampaignPortrait(row));
-  }
-
-  const { data, error } = await supabase
-    .from(config.table)
-    .select(GANG_COLUMNS)
-    .order('group_label', { ascending: true })
-    .order('label', { ascending: true, nullsFirst: true });
-  if (error) throw error;
-  return (data ?? []).map((row) => toPortrait(row));
-}
-
 async function insertPortrait(
   supabase: Supabase,
   catalogue: PortraitCatalogueKey,
@@ -99,7 +74,7 @@ async function insertPortrait(
     const created = await supabase
       .from(config.table)
       .insert(validated.data)
-      .select(CAMPAIGN_COLUMNS)
+      .select(config.columns)
       .single();
     const constraint = rejected(created);
     if (constraint) return constraint;
@@ -114,7 +89,7 @@ async function insertPortrait(
   const created = await supabase
     .from(config.table)
     .insert(validated.data)
-    .select(GANG_COLUMNS)
+    .select(config.columns)
     .single();
   const constraint = rejected(created);
   if (constraint) return constraint;
@@ -138,7 +113,7 @@ async function updatePortrait(
       .from(config.table)
       .update(validated.data)
       .eq('id', id)
-      .select(CAMPAIGN_COLUMNS)
+      .select(config.columns)
       .maybeSingle();
     const constraint = rejected(updated);
     if (constraint) return constraint;
@@ -157,7 +132,7 @@ async function updatePortrait(
     .from(config.table)
     .update(validated.data)
     .eq('id', id)
-    .select(GANG_COLUMNS)
+    .select(config.columns)
     .maybeSingle();
   const constraint = rejected(updated);
   if (constraint) return constraint;
@@ -166,28 +141,6 @@ async function updatePortrait(
     return NextResponse.json({ error: 'Portrait not found' }, { status: 404 });
   }
   return NextResponse.json(toPortrait(updated.data));
-}
-
-export async function GET(_request: Request, props: RouteProps) {
-  const catalogue = await catalogueKey(props);
-  if (!catalogue) return NextResponse.json({ error: 'Unknown portrait catalogue' }, { status: 404 });
-
-  const supabase = await createClient();
-
-  try {
-    const isAdmin = await checkAdmin(supabase);
-    if (!isAdmin) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    return NextResponse.json(await listPortraits(supabase, catalogue));
-  } catch (error) {
-    console.error('Error fetching portraits:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch portraits' },
-      { status: 500 }
-    );
-  }
 }
 
 export async function POST(request: Request, props: RouteProps) {

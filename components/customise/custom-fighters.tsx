@@ -440,13 +440,9 @@ export function CustomiseFighters({ className, initialFighters, userId, userCamp
   const { data: skillsInSet = NO_SKILLS } = useQuery({
     queryKey: ['skills', selectedSkillType],
     queryFn: async () => {
-      const { createClient } = await import('@/utils/supabase/client');
-      const { data, error } = await createClient()
-        .from('skills')
-        .select('id, name')
-        .eq('skill_type_id', selectedSkillType)
-        .order('name');
-      if (error) throw error;
+      const res = await fetch(`/api/skills?${new URLSearchParams({ skill_type_id: selectedSkillType })}`);
+      if (!res.ok) throw new Error('Failed to fetch skills');
+      const data: { id: string; name: string }[] = await res.json();
       return data.map(skill => ({ id: skill.id, skill_name: skill.name }));
     },
     enabled: !!selectedSkillType,
