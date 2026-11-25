@@ -88,13 +88,9 @@ const DOC_DISCOUNTS: Record<string, Partial<Record<PostCycleActionId, number>>> 
   'forge patcher': { fit_bionics: 20 },
 };
 
-/**
- * The Rogue Doc's rule, matched on the rule itself so any fighter who has it
- * counts, like Doctor Arachnos hired as a Rogue Doc.
- */
+// Patch-up, by rule so Doctor Arachnos hired as a Rogue Doc counts too.
 const PATCH_UP_DISCOUNT = 50;
 
-/** Users type the rule as Patch-up, Patch-Up or Patch Up. */
 const hasPatchUp = (fighter: PostCycleFighter): boolean =>
   fighter.special_rules?.some((rule) => rule.toLowerCase().replace(/[\s-]/g, '') === 'patchup') ?? false;
 
