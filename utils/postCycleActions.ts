@@ -88,7 +88,7 @@ const DOC_DISCOUNTS: Record<string, Partial<Record<PostCycleActionId, number>>> 
   'forge patcher': { fit_bionics: 20 },
 };
 
-// Patch-up, by rule so Doctor Arachnos hired as a Rogue Doc counts too.
+// The Patch-up rule grants both Doc actions.
 const PATCH_UP_DISCOUNT = 50;
 
 const hasPatchUp = (fighter: PostCycleFighter): boolean =>
