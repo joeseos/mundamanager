@@ -27,7 +27,7 @@ const inter = Inter({
 // Metadata constants
 const SITE_TITLE = "Munda Manager";
 const SITE_DESCRIPTION = "Gang & Campaign management tool for Necromunda";
-const SITE_IMAGE = '/images/favicon-192x192.png';
+const SITE_IMAGE = '/images/favicon-192x192.png?v=2';
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
@@ -61,7 +61,6 @@ export const metadata = {
         url: SITE_IMAGE,
         width: 192,
         height: 192,
-        alt: SITE_TITLE,
       },
     ],
     locale: 'en_GB',
