@@ -66,7 +66,7 @@ function MarkerToggleButton({
 
 // ---------------------------------------------------------------------------
 // Weapon conditions — Out of Ammo on a weapon (N23) or weapon profile (N26),
-// Jammed on a whole weapon (N26)
+// Jammed on a weapon profile (N26)
 // ---------------------------------------------------------------------------
 
 type WeaponTarget = Required<Pick<LiveBattleCondition, 'fighter_weapon_id' | 'target_name'>> &
@@ -272,13 +272,13 @@ export default function FighterActionModal({
 
   const currentConditions = fighter.live_battle_record?.conditions ?? [];
 
-  // Out of Ammo is on a weapon (N23) or a weapon profile (N26), Jammed on a whole
-  // weapon; one entry each. A fighter with no weapon to offer keeps the plain toggle.
+  // Out of Ammo is on a weapon (N23) or a weapon profile (N26), Jammed (N26 only)
+  // on a weapon profile; one entry each. A fighter with no weapon to offer keeps the plain toggle.
   const ammoPerProfile = isOutOfAmmoPerProfile(editionSlug);
   const fighterWeapons = gangFighter?.weapons ?? [];
   const weaponConditions: Record<string, { perProfile: boolean; weapons: TargetWeapon[] }> = {
     out_of_ammo: { perProfile: ammoPerProfile, weapons: targetWeapons(fighterWeapons, ammoPerProfile, hasAmmoRoll) },
-    jammed: { perProfile: false, weapons: targetWeapons(fighterWeapons, false, isRangedProfile) },
+    jammed: { perProfile: true, weapons: targetWeapons(fighterWeapons, true, isRangedProfile) },
   };
   const entriesFor = (key: string) => draftConditions.filter((c) => c.key === key);
   const setWeaponTargets = (condition: LiveBattleMarkerDef, targets: WeaponTarget[]) =>
