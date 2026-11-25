@@ -272,8 +272,9 @@ export default function FighterActionModal({
 
   const currentConditions = fighter.live_battle_record?.conditions ?? [];
 
-  // Out of Ammo is on a weapon (N23) or a weapon profile (N26), Jammed (N26 only)
-  // on a weapon profile; one entry each. A fighter with no weapon to offer keeps the plain toggle.
+  // One entry per marked weapon or profile: Out of Ammo marks a weapon (N23) or a
+  // profile (N26), Jammed (N26 only) a profile. A fighter with no weapon to offer
+  // keeps the plain toggle.
   const ammoPerProfile = isOutOfAmmoPerProfile(editionSlug);
   const fighterWeapons = gangFighter?.weapons ?? [];
   const weaponConditions: Record<string, { perProfile: boolean; weapons: TargetWeapon[] }> = {
