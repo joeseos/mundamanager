@@ -27,7 +27,7 @@ const inter = Inter({
 // Metadata constants
 const SITE_TITLE = "Munda Manager";
 const SITE_DESCRIPTION = "Gang & Campaign management tool for Necromunda";
-const SITE_IMAGE = '/images/favicon-192x192.png';
+const SITE_IMAGE = '/images/favicon-192x192.png?v=2';
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
@@ -58,7 +58,7 @@ export const metadata = {
     siteName: SITE_TITLE,
     images: [
       {
-        url: `${SITE_IMAGE}?v=2`,
+        url: SITE_IMAGE,
         width: 192,
         height: 192,
       },
@@ -95,7 +95,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.className}`} suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/site.webmanifest?v=2" />
+        <link rel="manifest" href="/site.webmanifest" />
         <link rel="preload" as="image" href="https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif" fetchPriority="high" />
         <WebsiteStructuredData />
         <OrganizationStructuredData />
