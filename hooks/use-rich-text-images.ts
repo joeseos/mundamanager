@@ -199,7 +199,7 @@ export function useRichTextImages({
             .upload(filePath, resizedBlob, {
               upsert: true,
               contentType: 'image/webp',
-              cacheControl: 'no-cache',
+              cacheControl: '31536000',
             });
 
           if (uploadError) throw uploadError;
@@ -337,7 +337,7 @@ export function useRichTextImages({
           .upload(finalPath, draft.blob, {
             upsert: true,
             contentType: 'image/webp',
-            cacheControl: 'no-cache',
+            cacheControl: '31536000',
           });
         if (uploadError) throw uploadError;
 

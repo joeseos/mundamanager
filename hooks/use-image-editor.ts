@@ -119,7 +119,7 @@ export const useImageEditor = ({
         .upload(filePath, compressedBlob, {
           upsert: true,
           contentType: 'image/webp',
-          cacheControl: 'no-cache',
+          cacheControl: '31536000',
         });
 
       if (uploadError) {
