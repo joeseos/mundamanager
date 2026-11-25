@@ -8,6 +8,7 @@ import {
 } from "@/app/lib/campaigns/[id]/get-campaign-data";
 import { getGangCore } from "@/app/lib/shared/gang-data";
 import { publicDataOptions, publicDataResponse } from "@/utils/public-data-response";
+import { battleStatusOf, type BattleStatus } from "@/types/campaign";
 
 export const OPTIONS = publicDataOptions;
 
@@ -61,6 +62,11 @@ interface DataBattle {
   territory_id: string | null;
   territory_is_custom: boolean;
   territory_name?: string;
+  cycle: number | null;
+  /** `played` for a filed battle; any `challenge_*` status is a challenge that has not been played. */
+  status: BattleStatus;
+  challenger_gang_id: string | null;
+  challenged_gang_id: string | null;
   attacker?: { id: string; name: string };
   defender?: { id: string; name: string };
   /**
@@ -162,7 +168,11 @@ function transformBattleForData(battle: any): DataBattle {
     campaign_territory_id: battle.campaign_territory_id || null,
     territory_id: null,
     territory_is_custom: false,
-    territory_name: battle.territory_name
+    territory_name: battle.territory_name,
+    cycle: battle.cycle,
+    status: battleStatusOf(battle),
+    challenger_gang_id: battle.challenger_gang_id,
+    challenged_gang_id: battle.challenged_gang_id
   };
 
   // Gang references already have clean field names from data layer
