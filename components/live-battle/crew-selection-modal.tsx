@@ -346,7 +346,9 @@ export default function CrewSelectionModal({
       if (removedEntries.length > 0) {
         setSelected((prev) => {
           const next = new Map(prev);
-          for (const [id, loadoutId] of removedEntries) next.set(id, loadoutId);
+          for (const [id, loadoutId] of removedEntries) {
+            if (!next.has(id)) next.set(id, loadoutId);
+          }
           return next;
         });
       }
@@ -358,7 +360,7 @@ export default function CrewSelectionModal({
   };
 
   const toggle = (fighter: GangFighterOption) => {
-    if (isBeast(fighter)) return;
+    if (isBeast(fighter) || pendingRecoveryIdsRef.current.has(fighter.id)) return;
     setSelected((prev) => {
       const next = new Map(prev);
       const currentLoadout = next.get(fighter.id);
@@ -530,7 +532,7 @@ export default function CrewSelectionModal({
                     checked={isSelected}
                     onCheckedChange={() => toggle(f)}
                     className="mr-3"
-                    disabled={disabled}
+                    disabled={disabled || recoveryPending}
                   />
                   <div className="grow min-w-0">
                     <div className={`flex items-center gap-1 flex-wrap ${disabled ? (beast ? 'text-muted-foreground' : 'text-neutral-500 dark:text-neutral-400') : ''}`}>

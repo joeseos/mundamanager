@@ -219,7 +219,7 @@ export function isStatusIncompatible(
     case 'recovery':
       // Can't send to recovery if already killed, enslaved, retired, or captured
       // But can always recover (toggle off)
-      return !!(fighter.killed || fighter.enslaved || fighter.retired || fighter.captured);
+      return !fighter.recovery && !!(fighter.killed || fighter.enslaved || fighter.retired || fighter.captured);
     
     default:
       return false;
