@@ -122,9 +122,13 @@ const OWN_RULE_ACTIONS: Record<string, readonly PostCycleActionId[]> = {
 };
 
 const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): boolean =>
-  (OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false) ||
-  // The Connected skill opens Visit Trading Post to any fighter who has it.
-  (action === 'visit_trading_post' && fighter.skills?.Connected !== undefined);
+  OWN_RULE_ACTIONS[fighter.fighter_type?.toLowerCase() ?? '']?.includes(action) ?? false;
+
+/** The Connected skill: one more Visit Trading Post for 1 Trade Point, besides the model's own action. */
+export const CONNECTED_TRADE_POINTS = 1;
+
+export const canMakeConnectedVisit = (fighter: PostCycleFighter): boolean =>
+  canActInPostCycle(fighter) && fighter.skills?.Connected !== undefined;
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
@@ -490,6 +494,8 @@ export type PostCycleAssignment =
   | { fighterId: string; action: 'enhance_weapon'; weaponId: string; upgradeId: string }
   /** Each pick spends SUIT_EVOLUTION_KILL_COST; the action repeats while the Kill Count allows. */
   | { fighterId: string; action: 'suit_evolution'; picks: SuitEvolutionPick[] }
+  /** Connected's extra visit, made besides the model's own action. */
+  | { fighterId: string; action: 'visit_trading_post'; connected: true }
   | {
       fighterId: string;
       action: Exclude<
@@ -541,6 +547,9 @@ export function validatePostCycleAssignment(
 
   const label = performer.fighter_name;
 
+  if (assignment.action === 'visit_trading_post' && 'connected' in assignment) {
+    return canMakeConnectedVisit(performer) ? [] : [`${label} cannot make a Connected visit.`];
+  }
   if (!canPerformPostCycleAction(performer, assignment.action, availability)) {
     issues.push(`${label} cannot perform ${POST_CYCLE_ACTIONS[assignment.action].label}.`);
   }

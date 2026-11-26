@@ -21,6 +21,7 @@ import { repairVehicleDamage } from './remove-vehicle-damage';
 import { logPostCycleAction } from './logs/gang-post-cycle-logs';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
+  CONNECTED_TRADE_POINTS,
   ENHANCE_WEAPON_COST,
   ENHANCE_WEAPON_EQUIPMENT_ID,
   SUIT_EVOLUTION_KILL_COST,
@@ -570,7 +571,9 @@ async function runHandler(
     case 'suit_maintenance':
       return handleSuitMaintenance(ctx);
     case 'visit_trading_post':
-      return { outcome: '', creditsDelta: 0, tradePointsDelta: tradingPostTradePoints(ctx.performer) };
+      return 'connected' in assignment
+        ? { outcome: 'Used Connected.', creditsDelta: 0, tradePointsDelta: CONNECTED_TRADE_POINTS }
+        : { outcome: '', creditsDelta: 0, tradePointsDelta: tradingPostTradePoints(ctx.performer) };
     // The rest move their flat credits, if any, and leave a log line; anything
     // else they do is applied elsewhere on the page or by hand.
     default:
