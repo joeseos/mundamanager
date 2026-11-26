@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import Modal from '@/components/ui/modal';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CounterButton } from '@/components/ui/counter';
@@ -9,11 +10,15 @@ import { IoSkull } from 'react-icons/io5';
 import { MdChair } from 'react-icons/md';
 import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
 import { TbMeatOff } from 'react-icons/tb';
-import { FaMedkit } from 'react-icons/fa';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { FaMedkit, FaRegAddressCard } from 'react-icons/fa';
+import { countsTowardRating, isStatusIncompatible } from '@/utils/fighter-status';
 import { shuffle } from '@/utils/dice';
 import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
+import { editFighterStatus } from '@/app/actions/edit-fighter';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { hasSpyrerRecovery } from '@/types/edition';
+import type { GangFighter } from '@/types/gang';
+import FighterCardOverlay from '@/components/live-battle/fighter-card-overlay';
 
 interface GangFighterOption {
   id: string;
@@ -113,23 +118,38 @@ export interface FighterEntry {
 interface CrewSelectionModalProps {
   gangId: string;
   gangFighters: GangFighterOption[];
+  gangFightersList: GangFighter[];
   selectedFighters: Map<string, string | undefined>;
   editionSlug?: string | null;
   /** Mid-battle: the current crew stays locked and only remaining fighters can be added. */
   reinforcements?: boolean;
   loading: boolean;
   onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => Promise<boolean> | void;
+  onRecoveryChange: (fighterId: string, recovery: boolean) => void;
   onClose: () => void;
+}
+
+const ACTION_ICON_MUTED =
+  'p-0 bg-transparent border-0 inline-flex size-6 items-center justify-center text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200';
+const ACTION_ICON_DISABLED = 'p-0 bg-transparent border-0 inline-flex size-6 items-center justify-center text-muted-foreground/20 cursor-not-allowed';
+const ACTION_ICON_RECOVERY =
+  'p-0 bg-transparent border-0 inline-flex size-6 items-center justify-center text-blue-500 hover:text-blue-400 cursor-pointer transition-colors duration-200';
+
+function findFullFighter(list: GangFighter[], fighterId: string, loadoutId?: string): GangFighter | undefined {
+  return list.find((gf) => gf.id === fighterId && gf.active_loadout_id === (loadoutId ?? undefined))
+    ?? list.find((gf) => gf.id === fighterId);
 }
 
 export default function CrewSelectionModal({
   gangId,
   gangFighters,
+  gangFightersList,
   selectedFighters,
   editionSlug,
   reinforcements = false,
   loading,
   onConfirm,
+  onRecoveryChange,
   onClose,
 }: CrewSelectionModalProps) {
   // The crew when the modal opened; only fighters outside it can be added.
@@ -156,6 +176,9 @@ export default function CrewSelectionModal({
   const [randomCount, setRandomCount] = useState(0);
   const [randomlySelected, setRandomlySelected] = useState<Set<string>>(new Set());
   const [rolling, setRolling] = useState(false);
+  const pendingRecoveryIdsRef = useRef(new Set<string>());
+  const [pendingRecoveryIds, setPendingRecoveryIds] = useState<Set<string>>(new Set());
+  const [preview, setPreview] = useState<{ id: string; loadoutId?: string } | null>(null);
   const queryClient = useQueryClient();
   const gangLogsQueryKey = ['logs', `/api/gangs/${gangId}/logs`] as const;
   const logCrewRollMutation = useMutation({
@@ -283,6 +306,57 @@ export default function CrewSelectionModal({
   const isDisabled = (f: GangFighterOption) =>
     isBeast(f) || !isAvailable(f) || lockedIds.has(f.id);
 
+  const handleRecoveryToggle = async (fighter: GangFighterOption) => {
+    if (pendingRecoveryIdsRef.current.has(fighter.id) || isStatusIncompatible(fighter, 'recovery')) return;
+    pendingRecoveryIdsRef.current.add(fighter.id);
+    setPendingRecoveryIds(new Set(pendingRecoveryIdsRef.current));
+
+    const prevRecovery = !!fighter.recovery;
+    const nextRecovery = !prevRecovery;
+    const removedEntries: [string, string | undefined][] = [];
+    if (nextRecovery && selected.has(fighter.id) && !lockedIds.has(fighter.id)) {
+      removedEntries.push([fighter.id, selected.get(fighter.id)]);
+      for (const beast of getBeastsForOwner(fighter.id)) {
+        if (selected.has(beast.id)) {
+          removedEntries.push([beast.id, selected.get(beast.id)]);
+        }
+      }
+    }
+
+    onRecoveryChange(fighter.id, nextRecovery);
+
+    if (removedEntries.length > 0) {
+      setSelected((prev) => {
+        const next = new Map(prev);
+        for (const [id] of removedEntries) next.delete(id);
+        return next;
+      });
+    }
+
+    try {
+      const result = await editFighterStatus({ fighter_id: fighter.id, action: 'recover' });
+      if (!result.success) throw new Error(result.error || 'Failed to update recovery');
+      toast.success(
+        prevRecovery
+          ? 'Fighter has been recovered from the recovery bay'
+          : 'Fighter has been sent to the recovery bay'
+      );
+    } catch (error) {
+      onRecoveryChange(fighter.id, prevRecovery);
+      if (removedEntries.length > 0) {
+        setSelected((prev) => {
+          const next = new Map(prev);
+          for (const [id, loadoutId] of removedEntries) next.set(id, loadoutId);
+          return next;
+        });
+      }
+      toast.error(error instanceof Error ? error.message : 'Failed to update recovery');
+    } finally {
+      pendingRecoveryIdsRef.current.delete(fighter.id);
+      setPendingRecoveryIds(new Set(pendingRecoveryIdsRef.current));
+    }
+  };
+
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
     setSelected((prev) => {
@@ -332,6 +406,8 @@ export default function CrewSelectionModal({
 
     // Reinforcements only ever add: the crew already in the battle is never changed or removed.
     Array.from(selected.entries()).forEach(([fighterId, loadoutId]) => {
+      const fighter = gangFighters.find((gf) => gf.id === fighterId);
+      if (fighter && !isAvailable(fighter)) return;
       if (!selectedFighters.has(fighterId)) {
         toAdd.push({ fighter_id: fighterId, loadout_id: loadoutId });
       } else if (!reinforcements && selectedFighters.get(fighterId) !== loadoutId) {
@@ -354,6 +430,10 @@ export default function CrewSelectionModal({
   const totalValue = gangFighters
     .filter((f) => selected.has(f.id) && selected.get(f.id) === f.loadout_id)
     .reduce((sum, f) => sum + f.credits, 0);
+
+  const previewFighter = preview
+    ? findFullFighter(gangFightersList, preview.id, preview.loadoutId)
+    : undefined;
 
   return (
     <Modal
@@ -424,6 +504,7 @@ export default function CrewSelectionModal({
             {inQuotaMode && <div className="mr-3 w-4" />}
             <div className="grow">Name</div>
             <div className="text-right">Value</div>
+            <div className="ml-2 w-14 text-right shrink-0 whitespace-nowrap">Actions</div>
           </div>
           {sortedFighters.map((entry, idx) => {
             const f = entry.fighter;
@@ -434,57 +515,110 @@ export default function CrewSelectionModal({
             const displayName = beast && f.owner_id ? `— ${f.fighter_name}` : f.fighter_name;
             const fighterDetails = formatFighterDetails(f, editionSlug);
             const disabled = isDisabled(f);
+            const recoveryPending = pendingRecoveryIds.has(f.id);
+            const recoveryIncompatible = isStatusIncompatible(f, 'recovery');
+            const recoveryDisabled = recoveryPending || recoveryIncompatible;
+            const fullFighter = findFullFighter(gangFightersList, f.id, f.loadout_id);
+            const showRecovery = !fullFighter?.is_spyrer || hasSpyrerRecovery(editionSlug);
             return (
-              <label
+              <div
                 key={`${idx}:${f.id}:${f.loadout_id ?? ''}`}
                 className={getFighterRowClass(f, beast, disabled)}
               >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => toggle(f)}
-                  className="mr-3"
-                  disabled={disabled}
-                />
-                <div className="grow min-w-0">
-                  <div className={`flex items-center gap-1 flex-wrap ${disabled ? (beast ? 'text-muted-foreground' : 'text-neutral-500 dark:text-neutral-400') : ''}`}>
-                    {f.label && (
-                      <span className={`inline-flex shrink-0 items-center rounded-sm px-1 text-xs font-bold font-mono uppercase border ${
-                        disabled
-                          ? 'bg-neutral-100 border-neutral-300 text-neutral-500 dark:bg-neutral-800 dark:border-neutral-600 dark:text-neutral-400'
-                          : 'bg-card border-border text-foreground'
-                      }`}>
-                        {f.label}
-                      </span>
-                    )}
-                    <span>
-                      {displayName}
-                      {f.loadout_name && (
-                        <span className={disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}>
-                          {' '}[{f.loadout_name}]
+                <label className="flex items-center grow min-w-0">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => toggle(f)}
+                    className="mr-3"
+                    disabled={disabled}
+                  />
+                  <div className="grow min-w-0">
+                    <div className={`flex items-center gap-1 flex-wrap ${disabled ? (beast ? 'text-muted-foreground' : 'text-neutral-500 dark:text-neutral-400') : ''}`}>
+                      {f.label && (
+                        <span className={`inline-flex shrink-0 items-center rounded-sm px-1 text-xs font-bold font-mono uppercase border ${
+                          disabled
+                            ? 'bg-neutral-100 border-neutral-300 text-neutral-500 dark:bg-neutral-800 dark:border-neutral-600 dark:text-neutral-400'
+                            : 'bg-card border-border text-foreground'
+                        }`}>
+                          {f.label}
                         </span>
                       )}
-                    </span>
-                    {f.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
-                    {f.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
-                    {f.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
-                    {f.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
-                    {f.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
-                    {f.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
-                  </div>
-                  {fighterDetails && (
-                    <div className={`text-xs ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
-                      {fighterDetails}
+                      <span className="text-sm md:text-base">
+                        {displayName}
+                        {f.loadout_name && (
+                          <span className={disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}>
+                            {' '}[{f.loadout_name}]
+                          </span>
+                        )}
+                      </span>
+                      {f.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
+                      {f.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
+                      {f.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
+                      {f.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
+                      {f.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
+                      {f.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
                     </div>
+                    {fighterDetails && (
+                      <div className={`text-xs ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
+                        {fighterDetails}
+                      </div>
+                    )}
+                  </div>
+                  <span className={`text-sm text-right whitespace-nowrap ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
+                    {f.credits === 0 ? '*' : f.credits}
+                  </span>
+                </label>
+                <div className="ml-2 flex items-center justify-end gap-1 shrink-0 w-14">
+                  {showRecovery ? (
+                    <button
+                      type="button"
+                      className={recoveryDisabled ? ACTION_ICON_DISABLED : f.recovery ? ACTION_ICON_RECOVERY : ACTION_ICON_MUTED}
+                      title={
+                        recoveryIncompatible
+                          ? 'Cannot send to recovery: fighter is killed, enslaved, retired, or captured'
+                          : f.recovery
+                            ? 'Recover fighter'
+                            : 'Send to recovery'
+                      }
+                      disabled={recoveryDisabled}
+                      aria-label={f.recovery ? 'Recover fighter' : 'Send to recovery'}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void handleRecoveryToggle(f);
+                      }}
+                    >
+                      <FaMedkit className="size-5" />
+                    </button>
+                  ) : (
+                    <span className="size-6" aria-hidden />
+                  )}
+                  {fullFighter ? (
+                    <button
+                      type="button"
+                      className={ACTION_ICON_MUTED}
+                      title="View fighter card"
+                      aria-label="View fighter card"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreview({ id: f.id, loadoutId: f.loadout_id });
+                      }}
+                    >
+                      <FaRegAddressCard className="size-6" />
+                    </button>
+                  ) : (
+                    <span className="size-6" aria-hidden />
                   )}
                 </div>
-                <span className={`text-right whitespace-nowrap ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
-                  {f.credits === 0 ? '*' : f.credits}
-                </span>
-              </label>
+              </div>
             );
           })}
           </div>
         </div>
+      )}
+      {previewFighter && (
+        <FighterCardOverlay fighter={previewFighter} onClose={() => setPreview(null)} />
       )}
     </Modal>
   );

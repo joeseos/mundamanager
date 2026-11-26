@@ -22,8 +22,8 @@ import {
   markerName,
 } from '@/components/live-battle/live-battle-markers';
 import FighterActionModal from '@/components/live-battle/fighter-action-modal';
+import FighterCardOverlay from '@/components/live-battle/fighter-card-overlay';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
-import FighterCard from '@/components/gang/fighter-card';
 import type { LiveBattleFighter, LiveBattleCondition, LiveBattleInjuryRecord } from '@/types/live-battle';
 import { hasN26CompositeBattleMarkers } from '@/types/edition';
 
@@ -350,67 +350,8 @@ export default function FighterRow({
           </div>
         </td>
       ) : null}
-      {showInfoModal && gangFighter && createPortal(
-        <div
-          className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowInfoModal(false);
-          }}
-        >
-          <div className="relative max-w-2xl w-full">
-            <button
-              type="button"
-              onClick={() => setShowInfoModal(false)}
-              className="absolute -top-3 -right-3 z-10 bg-neutral-700 hover:bg-neutral-500 text-white rounded-full size-8 flex items-center justify-center text-lg transition-colors shadow-md"
-            >
-              ×
-            </button>
-            <div className="max-h-svh overflow-y-auto">
-              <FighterCard
-                {...gangFighter}
-                owner_status={null}
-                name={gangFighter.fighter_name}
-                type={gangFighter.fighter_type}
-                skills={gangFighter.skills}
-                effects={gangFighter.effects as any}
-                vehicle={gangFighter.vehicles?.[0]}
-                // Prevent hover scale from creating modal scrollbars; gang-page cards do not pass this prop.
-                disableHoverEffects
-                advancements={{ characteristics: {}, skills: {} }}
-                base_stats={{
-                  movement: gangFighter.movement,
-                  weapon_skill: gangFighter.weapon_skill,
-                  ballistic_skill: gangFighter.ballistic_skill,
-                  strength: gangFighter.strength,
-                  toughness: gangFighter.toughness,
-                  wounds: gangFighter.wounds,
-                  initiative: gangFighter.initiative,
-                  attacks: gangFighter.attacks,
-                  leadership: gangFighter.leadership,
-                  cool: gangFighter.cool,
-                  willpower: gangFighter.willpower,
-                  intelligence: gangFighter.intelligence,
-                }}
-                current_stats={{
-                  movement: gangFighter.movement,
-                  weapon_skill: gangFighter.weapon_skill,
-                  ballistic_skill: gangFighter.ballistic_skill,
-                  strength: gangFighter.strength,
-                  toughness: gangFighter.toughness,
-                  wounds: gangFighter.wounds,
-                  initiative: gangFighter.initiative,
-                  attacks: gangFighter.attacks,
-                  leadership: gangFighter.leadership,
-                  cool: gangFighter.cool,
-                  willpower: gangFighter.willpower,
-                  intelligence: gangFighter.intelligence,
-                }}
-                disableLink
-              />
-            </div>
-          </div>
-        </div>,
-        document.body
+      {showInfoModal && gangFighter && (
+        <FighterCardOverlay fighter={gangFighter} onClose={() => setShowInfoModal(false)} />
       )}
       {showNoteModal && createPortal(
         <Modal

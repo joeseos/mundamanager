@@ -116,6 +116,7 @@ export default function ParticipantCard({
     );
   // The phase the crew modal was opened in, so a phase change while it is open can't switch its mode.
   const [crewModalMode, setCrewModalMode] = useState<'crew' | 'reinforcements' | null>(null);
+  const [recoveryOverrides, setRecoveryOverrides] = useState<Map<string, boolean>>(() => new Map());
   const [showParticipationModal, setShowParticipationModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
@@ -197,9 +198,16 @@ export default function ParticipantCard({
       });
   };
 
+  const displayGangFightersList = useMemo(() => {
+    if (recoveryOverrides.size === 0) return gangFightersList;
+    return gangFightersList.map((gf) =>
+      recoveryOverrides.has(gf.id) ? { ...gf, recovery: recoveryOverrides.get(gf.id)! } : gf
+    );
+  }, [gangFightersList, recoveryOverrides]);
+
   // Map expanded gang fighters (one entry per loadout) to crew modal format
   const gangFighters = useMemo(() => {
-    return gangFightersList.map((gf) => ({
+    return displayGangFightersList.map((gf) => ({
       id: gf.id,
       fighter_name: gf.fighter_name,
       label: gf.label,
@@ -217,7 +225,7 @@ export default function ParticipantCard({
       owner_id: gf.owner_id,
       owner_name: gf.owner_name,
     }));
-  }, [gangFightersList]);
+  }, [displayGangFightersList]);
 
   const selectedFighters = new Map<string, string | undefined>(
     localFighters.map((f) => [f.fighter_id, f.loadout_id ?? undefined])
@@ -682,10 +690,18 @@ export default function ParticipantCard({
           <CrewSelectionModal
             gangId={participant.gang_id}
             gangFighters={gangFighters}
+            gangFightersList={displayGangFightersList}
             selectedFighters={selectedFighters}
             editionSlug={liveBattle.edition_slug}
             reinforcements={crewModalMode === 'reinforcements'}
             loading={false}
+            onRecoveryChange={(fighterId, recovery) => {
+              setRecoveryOverrides((prev) => {
+                const next = new Map(prev);
+                next.set(fighterId, recovery);
+                return next;
+              });
+            }}
             onClose={() => setCrewModalMode(null)}
             onConfirm={async (toAdd, toRemove, toUpdate) => {
               const snapshot = [...localFighters];
@@ -801,9 +817,9 @@ export default function ParticipantCard({
                     const match = gangFighters.find(
                       (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
                     ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
-                    const fullMatch = gangFightersList.find(
+                    const fullMatch = displayGangFightersList.find(
                       (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
-                    ) ?? gangFightersList.find((gf) => gf.id === f.fighter_id);
+                    ) ?? displayGangFightersList.find((gf) => gf.id === f.fighter_id);
                     const rawName = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
                     const isAssociatedExoticBeast =
                       fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') &&
