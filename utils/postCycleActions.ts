@@ -128,7 +128,7 @@ const hasOwnRuleFor = (fighter: PostCycleFighter, action: PostCycleActionId): bo
 export const CONNECTED_TRADE_POINTS = 1;
 
 export const canMakeConnectedVisit = (fighter: PostCycleFighter): boolean =>
-  canActInPostCycle(fighter) && fighter.skills?.Connected !== undefined;
+  canActInPostCycle(fighter) && fighter.skills?.Connected !== undefined && !hasSubtype(fighter, SPYRER);
 
 /** Must match the seeded N26 effect_name exactly. */
 export const CRITICAL_INJURY_EFFECT_NAME = 'Critical Injury';
