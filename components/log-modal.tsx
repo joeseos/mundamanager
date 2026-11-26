@@ -373,7 +373,6 @@ export default function LogModal({
           )}
         </tbody>
       </table>
-
     </Modal>
   );
 }
