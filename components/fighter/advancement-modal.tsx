@@ -400,7 +400,6 @@ export function AdvancementModal({
   /** When true, ganger roll UI must not overwrite footer XP/credits from suggested values. */
   const [gangerCostsUserOverride, setGangerCostsUserOverride] = useState(false);
   // gangerBuyUi is derived via useMemo below (near the original useEffect location)
-  const [gangerPurchaseBusy, setGangerPurchaseBusy] = useState(false);
   // Ganger / Exotic Beast advancement roll UI (inline)
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
   const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
@@ -512,7 +511,6 @@ export function AdvancementModal({
   const [gangerPendingPromotion, setGangerPendingPromotion] = useState<FighterPromotionResult | null>(null);
   const [championPromotionOpen, setChampionPromotionOpen] = useState(false);
   const [championPendingPromotion, setChampionPendingPromotion] = useState<ChampionPendingPromotion | null>(null);
-  const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
 
   // N26 needs skill access on open so row 6 can offer a Legendary Name.
   // N23 only needs it once a skill advancement is chosen.
@@ -1915,21 +1913,11 @@ export function AdvancementModal({
 
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
-      setGangerPurchaseBusy(true);
-      try {
-        return await purchaseGangerAdvancement(editableXpCost, editableCreditsIncrease);
-      } finally {
-        setGangerPurchaseBusy(false);
-      }
+      return purchaseGangerAdvancement(editableXpCost, editableCreditsIncrease);
     }
 
     if (advancementType === 'promotion_to_champion') {
-      setChampionPurchaseBusy(true);
-      try {
-        return await executeChampionPromotionPurchase(editableXpCost, editableCreditsIncrease);
-      } finally {
-        setChampionPurchaseBusy(false);
-      }
+      return executeChampionPromotionPurchase(editableXpCost, editableCreditsIncrease);
     }
 
     if (!selectedAdvancement) return false;
@@ -1974,8 +1962,6 @@ export function AdvancementModal({
   const purchaseBlockingBusy =
     addCharacteristicMutation.isPending ||
     addSkillMutation.isPending ||
-    gangerPurchaseBusy ||
-    championPurchaseBusy ||
     applyGangerSpecialistMutation.isPending ||
     applyChampionPromotionMutation.isPending ||
     logGangerSubRollMutation.isPending ||
