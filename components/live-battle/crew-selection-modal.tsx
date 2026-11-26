@@ -9,11 +9,12 @@ import { IoSkull } from 'react-icons/io5';
 import { MdChair } from 'react-icons/md';
 import { GiCrossedChains, GiHandcuffs } from 'react-icons/gi';
 import { TbMeatOff } from 'react-icons/tb';
-import { FaMedkit } from 'react-icons/fa';
-import { countsTowardRating } from '@/utils/fighter-status';
+import { FaMedkit, FaRegAddressCard } from 'react-icons/fa';
+import { countsTowardRating, isStatusIncompatible } from '@/utils/fighter-status';
 import { shuffle } from '@/utils/dice';
 import { createGangLog, type CreateGangLogParams } from '@/app/actions/logs/gang-logs';
 import { formatFighterSubtypeDisplay } from '@/utils/fighterSubtypeDisplay';
+import { hasSpyrerRecovery } from '@/types/edition';
 
 interface GangFighterOption {
   id: string;
@@ -32,6 +33,7 @@ interface GangFighterOption {
   fighter_subtypes?: string[];
   owner_id?: string;
   owner_name?: string;
+  is_spyrer?: boolean;
 }
 
 function isBeast(f: GangFighterOption) {
@@ -119,8 +121,16 @@ interface CrewSelectionModalProps {
   reinforcements?: boolean;
   loading: boolean;
   onConfirm: (toAdd: FighterEntry[], toRemove: string[], toUpdate: FighterEntry[]) => Promise<boolean> | void;
+  onRecoveryChange: (fighterId: string, recovery: boolean) => void;
+  onViewCard: (fighterId: string, loadoutId?: string) => void;
   onClose: () => void;
 }
+
+const ACTION_ICON_MUTED =
+  'p-0 bg-transparent border-0 inline-flex size-6 items-center justify-center text-muted-foreground/40 hover:text-muted-foreground cursor-pointer transition-colors duration-200';
+const ACTION_ICON_DISABLED = 'p-0 bg-transparent border-0 inline-flex size-6 items-center justify-center text-muted-foreground/20 cursor-not-allowed';
+const ACTION_ICON_RECOVERY =
+  'p-0 bg-transparent border-0 inline-flex size-6 items-center justify-center text-blue-500 hover:text-blue-400 cursor-pointer transition-colors duration-200';
 
 export default function CrewSelectionModal({
   gangId,
@@ -130,6 +140,8 @@ export default function CrewSelectionModal({
   reinforcements = false,
   loading,
   onConfirm,
+  onRecoveryChange,
+  onViewCard,
   onClose,
 }: CrewSelectionModalProps) {
   // The crew when the modal opened; only fighters outside it can be added.
@@ -283,6 +295,24 @@ export default function CrewSelectionModal({
   const isDisabled = (f: GangFighterOption) =>
     isBeast(f) || !isAvailable(f) || lockedIds.has(f.id);
 
+  const handleRecoveryToggle = (fighter: GangFighterOption) => {
+    if (isStatusIncompatible(fighter, 'recovery')) return;
+
+    const nextRecovery = !fighter.recovery;
+    onRecoveryChange(fighter.id, nextRecovery);
+
+    if (nextRecovery && selected.has(fighter.id) && !lockedIds.has(fighter.id)) {
+      setSelected((prev) => {
+        const next = new Map(prev);
+        next.delete(fighter.id);
+        for (const beast of getBeastsForOwner(fighter.id)) {
+          next.delete(beast.id);
+        }
+        return next;
+      });
+    }
+  };
+
   const toggle = (fighter: GangFighterOption) => {
     if (isBeast(fighter)) return;
     setSelected((prev) => {
@@ -424,6 +454,7 @@ export default function CrewSelectionModal({
             {inQuotaMode && <div className="mr-3 w-4" />}
             <div className="grow">Name</div>
             <div className="text-right">Value</div>
+            <div className="ml-2 w-14 text-right shrink-0 whitespace-nowrap">Actions</div>
           </div>
           {sortedFighters.map((entry, idx) => {
             const f = entry.fighter;
@@ -434,53 +465,97 @@ export default function CrewSelectionModal({
             const displayName = beast && f.owner_id ? `— ${f.fighter_name}` : f.fighter_name;
             const fighterDetails = formatFighterDetails(f, editionSlug);
             const disabled = isDisabled(f);
+            const recoveryIncompatible = isStatusIncompatible(f, 'recovery');
+            const recoveryDisabled = recoveryIncompatible;
+            const showRecovery = !f.is_spyrer || hasSpyrerRecovery(editionSlug);
             return (
-              <label
+              <div
                 key={`${idx}:${f.id}:${f.loadout_id ?? ''}`}
                 className={getFighterRowClass(f, beast, disabled)}
               >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => toggle(f)}
-                  className="mr-3"
-                  disabled={disabled}
-                />
-                <div className="grow min-w-0">
-                  <div className={`flex items-center gap-1 flex-wrap ${disabled ? (beast ? 'text-muted-foreground' : 'text-neutral-500 dark:text-neutral-400') : ''}`}>
-                    {f.label && (
-                      <span className={`inline-flex shrink-0 items-center rounded-sm px-1 text-xs font-bold font-mono uppercase border ${
-                        disabled
-                          ? 'bg-neutral-100 border-neutral-300 text-neutral-500 dark:bg-neutral-800 dark:border-neutral-600 dark:text-neutral-400'
-                          : 'bg-card border-border text-foreground'
-                      }`}>
-                        {f.label}
-                      </span>
-                    )}
-                    <span>
-                      {displayName}
-                      {f.loadout_name && (
-                        <span className={disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}>
-                          {' '}[{f.loadout_name}]
+                <label className="flex items-center grow min-w-0">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => toggle(f)}
+                    className="mr-3"
+                    disabled={disabled}
+                  />
+                  <div className="grow min-w-0">
+                    <div className={`flex items-center gap-1 flex-wrap ${disabled ? (beast ? 'text-muted-foreground' : 'text-neutral-500 dark:text-neutral-400') : ''}`}>
+                      {f.label && (
+                        <span className={`inline-flex shrink-0 items-center rounded-sm px-1 text-xs font-bold font-mono uppercase border ${
+                          disabled
+                            ? 'bg-neutral-100 border-neutral-300 text-neutral-500 dark:bg-neutral-800 dark:border-neutral-600 dark:text-neutral-400'
+                            : 'bg-card border-border text-foreground'
+                        }`}>
+                          {f.label}
                         </span>
                       )}
-                    </span>
-                    {f.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
-                    {f.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
-                    {f.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
-                    {f.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
-                    {f.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
-                    {f.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
-                  </div>
-                  {fighterDetails && (
-                    <div className={`text-xs ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
-                      {fighterDetails}
+                      <span className="text-sm md:text-base">
+                        {displayName}
+                        {f.loadout_name && (
+                          <span className={disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}>
+                            {' '}[{f.loadout_name}]
+                          </span>
+                        )}
+                      </span>
+                      {f.killed && <IoSkull className="text-gray-300" title="Killed" aria-label="Killed" />}
+                      {f.retired && <MdChair className="text-muted-foreground" title="Retired" aria-label="Retired" />}
+                      {f.enslaved && <GiCrossedChains className="text-sky-200" title="Enslaved" aria-label="Enslaved" />}
+                      {f.starved && <TbMeatOff className="text-red-500" title="Starved" aria-label="Starved" />}
+                      {f.recovery && <FaMedkit className="text-blue-500" title="In recovery" aria-label="In recovery" />}
+                      {f.captured && <GiHandcuffs className="text-red-600" title="Captured" aria-label="Captured" />}
                     </div>
+                    {fighterDetails && (
+                      <div className={`text-xs ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
+                        {fighterDetails}
+                      </div>
+                    )}
+                  </div>
+                  <span className={`text-sm text-right whitespace-nowrap ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
+                    {f.credits === 0 ? '*' : f.credits}
+                  </span>
+                </label>
+                <div className="ml-2 flex items-center justify-end gap-1 shrink-0 w-14">
+                  {showRecovery ? (
+                    <button
+                      type="button"
+                      className={recoveryDisabled ? ACTION_ICON_DISABLED : f.recovery ? ACTION_ICON_RECOVERY : ACTION_ICON_MUTED}
+                      title={
+                        recoveryIncompatible
+                          ? 'Cannot send to recovery: fighter is killed, enslaved, retired, or captured'
+                          : f.recovery
+                            ? 'Recover fighter'
+                            : 'Send to recovery'
+                      }
+                      disabled={recoveryDisabled}
+                      aria-label={f.recovery ? 'Recover fighter' : 'Send to recovery'}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleRecoveryToggle(f);
+                      }}
+                    >
+                      <FaMedkit className="size-5" />
+                    </button>
+                  ) : (
+                    <span className="size-6" aria-hidden />
                   )}
+                  <button
+                    type="button"
+                    className={ACTION_ICON_MUTED}
+                    title="View fighter card"
+                    aria-label="View fighter card"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onViewCard(f.id, f.loadout_id);
+                    }}
+                  >
+                    <FaRegAddressCard className="size-6" />
+                  </button>
                 </div>
-                <span className={`text-right whitespace-nowrap ${disabled ? 'text-neutral-400 dark:text-neutral-500' : 'text-muted-foreground'}`}>
-                  {f.credits === 0 ? '*' : f.credits}
-                </span>
-              </label>
+              </div>
             );
           })}
           </div>
