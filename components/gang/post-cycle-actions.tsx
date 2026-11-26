@@ -338,11 +338,8 @@ export default function PostCycleActions({
       const patientId = assignment && patientOf(assignment);
       if (patientId) {
         const name = fighterById.get(patientId)?.fighter_name ?? 'That fighter';
-        if (activeRows.has(patientId) || connectedVisits.includes(patientId)) {
-          issues.push(`${name} has an action of their own.`);
-        } else if (patientsTaken.has(patientId)) {
-          issues.push(`${name} is already being taken to the Doc.`);
-        }
+        if (activeRows.has(patientId) || connectedVisits.includes(patientId)) issues.push(`${name} has an action of their own.`);
+        else if (patientsTaken.has(patientId)) issues.push(`${name} is already being taken to the Doc.`);
         patientsTaken.add(patientId);
       }
       // Two fighters developing the same card would add it once.
@@ -623,8 +620,7 @@ export default function PostCycleActions({
 
       if (!result.success) {
         failed++;
-        const error = result.error || 'The action failed.';
-        setFailures((prev) => ({ ...prev, [fighterId]: prev[fighterId] ? `${prev[fighterId]} ${error}` : error }));
+        setFailures((prev) => ({ ...prev, [fighterId]: result.error || 'The action failed.' }));
       }
 
       // A partial failure still spent the action, so its row is cleared too.
@@ -711,14 +707,11 @@ export default function PostCycleActions({
                 const state = rowStates.get(fighter.id);
                 const assignment = state?.assignment ?? null;
                 const connected = connectedVisits.includes(fighter.id);
-                const ownEffect = effectOf(assignment);
-                const effect = connected ? (
+                const effect = (
                   <>
-                    {ownEffect && <span className="block">{ownEffect}</span>}
-                    <span className="block">+{tradePointsText(CONNECTED_TRADE_POINTS)}</span>
+                    <span className="block">{effectOf(assignment)}</span>
+                    {connected && <span className="block">+{tradePointsText(CONNECTED_TRADE_POINTS)}</span>}
                   </>
-                ) : (
-                  ownEffect
                 );
                 const rowIssues = state?.issues ?? [];
                 const target = row?.targetFighterId
