@@ -98,6 +98,7 @@ export default function Modal({
             <button
               type="button"
               onClick={onClose}
+              aria-label="Close"
               className="text-muted-foreground hover:text-muted-foreground text-xl"
             >
               ×

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { ListColumn } from '@/components/ui/list';
@@ -123,8 +123,12 @@ export default function LogModal({
   const endIndex = startIndex + logsPerPage;
   const currentLogs = filteredLogs.slice(startIndex, endIndex);
 
+  const tableRef = useRef<HTMLTableElement>(null);
+
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    // Pagination is pinned in the footer, so bring the new page's first rows into view.
+    tableRef.current?.scrollIntoView({ block: 'start' });
   };
 
   const formatDate = (dateString: string | null) => {
@@ -312,7 +316,7 @@ export default function LogModal({
         )}
       </div>
 
-      <table className="w-full table-auto">
+      <table ref={tableRef} className="w-full table-auto">
         <thead className="sticky -top-4 bg-card z-10 shadow-xs">
           <tr className="bg-muted">
             {columns.map((column) => (

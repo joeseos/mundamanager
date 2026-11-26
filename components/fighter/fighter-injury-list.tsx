@@ -844,6 +844,13 @@ export function InjuriesList({
     }
   };
 
+  const closeRecoveryModal = () => {
+    setIsRecoveryModalOpen(false);
+    setSelectedInjuryId('');
+    setSelectedInjury(null);
+    setTargetEquipmentId(null);
+  };
+
   const proceedWithAddingInjury = (sendToRecovery: boolean = false, setCaptured: boolean = false) => {
     if (!selectedInjuryId) {
       toast.error("Please select a lasting injury");
@@ -1281,69 +1288,29 @@ export function InjuriesList({
       )}
 
       {isRecoveryModalOpen && (
-        <div
-          className="fixed inset-0 min-h-screen bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-[100] px-[10px]"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setIsRecoveryModalOpen(false);
-              setSelectedInjuryId('');
-              setSelectedInjury(null);
-              setTargetEquipmentId(null);
-            }
-          }}
-        >
-          <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto">
-            <div className="border-b px-[10px] py-2 flex justify-between items-center">
-              <div>
-                <h3 className="text-xl md:text-2xl font-bold text-foreground">Send fighter into Recovery?</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setIsRecoveryModalOpen(false);
-                    setSelectedInjuryId('');
-                    setSelectedInjury(null);
-                    setTargetEquipmentId(null);
-                  }}
-                  className="text-muted-foreground hover:text-muted-foreground text-xl"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            <div className="px-[10px] py-4">
-              <p><strong>Do you want to send the fighter into Recovery?</strong></p>
-              <p className="text-sm text-amber-500">You will need to manually remove the Recovery flag the next time you update the gang.</p>
-            </div>
-
-            <div className="border-t px-[10px] py-2 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setIsRecoveryModalOpen(false);
-                  setSelectedInjuryId('');
-                  setSelectedInjury(null);
-                  setTargetEquipmentId(null);
-                }}
-                className="px-4 py-2 border rounded-sm hover:bg-muted"
-              >
+        <Modal
+          title="Send fighter into Recovery?"
+          onClose={closeRecoveryModal}
+          footer={
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeRecoveryModal}>
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => { setIsRecoveryModalOpen(false); void proceedWithAddingInjury(false, false); }}
-                className="px-4 py-2 border rounded-sm hover:bg-muted"
               >
                 No
-              </button>
-              <button
-                onClick={() => { setIsRecoveryModalOpen(false); void proceedWithAddingInjury(true, false); }}
-                className="px-4 py-2 bg-black text-white rounded-sm hover:bg-gray-800"
-              >
+              </Button>
+              <Button onClick={() => { setIsRecoveryModalOpen(false); void proceedWithAddingInjury(true, false); }}>
                 Yes
-              </button>
+              </Button>
             </div>
-          </div>
-        </div>
+          }
+        >
+          <p><strong>Do you want to send the fighter into Recovery?</strong></p>
+          <p className="text-sm text-amber-500">You will need to manually remove the Recovery flag the next time you update the gang.</p>
+        </Modal>
       )}
 
       {deleteModalData && (
