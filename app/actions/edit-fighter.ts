@@ -8,7 +8,7 @@ import { logFighterInjury, logFighterRecovery } from './logs/gang-fighter-logs';
 import { getAuthenticatedUser } from '@/utils/auth';
 import { getFighterTotalCost, getVehicleTotalCost } from '@/app/lib/shared/fighter-data';
 import { logFighterAction } from './logs/fighter-logs';
-import { countsTowardRating, hasKilledStatusFlag, isStatusIncompatible } from '@/utils/fighter-status';
+import { countsTowardRating, hasKilledStatusFlag } from '@/utils/fighter-status';
 import { updateGangFinancials, updateGangRatingSimple, GangFinancialUpdateResult } from '@/utils/gang-rating-and-wealth';
 import { insertFighterOoaRecords } from './fighter-ooa-records';
 import { allowsMultipleSubtypes, hasStartingXp, namedTypeKeepsSubtypes } from '@/types/edition';
@@ -766,13 +766,6 @@ export async function editFighterStatus(params: EditFighterStatusParams): Promis
       }
 
       case 'recover': {
-        if (isStatusIncompatible(fighter, 'recovery')) {
-          return {
-            success: false,
-            error: 'Cannot send to recovery: fighter is killed, enslaved, retired, or captured',
-          };
-        }
-
         const { data: updatedFighter, error: updateError } = await supabase
           .from('fighters')
           .update({ 

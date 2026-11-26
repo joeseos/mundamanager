@@ -35,7 +35,10 @@ import {
   toggleParticipantReady,
 } from '@/app/actions/live-battles';
 import { createGangLog } from '@/app/actions/logs/gang-logs';
+import { editFighterStatus } from '@/app/actions/edit-fighter';
 import FighterRow from '@/components/live-battle/fighter-row';
+import FighterCardOverlay from '@/components/live-battle/fighter-card-overlay';
+import { findGangFighter } from '@/components/live-battle/find-gang-fighter';
 import BattleParticipationModal from '@/components/live-battle/battle-participation-modal';
 import { applyConditionsUpdate, hasDualActivation, newLiveBattleRecord, type LiveBattleFull, type LiveBattleParticipant, type LiveBattleFighter, type LiveBattleCondition, type LiveBattleInjuryRecord } from '@/types/live-battle';
 import { beastSubtypeName, hasCrewRating, hasScenarioTables, hasTradePoints } from '@/types/edition';
@@ -116,7 +119,9 @@ export default function ParticipantCard({
     );
   // The phase the crew modal was opened in, so a phase change while it is open can't switch its mode.
   const [crewModalMode, setCrewModalMode] = useState<'crew' | 'reinforcements' | null>(null);
+  const [crewCardPreview, setCrewCardPreview] = useState<{ id: string; loadoutId?: string } | null>(null);
   const [recoveryOverrides, setRecoveryOverrides] = useState<Map<string, boolean>>(() => new Map());
+  const committedRecoveryRef = useRef(new Map<string, boolean>());
   const [showParticipationModal, setShowParticipationModal] = useState(false);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [tradingPostRoll, setTradingPostRoll] = useState<{ dice: number[]; total: number; modifier: number; grandTotal: number } | null>(null);
@@ -198,6 +203,26 @@ export default function ParticipantCard({
       });
   };
 
+  const recoveryBaseline = (fighterId: string) =>
+    committedRecoveryRef.current.get(fighterId) ?? gangFightersList.find((gf) => gf.id === fighterId)?.recovery ?? false;
+
+  const persistRecoveryDrafts = async (): Promise<boolean> => {
+    const nextCommitted = new Map(committedRecoveryRef.current);
+    for (const [fighterId, desired] of recoveryOverrides) {
+      const baseline = nextCommitted.get(fighterId) ?? gangFightersList.find((gf) => gf.id === fighterId)?.recovery ?? false;
+      if (desired === baseline) continue;
+      const result = await editFighterStatus({ fighter_id: fighterId, action: 'recover' });
+      if (!result.success) {
+        committedRecoveryRef.current = nextCommitted;
+        toast.error(result.error || 'Failed to update recovery');
+        return false;
+      }
+      nextCommitted.set(fighterId, desired);
+    }
+    committedRecoveryRef.current = nextCommitted;
+    return true;
+  };
+
   const displayGangFightersList = useMemo(() => {
     if (recoveryOverrides.size === 0) return gangFightersList;
     return gangFightersList.map((gf) =>
@@ -224,8 +249,13 @@ export default function ParticipantCard({
       fighter_subtypes: gf.fighter_subtypes,
       owner_id: gf.owner_id,
       owner_name: gf.owner_name,
+      is_spyrer: gf.is_spyrer,
     }));
   }, [displayGangFightersList]);
+
+  const crewPreviewFighter = crewCardPreview
+    ? findGangFighter(displayGangFightersList, crewCardPreview.id, crewCardPreview.loadoutId)
+    : undefined;
 
   const selectedFighters = new Map<string, string | undefined>(
     localFighters.map((f) => [f.fighter_id, f.loadout_id ?? undefined])
@@ -690,7 +720,6 @@ export default function ParticipantCard({
           <CrewSelectionModal
             gangId={participant.gang_id}
             gangFighters={gangFighters}
-            gangFightersList={displayGangFightersList}
             selectedFighters={selectedFighters}
             editionSlug={liveBattle.edition_slug}
             reinforcements={crewModalMode === 'reinforcements'}
@@ -698,11 +727,17 @@ export default function ParticipantCard({
             onRecoveryChange={(fighterId, recovery) => {
               setRecoveryOverrides((prev) => {
                 const next = new Map(prev);
-                next.set(fighterId, recovery);
+                if (recovery === recoveryBaseline(fighterId)) next.delete(fighterId);
+                else next.set(fighterId, recovery);
                 return next;
               });
             }}
-            onClose={() => setCrewModalMode(null)}
+            onViewCard={(id, loadoutId) => setCrewCardPreview({ id, loadoutId })}
+            onClose={() => {
+              setCrewModalMode(null);
+              setCrewCardPreview(null);
+              setRecoveryOverrides(new Map(committedRecoveryRef.current));
+            }}
             onConfirm={async (toAdd, toRemove, toUpdate) => {
               const snapshot = [...localFighters];
 
@@ -742,10 +777,19 @@ export default function ParticipantCard({
                 return false;
               }
 
+              const recoveryOk = await persistRecoveryDrafts();
+              if (!recoveryOk) return false;
+
               toast.success(crewModalMode === 'reinforcements' ? 'Reinforcements added' : 'Crew updated');
               onBroadcast?.();
               return true;
             }}
+          />
+        )}
+        {crewPreviewFighter && (
+          <FighterCardOverlay
+            fighter={crewPreviewFighter}
+            onClose={() => setCrewCardPreview(null)}
           />
         )}
         {showParticipationModal && (
@@ -817,9 +861,7 @@ export default function ParticipantCard({
                     const match = gangFighters.find(
                       (gf) => gf.id === f.fighter_id && gf.loadout_id === (f.loadout_id ?? undefined)
                     ) ?? gangFighters.find((gf) => gf.id === f.fighter_id);
-                    const fullMatch = displayGangFightersList.find(
-                      (gf) => gf.id === f.fighter_id && gf.active_loadout_id === (f.loadout_id ?? undefined)
-                    ) ?? displayGangFightersList.find((gf) => gf.id === f.fighter_id);
+                    const fullMatch = findGangFighter(displayGangFightersList, f.fighter_id, f.loadout_id);
                     const rawName = match?.fighter_name ?? f.fighter?.fighter_name ?? 'Unknown Fighter';
                     const isAssociatedExoticBeast =
                       fullMatch?.fighter_subtypes?.some(c => c.toLowerCase() === 'exotic beast' || c.toLowerCase() === 'exotic beast specialist' || c.toLowerCase() === 'pet') &&
