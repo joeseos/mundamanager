@@ -18,12 +18,14 @@ import { tracksXp, xpTowardNextTier } from '@/utils/advancementRanks';
 import { countsTowardRating } from '@/utils/fighter-status';
 import {
   CHOP_SHOP_COST_PER_DAMAGE,
+  CONNECTED_TRADE_POINTS,
   ENHANCE_WEAPON_EQUIPMENT_ID,
   FIT_BIONICS_COST_PER_INJURY,
   POST_CYCLE_ACTIONS,
   SUIT_EVOLUTION_KILL_COST,
   TRAIN_XP,
   assignmentCreditsDelta,
+  canMakeConnectedVisit,
   canPerformPostCycleAction,
   eligiblePostCycleActions,
   hasCriticalInjury,
@@ -230,6 +232,8 @@ export default function PostCycleActions({
 }: PostCycleActionsProps) {
   /** The actions picked so far; nothing is applied until Confirm. */
   const [rows, setRows] = useState<Record<string, RowState>>({});
+  /** Fighters making Connected's extra Visit Trading Post. */
+  const [connectedIds, setConnectedIds] = useState<string[]>([]);
   const [applying, setApplying] = useState(false);
   /** Collect Income is taken on Confirm, before the fighters' actions. */
   const [collectReputation, setCollectReputation] = useState(false);
@@ -292,6 +296,17 @@ export default function PostCycleActions({
     [rows, actorIds]
   );
 
+  const connectedVisits = useMemo(
+    () =>
+      connectedIds.filter((id) => {
+        const fighter = fighterById.get(id);
+        return fighter !== undefined && canMakeConnectedVisit(fighter);
+      }),
+    [connectedIds, fighterById]
+  );
+  const hasOwnAction = (fighterId: string) =>
+    activeRows.has(fighterId) || connectedVisits.includes(fighterId);
+
   /** A fighter picked for Fit Bionics on another row takes no action of their own. */
   const beingFitted = useMemo(
     () =>
@@ -323,7 +338,7 @@ export default function PostCycleActions({
       const patientId = assignment && patientOf(assignment);
       if (patientId) {
         const name = fighterById.get(patientId)?.fighter_name ?? 'That fighter';
-        if (activeRows.has(patientId)) issues.push(`${name} has an action of their own.`);
+        if (activeRows.has(patientId) || connectedVisits.includes(patientId)) issues.push(`${name} has an action of their own.`);
         else if (patientsTaken.has(patientId)) issues.push(`${name} is already being taken to the Doc.`);
         patientsTaken.add(patientId);
       }
@@ -341,7 +356,7 @@ export default function PostCycleActions({
       });
     }
     return states;
-  }, [activeRows, fighters, availability, fighterById]);
+  }, [activeRows, connectedVisits, fighters, availability, fighterById]);
 
   const pendingStates = [...rowStates.values()];
   const totalSpend = pendingStates.reduce((sum, s) => sum + Math.max(s.cost, 0), 0);
@@ -362,7 +377,7 @@ export default function PostCycleActions({
     pickedTerritories.reduce((sum, territory) => sum + territory.income, 0);
   const cannotAfford = totalSpend > gangCredits + collected;
   const readyToApply =
-    (pendingStates.length > 0 || collecting) &&
+    (pendingStates.length > 0 || connectedVisits.length > 0 || collecting) &&
     pendingStates.every((s) => s.assignment && s.issues.length === 0) &&
     !cannotAfford;
 
@@ -487,7 +502,7 @@ export default function PostCycleActions({
     candidates
       .filter((f) => f.id !== performerId)
       .map((f) => {
-        const reason = activeRows.has(f.id) ? 'has an action' : null;
+        const reason = hasOwnAction(f.id) ? 'has an action' : null;
         return {
           value: f.id,
           label: reason ? (
@@ -548,9 +563,14 @@ export default function PostCycleActions({
    * A failure does not stop the rest; its row keeps its pick and shows why.
    */
   const handleApply = async () => {
-    const queue = actors.flatMap((f) => {
+    const queue = actors.flatMap((f): PostCycleAssignment[] => {
       const assignment = rowStates.get(f.id)?.assignment;
-      return assignment ? [assignment] : [];
+      return [
+        ...(assignment ? [assignment] : []),
+        ...(connectedVisits.includes(f.id)
+          ? [{ fighterId: f.id, action: 'visit_trading_post', connected: true } as const]
+          : []),
+      ];
     });
     if (applying || (queue.length === 0 && !collecting)) return;
 
@@ -586,7 +606,8 @@ export default function PostCycleActions({
     }
 
     for (const [i, result] of sequence.actions.entries()) {
-      const { fighterId } = queue[i];
+      const assignment = queue[i];
+      const { fighterId } = assignment;
 
       // skipRatingUpdate: the authoritative rating arrives with the gang below.
       for (const change of result.outcome?.changes ?? []) {
@@ -603,7 +624,9 @@ export default function PostCycleActions({
       }
 
       // A partial failure still spent the action, so its row is cleared too.
-      if (result.landed) {
+      if (result.landed && 'connected' in assignment) {
+        setConnectedIds((prev) => prev.filter((id) => id !== fighterId));
+      } else if (result.landed) {
         setRows((prev) => {
           const { [fighterId]: _done, ...rest } = prev;
           return rest;
@@ -683,7 +706,13 @@ export default function PostCycleActions({
                 const row = rows[fighter.id];
                 const state = rowStates.get(fighter.id);
                 const assignment = state?.assignment ?? null;
-                const effect = effectOf(assignment);
+                const connected = connectedVisits.includes(fighter.id);
+                const effect = (
+                  <>
+                    <span className="block">{effectOf(assignment)}</span>
+                    {connected && <span className="block">+{tradePointsText(CONNECTED_TRADE_POINTS)}</span>}
+                  </>
+                );
                 const rowIssues = state?.issues ?? [];
                 const target = row?.targetFighterId
                   ? fighterById.get(row.targetFighterId)
@@ -844,6 +873,24 @@ export default function PostCycleActions({
                         >
                           Choose Gang Tactic
                         </Button>
+                      )}
+
+                      {canMakeConnectedVisit(fighter) && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`connected-${fighter.id}`}
+                            checked={connected}
+                            onCheckedChange={(checked) =>
+                              setConnectedIds((prev) =>
+                                checked === true ? [...prev, fighter.id] : prev.filter((id) => id !== fighter.id)
+                              )
+                            }
+                            disabled={!canEdit || applying || beingFitted.has(fighter.id)}
+                          />
+                          <label htmlFor={`connected-${fighter.id}`} className="text-sm font-medium cursor-pointer">
+                            Connected: Visit Trading Post
+                          </label>
+                        </div>
                       )}
 
                       {[...rowIssues, ...(failure ? [failure] : [])].map((message) => (
