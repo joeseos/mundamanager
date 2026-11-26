@@ -86,11 +86,18 @@ const DOC_DISCOUNTS: Record<string, Partial<Record<PostCycleActionId, number>>> 
   'chem wytch': { medical_escort: 20 },
   // Back to the Forge!
   'forge patcher': { fit_bionics: 20 },
-  // Patch-Up
-  'rogue doc': { medical_escort: 50, fit_bionics: 50 },
 };
 
+// The Patch-up rule grants both Doc actions.
+const PATCH_UP_DISCOUNT = 50;
+
+const hasPatchUp = (fighter: PostCycleFighter): boolean =>
+  fighter.special_rules?.some((rule) => rule.toLowerCase().replace(/[\s-]/g, '') === 'patchup') ?? false;
+
 export function postCycleDiscount(fighter: PostCycleFighter, action: PostCycleActionId): number {
+  if ((action === 'medical_escort' || action === 'fit_bionics') && hasPatchUp(fighter)) {
+    return PATCH_UP_DISCOUNT;
+  }
   return DOC_DISCOUNTS[fighter.fighter_type?.toLowerCase() ?? '']?.[action] ?? 0;
 }
 
