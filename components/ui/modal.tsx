@@ -8,6 +8,8 @@ interface ModalProps {
   title: React.ReactNode;
   helper?: React.ReactNode;
   content?: React.ReactNode;
+  /** Pinned below the scrolling body, e.g. pagination. */
+  footer?: React.ReactNode;
   children?: React.ReactNode;
   onClose: () => void;
   onConfirm?: (() => Promise<boolean>) | (() => void);
@@ -25,6 +27,7 @@ export default function Modal({
   title,
   helper,
   content,
+  footer,
   children,
   onClose, 
   onConfirm,
@@ -105,6 +108,9 @@ export default function Modal({
         <div className="px-[10px] py-4 overflow-y-auto flex-1">
           {content || children}
         </div>
+        {footer && (
+          <div className="border-t px-[10px] py-2">{footer}</div>
+        )}
         {onConfirm && (
           <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
             {onDelete && deleteLabel && (
