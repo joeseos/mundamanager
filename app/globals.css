@@ -1,6 +1,16 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 
+/* Hover that only applies when the primary pointer can hover accurately
+   (mouse/trackpad). Touch-only devices skip it so :hover does not stick after tap. */
+@custom-variant fine-hover {
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      @slot;
+    }
+  }
+}
+
 @layer base {
   :root {
     /* Light theme reference values */
@@ -288,18 +298,6 @@ body::before {
   background-image: url('https://iojoritxhpijprgkjfre.supabase.co/storage/v1/object/public/site-images/background_numv5r.avif');
   background-size: cover;
   background-position: center;
-}
-
-/* Prevent hover effects from sticking on touch devices */
-@media (hover: none) and (pointer: coarse) {
-  .fighter-card-bg:hover {
-    transform: none !important;
-    box-shadow: none !important;
-  }
-  
-  .fighter-card-bg:hover * {
-    transform: none !important;
-  }
 }
 
 /* iOS Safari fix: date and time inputs keep a minimum width of their own and

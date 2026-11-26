@@ -493,12 +493,12 @@ const FighterCard = memo(function FighterCard({
 
   const hoverEffectClass = disableHoverEffects
     ? 'shadow-none'
-    : 'shadow-md [@media(hover:hover)_and_(pointer:fine)]:hover:shadow-lg';
+    : 'shadow-md fine-hover:shadow-lg';
 
   // Scales the wrapper (card and action menu button together) so the button grows with the card
   const hoverScaleClass = disableHoverEffects || isDragging
     ? ''
-    : 'transition-transform duration-200 [@media(hover:hover)_and_(pointer:fine)]:hover:scale-[1.02] print:hover:scale-[1]';
+    : 'transition-transform duration-200 fine-hover:scale-[1.02] print:scale-100';
 
   const cardClassName = `relative rounded-lg overflow-hidden ${hoverEffectClass} transition-all duration-200 border-2 border-black ${isDragging ? 'border-[3px] border-rose-700 scale-[1.02]' : ''} print-fighter-card print:inline-block
         ${isPrintView ? `${printCardSize} p-2 relative` : isNormalView ? 'p-4' : `${compactCardSize} relative`} fighter-card-bg
@@ -900,7 +900,7 @@ const FighterCard = memo(function FighterCard({
       data-fighter-card-menu-trigger
     >
       <CgMoreVerticalO
-        className="text-muted-foreground/40 [@media(hover:hover)_and_(pointer:fine)]:hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
+        className="text-muted-foreground/40 fine-hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
         title="Click to open action menu"
       />
     </div>
