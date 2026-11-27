@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
+import Modal from '@/components/ui/modal';
 import { toast } from 'sonner';
 import { FighterEffect as FighterEffectType, type FighterDetailsPatch } from '@/types/fighter';
 import { buildGroupedSkillSetComboboxOptions, formatSkillUserKindSuffix } from '@/utils/skillSetComboboxOptions';
@@ -399,7 +400,6 @@ export function AdvancementModal({
   /** When true, ganger roll UI must not overwrite footer XP/credits from suggested values. */
   const [gangerCostsUserOverride, setGangerCostsUserOverride] = useState(false);
   // gangerBuyUi is derived via useMemo below (near the original useEffect location)
-  const [gangerPurchaseBusy, setGangerPurchaseBusy] = useState(false);
   // Ganger / Exotic Beast advancement roll UI (inline)
   const [gangerSelectedRowId, setGangerSelectedRowId] = useState('');
   const [gangerRollCooldown, setGangerRollCooldown] = useState(false);
@@ -511,7 +511,6 @@ export function AdvancementModal({
   const [gangerPendingPromotion, setGangerPendingPromotion] = useState<FighterPromotionResult | null>(null);
   const [championPromotionOpen, setChampionPromotionOpen] = useState(false);
   const [championPendingPromotion, setChampionPendingPromotion] = useState<ChampionPendingPromotion | null>(null);
-  const [championPurchaseBusy, setChampionPurchaseBusy] = useState(false);
 
   // N26 needs skill access on open so row 6 can offer a Legendary Name.
   // N23 only needs it once a skill advancement is chosen.
@@ -1912,39 +1911,16 @@ export function AdvancementModal({
     setSelectedCategory(n26LegendaryNameSkillTypeId);
   }
 
-  const handleOverlayClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
   const handleAdvancementPurchase = async () => {
     if (gangerModalRollBuy) {
-      setGangerPurchaseBusy(true);
-      try {
-        const ok = await purchaseGangerAdvancement(editableXpCost, editableCreditsIncrease);
-        if (ok) onClose();
-      } finally {
-        setGangerPurchaseBusy(false);
-      }
-      return;
+      return purchaseGangerAdvancement(editableXpCost, editableCreditsIncrease);
     }
 
     if (advancementType === 'promotion_to_champion') {
-      setChampionPurchaseBusy(true);
-      try {
-        const ok = await executeChampionPromotionPurchase(editableXpCost, editableCreditsIncrease);
-        if (ok) onClose();
-      } finally {
-        setChampionPurchaseBusy(false);
-      }
-      return;
+      return executeChampionPromotionPurchase(editableXpCost, editableCreditsIncrease);
     }
 
-    if (!selectedAdvancement) return;
-
-    // Close modal immediately for instant UX
-    onClose();
+    if (!selectedAdvancement) return false;
 
     const mutationParams = {
       fighter_id: fighterId,
@@ -1966,6 +1942,7 @@ export function AdvancementModal({
         is_advance: true
       });
     }
+    return true;
   };
 
   const handleXpCostChange = (value: number) => {
@@ -1985,8 +1962,6 @@ export function AdvancementModal({
   const purchaseBlockingBusy =
     addCharacteristicMutation.isPending ||
     addSkillMutation.isPending ||
-    gangerPurchaseBusy ||
-    championPurchaseBusy ||
     applyGangerSpecialistMutation.isPending ||
     applyChampionPromotionMutation.isPending ||
     logGangerSubRollMutation.isPending ||
@@ -2012,34 +1987,24 @@ export function AdvancementModal({
 
   // Render the AdvancementModal component
   return (
-    <div 
-      className="fixed inset-0 bg-black/50 dark:bg-neutral-700/50 flex justify-center items-center z-50 px-[10px]"
-      onMouseDown={handleOverlayClick}
+    <Modal
+      title="Advancements"
+      headerContent={
+        isCumulativeXp ? (
+          <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
+            Available: {openAdvancements}
+          </span>
+        ) : (
+          <span>
+            <span className="mr-2 text-sm text-muted-foreground">XP</span>
+            <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
+          </span>
+        )
+      }
+      onClose={onClose}
+      onConfirm={handleAdvancementPurchase}
+      confirmDisabled={buyAdvancementDisabled}
     >
-      <div className="bg-card rounded-lg shadow-xl w-full max-w-md min-h-0 max-h-svh overflow-y-auto flex flex-col">
-        <div className="border-b px-[10px] py-2 flex justify-between items-center">
-          <h3 className="text-xl md:text-2xl font-bold text-foreground">Advancements</h3>
-          <div className="flex items-center">
-            {isCumulativeXp ? (
-              <span className="align-middle inline-flex items-center rounded-full bg-green-500 px-2 py-0.5 text-xs font-semibold text-white">
-                Available: {openAdvancements}
-              </span>
-            ) : (
-              <>
-                <span className="mr-2 text-sm text-muted-foreground">XP</span>
-                <span className="bg-green-500 text-white text-sm rounded-full px-2 py-1">{currentXp}</span>
-              </>
-            )}
-            <button
-              onClick={onClose}
-              className="ml-3 text-muted-foreground hover:text-muted-foreground text-xl"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-
-        <div className="p-2 overflow-y-auto grow">
           <div className="mb-4">
             <p className="text-sm text-muted-foreground mb-2">
               {isCumulativeXp
@@ -2646,29 +2611,7 @@ export function AdvancementModal({
             {displayedError && (
               <p className="text-red-500 text-sm">{displayedError}</p>
             )}
-            <div className="border-t pt-2 flex justify-end gap-2">
-            <button
-                onClick={onClose}
-                disabled={purchaseBlockingBusy || gangerBuyUi.pending}
-                className={`px-4 py-2 border rounded-sm hover:bg-muted ${
-                  purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                Cancel
-              </button>
-              <Button
-                onClick={() => void handleAdvancementPurchase()}
-                className={`px-4 py-2 bg-black text-white rounded-sm hover:bg-gray-800 ${
-                purchaseBlockingBusy || gangerBuyUi.pending ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-                disabled={buyAdvancementDisabled}
-              >
-                Confirm
-              </Button>
-            </div>
           </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

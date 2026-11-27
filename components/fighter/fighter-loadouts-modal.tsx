@@ -439,326 +439,307 @@ export default function FighterLoadoutsModal({
     setPendingDiscardAction(null);
   };
 
+  const loadoutTotals = selectedLoadout && (
+    <div className="mb-2 flex justify-end">
+      <table className="w-auto">
+        <tbody>
+          <tr>
+            <td className="text-right leading-none pr-2 py-0">
+              <span className="text-sm text-muted-foreground">Loadout:</span>
+            </td>
+            <td className="text-right leading-none py-0">
+              <span className="text-sm text-muted-foreground">{totalLoadoutCost} credits</span>
+            </td>
+          </tr>
+          <tr>
+            <td className="text-right leading-none pr-2 py-0">
+              <span className="text-sm text-muted-foreground">Fighter:</span>
+            </td>
+            <td className="text-right leading-none py-0">
+              <span className="text-sm text-muted-foreground">{fighterBaseCost} credits</span>
+            </td>
+          </tr>
+          <tr>
+            <td className="text-right leading-none pr-2 py-0">
+              <span className="text-sm font-semibold">Total Cost:</span>
+            </td>
+            <td className="text-right leading-none py-0">
+              <span className="text-sm font-semibold">{totalFighterCost} credits</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const closeWithUnsavedCheck = () => requestCloseWithUnsavedChanges(onClose);
+
   return (
-    <div
-        className="fixed inset-0 flex justify-center items-center z-[100] px-[10px] bg-black/50 dark:bg-neutral-700/50"
-        onMouseDown={(e) => {
-          if (e.target === e.currentTarget) {
-            requestCloseWithUnsavedChanges(onClose);
-          }
-        }}
+    <>
+      <Modal
+        title="Equipment Loadouts"
+        onClose={closeWithUnsavedCheck}
+        width="2xl"
+        footer={
+          <>
+            {loadoutTotals}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeWithUnsavedCheck} disabled={isSaving}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveChanges}
+                disabled={isSaving}
+                className="bg-neutral-900 text-white hover:bg-gray-800"
+              >
+                {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Done'}
+              </Button>
+            </div>
+          </>
+        }
       >
-        <div className="bg-card rounded-lg shadow-xl w-full max-w-2xl min-h-0 max-h-svh overflow-y-auto flex flex-col">
-          <div className="border-b px-[10px] py-2 flex justify-between items-center">
-            <h3 className="text-xl md:text-2xl font-bold text-foreground">Equipment Loadouts</h3>
-            <button
-              type="button"
-              onClick={() => requestCloseWithUnsavedChanges(onClose)}
-              aria-label="Close"
-              className="text-muted-foreground hover:text-muted-foreground text-xl"
-            >
-              ×
-            </button>
-          </div>
-
-        <div className="px-[10px] py-2 overflow-y-auto flex-1 mt-2">
-          <div className="space-y-4">
-            {/* Loadout List */}
-            <div>
-              
-              {/* Loadout Badges */}
-              <div className="flex items-center gap-1 flex-wrap mb-2">
-                <h4 className="text-sm text-muted-foreground">Loadouts:</h4>
+        <div className="space-y-4">
+          {/* Loadout List */}
+          <div>
+            
+            {/* Loadout Badges */}
+            <div className="flex items-center gap-1 flex-wrap mb-2">
+              <h4 className="text-sm text-muted-foreground">Loadouts:</h4>
+              <Badge
+                variant={selectedLoadoutId === null ? 'default' : 'outline'}
+                className="cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => setSelectedLoadoutId(null)}
+                title="Show all equipment"
+              >
+                None
+              </Badge>
+              {loadouts.map((loadout) => (
                 <Badge
-                  variant={selectedLoadoutId === null ? 'default' : 'outline'}
+                  key={loadout.id}
+                  variant={selectedLoadoutId === loadout.id ? 'default' : 'outline'}
                   className="cursor-pointer hover:opacity-80 transition-opacity"
-                  onClick={() => setSelectedLoadoutId(null)}
-                  title="Show all equipment"
+                  onClick={() => setSelectedLoadoutId(loadout.id)}
+                  title={`View equipment in ${loadout.loadout_name}`}
                 >
-                  None
+                  {loadout.loadout_name}
+                  {pendingChanges.has(loadout.id) && (
+                    <span className="ml-1">*</span>
+                  )}
                 </Badge>
-                {loadouts.map((loadout) => (
-                  <Badge
-                    key={loadout.id}
-                    variant={selectedLoadoutId === loadout.id ? 'default' : 'outline'}
-                    className="cursor-pointer hover:opacity-80 transition-opacity"
-                    onClick={() => setSelectedLoadoutId(loadout.id)}
-                    title={`View equipment in ${loadout.loadout_name}`}
-                  >
-                    {loadout.loadout_name}
-                    {pendingChanges.has(loadout.id) && (
-                      <span className="ml-1">*</span>
-                    )}
-                  </Badge>
-                ))}
-              </div>
+              ))}
+            </div>
 
-              {/* Create new loadout */}
-              <div className="flex space-x-2 mb-4">
-                <Input
-                  type="text"
-                  value={newLoadoutName}
-                  onChange={(e) => setNewLoadoutName(e.target.value)}
-                  placeholder="Add a Loadout (max 50 characters)"
-                  maxLength={50}
-                  className="grow text-sm"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleCreateLoadout();
-                    }
-                  }}
-                />
-                <Button
-                  onClick={handleCreateLoadout}
-                  type="button"
-                  disabled={!newLoadoutName.trim() || isSaving}
-                >
-                  Add
-                </Button>
-              </div>
+            {/* Create new loadout */}
+            <div className="flex space-x-2 mb-4">
+              <Input
+                type="text"
+                value={newLoadoutName}
+                onChange={(e) => setNewLoadoutName(e.target.value)}
+                placeholder="Add a Loadout (max 50 characters)"
+                maxLength={50}
+                className="grow text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCreateLoadout();
+                  }
+                }}
+              />
+              <Button
+                onClick={handleCreateLoadout}
+                type="button"
+                disabled={!newLoadoutName.trim() || isSaving}
+              >
+                Add
+              </Button>
+            </div>
 
-              {/* Equipment Selection */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between mb-2">
-                  {selectedLoadout && editingLoadoutId === selectedLoadout.id ? (
-                    <>
-                      <Input
-                        value={editingName}
-                        onChange={(e) => setEditingName(e.target.value)}
-                        placeholder="Enter loadout name (max 50 characters)"
-                        maxLength={50}
-                        className="grow mr-2 h-7 text-sm"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            handleRenameLoadout(selectedLoadout.id);
-                          } else if (e.key === 'Escape') {
-                            e.preventDefault();
-                            handleCancelEdit();
-                          }
-                        }}
-                      />
-                      <div className="flex items-center gap-2">
+            {/* Equipment Selection */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                {selectedLoadout && editingLoadoutId === selectedLoadout.id ? (
+                  <>
+                    <Input
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      placeholder="Enter loadout name (max 50 characters)"
+                      maxLength={50}
+                      className="grow mr-2 h-7 text-sm"
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleRenameLoadout(selectedLoadout.id);
+                        } else if (e.key === 'Escape') {
+                          e.preventDefault();
+                          handleCancelEdit();
+                        }
+                      }}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline_accept"
+                        size="sm"
+                        onClick={() => handleRenameLoadout(selectedLoadout.id)}
+                        className="h-8 w-8 p-0"
+                        title="Save"
+                        disabled={!editingName.trim() || renameLoadoutMutation.isPending}
+                      >
+                        <LuCheck className="size-4" />
+                      </Button>
+                      <Button
+                        variant="outline_cancel"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                        className="h-8 w-8 p-0"
+                        title="Cancel"
+                        disabled={renameLoadoutMutation.isPending}
+                      >
+                        <LuX className="size-4" />
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h4 className="font-semibold">
+                      {selectedLoadout ? (
+                        <span className="text-base" title={selectedLoadout.loadout_name}>
+                          {selectedLoadout.loadout_name.length > 30 
+                            ? `${selectedLoadout.loadout_name.substring(0, 30)}...` 
+                            : `${selectedLoadout.loadout_name}`}
+                        </span>
+                      ) : (
+                        'Select a loadout to edit'
+                      )}
+                    </h4>
+                    {selectedLoadout && (
+                      <div className="flex items-center gap-1">
+                        {activeLoadoutId === selectedLoadout.id && (
+                          <Badge variant="default">Active</Badge>
+                        )}
+                        {activeLoadoutId !== selectedLoadout.id && (
+                          <Badge
+                            variant="outline"
+                            className={`cursor-pointer transition-opacity ${isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'}`}
+                            onClick={() => !isSaving && handleSetActiveLoadout(selectedLoadout.id)}
+                            title="Set as active loadout"
+                          >
+                            Set as Active
+                          </Badge>
+                        )}
                         <Button
-                          variant="outline_accept"
+                          variant="outline"
                           size="sm"
-                          onClick={() => handleRenameLoadout(selectedLoadout.id)}
+                          onClick={() => startEditing(selectedLoadout)}
                           className="h-8 w-8 p-0"
-                          title="Save"
-                          disabled={!editingName.trim() || renameLoadoutMutation.isPending}
+                          title="Edit loadout"
                         >
-                          <LuCheck className="size-4" />
+                          <LuPencil className="size-4" />
                         </Button>
                         <Button
-                          variant="outline_cancel"
+                          variant="outline_remove"
                           size="sm"
-                          onClick={handleCancelEdit}
                           className="h-8 w-8 p-0"
-                          title="Cancel"
-                          disabled={renameLoadoutMutation.isPending}
+                          onClick={() => requestDeleteLoadout(selectedLoadout.id)}
+                          title="Delete loadout"
+                          disabled={isSaving}
                         >
-                          <LuX className="size-4" />
+                          <LuTrash2 className="size-4" />
                         </Button>
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      <h4 className="font-semibold">
-                        {selectedLoadout ? (
-                          <span className="text-base" title={selectedLoadout.loadout_name}>
-                            {selectedLoadout.loadout_name.length > 30 
-                              ? `${selectedLoadout.loadout_name.substring(0, 30)}...` 
-                              : `${selectedLoadout.loadout_name}`}
-                          </span>
-                        ) : (
-                          'Select a loadout to edit'
-                        )}
-                      </h4>
-                      {selectedLoadout && (
-                        <div className="flex items-center gap-1">
-                          {activeLoadoutId === selectedLoadout.id && (
-                            <Badge variant="default">Active</Badge>
-                          )}
-                          {activeLoadoutId !== selectedLoadout.id && (
-                            <Badge
-                              variant="outline"
-                              className={`cursor-pointer transition-opacity ${isSaving ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-80'}`}
-                              onClick={() => !isSaving && handleSetActiveLoadout(selectedLoadout.id)}
-                              title="Set as active loadout"
-                            >
-                              Set as Active
-                            </Badge>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => startEditing(selectedLoadout)}
-                            className="h-8 w-8 p-0"
-                            title="Edit loadout"
-                          >
-                            <LuPencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="outline_remove"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => requestDeleteLoadout(selectedLoadout.id)}
-                            title="Delete loadout"
-                            disabled={isSaving}
-                          >
-                            <LuTrash2 className="size-4" />
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {selectedLoadout && loadoutEquipment.length > 0 ? (
-                  <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-                    <table className="w-full table-auto">
-                      <thead className="sticky top-0 z-10">
-                        <tr className="bg-muted">
-                          <th className="px-1 py-1 text-left w-[5%] bg-muted"></th>
-                          <th className="px-1 py-1 text-left w-[75%] bg-muted">Name</th>
-                          <th className="px-1 py-1 pr-2 text-right bg-muted">Cost</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loadoutEquipment.map(item => {
-                          const equipmentIds = getLoadoutEquipmentIds(selectedLoadout.id);
-                          const isInLoadout = equipmentIds.has(item.fighter_equipment_id);
-                          const checkboxId = `loadout-equipment-${item.fighter_equipment_id}`;
-                          const grantedById = grantedByIdOf(item);
-                          const isChild = !!item.target_equipment_id || !!grantedById;
-                          // Granted equipment can only be added to a loadout with the equipment that granted it
-                          const isLocked = !!grantedById && !isInLoadout && !equipmentIds.has(grantedById);
-                          const mutedClass = !isInLoadout ? "text-muted-foreground" : "";
-
-                          return (
-                            <tr
-                              key={item.fighter_equipment_id}
-                              className={`${isChild ? "border-b bg-muted/20" : "border-b"} ${isLocked ? "" : "hover:bg-muted cursor-pointer"}`}
-                              onClick={() => !isLocked && handleEquipmentToggle(item.fighter_equipment_id)}
-                            >
-                              <td className="px-1 py-1" onClick={(e) => e.stopPropagation()}>
-                                <Checkbox
-                                  id={checkboxId}
-                                  checked={isInLoadout}
-                                  disabled={isLocked}
-                                  onCheckedChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
-                                />
-                              </td>
-                              <td className="px-1 py-1">
-                                <label
-                                  htmlFor={checkboxId}
-                                  className={isLocked ? "" : "cursor-pointer"}
-                                >
-                                  {isChild && (
-                                    <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
-                                      <TbCornerLeftUp className="inline" />
-                                    </span>
-                                  )}
-                                  <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>
-                                    {item.equipment_name}
-                                  </span>
-                                </label>
-                              </td>
-                              <td className="px-1 py-1 pr-2 text-right">
-                                <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>
-                                  {item.cost ?? '-'}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : selectedLoadout && loadoutEquipment.length === 0 ? (
-                  <p className="text-muted-foreground italic">No equipment available</p>
-                ) : (
-                  <p className="text-muted-foreground italic">
-                    Select a loadout from the list to manage its equipment
-                  </p>
+                    )}
+                  </>
                 )}
               </div>
+
+              {selectedLoadout && loadoutEquipment.length > 0 ? (
+                <table className="w-full table-auto">
+                  <thead className="sticky -top-4 z-10">
+                    <tr className="bg-muted">
+                      <th className="px-1 py-1 text-left w-[5%] bg-muted"></th>
+                      <th className="px-1 py-1 text-left w-[75%] bg-muted">Name</th>
+                      <th className="px-1 py-1 pr-2 text-right bg-muted">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loadoutEquipment.map(item => {
+                      const equipmentIds = getLoadoutEquipmentIds(selectedLoadout.id);
+                      const isInLoadout = equipmentIds.has(item.fighter_equipment_id);
+                      const checkboxId = `loadout-equipment-${item.fighter_equipment_id}`;
+                      const grantedById = grantedByIdOf(item);
+                      const isChild = !!item.target_equipment_id || !!grantedById;
+                      // Granted equipment can only be added to a loadout with the equipment that granted it
+                      const isLocked = !!grantedById && !isInLoadout && !equipmentIds.has(grantedById);
+                      const mutedClass = !isInLoadout ? "text-muted-foreground" : "";
+
+                      return (
+                        <tr
+                          key={item.fighter_equipment_id}
+                          className={`${isChild ? "border-b bg-muted/20" : "border-b"} ${isLocked ? "" : "hover:bg-muted cursor-pointer"}`}
+                          onClick={() => !isLocked && handleEquipmentToggle(item.fighter_equipment_id)}
+                        >
+                          <td className="px-1 py-1" onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              id={checkboxId}
+                              checked={isInLoadout}
+                              disabled={isLocked}
+                              onCheckedChange={() => handleEquipmentToggle(item.fighter_equipment_id)}
+                            />
+                          </td>
+                          <td className="px-1 py-1">
+                            <label
+                              htmlFor={checkboxId}
+                              className={isLocked ? "" : "cursor-pointer"}
+                            >
+                              {isChild && (
+                                <span className="text-muted-foreground mr-1" style={{ position: 'relative', top: '-4px' }}>
+                                  <TbCornerLeftUp className="inline" />
+                                </span>
+                              )}
+                              <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>
+                                {item.equipment_name}
+                              </span>
+                            </label>
+                          </td>
+                          <td className="px-1 py-1 pr-2 text-right">
+                            <span className={`${isChild ? "text-sm" : ""} ${mutedClass}`}>
+                              {item.cost ?? '-'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : selectedLoadout && loadoutEquipment.length === 0 ? (
+                <p className="text-muted-foreground italic">No equipment available</p>
+              ) : (
+                <p className="text-muted-foreground italic">
+                  Select a loadout from the list to manage its equipment
+                </p>
+              )}
             </div>
           </div>
         </div>
+      </Modal>
 
-        <div className="px-[10px] pb-2">
-          {selectedLoadout && (
-            <div className="mt-1 flex justify-end">
-              <table className="w-auto">
-                <tbody>
-                  <tr>
-                    <td className="text-right leading-none pr-2 py-0">
-                      <span className="text-sm text-muted-foreground">Loadout:</span>
-                    </td>
-                    <td className="text-right leading-none py-0">
-                      <span className="text-sm text-muted-foreground">{totalLoadoutCost} credits</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="text-right leading-none pr-2 py-0">
-                      <span className="text-sm text-muted-foreground">Fighter:</span>
-                    </td>
-                    <td className="text-right leading-none py-0">
-                      <span className="text-sm text-muted-foreground">{fighterBaseCost} credits</span>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="text-right leading-none pr-2 py-0">
-                      <span className="text-sm font-semibold">Total Cost:</span>
-                    </td>
-                    <td className="text-right leading-none py-0">
-                      <span className="text-sm font-semibold">{totalFighterCost} credits</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t px-[10px] py-2 flex justify-end gap-2 bg-card rounded-b-lg">
-          <Button
-            variant="outline"
-            onClick={() => requestCloseWithUnsavedChanges(onClose)}
-            disabled={isSaving}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSaveChanges}
-            disabled={isSaving}
-            className="bg-neutral-900 text-white hover:bg-gray-800"
-          >
-            {isSaving ? 'Saving...' : hasUnsavedChanges ? 'Save Changes' : 'Done'}
-          </Button>
-        </div>
-
-        {/* Confirmation Modal - rendered inside to layer on top */}
-        {confirmationType && (
-          <Modal
-            title={confirmationType === 'delete' ? 'Delete Loadout' : 'Unsaved Changes'}
-            content={
-              <p className="text-muted-foreground">
-                {confirmationType === 'delete'
-                  ? 'Are you sure you want to delete this loadout? This action cannot be undone.'
-                  : 'You have unsaved changes. Are you sure you want to discard them?'}
-              </p>
-            }
-            onClose={handleConfirmationCancel}
-            onConfirm={handleConfirmationConfirm}
-            confirmText={confirmationType === 'delete' ? 'Delete' : 'Discard'}
-            width="sm"
-          />
-        )}
-      </div>
-    </div>
+      {/* Confirmation Modal - rendered after so it layers on top */}
+      {confirmationType && (
+        <Modal
+          title={confirmationType === 'delete' ? 'Delete Loadout' : 'Unsaved Changes'}
+          content={
+            <p className="text-muted-foreground">
+              {confirmationType === 'delete'
+                ? 'Are you sure you want to delete this loadout? This action cannot be undone.'
+                : 'You have unsaved changes. Are you sure you want to discard them?'}
+            </p>
+          }
+          onClose={handleConfirmationCancel}
+          onConfirm={handleConfirmationConfirm}
+          confirmText={confirmationType === 'delete' ? 'Delete' : 'Discard'}
+          width="sm"
+        />
+      )}
+    </>
   );
 }

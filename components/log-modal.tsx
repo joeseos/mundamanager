@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Modal from '@/components/ui/modal';
 import { ListColumn } from '@/components/ui/list';
@@ -123,8 +123,12 @@ export default function LogModal({
   const endIndex = startIndex + logsPerPage;
   const currentLogs = filteredLogs.slice(startIndex, endIndex);
 
+  const tableRef = useRef<HTMLTableElement>(null);
+
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+    // Pagination is pinned in the footer, so bring the new page's first rows into view.
+    tableRef.current?.scrollIntoView({ block: 'start' });
   };
 
   const formatDate = (dateString: string | null) => {
@@ -170,6 +174,63 @@ export default function LogModal({
   const showFighterFilter = fighters && fighters.length > 0;
   const showVehicleFilter = vehicles && vehicles.length > 0;
 
+  const pagination = totalPages > 1 && (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="text-sm text-muted-foreground text-center sm:text-left">
+        Logs {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length}
+      </div>
+      <div className="flex items-center justify-center sm:justify-end space-x-2">
+        <button
+          onClick={() => goToPage(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Prev
+        </button>
+
+        <div className="flex items-center space-x-1">
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+            const showPage = page === 1 ||
+                           page === totalPages ||
+                           Math.abs(page - currentPage) <= 1;
+
+            if (!showPage) {
+              if (page === 2 && currentPage > 3) {
+                return <span key={page} className="px-2 text-muted-foreground">...</span>;
+              }
+              if (page === totalPages - 1 && currentPage < totalPages - 2) {
+                return <span key={page} className="px-2 text-muted-foreground">...</span>;
+              }
+              return null;
+            }
+
+            return (
+              <button
+                key={page}
+                onClick={() => goToPage(page)}
+                className={`px-3 py-1 text-sm border rounded-md ${
+                  currentPage === page
+                    ? 'bg-black text-white border-black'
+                    : 'hover:bg-muted'
+                }`}
+              >
+                {page}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={() => goToPage(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <Modal
       title={title}
@@ -182,6 +243,7 @@ export default function LogModal({
       }
       onClose={onClose}
       width="4xl"
+      footer={pagination}
     >
       {/* Filter Section */}
       <div className="mb-4">
@@ -254,126 +316,67 @@ export default function LogModal({
         )}
       </div>
 
-      <div className="max-h-[min(70vh,calc(100svh-12rem))] overflow-y-auto">
-        <table className="w-full table-auto">
-          <thead className="sticky top-0 bg-card z-10 shadow-xs">
-            <tr className="bg-muted">
-              {columns.map((column) => (
-                <th
-                  key={column.key}
-                  className={`px-2 sm:px-3 py-1 sm:py-2 text-left text-sm font-medium text-muted-foreground border-b-2 border-border whitespace-nowrap ${
-                    column.align === 'right' ? 'text-right' :
-                    column.align === 'center' ? 'text-center' : 'text-left'
-                  }`}
-                  style={column.width ? { width: column.width, minWidth: column.width } : undefined}
-                >
-                  {column.label}
-                </th>
-              ))}
+      <table ref={tableRef} className="w-full table-auto">
+        <thead className="sticky -top-4 bg-card z-10 shadow-xs">
+          <tr className="bg-muted">
+            {columns.map((column) => (
+              <th
+                key={column.key}
+                className={`px-2 sm:px-3 py-1 sm:py-2 text-left text-sm font-medium text-muted-foreground border-b-2 border-border whitespace-nowrap ${
+                  column.align === 'right' ? 'text-right' :
+                  column.align === 'center' ? 'text-center' : 'text-left'
+                }`}
+                style={column.width ? { width: column.width, minWidth: column.width } : undefined}
+              >
+                {column.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading ? (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="text-muted-foreground italic text-center py-8"
+              >
+                Loading...
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="text-muted-foreground italic text-center py-8"
-                >
-                  Loading...
-                </td>
-              </tr>
-            ) : filteredLogs.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="text-muted-foreground italic text-center py-8"
-                >
-                  {logs.length === 0 ? emptyMessage : 'No logs match the selected filters.'}
-                </td>
-              </tr>
-            ) : (
-              currentLogs.map((log) => (
-                <tr key={log.id} className="border-t hover:bg-muted">
-                  {columns.map((column) => (
-                    <td
-                      key={column.key}
-                      className={`px-2 sm:px-3 py-1 sm:py-2 text-sm align-top ${
-                        column.key === 'description' ? 'whitespace-pre-line' : 'sm:whitespace-nowrap'
-                      } ${
-                        column.align === 'right' ? 'text-right' :
-                        column.align === 'center' ? 'text-center' : 'text-left'
-                      }`}
-                      style={column.width ? { width: column.width, minWidth: column.width } : undefined}
-                    >
-                      {column.render
-                        ? column.render(log[column.key as keyof typeof log], log)
-                        : log[column.key as keyof typeof log] || 'System'
-                      }
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {totalPages > 1 && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 py-2 border-t border-border bg-muted mt-4">
-          <div className="text-sm text-muted-foreground text-center sm:text-left">
-            Logs {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length}
-          </div>
-          <div className="flex items-center justify-center sm:justify-end space-x-2">
-            <button
-              onClick={() => goToPage(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Prev
-            </button>
-
-            <div className="flex items-center space-x-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                const showPage = page === 1 ||
-                               page === totalPages ||
-                               Math.abs(page - currentPage) <= 1;
-
-                if (!showPage) {
-                  if (page === 2 && currentPage > 4) {
-                    return <span key={page} className="px-2 text-muted-foreground">...</span>;
-                  }
-                  if (page === totalPages - 1 && currentPage < totalPages - 3) {
-                    return <span key={page} className="px-2 text-muted-foreground">...</span>;
-                  }
-                  return null;
-                }
-
-                return (
-                  <button
-                    key={page}
-                    onClick={() => goToPage(page)}
-                    className={`px-3 py-1 text-sm border rounded-md ${
-                      currentPage === page
-                        ? 'bg-black text-white border-black'
-                        : 'hover:bg-muted'
+          ) : filteredLogs.length === 0 ? (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="text-muted-foreground italic text-center py-8"
+              >
+                {logs.length === 0 ? emptyMessage : 'No logs match the selected filters.'}
+              </td>
+            </tr>
+          ) : (
+            currentLogs.map((log) => (
+              <tr key={log.id} className="border-t hover:bg-muted">
+                {columns.map((column) => (
+                  <td
+                    key={column.key}
+                    className={`px-2 sm:px-3 py-1 sm:py-2 text-sm align-top ${
+                      column.key === 'description' ? 'whitespace-pre-line' : 'sm:whitespace-nowrap'
+                    } ${
+                      column.align === 'right' ? 'text-right' :
+                      column.align === 'center' ? 'text-center' : 'text-left'
                     }`}
+                    style={column.width ? { width: column.width, minWidth: column.width } : undefined}
                   >
-                    {page}
-                  </button>
-                );
-              })}
-            </div>
-
-            <button
-              onClick={() => goToPage(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="px-3 py-1 text-sm border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
+                    {column.render
+                      ? column.render(log[column.key as keyof typeof log], log)
+                      : log[column.key as keyof typeof log] || 'System'
+                    }
+                  </td>
+                ))}
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </Modal>
   );
 }
