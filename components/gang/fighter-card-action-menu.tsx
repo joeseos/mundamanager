@@ -135,18 +135,20 @@ export function FighterCardActionMenu({
     if (disableLink) return;
     // Only primary button
     if (event.button !== 0) return;
-    // Touch is handled in touchstart so one tap does not open then immediately close.
-    if (event.pointerType === 'touch') return;
 
     const target = event.target as HTMLElement | null;
-    // Only toggle the menu when pressing on the icon (menu trigger)
+    // Only intercept when pressing on the icon (menu trigger)
     if (!target?.closest('[data-fighter-card-menu-trigger]')) {
       return;
     }
 
-    // Keep the press from reaching the card underneath
+    // Keep the press from reaching the card underneath (and dnd-kit's PointerSensor,
+    // which would otherwise start a drag after a 600ms hold on the trigger).
     event.stopPropagation();
     event.preventDefault();
+
+    // Touch is handled in touchstart so one tap does not open then immediately close.
+    if (event.pointerType === 'touch') return;
 
     toggleMenuAt(event.clientX, event.clientY);
   };
