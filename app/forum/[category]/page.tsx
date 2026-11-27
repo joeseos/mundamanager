@@ -82,7 +82,7 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
           <ForumUnreadThreadsProvider
             categoryId={category.id}
             page={page}
-            threads={threads.map(({ number, last_post_at }) => ({ number, last_post_at }))}>
+            threadNumbers={threads.map((thread) => thread.number)}>
             <div className="mt-4 hidden sm:flex items-center gap-4 border-b pb-2 text-sm font-medium">
               <div className="flex flex-1 min-w-0 items-center gap-3">
                 <div className="w-14 shrink-0" />

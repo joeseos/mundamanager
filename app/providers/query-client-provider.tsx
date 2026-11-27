@@ -10,6 +10,9 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 /** How long a query with meta.persist is kept in the browser. Give it this gcTime too, so it stays in the saved cache. */
 export const PERSISTED_QUERY_MAX_AGE = 24 * 60 * 60 * 1000
 
+/** The localStorage key of the saved queries, also read by the forum's pre-paint script. */
+export const PERSISTED_QUERY_STORAGE_KEY = 'REACT_QUERY_OFFLINE_CACHE'
+
 // Undefined on the server, and where the browser blocks site data (reading localStorage throws)
 function browserStorage() {
   try {
@@ -52,7 +55,7 @@ export function QueryClientProviderWrapper({ children }: { children: React.React
         },
       })
   )
-  const [persister] = React.useState(() => createAsyncStoragePersister({ storage: browserStorage() }))
+  const [persister] = React.useState(() => createAsyncStoragePersister({ storage: browserStorage(), key: PERSISTED_QUERY_STORAGE_KEY }))
 
   return (
     <PersistQueryClientProvider
