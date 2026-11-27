@@ -11,6 +11,13 @@
   }
 }
 
+/* Coarse primary pointer (touch / stylus). Pair of fine-hover's pointer: fine. */
+@custom-variant coarse-pointer {
+  @media (pointer: coarse) {
+    @slot;
+  }
+}
+
 @layer base {
   :root {
     /* Light theme reference values */

@@ -895,12 +895,12 @@ const FighterCard = memo(function FighterCard({
 
   const menuTrigger = !isDragging && !disableLink && dragHandle ? (
     <div
-      className="absolute bottom-2 right-2 md:right-3 z-30 print:hidden cursor-pointer select-none"
+      className="absolute bottom-1.5 right-2 z-30 print:hidden cursor-pointer select-none flex items-end justify-end coarse-pointer:size-11"
       style={{ WebkitTouchCallout: 'none' }}
       data-fighter-card-menu-trigger
     >
       <CgMoreVerticalO
-        className="text-muted-foreground/40 fine-hover:text-muted-foreground transition-colors duration-200 text-xl size-6 cursor-pointer"
+        className="text-muted-foreground/40 fine-hover:text-muted-foreground transition-colors duration-200 text-xl size-7 coarse-pointer:size-8 cursor-pointer"
         title="Click to open action menu"
       />
     </div>

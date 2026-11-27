@@ -23,6 +23,8 @@ interface FighterCardActionMenuProps {
 
 /** Max movement (px) to count as a tap on menu items; avoids firing when user is scrolling */
 const MENU_TAP_MOVE_THRESHOLD = 10;
+/** Collapse touchstart + pointerdown from the same tap so the menu is not toggled twice. */
+const MENU_TOGGLE_COALESCE_MS = 100;
 
 export function FighterCardActionMenu({
   fighterId,
@@ -38,15 +40,16 @@ export function FighterCardActionMenu({
   const ignoreClickRef = useRef(false);
   const referenceElementRef = useRef<HTMLDivElement | null>(null);
   const menuTouchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const lastToggleAtRef = useRef(0);
 
   // Only one card's action menu is open at a time; context holds which fighter id is open
   const isOpen = modalsContext?.openActionMenuFighterId === fighterId;
   const setOpenActionMenuFighterId = modalsContext?.setOpenActionMenuFighterId;
 
   const { refs, floatingStyles, update } = useFloating({
-    placement: 'bottom-start',
+    placement: 'left-end',
     strategy: 'fixed',
-    middleware: [offset(8), flip(), shift({ padding: 8 })],
+    middleware: [offset(24), flip(), shift({ padding: 8 })],
   });
 
   const closeMenu = useCallback(() => {
@@ -89,6 +92,11 @@ export function FighterCardActionMenu({
       if (!floatingEl) return;
       const target = event.target as Node | null;
       if (target && floatingEl.contains(target)) return;
+      // The trigger owns open/close; treating it as an outside click would
+      // fight the toggle (and can close a menu that the same tap just opened).
+      if (target instanceof Element && target.closest('[data-fighter-card-menu-trigger]')) {
+        return;
+      }
       closeMenu();
     };
 
@@ -104,23 +112,34 @@ export function FighterCardActionMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, closeMenu]);
 
-  const openMenuAt = useCallback(
+  const toggleMenuAt = useCallback(
     (clientX: number, clientY: number) => {
       if (!modalsContext || disableLink || !setOpenActionMenuFighterId) return;
-      setOpenActionMenuFighterId(fighterId);
-      setCoords({ x: clientX, y: clientY });
+
+      const now = performance.now();
+      if (now - lastToggleAtRef.current < MENU_TOGGLE_COALESCE_MS) return;
+      lastToggleAtRef.current = now;
+
+      if (isOpen) {
+        closeMenu();
+      } else {
+        setOpenActionMenuFighterId(fighterId);
+        setCoords({ x: clientX, y: clientY });
+      }
       ignoreClickRef.current = true;
     },
-    [modalsContext, disableLink, setOpenActionMenuFighterId, fighterId],
+    [modalsContext, disableLink, setOpenActionMenuFighterId, fighterId, closeMenu, isOpen],
   );
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (disableLink) return;
     // Only primary button
     if (event.button !== 0) return;
+    // Touch is handled in touchstart so one tap does not open then immediately close.
+    if (event.pointerType === 'touch') return;
 
     const target = event.target as HTMLElement | null;
-    // Only open menu when pressing on the icon (menu trigger)
+    // Only toggle the menu when pressing on the icon (menu trigger)
     if (!target?.closest('[data-fighter-card-menu-trigger]')) {
       return;
     }
@@ -129,7 +148,7 @@ export function FighterCardActionMenu({
     event.stopPropagation();
     event.preventDefault();
 
-    openMenuAt(event.clientX, event.clientY);
+    toggleMenuAt(event.clientX, event.clientY);
   };
 
   // Handle touch events separately for mobile, so a long press on the icon opens our menu
@@ -147,10 +166,9 @@ export function FighterCardActionMenu({
     // Prevent browser's native long-press context menu (e.g. "Open in new tab" on the link).
     event.preventDefault();
 
-    // Get touch coordinates for menu positioning
     const touch = event.touches[0];
     if (touch) {
-      openMenuAt(touch.clientX, touch.clientY);
+      toggleMenuAt(touch.clientX, touch.clientY);
     }
   };
 
