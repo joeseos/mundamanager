@@ -107,11 +107,48 @@ const clientScriptProps = typeof window === 'undefined' ? {} : { type: 'applicat
 /**
  * Runs from the static HTML before first paint: bolds the titles this browser last
  * saw unread, from the page's query in the saved query cache, until the query settles.
- * Only for the user in the Supabase session cookie (chunked as .0, .1 when long),
- * so a signed-out viewer or another account sees no one else's saved state.
+ * Only for the user in the Supabase session cookie, so a signed-out viewer or another
+ * account sees no one else's saved state. Inlined with toString, so it uses only its arguments.
  */
-function unreadBootScript(categoryId: string, page: number) {
-  return `(function(){try{var session=document.cookie.split("; ").filter(function(c){return /^sb-[^=]*-auth-token(?:\\.\\d+)?=/.test(c);}).sort().map(function(c){return c.slice(c.indexOf("=")+1);}).join("");if(!session)return;session=session.indexOf("base64-")===0?atob(session.slice(7).replace(/-/g,"+").replace(/_/g,"/")):decodeURIComponent(session);var userId=JSON.parse(session).user.id;var cache=JSON.parse(localStorage.getItem(${JSON.stringify(PERSISTED_QUERY_STORAGE_KEY)}));if(!cache||Date.now()-cache.timestamp>${PERSISTED_QUERY_MAX_AGE})return;var query=cache.clientState.queries.filter(function(q){var k=q.queryKey;return k[0]==="forum-unread-threads"&&k[1]===userId&&k[2]===${JSON.stringify(categoryId)}&&k[3]===${page};})[0];if(!query||!query.state.data.length)return;var style=document.createElement("style");style.id=${JSON.stringify(UNREAD_BOOT_STYLE_ID)};style.textContent=query.state.data.map(function(n){return 'a[data-forum-thread="'+n+'"]';}).join(",")+"{font-weight:700}";document.head.appendChild(style);}catch(_){}})();`;
+function bootUnreadStyle(
+  storageKey: string,
+  maxAge: number,
+  styleId: string,
+  categoryId: string,
+  page: number,
+  threadNumbers: number[],
+) {
+  try {
+    // The session cookie, whole or in chunks .0, .1, ... (as @supabase/ssr reads it)
+    let whole = '';
+    const chunks: string[] = [];
+    for (const cookie of document.cookie.split('; ')) {
+      const match = /^sb-[^=]*-auth-token(?:\.(\d+))?=(.*)$/.exec(cookie);
+      if (match && match[1] === undefined) whole = match[2];
+      else if (match) chunks[Number(match[1])] = match[2];
+    }
+    let session = whole || chunks.join('');
+    if (!session) return;
+    session = session.startsWith('base64-')
+      ? atob(session.slice(7).replace(/-/g, '+').replace(/_/g, '/'))
+      : decodeURIComponent(session);
+    const userId = JSON.parse(session).user.id;
+
+    const cache = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+    if (!cache || Date.now() - cache.timestamp > maxAge) return;
+    const query = cache.clientState.queries.find(({ queryKey: key }: { queryKey: unknown[] }) =>
+      key[0] === 'forum-unread-threads' && key[1] === userId && key[2] === categoryId && key[3] === page,
+    );
+    const unread = ((query?.state.data ?? []) as number[]).filter((number) => threadNumbers.includes(number));
+    if (!unread.length) return;
+
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `${unread.map((number) => `a[data-forum-thread="${number}"]`).join(',')}{font-weight:700}`;
+    document.head.appendChild(style);
+  } catch {
+    // Leaves the titles to the query
+  }
 }
 
 /**
@@ -142,17 +179,23 @@ export function ForumUnreadThreadsProvider({
   // Before paint, so the titles go from the boot style to their own classes in one frame
   const settled = data !== undefined || isError || (!loading && userId === null);
   useLayoutEffect(() => {
-    const removeBootStyle = () => document.getElementById(UNREAD_BOOT_STYLE_ID)?.remove();
-    if (settled) removeBootStyle();
-    // Also when the page is left first, so the style can't reach the next list
-    return removeBootStyle;
+    if (settled) document.getElementById(UNREAD_BOOT_STYLE_ID)?.remove();
   }, [settled]);
+  // Escaped, as the arguments go inside a <script> tag
+  const bootArgs = JSON.stringify([
+    PERSISTED_QUERY_STORAGE_KEY,
+    PERSISTED_QUERY_MAX_AGE,
+    UNREAD_BOOT_STYLE_ID,
+    categoryId,
+    page,
+    threadNumbers,
+  ]).replace(/</g, '\\u003c');
   return (
     <ForumUnreadThreadsContext.Provider value={data ?? []}>
       <script
         suppressHydrationWarning
         {...clientScriptProps}
-        dangerouslySetInnerHTML={{ __html: unreadBootScript(categoryId, page) }}
+        dangerouslySetInnerHTML={{ __html: `(${bootUnreadStyle})(...${bootArgs})` }}
       />
       {children}
     </ForumUnreadThreadsContext.Provider>
