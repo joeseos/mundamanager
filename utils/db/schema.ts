@@ -1116,6 +1116,7 @@ export const forumThreads = pgTable('forum_threads', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   updated_by: uuid('updated_by'),
   article_published_at: timestamp('article_published_at', { withTimezone: true, mode: 'string' }),
+  imported_author_id: uuid('imported_author_id'),
 });
 
 export const forumPosts = pgTable('forum_posts', {
@@ -1129,6 +1130,16 @@ export const forumPosts = pgTable('forum_posts', {
   updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
   deleted_at: timestamp('deleted_at', { withTimezone: true, mode: 'string' }),
   deleted_by: uuid('deleted_by'),
+  imported_author_id: uuid('imported_author_id'),
+});
+
+export const forumImportedAuthors = pgTable('forum_imported_authors', {
+  id: uuid('id').primaryKey(),
+  xf_user_id: integer('xf_user_id'),
+  username: text('username').notNull(),
+  profile_id: uuid('profile_id'),
+  created_at: timestamp('created_at', { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
+  updated_at: timestamp('updated_at', { withTimezone: true, mode: 'string' }),
 });
 
 export const forumPostLikes = pgTable('forum_post_likes', {

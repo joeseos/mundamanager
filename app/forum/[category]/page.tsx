@@ -22,6 +22,7 @@ import { ForumCategoryImage } from '@/components/forum/forum-category-image';
 import { ForumNewThreadButton } from '@/components/forum/forum-new-thread';
 import { ForumTagChips } from '@/components/forum/forum-tag-chips';
 import { ForumThreadTitleLink, ForumUnreadThreadsProvider } from '@/components/forum/forum-viewer';
+import { YakTribeBadge } from '@/components/forum/yaktribe-badge';
 
 /** Also renders page/[page], the category's later pages. */
 interface ForumCategoryPageProps {
@@ -115,7 +116,9 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
                         </div>
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                           <span>
-                            {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at, true)}
+                            {thread.author ?? 'Unknown User'}
+                            {thread.author_imported && <YakTribeBadge className="ml-1.5 align-[1px]" />}
+                            {' '}· {formatForumDate(thread.created_at, true)}
                             {thread.like_count > 0 && (
                               <>
                                 {' '}· <LuHeart className="inline h-3.5 w-3.5 align-[-2px]" aria-label="Likes" /> {thread.like_count}
