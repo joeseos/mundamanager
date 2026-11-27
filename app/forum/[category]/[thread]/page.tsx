@@ -26,6 +26,7 @@ import { ForumMarkThreadRead, ForumThreadViewerProvider } from '@/components/for
 import { PatreonSupporterIcon } from '@/components/ui/patreon-supporter-icon';
 import { CogwheelPortrait } from '@/components/ui/cogwheel-portrait';
 import { UserRoleBadge } from '@/components/ui/user-role-badge';
+import { YakTribeBadge } from '@/components/forum/yaktribe-badge';
 import '@/components/ui/rich-text-editor.css';
 
 function ForumThreadHeading({ thread }: { thread: ForumThread }) {
@@ -58,7 +59,10 @@ function ForumPostByline({ post, opening = false }: { post: ForumPost; opening?:
           {post.author}
         </Link>
       ) : (
-        <span className="font-semibold">Unknown User</span>
+        <span className="font-semibold">{post.author ?? 'Unknown User'}</span>
+      )}
+      {post.author_imported && (
+        <YakTribeBadge className={opening ? undefined : 'ml-1.5 align-[1px]'} />
       )}
       {post.author_patreon_tier_id && (
         opening ? (
@@ -161,7 +165,9 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
               <ForumThreadHeading thread={thread} />
               <ForumTagChips tags={thread.tags} className="mt-1" badgeClassName="px-2 py-0.5 text-xs" />
               <p className="text-sm text-muted-foreground">
-                {thread.author ?? 'Unknown User'} · {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}
+                {thread.author ?? 'Unknown User'}
+                {thread.author_imported && <YakTribeBadge className="ml-1.5 align-[1px]" />}
+                {' '}· {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}
                 {thread.article_published_at && (
                   <>
                     {' '}·{' '}

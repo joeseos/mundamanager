@@ -1,11 +1,12 @@
 import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 import { and, asc, between, desc, eq, inArray, isNotNull, isNull, lt, max, min, ne, or, type SQL, sql } from 'drizzle-orm';
-import { alias, type AnyPgColumn } from 'drizzle-orm/pg-core';
+import { alias, QueryBuilder, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { getAppDb, withUserClaims } from '@/utils/db/client';
 import {
   forumArticleSubmissions,
   forumCategories,
+  forumImportedAuthors,
   forumPostLikes,
   forumReports,
   forumPosts,
@@ -51,6 +52,8 @@ export interface ForumThreadSummary {
   title: string;
   tags: ForumTag[];
   author: string | null;
+  /** The author is a YakTribe member with no Munda Manager account: imported posts nobody has claimed, or whose claimer deleted their account. */
+  author_imported: boolean;
   author_avatar_url: string | null;
   is_pinned: boolean;
   is_locked: boolean;
@@ -75,6 +78,8 @@ export interface ForumPost {
   post_number: number;
   author_id: string | null;
   author: string | null;
+  /** As in ForumThreadSummary */
+  author_imported: boolean;
   author_avatar_url: string | null;
   author_patreon_tier_id: string | null;
   author_patreon_tier_title: string | null;
@@ -100,8 +105,30 @@ const iso = (column: AnyPgColumn | SQL) => sql<string>`to_json(${column})`;
 
 const author = alias(profiles, 'author');
 const lastPostAuthor = alias(profiles, 'last_post_author');
+const importedAuthor = alias(forumImportedAuthors, 'imported_author');
 const openingPost = alias(forumPosts, 'opening_post');
 const reporter = alias(profiles, 'reporter');
+
+/**
+ * Posts imported from YakTribe that nobody has claimed have no author_id, so
+ * they show the imported author's name. Joined on imported_author_id, which the
+ * import sets on every post and opening post's thread.
+ */
+const authorName = sql<string | null>`coalesce(${author.username}, ${importedAuthor.username})`;
+const authorImported = sql<boolean>`(${author.id} is null and ${importedAuthor.id} is not null)`;
+
+/** The imported author of the thread's last post, when that post has no author. The last post's number is the post count. */
+const lastPostImportedAuthor = sql<string | null>`(${new QueryBuilder()
+  .select({ username: forumImportedAuthors.username })
+  .from(forumPosts)
+  .innerJoin(forumImportedAuthors, eq(forumImportedAuthors.id, forumPosts.imported_author_id))
+  .where(
+    and(
+      eq(forumPosts.thread_id, forumThreads.id),
+      eq(forumPosts.post_number, forumThreads.post_count),
+      isNull(forumPosts.author_id)
+    )
+  )})`;
 
 /** Categories in index order, each with its most recently active thread. */
 export const getForumCategories = unstable_cache(
@@ -112,6 +139,7 @@ export const getForumCategories = unstable_cache(
         title: forumThreads.title,
         latest_post_at: iso(forumThreads.last_post_at).as('latest_post_at'),
         last_post_author_id: forumThreads.last_post_author_id,
+        last_post_imported_author: lastPostImportedAuthor.as('last_post_imported_author'),
       })
       .from(forumThreads)
       .where(eq(forumThreads.category_id, forumCategories.id))
@@ -131,7 +159,7 @@ export const getForumCategories = unstable_cache(
         latest_number: latest.number,
         latest_title: latest.title,
         latest_last_post_at: latest.latest_post_at,
-        latest_last_post_author: lastPostAuthor.username,
+        latest_last_post_author: sql<string | null>`coalesce(${lastPostAuthor.username}, ${latest.last_post_imported_author})`,
       })
       .from(forumCategories)
       .leftJoinLateral(latest, sql`true`)
@@ -151,7 +179,7 @@ export const getForumCategories = unstable_cache(
             },
     }));
   },
-  ['forum-categories'],
+  ['forum-categories-v2'],
   { tags: [TAGS.forumIndex()], revalidate: 60 }
 );
 
@@ -172,14 +200,15 @@ const THREAD_SUMMARY_COLUMNS = {
   number: forumThreads.number,
   title: forumThreads.title,
   tags: threadTags,
-  author: author.username,
+  author: authorName,
+  author_imported: authorImported,
   author_avatar_url: author.avatar_url,
   is_pinned: forumThreads.is_pinned,
   is_locked: forumThreads.is_locked,
   post_count: forumThreads.post_count,
   created_at: iso(forumThreads.created_at),
   last_post_at: iso(forumThreads.last_post_at),
-  last_post_author: lastPostAuthor.username,
+  last_post_author: sql<string | null>`coalesce(${lastPostAuthor.username}, ${lastPostImportedAuthor})`,
 };
 
 /** One page of a category's threads: pinned first, then by latest post. */
@@ -190,13 +219,14 @@ export function getForumThreads(categoryId: string, page: number): Promise<Forum
         .select({ ...THREAD_SUMMARY_COLUMNS, like_count: sql<number>`coalesce(${openingPost.like_count}, 0)` })
         .from(forumThreads)
         .leftJoin(author, eq(author.id, forumThreads.author_id))
+        .leftJoin(importedAuthor, eq(importedAuthor.id, forumThreads.imported_author_id))
         .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
         .leftJoin(openingPost, and(eq(openingPost.thread_id, forumThreads.id), eq(openingPost.post_number, 1)))
         .where(eq(forumThreads.category_id, categoryId))
         .orderBy(desc(forumThreads.is_pinned), desc(forumThreads.last_post_at))
         .limit(FORUM_THREADS_PER_PAGE)
         .offset((page - 1) * FORUM_THREADS_PER_PAGE),
-    ['forum-threads-v3', categoryId, String(page)],
+    ['forum-threads-v4', categoryId, String(page)],
     { tags: [TAGS.forumCategory(categoryId)], revalidate: false }
   )();
 }
@@ -220,11 +250,12 @@ export const getForumThread = cache((number: number): Promise<ForumThread | null
         .from(forumThreads)
         .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
         .leftJoin(author, eq(author.id, forumThreads.author_id))
+        .leftJoin(importedAuthor, eq(importedAuthor.id, forumThreads.imported_author_id))
         .leftJoin(lastPostAuthor, eq(lastPostAuthor.id, forumThreads.last_post_author_id))
         .where(eq(forumThreads.number, number));
       return thread ?? null;
     },
-    ['forum-thread-v3', String(number)],
+    ['forum-thread-v4', String(number)],
     { tags: [TAGS.forumThread(number)], revalidate: false }
   )()
 );
@@ -242,7 +273,8 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
           id: forumPosts.id,
           post_number: forumPosts.post_number,
           author_id: forumPosts.author_id,
-          author: author.username,
+          author: authorName,
+          author_imported: authorImported,
           author_avatar_url: author.avatar_url,
           author_patreon_tier_id: author.patreon_tier_id,
           author_patreon_tier_title: author.patreon_tier_title,
@@ -255,6 +287,7 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
         })
         .from(forumPosts)
         .leftJoin(author, eq(author.id, forumPosts.author_id))
+        .leftJoin(importedAuthor, eq(importedAuthor.id, forumPosts.imported_author_id))
         .where(
           and(
             eq(forumPosts.thread_id, thread.id),
@@ -285,7 +318,7 @@ export function getForumPosts(thread: Pick<ForumThread, 'id' | 'number'>, page: 
         }),
       }));
     },
-    ['forum-posts', String(thread.number), String(page)],
+    ['forum-posts-v2', String(thread.number), String(page)],
     { tags: [TAGS.forumThread(thread.number)], revalidate: 60 }
   )();
 }
@@ -538,7 +571,7 @@ export function getForumReports(userId: string): Promise<ForumReport[]> {
         thread_number: forumThreads.number,
         thread_title: forumThreads.title,
         category_slug: forumCategories.slug,
-        author: author.username,
+        author: authorName,
         reports: sql<ForumReport['reports']>`json_agg(json_build_object('reporter', ${reporter.username}, 'reason', ${forumReports.reason}) order by ${forumReports.created_at})`,
         last_reported_at: iso(max(forumReports.created_at)),
       })
@@ -548,9 +581,10 @@ export function getForumReports(userId: string): Promise<ForumReport[]> {
       .innerJoin(forumThreads, eq(forumThreads.id, forumPosts.thread_id))
       .innerJoin(forumCategories, eq(forumCategories.id, forumThreads.category_id))
       .leftJoin(author, eq(author.id, forumPosts.author_id))
+      .leftJoin(importedAuthor, eq(importedAuthor.id, forumPosts.imported_author_id))
       // A removed post has been dealt with
       .where(isNull(forumPosts.deleted_at))
-      .groupBy(forumPosts.id, forumThreads.id, forumCategories.slug, author.username)
+      .groupBy(forumPosts.id, forumThreads.id, forumCategories.slug, author.username, importedAuthor.username)
       .orderBy(min(forumReports.created_at))
   );
 }
