@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useCallback, useLayoutEffect, useMemo, useSyncExternalStore } from 'react';
 import dynamic from 'next/dynamic';
 import { Button } from '../ui/button';
 import { FighterProps } from '@/types/fighter';
@@ -38,6 +38,32 @@ import { withVariantGroups } from '@/utils/variantFamily';
 import { withPetOwnerStatus } from '@/utils/fighter-status';
 
 const NO_SUBTYPES: Array<{ id: string; subtype: string; edition_slug?: string | null }> = [];
+
+const GANG_VIEW_MODE_KEY = 'gang_view_mode';
+const gangViewModeListeners = new Set<() => void>();
+
+function getGangViewModeSnapshot(): GangPageViewMode {
+  const saved = localStorage.getItem(GANG_VIEW_MODE_KEY);
+  return isGangPageViewMode(saved) ? saved : 'normal';
+}
+
+function getGangViewModeServerSnapshot(): GangPageViewMode {
+  return 'normal';
+}
+
+function subscribeGangViewMode(onStoreChange: () => void) {
+  gangViewModeListeners.add(onStoreChange);
+  window.addEventListener('storage', onStoreChange);
+  return () => {
+    gangViewModeListeners.delete(onStoreChange);
+    window.removeEventListener('storage', onStoreChange);
+  };
+}
+
+function persistGangViewMode(mode: GangPageViewMode) {
+  localStorage.setItem(GANG_VIEW_MODE_KEY, mode);
+  gangViewModeListeners.forEach((listener) => listener());
+}
 
 const GangEditModal = dynamic(() => import('./gang-edit-modal'), { ssr: false });
 const FighterAddModal = dynamic(() => import('./fighter-add/FighterAddModal'), { ssr: false });
@@ -270,17 +296,11 @@ export default function Gang({
   const [currentGangImageUrl, setCurrentGangImageUrl] = useState(image_url);
   const [currentPortraitUrl, setCurrentPortraitUrl] = useState(gang_portrait_url);
   const [currentPortraitId, setCurrentPortraitId] = useState(gang_portrait_id ?? null);
-  const [viewMode, setViewMode] = useState<GangPageViewMode>('normal');
-  const isFirstRender = useRef(true);
-
-  const [viewModeLoaded, setViewModeLoaded] = useState(false);
-  if (!viewModeLoaded && typeof window !== 'undefined') {
-    setViewModeLoaded(true);
-    const savedViewMode = localStorage.getItem('gang_view_mode');
-    if (isGangPageViewMode(savedViewMode)) {
-      setViewMode(savedViewMode);
-    }
-  }
+  const viewMode = useSyncExternalStore(
+    subscribeGangViewMode,
+    getGangViewModeSnapshot,
+    getGangViewModeServerSnapshot,
+  );
 
   const [prevInitialFighters, setPrevInitialFighters] = useState(initialFighters);
   if (initialFighters !== prevInitialFighters) {
@@ -522,10 +542,10 @@ export default function Gang({
   }, [wealthBreakdownRows]);
 
 
-  // Save to localStorage and update DOM (skip first render)
   // Note: Cleanup restores max-w-5xl when navigating away (e.g. to /print) so the print page
-  // is not affected by the gang view mode.
-  useEffect(() => {
+  // is not affected by the gang view mode. Persistence is only written from persistGangViewMode
+  // (the dropdown), so a mount effect cannot overwrite a saved 2/3/4-card mode.
+  useLayoutEffect(() => {
     const wrapper = document.getElementById('main-content-wrapper');
     if (wrapper) {
       if (viewMode !== 'normal') {
@@ -536,14 +556,6 @@ export default function Gang({
         wrapper.classList.add('max-w-5xl');
       }
     }
-
-    // Skip saving on first render to avoid overwriting localStorage
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    localStorage.setItem('gang_view_mode', viewMode);
 
     return () => {
       // Restore max-w-5xl when unmounting so other pages (e.g. /print) are not affected
@@ -1049,7 +1061,7 @@ export default function Gang({
                 {/* View Mode Dropdown - only show on desktop */}
                 <ViewModeDropdown
                   viewMode={viewMode}
-                  setViewMode={setViewMode}
+                  setViewMode={persistGangViewMode}
                   className="hidden sm:block max-w-[120px] md:max-w-full md:w-full"
                 />
 
@@ -1078,7 +1090,7 @@ export default function Gang({
               <div className="w-auto">
                 <ViewModeDropdown
                   viewMode={viewMode}
-                  setViewMode={setViewMode}
+                  setViewMode={persistGangViewMode}
                   className="sm:hidden w-auto mr-auto"
                 />
               </div>
