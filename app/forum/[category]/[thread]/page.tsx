@@ -62,7 +62,7 @@ function ForumPostByline({ post, opening = false }: { post: ForumPost; opening?:
         <span className="font-semibold">{post.author ?? 'Unknown User'}</span>
       )}
       {post.author_imported && (
-        <YakTribeBadge className={opening ? undefined : 'ml-1.5 align-[1px]'} />
+        <YakTribeBadge className={opening ? undefined : 'ml-1.5'} />
       )}
       {post.author_patreon_tier_id && (
         opening ? (
@@ -166,7 +166,7 @@ export default async function ForumThreadPage({ params }: ForumThreadPageProps) 
               <ForumTagChips tags={thread.tags} className="mt-1" badgeClassName="px-2 py-0.5 text-xs" />
               <p className="text-sm text-muted-foreground">
                 {thread.author ?? 'Unknown User'}
-                {thread.author_imported && <YakTribeBadge className="ml-1.5 align-[1px]" />}
+                {thread.author_imported && <YakTribeBadge className="ml-1.5" />}
                 {' '}· {formatForumDate(thread.created_at)} · {formatForumReplies(thread.post_count)}
                 {thread.article_published_at && (
                   <>

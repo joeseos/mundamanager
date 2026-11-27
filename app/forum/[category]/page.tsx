@@ -117,7 +117,7 @@ export default async function ForumCategoryPage({ params }: ForumCategoryPagePro
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                           <span>
                             {thread.author ?? 'Unknown User'}
-                            {thread.author_imported && <YakTribeBadge className="ml-1.5 align-[1px]" />}
+                            {thread.author_imported && <YakTribeBadge className="ml-1.5" />}
                             {' '}· {formatForumDate(thread.created_at, true)}
                             {thread.like_count > 0 && (
                               <>
