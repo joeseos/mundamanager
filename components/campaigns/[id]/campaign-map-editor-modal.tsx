@@ -340,7 +340,7 @@ export default function CampaignMapEditorModal({
         .from('users-images')
         .upload(filePath, compressedBlob, {
           contentType: 'image/webp',
-          cacheControl: 'no-cache',
+          cacheControl: '31536000',
           upsert: true,
         });
 

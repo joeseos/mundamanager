@@ -135,7 +135,7 @@ async function uploadPortraitBlob(
     const path = nextFreePath(base, taken);
     const { error } = await supabase.storage.from(bucket).upload(path, blob, {
       contentType: 'image/webp',
-      cacheControl: 'no-cache',
+      cacheControl: '3600',
       upsert: false,
     });
     if (!error) return path;
