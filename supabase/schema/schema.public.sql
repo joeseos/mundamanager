@@ -1478,6 +1478,7 @@ CREATE TABLE public.forum_threads (
     updated_at timestamp with time zone,
     updated_by uuid,
     article_published_at timestamp with time zone,
+    imported_author_id uuid,
     CONSTRAINT forum_threads_title_length CHECK (((char_length(btrim(title)) >= 1) AND (char_length(btrim(title)) <= 150)))
 );
 
@@ -7178,6 +7179,20 @@ COMMENT ON COLUMN public.forum_categories.image_url IS 'Public https URL of the 
 
 
 --
+-- Name: forum_imported_authors; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.forum_imported_authors (
+    id uuid NOT NULL,
+    xf_user_id integer,
+    username text NOT NULL,
+    profile_id uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone
+);
+
+
+--
 -- Name: forum_post_likes; Type: TABLE; Schema: public; Owner: -
 --
 
@@ -7243,6 +7258,7 @@ CREATE TABLE public.forum_posts (
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
     deleted_by uuid,
+    imported_author_id uuid,
     CONSTRAINT forum_posts_content_length CHECK ((char_length(content) <= 50000))
 );
 
@@ -8846,6 +8862,22 @@ ALTER TABLE ONLY public.forum_categories
 
 
 --
+-- Name: forum_imported_authors forum_imported_authors_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_imported_authors
+    ADD CONSTRAINT forum_imported_authors_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: forum_imported_authors forum_imported_authors_xf_user_id_key; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_imported_authors
+    ADD CONSTRAINT forum_imported_authors_xf_user_id_key UNIQUE (xf_user_id);
+
+
+--
 -- Name: forum_post_likes forum_post_likes_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -10419,6 +10451,13 @@ CREATE INDEX forum_posts_author_created_idx ON public.forum_posts USING btree (a
 
 
 --
+-- Name: forum_posts_imported_author_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_posts_imported_author_id_idx ON public.forum_posts USING btree (imported_author_id);
+
+
+--
 -- Name: forum_reports_reporter_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -10451,6 +10490,13 @@ CREATE INDEX forum_threads_author_created_idx ON public.forum_threads USING btre
 --
 
 CREATE INDEX forum_threads_category_list_idx ON public.forum_threads USING btree (category_id, is_pinned DESC, last_post_at DESC);
+
+
+--
+-- Name: forum_threads_imported_author_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX forum_threads_imported_author_id_idx ON public.forum_threads USING btree (imported_author_id);
 
 
 --
@@ -13246,6 +13292,14 @@ ALTER TABLE ONLY public.forum_article_submissions
 
 
 --
+-- Name: forum_imported_authors forum_imported_authors_profile_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_imported_authors
+    ADD CONSTRAINT forum_imported_authors_profile_id_fkey FOREIGN KEY (profile_id) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
 -- Name: forum_post_likes forum_post_likes_post_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -13299,6 +13353,14 @@ ALTER TABLE ONLY public.forum_posts
 
 ALTER TABLE ONLY public.forum_posts
     ADD CONSTRAINT forum_posts_deleted_by_fkey FOREIGN KEY (deleted_by) REFERENCES public.profiles(id) ON DELETE SET NULL;
+
+
+--
+-- Name: forum_posts forum_posts_imported_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_posts
+    ADD CONSTRAINT forum_posts_imported_author_id_fkey FOREIGN KEY (imported_author_id) REFERENCES public.forum_imported_authors(id) ON DELETE SET NULL;
 
 
 --
@@ -13371,6 +13433,14 @@ ALTER TABLE ONLY public.forum_threads
 
 ALTER TABLE ONLY public.forum_threads
     ADD CONSTRAINT forum_threads_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.forum_categories(id) ON DELETE RESTRICT;
+
+
+--
+-- Name: forum_threads forum_threads_imported_author_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.forum_threads
+    ADD CONSTRAINT forum_threads_imported_author_id_fkey FOREIGN KEY (imported_author_id) REFERENCES public.forum_imported_authors(id) ON DELETE SET NULL;
 
 
 --
@@ -14789,6 +14859,13 @@ CREATE POLICY "Allow campaign members to update territories" ON public.campaign_
   WHERE (cm.user_id = ( SELECT auth.uid() AS uid)))))) WITH CHECK ((( SELECT private.is_admin() AS is_admin) OR (campaign_id IN ( SELECT cm.campaign_id
    FROM public.campaign_members cm
   WHERE (cm.user_id = ( SELECT auth.uid() AS uid))))));
+
+
+--
+-- Name: forum_imported_authors Anyone can read imported authors; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY "Anyone can read imported authors" ON public.forum_imported_authors FOR SELECT USING (true);
 
 
 --
@@ -17561,6 +17638,33 @@ CREATE POLICY forum_categories_admin_insert_policy ON public.forum_categories FO
 --
 
 CREATE POLICY forum_categories_admin_update_policy ON public.forum_categories FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_imported_authors; Type: ROW SECURITY; Schema: public; Owner: -
+--
+
+ALTER TABLE public.forum_imported_authors ENABLE ROW LEVEL SECURITY;
+
+--
+-- Name: forum_imported_authors forum_imported_authors_admin_delete_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_imported_authors_admin_delete_policy ON public.forum_imported_authors FOR DELETE TO authenticated USING (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_imported_authors forum_imported_authors_admin_insert_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_imported_authors_admin_insert_policy ON public.forum_imported_authors FOR INSERT TO authenticated WITH CHECK (( SELECT private.is_admin() AS is_admin));
+
+
+--
+-- Name: forum_imported_authors forum_imported_authors_admin_update_policy; Type: POLICY; Schema: public; Owner: -
+--
+
+CREATE POLICY forum_imported_authors_admin_update_policy ON public.forum_imported_authors FOR UPDATE TO authenticated USING (( SELECT private.is_admin() AS is_admin)) WITH CHECK (( SELECT private.is_admin() AS is_admin));
 
 
 --
